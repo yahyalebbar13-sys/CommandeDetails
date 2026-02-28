@@ -1,43 +1,42 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Order, Facture } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Ship, ChevronLeft, Edit, Plus, Box } from 'lucide-react';
+import { ChevronLeft, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 
 interface FacturesViewProps {
-  orders: Order[];
-  factures: Facture[];
-  setFactures: React.Dispatch<React.SetStateAction<Facture[]>>;
+  articles: any[];
+  factures: any[];
 }
 
-export default function FacturesView({ orders, factures, setFactures }: FacturesViewProps) {
+export default function FacturesView({ articles, factures }: FacturesViewProps) {
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const aggregatedFactures = useMemo(() => {
     return factures.map(f => {
-      const fOrders = orders.filter(o => o.facture === f.id);
-      const itemsCount = fOrders.length;
-      const itemsVal = fOrders.reduce((sum, o) => sum + (o.qty * o.pa), 0);
-      const cbm = fOrders.reduce((sum, o) => sum + o.cbm, 0);
-      return { ...f, itemsCount, itemsVal, cbm };
+      const fArticles = articles.filter(o => o.factureId === f.id);
+      const itemsCount = fArticles.length;
+      const itemsVal = fArticles.reduce((sum, o) => sum + (o.quantity * o.purchasePricePerUnit), 0);
+      const cbm = fArticles.reduce((sum, o) => sum + (o.cubicMeasurement || 0), 0);
+      const freight = f.freightCost || f.freight || 0;
+      return { ...f, itemsCount, itemsVal, cbm, freight };
     }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
-  }, [orders, factures]);
+  }, [articles, factures]);
 
   const selectedFacture = useMemo(() => {
     if (!selectedFactureId) return null;
     return aggregatedFactures.find(f => f.id === selectedFactureId);
   }, [aggregatedFactures, selectedFactureId]);
 
-  const selectedFactureOrders = useMemo(() => {
+  const selectedFactureArticles = useMemo(() => {
     if (!selectedFactureId) return [];
-    return orders.filter(o => o.facture === selectedFactureId);
-  }, [orders, selectedFactureId]);
+    return articles.filter(o => o.factureId === selectedFactureId);
+  }, [articles, selectedFactureId]);
 
   if (selectedFactureId && selectedFacture) {
     return (
@@ -51,7 +50,7 @@ export default function FacturesView({ orders, factures, setFactures }: Factures
               {selectedFacture.id}
             </h2>
             <div className="text-sm text-stone-500 mt-1 font-medium">
-              Fournisseur : <span className="text-stone-800 font-bold">{selectedFacture.supplier}</span>
+              Fournisseur : <span className="text-stone-800 font-bold">{selectedFacture.supplierId || selectedFacture.supplier}</span>
             </div>
           </div>
           
@@ -80,7 +79,7 @@ export default function FacturesView({ orders, factures, setFactures }: Factures
             <div className="flex justify-between items-center">
               <CardTitle className="text-lg">Contenu du Conteneur</CardTitle>
               <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-                Total : {selectedFactureOrders.reduce((s,o)=>s+o.qty, 0).toLocaleString()} {selectedFactureOrders[0]?.unit || 'Unités'}
+                Total : {selectedFactureArticles.reduce((s,o)=>s+o.quantity, 0).toLocaleString()} {selectedFactureArticles[0]?.unitOfMeasure || 'Unités'}
               </Badge>
             </div>
           </CardHeader>
@@ -99,15 +98,15 @@ export default function FacturesView({ orders, factures, setFactures }: Factures
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedFactureOrders.map((o, i) => (
+                  {selectedFactureArticles.map((o, i) => (
                     <TableRow key={i} className="hover:bg-blue-50 transition-colors">
-                      <TableCell className="font-bold text-stone-600">{o.category}</TableCell>
-                      <TableCell className="font-bold">{o.article}</TableCell>
+                      <TableCell className="font-bold text-stone-600">{o.categoryId}</TableCell>
+                      <TableCell className="font-bold">{o.name}</TableCell>
                       <TableCell className="text-stone-500 text-xs">{o.specs}</TableCell>
-                      <TableCell className="text-right font-bold">{o.qty.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-emerald-700 font-medium">{o.cbm.toFixed(2)}</TableCell>
-                      <TableCell className="text-right text-stone-400 font-mono text-xs">{o.pa}</TableCell>
-                      <TableCell className="text-right font-black text-amber-700">{(o.qty * o.pa).toLocaleString()} €</TableCell>
+                      <TableCell className="text-right font-bold">{o.quantity.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-emerald-700 font-medium">{o.cubicMeasurement?.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-stone-400 font-mono text-xs">{o.purchasePricePerUnit}</TableCell>
+                      <TableCell className="text-right font-black text-amber-700">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -121,9 +120,6 @@ export default function FacturesView({ orders, factures, setFactures }: Factures
           onOpenChange={setIsEditModalOpen}
           factures={factures}
           editFacture={selectedFacture}
-          onSave={(updated) => {
-            setFactures(prev => prev.map(f => f.id === updated.id ? updated : f));
-          }}
         />
       </div>
     );
@@ -152,7 +148,7 @@ export default function FacturesView({ orders, factures, setFactures }: Factures
               Arr. {f.arrivalDate}
             </div>
             <div className="flex-grow pt-2">
-              <div className="text-[10px] text-stone-500 font-medium uppercase mb-1">{f.supplier}</div>
+              <div className="text-[10px] text-stone-500 font-medium uppercase mb-1">{f.supplierId || f.supplier}</div>
               <h3 className="text-xl font-black text-stone-800 tracking-tight mb-2 group-hover:text-blue-600 transition-colors">{f.id}</h3>
               <div className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded mb-4">
                 Vol: {f.cbm.toFixed(2)} m³
@@ -184,7 +180,6 @@ export default function FacturesView({ orders, factures, setFactures }: Factures
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         factures={factures}
-        onSave={(newF) => setFactures(prev => [newF, ...prev])}
       />
     </div>
   );

@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { initialOrders, initialFactures } from '@/lib/initial-data';
-import { Order, Facture, ViewType } from '@/lib/types';
+import React, { useState, useMemo } from 'react';
+import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
 import CategoriesView from '@/components/categories-view';
@@ -10,28 +9,41 @@ import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
 import AddOrderModal from '@/components/add-order-modal';
 import AddFactureModal from '@/components/add-facture-modal';
+import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Package, FileText, LayoutGrid, Users, Database } from 'lucide-react';
+import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore, useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, query, doc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 
 export default function StockVueApp() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [factures, setFactures] = useState<Facture[]>([]);
+  const { user, isUserLoading } = useUser();
+  const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    setOrders(initialOrders);
-    setFactures(initialFactures);
-  }, []);
+  // Firestore Collections with Authorization Independence (nested under user)
+  const facturesRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'factures');
+  }, [firestore, user]);
+
+  const articlesRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'articles');
+  }, [firestore, user]);
+
+  const { data: factures = [], isLoading: isFacturesLoading } = useCollection(facturesRef);
+  const { data: articles = [], isLoading: isArticlesLoading } = useCollection(articlesRef);
 
   const handleExport = () => {
     const headers = ['Catégorie', 'Article', 'Spécifications', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
-    const rows = orders.map(d => {
-      const total = (d.qty * d.pa).toFixed(2);
-      return [d.category, d.article, d.specs || '-', d.color || '-', d.supplier, d.facture || '-', d.orderDate, d.arrivalDate, d.qty, d.unit, d.cbm || 0, d.pa, total]
+    const rows = articles.map(d => {
+      const total = (d.quantity * d.purchasePricePerUnit).toFixed(2);
+      return [d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate, d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
         .map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(',');
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
@@ -52,12 +64,24 @@ export default function StockVueApp() {
     { id: 'data', label: 'Base Complète', icon: Database },
   ] as const;
 
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthView />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#fdfbf7]">
       <nav className="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
               <span className="text-xl md:text-2xl font-bold text-stone-700 tracking-tight">
                 📦 GESTION<span className="text-amber-600">COMMANDES</span>
               </span>
@@ -84,6 +108,9 @@ export default function StockVueApp() {
               <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1">
                 <Plus className="w-4 h-4" /> Cmd
               </Button>
+              <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-500">
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
           
@@ -105,39 +132,31 @@ export default function StockVueApp() {
       </nav>
 
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {activeTab === 'dashboard' && <DashboardView orders={orders} factures={factures} onNavigate={setActiveTab} />}
-        {activeTab === 'factures' && <FacturesView orders={orders} factures={factures} setFactures={setFactures} />}
-        {activeTab === 'categories' && <CategoriesView orders={orders} />}
-        {activeTab === 'suppliers' && <SuppliersView orders={orders} />}
-        {activeTab === 'data' && <DataView orders={orders} />}
+        {(isFacturesLoading || isArticlesLoading) ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-stone-300" />
+          </div>
+        ) : (
+          <>
+            {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} />}
+            {activeTab === 'factures' && <FacturesView articles={articles || []} factures={factures || []} />}
+            {activeTab === 'categories' && <CategoriesView articles={articles || []} />}
+            {activeTab === 'suppliers' && <SuppliersView articles={articles || []} />}
+            {activeTab === 'data' && <DataView articles={articles || []} />}
+          </>
+        )}
       </main>
 
       <AddOrderModal
         open={isOrderModalOpen}
         onOpenChange={setIsOrderModalOpen}
-        factures={factures}
-        onAdd={(newOrder) => {
-          setOrders(prev => [newOrder, ...prev]);
-          toast({ title: "Article ajouté !", description: `${newOrder.article} a été ajouté.` });
-        }}
+        factures={factures || []}
       />
 
       <AddFactureModal
         open={isFactureModalOpen}
         onOpenChange={setIsFactureModalOpen}
-        factures={factures}
-        onSave={(newFacture) => {
-          setFactures(prev => {
-            const idx = prev.findIndex(f => f.id === newFacture.id);
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = newFacture;
-              return updated;
-            }
-            return [newFacture, ...prev];
-          });
-          toast({ title: "Facture enregistrée !", description: `N° ${newFacture.id}` });
-        }}
+        factures={factures || []}
       />
     </div>
   );

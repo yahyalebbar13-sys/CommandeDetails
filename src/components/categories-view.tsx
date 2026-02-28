@@ -1,51 +1,51 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Order } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, User, Calendar, Ship, Clock } from 'lucide-react';
+import { ChevronLeft, Package, User, Calendar, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface CategoriesViewProps {
-  orders: Order[];
+  articles: any[];
 }
 
-export default function CategoriesView({ orders }: CategoriesViewProps) {
+export default function CategoriesView({ articles }: CategoriesViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const data: Record<string, { qty: number; val: number; count: number }> = {};
-    orders.forEach(o => {
-      if (!data[o.category]) data[o.category] = { qty: 0, val: 0, count: 0 };
-      data[o.category].qty += o.qty;
-      data[o.category].val += (o.qty * o.pa);
-      data[o.category].count += 1;
+    articles.forEach(o => {
+      const cat = o.categoryId || 'Inconnu';
+      if (!data[cat]) data[cat] = { qty: 0, val: 0, count: 0 };
+      data[cat].qty += o.quantity;
+      data[cat].val += (o.quantity * o.purchasePricePerUnit);
+      data[cat].count += 1;
     });
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [orders]);
+  }, [articles]);
 
   if (selectedCategory) {
-    const catOrders = orders.filter(o => o.category === selectedCategory);
+    const catArticles = articles.filter(o => o.categoryId === selectedCategory);
     const now = new Date();
-    const transit = catOrders.filter(o => new Date(o.arrivalDate) > now);
-    const arrived = catOrders.filter(o => new Date(o.arrivalDate) <= now);
+    const transit = catArticles.filter(o => new Date(o.arrivalDate) > now);
+    const arrived = catArticles.filter(o => new Date(o.arrivalDate) <= now);
     
     const supplierSpending: Record<string, number> = {};
-    catOrders.forEach(o => {
-      supplierSpending[o.supplier] = (supplierSpending[o.supplier] || 0) + (o.qty * o.pa);
+    catArticles.forEach(o => {
+      const sup = o.supplierId || 'Inconnu';
+      supplierSpending[sup] = (supplierSpending[sup] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
     const mainSupplier = Object.entries(supplierSpending).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
     
-    const totalVal = catOrders.reduce((s, o) => s + (o.qty * o.pa), 0);
-    const totalQty = catOrders.reduce((s, o) => s + o.qty, 0);
+    const totalVal = catArticles.reduce((s, o) => s + (o.quantity * o.purchasePricePerUnit), 0);
+    const totalQty = catArticles.reduce((s, o) => s + o.quantity, 0);
 
-    // Get latest order and next arrival dates
-    const orderDates = catOrders.map(o => new Date(o.orderDate).getTime()).filter(t => !isNaN(t));
+    const orderDates = catArticles.map(o => new Date(o.orderDate).getTime()).filter(t => !isNaN(t));
     const latestOrderDate = orderDates.length ? new Date(Math.max(...orderDates)).toISOString().split('T')[0] : '-';
     
-    const futureArrivals = catOrders.map(o => new Date(o.arrivalDate).getTime()).filter(t => t > now.getTime());
+    const futureArrivals = catArticles.map(o => new Date(o.arrivalDate).getTime()).filter(t => t > now.getTime());
     const nextArrivalDate = futureArrivals.length ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0] : 'Aucune';
 
     return (
@@ -160,14 +160,14 @@ function CategoryTableSection({ title, data, color, count }: any) {
                 </TableRow>
               ) : data.map((d: any, i: number) => (
                 <TableRow key={i} className="hover:bg-stone-50 transition-colors">
-                  <TableCell className="font-bold">{d.article}</TableCell>
+                  <TableCell className="font-bold">{d.name}</TableCell>
                   <TableCell className="text-xs">{d.color}</TableCell>
-                  <TableCell className="font-bold text-stone-600 bg-stone-50/50">{d.facture}</TableCell>
+                  <TableCell className="font-bold text-stone-600 bg-stone-50/50">{d.factureId}</TableCell>
                   <TableCell className={`font-bold ${color === 'blue' ? 'text-blue-600' : 'text-green-600'}`}>{d.arrivalDate}</TableCell>
-                  <TableCell className="text-right font-bold">{d.qty.toLocaleString()}</TableCell>
-                  <TableCell className="text-right text-emerald-700 font-bold text-xs">{d.cbm?.toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-xs font-mono">{d.pa}</TableCell>
-                  <TableCell className="text-right font-black text-amber-700">{Math.round(d.qty * d.pa).toLocaleString()} €</TableCell>
+                  <TableCell className="text-right font-bold">{d.quantity.toLocaleString()}</TableCell>
+                  <TableCell className="text-right text-emerald-700 font-bold text-xs">{d.cubicMeasurement?.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-xs font-mono">{d.purchasePricePerUnit}</TableCell>
+                  <TableCell className="text-right font-black text-amber-700">{Math.round(d.quantity * d.purchasePricePerUnit).toLocaleString()} €</TableCell>
                 </TableRow>
               ))}
             </TableBody>

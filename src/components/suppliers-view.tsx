@@ -1,25 +1,25 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { Order } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users } from 'lucide-react';
 
 interface SuppliersViewProps {
-  orders: Order[];
+  articles: any[];
 }
 
-export default function SuppliersView({ orders }: SuppliersViewProps) {
+export default function SuppliersView({ articles }: SuppliersViewProps) {
   const supplierStats = useMemo(() => {
     const stats: Record<string, { val: number; orders: number; categories: Set<string> }> = {};
-    orders.forEach(o => {
-      if (!stats[o.supplier]) stats[o.supplier] = { val: 0, orders: 0, categories: new Set() };
-      stats[o.supplier].val += (o.qty * o.pa);
-      stats[o.supplier].orders += 1;
-      stats[o.supplier].categories.add(o.category);
+    articles.forEach(o => {
+      const sup = o.supplierId || 'Inconnu';
+      if (!stats[sup]) stats[sup] = { val: 0, orders: 0, categories: new Set() };
+      stats[sup].val += (o.quantity * o.purchasePricePerUnit);
+      stats[sup].orders += 1;
+      stats[sup].categories.add(o.categoryId || 'Inconnu');
     });
     return Object.entries(stats).sort((a, b) => b[1].val - a[1].val);
-  }, [orders]);
+  }, [articles]);
 
   return (
     <div className="space-y-8 fade-in">

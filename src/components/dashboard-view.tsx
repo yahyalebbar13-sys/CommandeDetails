@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { Order, Facture, ViewType } from '@/lib/types';
+import { ViewType } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
-  BarChart, 
-  Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -20,39 +18,40 @@ import {
 import { Package, Banknote, Cuboid as Cube, FileText, CheckCircle2, Ship } from 'lucide-react';
 
 interface DashboardViewProps {
-  orders: Order[];
-  factures: Facture[];
+  articles: any[];
+  factures: any[];
   onNavigate: (tab: ViewType) => void;
 }
 
-export default function DashboardView({ orders, factures, onNavigate }: DashboardViewProps) {
+export default function DashboardView({ articles, factures, onNavigate }: DashboardViewProps) {
   const stats = useMemo(() => {
     const now = new Date();
     let totalQty = 0, arrivedQty = 0;
     let totalVal = 0, arrivedVal = 0;
     let totalCbm = 0, arrivedCbm = 0;
 
-    orders.forEach(o => {
-      const val = o.qty * o.pa;
+    articles.forEach(o => {
+      const val = o.quantity * o.purchasePricePerUnit;
       const arrival = new Date(o.arrivalDate);
       const isArrived = arrival <= now;
 
-      totalQty += o.qty;
+      totalQty += o.quantity;
       totalVal += val;
-      totalCbm += o.cbm;
+      totalCbm += o.cubicMeasurement;
 
       if (isArrived) {
-        arrivedQty += o.qty;
+        arrivedQty += o.quantity;
         arrivedVal += val;
-        arrivedCbm += o.cbm;
+        arrivedCbm += o.cubicMeasurement;
       }
     });
 
     // Add freight to total value
     factures.forEach(f => {
-      totalVal += f.freight;
+      const freight = f.freightCost || f.freight || 0;
+      totalVal += freight;
       if (new Date(f.arrivalDate) <= now) {
-        arrivedVal += f.freight;
+        arrivedVal += freight;
       }
     });
 
@@ -64,24 +63,25 @@ export default function DashboardView({ orders, factures, onNavigate }: Dashboar
       arrivedFactures: factures.filter(f => new Date(f.arrivalDate) <= now).length,
       transitFactures: factures.filter(f => new Date(f.arrivalDate) > now).length
     };
-  }, [orders, factures]);
+  }, [articles, factures]);
 
   const categoryData = useMemo(() => {
     const data: Record<string, number> = {};
-    orders.forEach(o => {
-      data[o.category] = (data[o.category] || 0) + (o.qty * o.pa);
+    articles.forEach(o => {
+      const cat = o.categoryId || 'Inconnu';
+      data[cat] = (data[cat] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
     return Object.entries(data).map(([name, value]) => ({ name, value }));
-  }, [orders]);
+  }, [articles]);
 
   const timelineData = useMemo(() => {
     const data: Record<string, number> = {};
-    orders.forEach(o => {
-      const month = o.orderDate.substring(0, 7);
-      data[month] = (data[month] || 0) + (o.qty * o.pa);
+    articles.forEach(o => {
+      const month = o.orderDate?.substring(0, 7) || 'Inconnu';
+      data[month] = (data[month] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
     return Object.entries(data).sort().map(([name, value]) => ({ name, value }));
-  }, [orders]);
+  }, [articles]);
 
   const COLORS = ['#d97706', '#78716c', '#a8a29e', '#fbbf24', '#44403c', '#d6d3d1'];
 

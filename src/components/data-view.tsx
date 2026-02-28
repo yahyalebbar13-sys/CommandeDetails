@@ -1,30 +1,29 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Order } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search } from 'lucide-react';
 
 interface DataViewProps {
-  orders: Order[];
+  articles: any[];
 }
 
-export default function DataView({ orders }: DataViewProps) {
+export default function DataView({ articles }: DataViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredOrders = useMemo(() => {
+  const filteredArticles = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    if (!term) return orders;
-    return orders.filter(o => 
-      o.category.toLowerCase().includes(term) ||
-      o.article.toLowerCase().includes(term) ||
-      o.supplier.toLowerCase().includes(term) ||
-      o.facture.toLowerCase().includes(term) ||
-      (o.color && o.color.toLowerCase().includes(term))
+    if (!term) return articles;
+    return articles.filter(o => 
+      (o.categoryId || '').toLowerCase().includes(term) ||
+      (o.name || '').toLowerCase().includes(term) ||
+      (o.supplierId || '').toLowerCase().includes(term) ||
+      (o.factureId || '').toLowerCase().includes(term) ||
+      (o.color || '').toLowerCase().includes(term)
     );
-  }, [orders, searchTerm]);
+  }, [articles, searchTerm]);
 
   return (
     <div className="fade-in space-y-4">
@@ -57,21 +56,21 @@ export default function DataView({ orders }: DataViewProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.length === 0 ? (
+                {filteredArticles.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-12 text-stone-400">Aucun résultat trouvé</TableCell>
                   </TableRow>
                 ) : (
-                  filteredOrders.map((o, i) => (
+                  filteredArticles.map((o, i) => (
                     <TableRow key={i} className="hover:bg-stone-50 transition-colors">
-                      <TableCell className="font-bold text-xs bg-stone-50">{o.category}</TableCell>
-                      <TableCell className="font-bold text-xs">{o.article}</TableCell>
-                      <TableCell className="text-xs">{o.supplier}</TableCell>
-                      <TableCell className="font-bold text-xs bg-stone-100">{o.facture}</TableCell>
+                      <TableCell className="font-bold text-xs bg-stone-50">{o.categoryId}</TableCell>
+                      <TableCell className="font-bold text-xs">{o.name}</TableCell>
+                      <TableCell className="text-xs">{o.supplierId}</TableCell>
+                      <TableCell className="font-bold text-xs bg-stone-100">{o.factureId}</TableCell>
                       <TableCell className="font-bold text-blue-600 bg-blue-50/30 text-xs">{o.arrivalDate}</TableCell>
-                      <TableCell className="text-right font-bold text-xs">{o.qty.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-emerald-700 font-bold text-xs">{o.cbm.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.qty * o.pa).toLocaleString()} €</TableCell>
+                      <TableCell className="text-right font-bold text-xs">{o.quantity.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-emerald-700 font-bold text-xs">{o.cubicMeasurement?.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
                     </TableRow>
                   ))
                 )}

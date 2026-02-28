@@ -5,43 +5,67 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Facture } from '@/lib/types';
+import { useUser, useFirestore } from '@/firebase';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 interface AddFactureModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  factures: Facture[];
-  editFacture?: Facture | null;
-  onSave: (facture: Facture) => void;
+  factures: any[];
+  editFacture?: any | null;
 }
 
-export default function AddFactureModal({ open, onOpenChange, editFacture, onSave }: AddFactureModalProps) {
-  const [formData, setFormData] = useState<Facture>({
+export default function AddFactureModal({ open, onOpenChange, editFacture }: AddFactureModalProps) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const [formData, setFormData] = useState<any>({
     id: '',
     arrivalDate: '',
-    supplier: '',
-    freight: 0
+    supplierId: '',
+    freightCost: 0
   });
 
   useEffect(() => {
     if (editFacture) {
-      setFormData(editFacture);
+      setFormData({
+        id: editFacture.id,
+        arrivalDate: editFacture.arrivalDate,
+        supplierId: editFacture.supplierId || editFacture.supplier || '',
+        freightCost: editFacture.freightCost || editFacture.freight || 0
+      });
     } else {
       setFormData({
         id: '',
         arrivalDate: new Date().toISOString().split('T')[0],
-        supplier: '',
-        freight: 0
+        supplierId: '',
+        freightCost: 0
       });
     }
   }, [editFacture, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.id) {
-      onSave({ ...formData, id: formData.id.toUpperCase().trim() });
-      onOpenChange(false);
-    }
+    if (!user || !firestore || !formData.id) return;
+
+    const factureId = formData.id.toUpperCase().trim();
+    const facturesRef = collection(firestore, 'users', user.uid, 'factures');
+    const docRef = doc(facturesRef, factureId);
+    
+    const factureData = {
+      ...formData,
+      id: factureId,
+      updatedAt: serverTimestamp()
+    };
+
+    // Non-blocking write
+    setDocumentNonBlocking(docRef, factureData, { merge: true });
+
+    toast({ title: "Facture enregistrée !", description: `N° ${factureId}` });
+    onOpenChange(false);
   };
 
   return (
@@ -58,7 +82,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, onSav
             <Label className="font-bold text-stone-800">N° de Facture / Conteneur</Label>
             <Input 
               value={formData.id}
-              onChange={e => setFormData(prev => ({ ...prev, id: e.target.value }))}
+              onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
               required 
               disabled={!!editFacture}
               className="uppercase font-bold" 
@@ -70,8 +94,8 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, onSav
           <div className="space-y-1">
             <Label>Fournisseur (Optionnel)</Label>
             <Input 
-              value={formData.supplier}
-              onChange={e => setFormData(prev => ({ ...prev, supplier: e.target.value }))}
+              value={formData.supplierId}
+              onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
               placeholder="Ex: MH"
             />
           </div>
@@ -84,7 +108,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, onSav
                 required
                 className="bg-blue-50 border-blue-200"
                 value={formData.arrivalDate}
-                onChange={e => setFormData(prev => ({ ...prev, arrivalDate: e.target.value }))}
+                onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
@@ -93,8 +117,8 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, onSav
                 type="number"
                 step="0.01"
                 className="bg-red-50 border-red-200"
-                value={formData.freight}
-                onChange={e => setFormData(prev => ({ ...prev, freight: parseFloat(e.target.value) || 0 }))}
+                value={formData.freightCost}
+                onChange={e => setFormData((prev: any) => ({ ...prev, freightCost: parseFloat(e.target.value) || 0 }))}
                 placeholder="Ex: 1500"
               />
             </div>
