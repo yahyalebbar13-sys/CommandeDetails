@@ -5,7 +5,7 @@ import { Order } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, User, Calendar, Ship, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Package, User, Calendar, Ship, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface CategoriesViewProps {
@@ -41,6 +41,13 @@ export default function CategoriesView({ orders }: CategoriesViewProps) {
     const totalVal = catOrders.reduce((s, o) => s + (o.qty * o.pa), 0);
     const totalQty = catOrders.reduce((s, o) => s + o.qty, 0);
 
+    // Get latest order and next arrival dates
+    const orderDates = catOrders.map(o => new Date(o.orderDate).getTime()).filter(t => !isNaN(t));
+    const latestOrderDate = orderDates.length ? new Date(Math.max(...orderDates)).toISOString().split('T')[0] : '-';
+    
+    const futureArrivals = catOrders.map(o => new Date(o.arrivalDate).getTime()).filter(t => t > now.getTime());
+    const nextArrivalDate = futureArrivals.length ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0] : 'Aucune';
+
     return (
       <div className="space-y-6 fade-in">
         <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-8 border-l-amber-500">
@@ -59,8 +66,8 @@ export default function CategoriesView({ orders }: CategoriesViewProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard label="Quantité Totale" value={totalQty.toLocaleString()} icon={<Package className="w-4 h-4 text-stone-400" />} />
           <StatCard label="Frns. Principal" value={mainSupplier} icon={<User className="w-4 h-4 text-stone-400" />} />
-          <StatCard label="Articles" value={catOrders.length.toString()} icon={<Calendar className="w-4 h-4 text-stone-400" />} />
-          <StatCard label="Status" value={`${arrived.length} Arrivés / ${transit.length} Transit`} icon={<Ship className="w-4 h-4 text-blue-400" />} />
+          <StatCard label="Dernière Commande" value={latestOrderDate} icon={<Calendar className="w-4 h-4 text-stone-400" />} />
+          <StatCard label="Prochaine Arrivée" value={nextArrivalDate} icon={<Clock className="w-4 h-4 text-blue-400" />} className="bg-blue-50/50" />
         </div>
 
         <CategoryTableSection title="🚢 Commandes en Transit" data={transit} color="blue" count={transit.length} />
@@ -105,9 +112,9 @@ export default function CategoriesView({ orders }: CategoriesViewProps) {
   );
 }
 
-function StatCard({ label, value, icon }: any) {
+function StatCard({ label, value, icon, className }: any) {
   return (
-    <Card className="bg-white p-5 rounded-xl shadow-sm border border-stone-100">
+    <Card className={`bg-white p-5 rounded-xl shadow-sm border border-stone-100 ${className}`}>
       <div className="flex items-center gap-2 mb-1">
         {icon}
         <span className="text-[10px] text-stone-500 uppercase tracking-wide font-bold">{label}</span>
@@ -141,6 +148,7 @@ function CategoryTableSection({ title, data, color, count }: any) {
                 <TableHead>Facture</TableHead>
                 <TableHead>Arrivée</TableHead>
                 <TableHead className="text-right">Qté</TableHead>
+                <TableHead className="text-right">CBM</TableHead>
                 <TableHead className="text-right">PA</TableHead>
                 <TableHead className="text-right">Total</TableHead>
               </TableRow>
@@ -148,7 +156,7 @@ function CategoryTableSection({ title, data, color, count }: any) {
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-stone-400 italic py-8">Aucune commande</TableCell>
+                  <TableCell colSpan={8} className="text-center text-stone-400 italic py-8">Aucune commande</TableCell>
                 </TableRow>
               ) : data.map((d: any, i: number) => (
                 <TableRow key={i} className="hover:bg-stone-50 transition-colors">
@@ -157,8 +165,9 @@ function CategoryTableSection({ title, data, color, count }: any) {
                   <TableCell className="font-bold text-stone-600 bg-stone-50/50">{d.facture}</TableCell>
                   <TableCell className={`font-bold ${color === 'blue' ? 'text-blue-600' : 'text-green-600'}`}>{d.arrivalDate}</TableCell>
                   <TableCell className="text-right font-bold">{d.qty.toLocaleString()}</TableCell>
+                  <TableCell className="text-right text-emerald-700 font-bold text-xs">{d.cbm?.toFixed(2)}</TableCell>
                   <TableCell className="text-right text-xs font-mono">{d.pa}</TableCell>
-                  <TableCell className="text-right font-black text-amber-700">{(d.qty * d.pa).toLocaleString()} €</TableCell>
+                  <TableCell className="text-right font-black text-amber-700">{Math.round(d.qty * d.pa).toLocaleString()} €</TableCell>
                 </TableRow>
               ))}
             </TableBody>
