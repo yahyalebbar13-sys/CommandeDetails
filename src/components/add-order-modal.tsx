@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -5,13 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Facture } from '@/lib/types';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 interface AddOrderModalProps {
   open: boolean;
@@ -35,7 +35,8 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     categoryId: '',
     name: '',
     supplierId: '',
-    factureId: ''
+    factureId: '',
+    specs: ''
   });
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [autofillVisible, setAutofillVisible] = useState(false);
@@ -49,7 +50,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
       setFormData((prev: any) => ({
         ...prev,
         arrivalDate: knownFacture.arrivalDate,
-        supplierId: knownFacture.supplierId || knownFacture.supplier // Handling possible different naming
+        supplierId: knownFacture.supplierId || knownFacture.supplier
       }));
       setAutofillVisible(true);
       setTimeout(() => setAutofillVisible(false), 3000);
@@ -87,8 +88,8 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
         createdAt: serverTimestamp()
       };
 
-      // Non-blocking write
-      addDocumentNonBlocking(articlesRef, articleData);
+      // Correction : Utilisation de setDocumentNonBlocking pour garantir la correspondance entre l'ID doc et l'ID data
+      setDocumentNonBlocking(docRef, articleData, { merge: true });
 
       toast({ title: "Article ajouté !", description: `${formData.name} a été enregistré.` });
       onOpenChange(false);
@@ -103,7 +104,8 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
         categoryId: '',
         name: '',
         supplierId: '',
-        factureId: ''
+        factureId: '',
+        specs: ''
       });
     }
   };
