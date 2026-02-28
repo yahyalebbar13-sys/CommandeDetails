@@ -180,7 +180,11 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                  <Tooltip formatter={(value: any, name: string) => [`${Math.round(value).toLocaleString()} €`, name === 'value' ? 'Valeur' : name]} />
+                  <Tooltip 
+                    formatter={(value: any) => [`${Math.round(value).toLocaleString()} €`, 'Montant Commandé']}
+                    labelFormatter={(label) => `Mois : ${label}`}
+                  />
+                  <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
