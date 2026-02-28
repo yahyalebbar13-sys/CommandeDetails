@@ -13,7 +13,8 @@ import {
   Pie, 
   Cell,
   LineChart,
-  Line
+  Line,
+  Legend
 } from 'recharts';
 import { Package, Banknote, Cuboid as Cube, FileText, CheckCircle2, Ship } from 'lucide-react';
 
@@ -156,12 +157,21 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                <Pie 
+                  data={categoryData} 
+                  cx="50%" 
+                  cy="50%" 
+                  innerRadius={60} 
+                  outerRadius={100} 
+                  paddingAngle={5} 
+                  dataKey="value"
+                  nameKey="name"
+                >
                   {categoryData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <RechartsTooltip formatter={(v: any) => [`${Math.round(v).toLocaleString()} €`, 'Valeur']} />
+                <RechartsTooltip formatter={(value: any, name: string) => [`${Math.round(value).toLocaleString()} €`, name]} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>

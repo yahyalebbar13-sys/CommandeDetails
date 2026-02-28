@@ -205,12 +205,13 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
                     outerRadius={80}
                     paddingAngle={5}
                     dataKey="value"
+                    nameKey="name"
                   >
                     {articleDistData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: any) => [`${Math.round(v).toLocaleString()} €`, 'Valeur']} />
+                  <Tooltip formatter={(value: any, name: string) => [`${Math.round(value).toLocaleString()} €`, name]} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
