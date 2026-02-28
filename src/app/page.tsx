@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
@@ -12,10 +12,11 @@ import AddOrderModal from '@/components/add-order-modal';
 import AddFactureModal from '@/components/add-facture-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock } from 'lucide-react';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, doc } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export default function StockVueApp() {
@@ -25,6 +26,7 @@ export default function StockVueApp() {
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
   // Firestore Collections
@@ -73,6 +75,26 @@ export default function StockVueApp() {
     { id: 'data', label: 'Base', icon: Database },
   ] as const;
 
+  const NavButtons = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <>
+      {navItems.map(({ id, label, icon: Icon }) => (
+        <Button
+          key={id}
+          variant={activeTab === id ? "secondary" : "ghost"}
+          className={`flex items-center gap-2 justify-start ${isMobile ? 'w-full text-lg py-6' : ''} ${activeTab === id ? 'text-amber-600 font-bold' : 'text-stone-600'}`}
+          onClick={() => {
+            setActiveTab(id);
+            if (id === 'factures') setSelectedFactureId(null);
+            if (isMobile) setIsMobileMenuOpen(false);
+          }}
+        >
+          <Icon className={isMobile ? "w-5 h-5" : "w-4 h-4"} />
+          {label}
+        </Button>
+      ))}
+    </>
+  );
+
   if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]">
@@ -90,37 +112,50 @@ export default function StockVueApp() {
       <nav className="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-4">
-              <span className="text-xl md:text-2xl font-bold text-stone-700 tracking-tight">
+            <div className="flex items-center gap-2">
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="lg:hidden text-stone-600">
+                    <Menu className="w-6 h-6" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-72 bg-white p-0">
+                  <SheetHeader className="p-6 border-b">
+                    <SheetTitle className="text-xl font-bold text-stone-700">
+                      📦 STOCK<span className="text-amber-600">VUE</span>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="flex flex-col p-4 space-y-2">
+                    <NavButtons isMobile />
+                    <div className="pt-4 border-t mt-4 flex flex-col space-y-2">
+                      <Button variant="outline" onClick={handleExport} className="justify-start gap-2">
+                        <Download className="w-5 h-5" /> Export CSV
+                      </Button>
+                      <Button variant="ghost" onClick={() => signOut(auth)} className="justify-start gap-2 text-red-500 hover:text-red-600 hover:bg-red-50">
+                        <LogOut className="w-5 h-5" /> Déconnexion
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+              
+              <span className="text-lg md:text-xl font-bold text-stone-700 tracking-tight whitespace-nowrap">
                 📦 GESTION<span className="text-amber-600">COMMANDES</span>
               </span>
             </div>
             
             <div className="hidden lg:flex items-center space-x-1">
-              {navItems.map(({ id, label, icon: Icon }) => (
-                <Button
-                  key={id}
-                  variant={activeTab === id ? "secondary" : "ghost"}
-                  className={`flex items-center gap-2 ${activeTab === id ? 'text-amber-600' : 'text-stone-600'}`}
-                  onClick={() => {
-                    setActiveTab(id);
-                    if (id === 'factures') setSelectedFactureId(null);
-                  }}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </Button>
-              ))}
+              <NavButtons />
             </div>
 
             <div className="flex items-center space-x-2">
               <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex gap-1 border-stone-200 hover:bg-stone-50">
                 <Download className="w-4 h-4" /> Export
               </Button>
-              <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1">
-                <Plus className="w-4 h-4" /> Cmd
+              <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1 px-3 md:px-4">
+                <Plus className="w-4 h-4" /> <span className="hidden xs:inline">Cmd</span>
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-500">
+              <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="hidden md:flex text-stone-400 hover:text-red-500">
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
@@ -128,7 +163,7 @@ export default function StockVueApp() {
         </div>
       </nav>
 
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 w-full">
         {(isFacturesLoading || isArticlesLoading) ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-stone-300" />
