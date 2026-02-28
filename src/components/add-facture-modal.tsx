@@ -8,16 +8,17 @@ import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 interface AddFactureModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   factures: any[];
   editFacture?: any | null;
+  associatedArticles?: any[];
 }
 
-export default function AddFactureModal({ open, onOpenChange, editFacture }: AddFactureModalProps) {
+export default function AddFactureModal({ open, onOpenChange, editFacture, associatedArticles }: AddFactureModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -61,10 +62,23 @@ export default function AddFactureModal({ open, onOpenChange, editFacture }: Add
       updatedAt: serverTimestamp()
     };
 
-    // Non-blocking write
+    // Non-blocking write for the facture
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
-    toast({ title: "Facture enregistrée !", description: `N° ${factureId}` });
+    // PROPAGATION: If the arrival date has changed for an existing facture, update all linked articles
+    if (editFacture && formData.arrivalDate !== editFacture.arrivalDate && associatedArticles) {
+      associatedArticles.forEach((article: any) => {
+        const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
+        updateDocumentNonBlocking(articleRef, { arrivalDate: formData.arrivalDate });
+      });
+      toast({ 
+        title: "Facture et articles mis à jour !", 
+        description: `N° ${factureId} - Nouvelle date d'arrivée propagée à ${associatedArticles.length} articles.` 
+      });
+    } else {
+      toast({ title: "Facture enregistrée !", description: `N° ${factureId}` });
+    }
+
     onOpenChange(false);
   };
 
@@ -110,6 +124,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture }: Add
                 value={formData.arrivalDate}
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
+              {editFacture && <p className="text-[10px] text-blue-600 font-medium">Ceci mettra à jour tous les articles associés.</p>}
             </div>
             <div className="space-y-1">
               <Label className="text-red-600 font-bold">Fret / Transport</Label>

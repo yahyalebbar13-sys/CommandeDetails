@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Plus } from 'lucide-react';
+import { ChevronLeft, Plus, CalendarDays } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 
@@ -55,8 +55,14 @@ export default function FacturesView({ articles, factures }: FacturesViewProps) 
           </div>
           
           <div className="flex flex-wrap gap-4 mt-4 lg:mt-0 justify-end w-full lg:w-auto">
-            <div className="text-right bg-blue-50 p-3 rounded-lg border border-blue-100">
-              <div className="text-[10px] text-blue-600 uppercase tracking-wide font-bold">Arrivée</div>
+            <div 
+              onClick={() => setIsEditModalOpen(true)} 
+              className="text-right bg-blue-50 p-3 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors group"
+              title="Modifier la date d'arrivée"
+            >
+              <div className="text-[10px] text-blue-600 uppercase tracking-wide font-bold flex items-center justify-end gap-1">
+                Arrivée <CalendarDays className="w-3 h-3" />
+              </div>
               <div className="text-lg font-black text-blue-900">{selectedFacture.arrivalDate}</div>
             </div>
             <div className="text-right bg-emerald-50 p-3 rounded-lg border border-emerald-200">
@@ -120,6 +126,7 @@ export default function FacturesView({ articles, factures }: FacturesViewProps) 
           onOpenChange={setIsEditModalOpen}
           factures={factures}
           editFacture={selectedFacture}
+          associatedArticles={selectedFactureArticles}
         />
       </div>
     );
