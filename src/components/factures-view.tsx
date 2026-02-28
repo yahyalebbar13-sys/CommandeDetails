@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -11,10 +12,11 @@ import AddFactureModal from './add-facture-modal';
 interface FacturesViewProps {
   articles: any[];
   factures: any[];
+  selectedFactureId: string | null;
+  setSelectedFactureId: (id: string | null) => void;
 }
 
-export default function FacturesView({ articles, factures }: FacturesViewProps) {
-  const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
+export default function FacturesView({ articles, factures, selectedFactureId, setSelectedFactureId }: FacturesViewProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const aggregatedFactures = useMemo(() => {

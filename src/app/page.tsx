@@ -13,7 +13,7 @@ import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
@@ -21,11 +21,12 @@ export default function StockVueApp() {
   const { user, isUserLoading } = useUser();
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
+  const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
   const { toast } = useToast();
 
-  // Firestore Collections with Authorization Independence (nested under user)
+  // Firestore Collections
   const facturesRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'factures');
@@ -38,6 +39,11 @@ export default function StockVueApp() {
 
   const { data: factures = [], isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: articles = [], isLoading: isArticlesLoading } = useCollection(articlesRef);
+
+  const handleNavigateToFacture = (factureId: string) => {
+    setSelectedFactureId(factureId);
+    setActiveTab('factures');
+  };
 
   const handleExport = () => {
     const headers = ['Catégorie', 'Article', 'Spécifications', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
@@ -93,7 +99,10 @@ export default function StockVueApp() {
                   key={id}
                   variant={activeTab === id ? "secondary" : "ghost"}
                   className={`flex items-center gap-2 ${activeTab === id ? 'text-amber-600' : 'text-stone-600'}`}
-                  onClick={() => setActiveTab(id)}
+                  onClick={() => {
+                    setActiveTab(id);
+                    if (id === 'factures') setSelectedFactureId(null);
+                  }}
                 >
                   <Icon className="w-4 h-4" />
                   {label}
@@ -121,7 +130,10 @@ export default function StockVueApp() {
                 variant={activeTab === id ? "secondary" : "ghost"}
                 size="sm"
                 className={`whitespace-nowrap flex items-center gap-1 ${activeTab === id ? 'text-amber-600' : 'text-stone-600'}`}
-                onClick={() => setActiveTab(id)}
+                onClick={() => {
+                  setActiveTab(id);
+                  if (id === 'factures') setSelectedFactureId(null);
+                }}
               >
                 <Icon className="w-4 h-4" />
                 {label}
@@ -138,10 +150,10 @@ export default function StockVueApp() {
           </div>
         ) : (
           <>
-            {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} />}
-            {activeTab === 'factures' && <FacturesView articles={articles || []} factures={factures || []} />}
+            {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} onNavigateToFacture={handleNavigateToFacture} />}
+            {activeTab === 'factures' && <FacturesView articles={articles || []} factures={factures || []} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} />}
             {activeTab === 'categories' && <CategoriesView articles={articles || []} />}
-            {activeTab === 'suppliers' && <SuppliersView articles={articles || []} />}
+            {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'data' && <DataView articles={articles || []} />}
           </>
         )}
@@ -155,7 +167,7 @@ export default function StockVueApp() {
 
       <AddFactureModal
         open={isFactureModalOpen}
-        onOpenChange={setIsFactureModalOpen}
+        onOpenChange={setIsOrderModalOpen}
         factures={factures || []}
       />
     </div>
