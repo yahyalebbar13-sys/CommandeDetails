@@ -6,12 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
 
 export default function AuthView() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,16 +21,12 @@ export default function AuthView() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-      }
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Erreur d'authentification",
-        description: error.message
+        title: "Accès refusé",
+        description: "Identifiants invalides ou accès non autorisé."
       });
     } finally {
       setLoading(false);
@@ -42,21 +37,24 @@ export default function AuthView() {
     <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7] p-4">
       <Card className="w-full max-w-md shadow-xl border-stone-200">
         <CardHeader className="text-center space-y-1">
+          <div className="mx-auto bg-amber-100 w-12 h-12 rounded-full flex items-center justify-center mb-2">
+            <Lock className="w-6 h-6 text-amber-600" />
+          </div>
           <CardTitle className="text-2xl font-bold tracking-tight text-stone-800 uppercase">
             📦 StockVue <span className="text-amber-600">Commandes</span>
           </CardTitle>
           <CardDescription>
-            Accès unique et gestion globale
+            Accès unique et privé à la gestion globale
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Identifiant (Email)</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="nom@exemple.com"
+                placeholder="votre@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -68,24 +66,19 @@ export default function AuthView() {
               <Input
                 id="password"
                 type="password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="bg-white border-stone-200"
               />
             </div>
-            <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (isLogin ? 'Se connecter' : "S'inscrire")}
+            <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-6" disabled={loading}>
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "SE CONNECTER"}
             </Button>
-            <div className="text-center text-sm">
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-amber-600 hover:underline"
-              >
-                {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-              </button>
-            </div>
+            <p className="text-center text-[10px] text-stone-400 uppercase tracking-widest pt-2">
+              Système de gestion sécurisé - Accès restreint
+            </p>
           </form>
         </CardContent>
       </Card>
