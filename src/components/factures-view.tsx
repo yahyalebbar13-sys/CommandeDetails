@@ -1,13 +1,16 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Plus, CalendarDays } from 'lucide-react';
+import { ChevronLeft, Plus, CalendarDays, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
+import { useUser, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
 
 interface FacturesViewProps {
   articles: any[];
@@ -17,6 +20,9 @@ interface FacturesViewProps {
 }
 
 export default function FacturesView({ articles, factures, selectedFactureId, setSelectedFactureId }: FacturesViewProps) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const aggregatedFactures = useMemo(() => {
@@ -39,6 +45,13 @@ export default function FacturesView({ articles, factures, selectedFactureId, se
     if (!selectedFactureId) return [];
     return articles.filter(o => o.factureId === selectedFactureId);
   }, [articles, selectedFactureId]);
+
+  const handleDeleteItem = (articleId: string, name: string) => {
+    if (!user || !firestore || !window.confirm(`Retirer l'article "${name}" de cette facture ?`)) return;
+    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: "Article supprimé", description: name });
+  };
 
   if (selectedFactureId && selectedFacture) {
     return (
@@ -103,11 +116,12 @@ export default function FacturesView({ articles, factures, selectedFactureId, se
                     <TableHead className="text-right">CBM</TableHead>
                     <TableHead className="text-right">PA</TableHead>
                     <TableHead className="text-right">Valeur</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {selectedFactureArticles.map((o, i) => (
-                    <TableRow key={i} className="hover:bg-blue-50 transition-colors">
+                    <TableRow key={o.id || i} className="hover:bg-blue-50 transition-colors">
                       <TableCell className="font-bold text-stone-600">{o.categoryId}</TableCell>
                       <TableCell className="font-bold">{o.name}</TableCell>
                       <TableCell className="text-stone-500 text-xs">{o.specs}</TableCell>
@@ -115,6 +129,16 @@ export default function FacturesView({ articles, factures, selectedFactureId, se
                       <TableCell className="text-right text-emerald-700 font-medium">{o.cubicMeasurement?.toFixed(2)}</TableCell>
                       <TableCell className="text-right text-stone-400 font-mono text-xs">{o.purchasePricePerUnit}</TableCell>
                       <TableCell className="text-right font-black text-amber-700">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-stone-300 hover:text-red-500"
+                          onClick={() => handleDeleteItem(o.id, o.name)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

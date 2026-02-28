@@ -4,8 +4,12 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info } from 'lucide-react';
+import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useUser, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
 import { 
   BarChart, 
   Bar, 
@@ -88,8 +92,9 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
   const catArticles = useMemo(() => articles.filter(o => o.categoryId === categoryName), [articles, categoryName]);
   
   const now = new Date();
-  const transit = catArticles.filter(o => new Date(o.arrivalDate) > now);
-  const arrived = catArticles.filter(o => new Date(o.arrivalDate) <= now);
+  const transit = catArticles.filter(o => o.factureId && new Date(o.arrivalDate) > now);
+  const arrived = catArticles.filter(o => o.factureId && new Date(o.arrivalDate) <= now);
+  const pending = catArticles.filter(o => !o.factureId);
   
   const totalVal = useMemo(() => catArticles.reduce((s, o) => s + (o.quantity * o.purchasePricePerUnit), 0), [catArticles]);
   const totalQty = useMemo(() => catArticles.reduce((s, o) => s + o.quantity, 0), [catArticles]);
@@ -157,6 +162,7 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
         <StatCard label="Dernière Commande" value={latestOrderDate} icon={<Calendar className="w-4 h-4 text-stone-400" />} />
       </div>
 
+      {pending.length > 0 && <CategoryTableSection title="🏭 En Production (PI)" data={pending} color="amber" count={pending.length} />}
       <CategoryTableSection title="🚢 Commandes en Transit" data={transit} color="blue" count={transit.length} />
       <CategoryTableSection title="✅ Commandes Arrivées" data={arrived} color="green" count={arrived.length} />
 
@@ -263,13 +269,25 @@ function StatCard({ label, value, icon, className }: any) {
 }
 
 function CategoryTableSection({ title, data, color, count }: any) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
   const colorClasses = {
     blue: 'border-blue-100 bg-blue-50 text-blue-800',
-    green: 'border-green-100 bg-green-50 text-green-800'
+    green: 'border-green-100 bg-green-50 text-green-800',
+    amber: 'border-amber-100 bg-amber-50 text-amber-800'
   } as const;
 
+  const handleDelete = (articleId: string, name: string) => {
+    if (!user || !firestore || !window.confirm(`Supprimer l'article "${name}" ?`)) return;
+    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: "Article supprimé", description: name });
+  };
+
   return (
-    <Card className={`overflow-hidden border-${color}-100`}>
+    <Card className={`overflow-hidden border-${color}-100 mt-6`}>
       <CardHeader className={`${colorClasses[color as keyof typeof colorClasses]} py-4 px-6 flex flex-row justify-between items-center`}>
         <CardTitle className="text-lg font-bold">{title}</CardTitle>
         <Badge variant="outline" className={`${colorClasses[color as keyof typeof colorClasses]} border-current`}>
@@ -289,23 +307,34 @@ function CategoryTableSection({ title, data, color, count }: any) {
                 <TableHead className="text-right">CBM</TableHead>
                 <TableHead className="text-right">PA</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-stone-400 italic py-8">Aucune commande</TableCell>
+                  <TableCell colSpan={9} className="text-center text-stone-400 italic py-8">Aucune commande</TableCell>
                 </TableRow>
               ) : data.map((d: any, i: number) => (
-                <TableRow key={i} className="hover:bg-stone-50 transition-colors">
+                <TableRow key={d.id || i} className="hover:bg-stone-50 transition-colors">
                   <TableCell className="font-bold">{d.name}</TableCell>
-                  <TableCell className="font-bold text-stone-600 bg-stone-50/50">{d.factureId}</TableCell>
+                  <TableCell className="font-bold text-stone-600 bg-stone-50/50">{d.factureId || 'PI'}</TableCell>
                   <TableCell className="text-xs font-medium text-stone-500">{d.orderDate}</TableCell>
-                  <TableCell className={`font-bold ${color === 'blue' ? 'text-blue-600' : 'text-green-600'}`}>{d.arrivalDate}</TableCell>
+                  <TableCell className={`font-bold ${color === 'blue' ? 'text-blue-600' : color === 'green' ? 'text-green-600' : 'text-amber-600'}`}>{d.arrivalDate || '-'}</TableCell>
                   <TableCell className="text-right font-bold">{d.quantity.toLocaleString()}</TableCell>
                   <TableCell className="text-right text-emerald-700 font-bold text-xs">{d.cubicMeasurement?.toFixed(2)}</TableCell>
                   <TableCell className="text-right text-xs font-mono">{d.purchasePricePerUnit}</TableCell>
                   <TableCell className="text-right font-black text-amber-700">{Math.round(d.quantity * d.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-stone-200 hover:text-red-500"
+                      onClick={() => handleDelete(d.id, d.name)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

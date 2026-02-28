@@ -5,8 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, Factory, Ship, ArrowRight, Loader2 } from 'lucide-react';
+import { Clock, Factory, Ship, ArrowRight, Loader2, Trash2 } from 'lucide-react';
 import ValidateOrderModal from './validate-order-modal';
+import { useUser, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
 
 interface PendingOrdersViewProps {
   articles: any[];
@@ -14,6 +18,9 @@ interface PendingOrdersViewProps {
 }
 
 export default function PendingOrdersView({ articles, factures }: PendingOrdersViewProps) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -26,6 +33,14 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
   const handleValidate = (order: any) => {
     setSelectedOrder(order);
     setIsValidating(true);
+  };
+
+  const handleDelete = (articleId: string, name: string) => {
+    if (!user || !firestore || !window.confirm(`Supprimer cette commande PI "${name}" ?`)) return;
+    
+    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: "Commande PI supprimée", description: name });
   };
 
   return (
@@ -56,7 +71,7 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
                 <TableHead>Date Commande</TableHead>
                 <TableHead className="text-right">Qté</TableHead>
                 <TableHead className="text-right">Valeur Est.</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -86,13 +101,23 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
                       {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        size="sm" 
-                        onClick={() => handleValidate(o)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1"
-                      >
-                        Valider Expédition <ArrowRight className="w-3 h-3" />
-                      </Button>
+                      <div className="flex justify-end items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-stone-300 hover:text-red-500"
+                          onClick={() => handleDelete(o.id, o.name)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleValidate(o)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1"
+                        >
+                          Valider Expédition <ArrowRight className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

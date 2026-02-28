@@ -4,13 +4,21 @@ import React, { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useUser, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useToast } from '@/hooks/use-toast';
 
 interface DataViewProps {
   articles: any[];
 }
 
 export default function DataView({ articles }: DataViewProps) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredArticles = useMemo(() => {
@@ -24,6 +32,14 @@ export default function DataView({ articles }: DataViewProps) {
       (o.color || '').toLowerCase().includes(term)
     );
   }, [articles, searchTerm]);
+
+  const handleDelete = (articleId: string, name: string) => {
+    if (!user || !firestore || !window.confirm(`Supprimer l'article "${name}" ?`)) return;
+    
+    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    deleteDocumentNonBlocking(docRef);
+    toast({ title: "Article supprimé", description: name });
+  };
 
   return (
     <div className="fade-in space-y-4">
@@ -53,24 +69,35 @@ export default function DataView({ articles }: DataViewProps) {
                   <TableHead className="text-right">Qté</TableHead>
                   <TableHead className="text-right">CBM</TableHead>
                   <TableHead className="text-right bg-orange-50">Valeur</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-stone-400">Aucun résultat trouvé</TableCell>
+                    <TableCell colSpan={9} className="text-center py-12 text-stone-400">Aucun résultat trouvé</TableCell>
                   </TableRow>
                 ) : (
                   filteredArticles.map((o, i) => (
-                    <TableRow key={i} className="hover:bg-stone-50 transition-colors">
+                    <TableRow key={o.id || i} className="hover:bg-stone-50 transition-colors">
                       <TableCell className="font-bold text-xs bg-stone-50">{o.categoryId}</TableCell>
                       <TableCell className="font-bold text-xs">{o.name}</TableCell>
                       <TableCell className="text-xs">{o.supplierId}</TableCell>
-                      <TableCell className="font-bold text-xs bg-stone-100">{o.factureId}</TableCell>
-                      <TableCell className="font-bold text-blue-600 bg-blue-50/30 text-xs">{o.arrivalDate}</TableCell>
+                      <TableCell className="font-bold text-xs bg-stone-100">{o.factureId || 'PI'}</TableCell>
+                      <TableCell className="font-bold text-blue-600 bg-blue-50/30 text-xs">{o.arrivalDate || '-'}</TableCell>
                       <TableCell className="text-right font-bold text-xs">{o.quantity.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-emerald-700 font-bold text-xs">{o.cubicMeasurement?.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-stone-300 hover:text-red-500"
+                          onClick={() => handleDelete(o.id, o.name)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
