@@ -180,8 +180,7 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                  <Tooltip formatter={(v: any) => [`${Math.round(v).toLocaleString()} €`, 'Valeur']} />
-                  <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} />
+                  <Tooltip formatter={(value: any, name: string) => [`${Math.round(value).toLocaleString()} €`, name === 'value' ? 'Valeur' : name]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -218,27 +217,7 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <Card className="bg-amber-50 border-amber-200">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-800">
-                <TrendingUp className="w-4 h-4" />
-                Quand et Combien Commander ?
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-amber-900/80 leading-relaxed">
-                Basé sur l'historique de cette catégorie, il est conseillé de prévoir une commande environ tous les 
-                <span className="font-bold"> {avgIntervalDays || 'X'} jours</span>.
-              </p>
-              <div className="bg-white p-4 rounded-lg border border-amber-100 shadow-sm">
-                <div className="text-[10px] text-amber-600 uppercase font-bold mb-1">Cible Prochaine Commande</div>
-                <div className="text-xl font-black text-amber-700">{avgOrderQty.toLocaleString()} Unités</div>
-                <p className="text-[10px] text-stone-500 mt-1">Ceci représente la moyenne observée pour maintenir le flux.</p>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="mt-8">
           <Card className="bg-stone-50 border-stone-200">
             <CardHeader>
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-stone-800">
