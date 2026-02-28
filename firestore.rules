@@ -1,0 +1,137 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * STOKVUE COMMANDES - SECURITY RULES
+     * 
+     * CORE PHILOSOPHY:
+     * This ruleset enforces a strict "Authorization Independence" model based on user ownership. 
+     * Every piece of application data is logically partitioned under a user's unique identifier (UID).
+     * 
+     * DATA STRUCTURE:
+     * All primary entities (Categories, Suppliers, Articles, Factures) and their child entities 
+     * (OrderItems) are nested directly or indirectly under /users/{userId}/.
+     * 
+     * KEY SECURITY DECISIONS:
+     * 1. Path-Based Ownership: The presence of {userId} in the document path is the primary 
+     *    authorization factor. Access is only granted if request.auth.uid matches this userId.
+     * 2. Strict Privacy: There is no public data in this application. All reads and writes 
+     *    require a verified, matching identity.
+     * 3. Relational Integrity: During creation, rules enforce that the internal 'id' field 
+     *    of a document matches the Firestore document ID to ensure consistent data paths.
+     * 4. State Safety: All update and delete operations verify the document's existence 
+     *    and ownership before proceeding.
+     */
+
+    // --- Helper Functions ---
+
+    /**
+     * @description Checks if the request is made by a signed-in user.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user's UID matches the provided userId from the path.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Combined check for ownership and document existence for state-changing operations.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the root user document.
+     * @path /users/{userId}
+     * @allow (get, create) User 'abc' accessing /users/abc
+     * @deny (get) User 'abc' accessing /users/xyz
+     * @principle Self-creation and self-access for the user's root profile.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Users should not be listable
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for categories used to organize articles.
+     * @path /users/{userId}/categories/{categoryId}
+     * @allow (list) User 'abc' fetching their own categories.
+     * @deny (create) User 'abc' creating a category under /users/def.
+     * @principle Enforces path-based ownership for organizational metadata.
+     */
+    match /users/{userId}/categories/{categoryId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == categoryId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for suppliers managed by the user.
+     * @path /users/{userId}/suppliers/{supplierId}
+     * @allow (update) User 'abc' updating their own supplier document.
+     * @deny (delete) User 'abc' deleting a supplier owned by 'xyz'.
+     * @principle Restricts supplier management to the authenticated owner.
+     */
+    match /users/{userId}/suppliers/{supplierId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == supplierId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for articles (product variants) owned by the user.
+     * @path /users/{userId}/articles/{articleId}
+     * @allow (create) User 'abc' creating an article with id 'art1' at /users/abc/articles/art1.
+     * @deny (get) User 'abc' reading an article at /users/xyz/articles/art1.
+     * @principle Ensures product data is private and owned by the creator.
+     */
+    match /users/{userId}/articles/{articleId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == articleId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for factures (invoices/shipments).
+     * @path /users/{userId}/factures/{factureId}
+     * @allow (get) User 'abc' reading their invoice 'inv123'.
+     * @deny (list) Anonymous user attempting to list factures.
+     * @principle Secure shipment tracking via user-scoped subcollections.
+     */
+    match /users/{userId}/factures/{factureId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == factureId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for individual items within a facture.
+       * @path /users/{userId}/factures/{factureId}/orderItems/{orderItemId}
+       * @allow (create) User 'abc' adding an item to their own facture.
+       * @deny (update) User 'abc' modifying an item inside 'xyz's' facture.
+       * @principle Inherited ownership: items are secured by the parent user ID in the path.
+       */
+      match /orderItems/{orderItemId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.id == orderItemId;
+        allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+  }
+}

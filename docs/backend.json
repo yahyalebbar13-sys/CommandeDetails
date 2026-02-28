@@ -1,0 +1,292 @@
+{
+  "entities": {
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a classification or type for various articles, allowing for organized inventory and reporting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category (e.g., 'Sewing Thread', 'Zipper No5')."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Supplier": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Supplier",
+      "type": "object",
+      "description": "Represents a commercial partner or company that provides articles.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Supplier entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The official name of the supplier."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Facture": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Facture",
+      "type": "object",
+      "description": "Represents an invoice or a container shipment, which serves to group multiple ordered items. It includes overall shipment details and costs.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Facture (invoice/container). This ID is typically provided by the supplier."
+        },
+        "supplierId": {
+          "type": "string",
+          "description": "Reference to the primary Supplier for this facture. (Relationship: Supplier 1:N Facture)"
+        },
+        "arrivalDate": {
+          "type": "string",
+          "description": "The estimated or actual date of arrival for the entire shipment associated with this facture.",
+          "format": "date"
+        },
+        "freightCost": {
+          "type": "number",
+          "description": "The total cost of freight or transport associated with this invoice/container."
+        }
+      },
+      "required": [
+        "id",
+        "supplierId",
+        "arrivalDate",
+        "freightCost"
+      ]
+    },
+    "Article": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Article",
+      "type": "object",
+      "description": "Represents a distinct type of product or item that can be ordered, including its generic name and specific technical specifications. This entity defines a product variant.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Article entity."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category this article belongs to. (Relationship: Category 1:N Article)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name or primary description of the article (e.g., 'Visor for Cap 2.8*72*182mm')."
+        },
+        "specs": {
+          "type": "string",
+          "description": "Detailed specifications or packaging information for this particular article variant (e.g., '20pcs/bundle', '5000pc/box')."
+        },
+        "defaultUnit": {
+          "type": "string",
+          "description": "The common unit of measure for this article (e.g., 'ctn', 'box', 'doz', 'roll', 'pcs', 'm', 'kg')."
+        }
+      },
+      "required": [
+        "id",
+        "categoryId",
+        "name",
+        "specs",
+        "defaultUnit"
+      ]
+    },
+    "OrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderItem",
+      "type": "object",
+      "description": "Represents a single line item within an order, detailing a specific quantity of an article from a supplier, associated with a particular invoice.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the OrderItem entity."
+        },
+        "factureId": {
+          "type": "string",
+          "description": "Reference to the Facture (invoice/container) this order item belongs to. (Relationship: Facture 1:N OrderItem)"
+        },
+        "articleId": {
+          "type": "string",
+          "description": "Reference to the Article (product variant) being ordered in this line item. (Relationship: Article 1:N OrderItem)"
+        },
+        "supplierId": {
+          "type": "string",
+          "description": "Reference to the Supplier from whom this specific article was purchased for this order item. (Relationship: Supplier 1:N OrderItem)"
+        },
+        "color": {
+          "type": "string",
+          "description": "The color of the ordered article."
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "The date when this specific order item was placed.",
+          "format": "date"
+        },
+        "arrivalDate": {
+          "type": "string",
+          "description": "The estimated or actual date of arrival for this specific order item.",
+          "format": "date"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The quantity of the article ordered in this line item."
+        },
+        "unitOfMeasure": {
+          "type": "string",
+          "description": "The unit in which the quantity is measured for this order item (e.g., 'ctn', 'box', 'doz', 'roll', 'pcs', 'm', 'kg')."
+        },
+        "cubicMeasurement": {
+          "type": "number",
+          "description": "The total volume of this order item in cubic meters (CBM)."
+        },
+        "purchasePricePerUnit": {
+          "type": "number",
+          "description": "The purchase price per unit of the article for this order item."
+        }
+      },
+      "required": [
+        "id",
+        "factureId",
+        "articleId",
+        "supplierId",
+        "color",
+        "orderDate",
+        "arrivalDate",
+        "quantity",
+        "unitOfMeasure",
+        "cubicMeasurement",
+        "purchasePricePerUnit"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Categories defined by the user for organizing articles. Owned by the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this category."
+            },
+            {
+              "name": "categoryId",
+              "description": "The unique identifier of the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/suppliers/{supplierId}",
+        "definition": {
+          "entityName": "Supplier",
+          "schema": {
+            "$ref": "#/backend/entities/Supplier"
+          },
+          "description": "Suppliers managed by the user for sourcing articles. Owned by the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who manages this supplier."
+            },
+            {
+              "name": "supplierId",
+              "description": "The unique identifier of the supplier."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/articles/{articleId}",
+        "definition": {
+          "entityName": "Article",
+          "schema": {
+            "$ref": "#/backend/entities/Article"
+          },
+          "description": "Product articles or variants available to the user, each referencing a category. Owned by the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this article."
+            },
+            {
+              "name": "articleId",
+              "description": "The unique identifier of the article."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/factures/{factureId}",
+        "definition": {
+          "entityName": "Facture",
+          "schema": {
+            "$ref": "#/backend/entities/Facture"
+          },
+          "description": "Invoices or container shipments created by the user. Each facture references a supplier and includes freight cost. Owned by the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns this facture."
+            },
+            {
+              "name": "factureId",
+              "description": "The unique identifier of the facture (invoice/container)."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/factures/{factureId}/orderItems/{orderItemId}",
+        "definition": {
+          "entityName": "OrderItem",
+          "schema": {
+            "$ref": "#/backend/entities/OrderItem"
+          },
+          "description": "Individual line items within a specific facture. Includes references to 'articleId' and 'supplierId'. Inherits ownership from the parent facture, ensuring authorization independence for the user. Owned by the authenticated user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the authenticated user who owns the parent facture."
+            },
+            {
+              "name": "factureId",
+              "description": "The unique identifier of the parent facture to which this order item belongs."
+            },
+            {
+              "name": "orderItemId",
+              "description": "The unique identifier of the order item."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the 'Authorization Independence' principle, which is critical for secure, scalable, and debuggable rules. Since the user explicitly requested 'un accès unique' (unique access), we're modeling this as a single-user application where all data belongs to the authenticated user. This allows us to place all primary data collections as subcollections directly under the user's document at `/users/{userId}/`. This path-based ownership is the most straightforward way to achieve authorization independence for a single-user context.\n\nHere's how this design strategy addresses the core principles:\n\n1.  **Authorization Independence (CRITICAL):** By nesting all application data (Categories, Suppliers, Articles, Factures, and OrderItems) under `/users/{userId}/`, the `userId` is always present in the path for any data access. This makes Firestore security rules exceptionally simple and efficient:\n    ```\n    match /users/{userId}/{document=**} {\n      allow read, write: if request.auth.uid == userId;\n    }\n    ```\n    No `get()` calls are necessary in the rules to check ownership or relationships, as the `request.auth.uid` is directly compared against the `userId` in the path. This eliminates hierarchical authorization dependencies and supports atomic operations without breaking security. For `OrderItem` documents, even though they reference `Article` and `Supplier` via IDs, their security is derived from being under `/users/{userId}/factures/{factureId}/`, meaning they are implicitly owned by the `userId`. The `Article` and `Supplier` documents themselves are also under the same `userId` hierarchy, so no cross-collection ownership checks are needed.\n\n2.  **Clarity of Intent (Debuggability):** The paths clearly define ownership and entity type, e.g., `/users/{userId}/factures/{factureId}` explicitly shows a facture belonging to a specific user. The nesting of `orderItems` under `factures` indicates their direct relationship.\n\n3.  **DBAC (No Custom Claims):** Authorization relies solely on `request.auth.uid` matching the `userId` in the path. No custom claims are needed for basic access control.\n\n4.  **QAPs (Rules are not Filters):** This structure inherently supports secure `list` operations without relying on rules to filter data. When a client requests a list of `factures` (e.g., `db.collection('users').doc(currentUser.uid).collection('factures').get()`), the query is already scoped to the authenticated user's data. The security rule then simply validates that the requesting user's UID matches the path's `userId`, allowing the complete, authorized list to be returned. The rule doesn't attempt to perform filtering, thus adhering to QAPs.\n\n5.  **Invariants:** Ownership is guaranteed by the path structure. Timestamps (creation/update) are typically handled by Firestore's built-in features. Denormalized data (e.g., total CBM on a Facture if it were to be calculated and stored as a field) can be managed with Cloud Functions, ensuring integrity as data changes.\n\n**Strategic Mandates Application:**\n*   **A. Authorization Independence via Denormalization:** Achieved by putting all user-specific data under `/users/{userId}`. For nested `orderItems`, they are placed directly under the `facture` they belong to, `users/{userId}/factures/{factureId}/orderItems/{orderItemId}`, ensuring their authorization is tied to the parent `facture` (and implicitly, the `userId`).\n*   **B. Structural Segregation:** All documents in each collection (e.g., all `factures` under a `userId`) share the same security posture (read/write by `userId`). There is no mixing of publicly accessible data with private data within the same collection.\n*   **C. Access Modeling:** Utilizes path-based ownership for all data, with logical hierarchies for related entities (`orderItems` nested under `factures`).\n*   **D. Data Clarity and Predictability:** Semantic naming conventions are used for paths and parameters. The state 'en transit' vs. 'arrivés' is derived from `arrivalDate` rather than an explicit `status` field, which is acceptable given the UI's simple date comparison.\n\nThis design offers a robust, easy-to-manage, and highly secure data structure for the 'StockVue Commandes' application in a single-user context."
+  }
+}
