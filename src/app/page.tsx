@@ -7,11 +7,12 @@ import FacturesView from '@/components/factures-view';
 import CategoriesView from '@/components/categories-view';
 import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
+import PendingOrdersView from '@/components/pending-orders-view';
 import AddOrderModal from '@/components/add-order-modal';
 import AddFactureModal from '@/components/add-facture-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2 } from 'lucide-react';
+import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, doc } from 'firebase/firestore';
@@ -46,10 +47,11 @@ export default function StockVueApp() {
   };
 
   const handleExport = () => {
-    const headers = ['Catégorie', 'Article', 'Spécifications', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
+    const headers = ['Statut', 'Catégorie', 'Article', 'Spécifications', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
     const rows = articles.map(d => {
       const total = (d.quantity * d.purchasePricePerUnit).toFixed(2);
-      return [d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate, d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
+      const isPending = !d.factureId;
+      return [isPending ? 'EN PRODUCTION' : 'EXPÉDIÉ', d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
         .map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(',');
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
@@ -63,11 +65,12 @@ export default function StockVueApp() {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Tableau de Bord', icon: LayoutGrid },
-    { id: 'factures', label: 'Factures & Arrivages', icon: FileText },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'pending', label: 'Commandes PI', icon: Clock },
+    { id: 'factures', label: 'Factures', icon: FileText },
     { id: 'categories', label: 'Catégories', icon: Package },
     { id: 'suppliers', label: 'Fournisseurs', icon: Users },
-    { id: 'data', label: 'Base Complète', icon: Database },
+    { id: 'data', label: 'Base', icon: Database },
   ] as const;
 
   if (isUserLoading) {
@@ -122,24 +125,6 @@ export default function StockVueApp() {
               </Button>
             </div>
           </div>
-          
-          <div className="lg:hidden flex overflow-x-auto pb-2 space-x-1 no-scrollbar">
-            {navItems.map(({ id, label, icon: Icon }) => (
-              <Button
-                key={id}
-                variant={activeTab === id ? "secondary" : "ghost"}
-                size="sm"
-                className={`whitespace-nowrap flex items-center gap-1 ${activeTab === id ? 'text-amber-600' : 'text-stone-600'}`}
-                onClick={() => {
-                  setActiveTab(id);
-                  if (id === 'factures') setSelectedFactureId(null);
-                }}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </Button>
-            ))}
-          </div>
         </div>
       </nav>
 
@@ -151,6 +136,7 @@ export default function StockVueApp() {
         ) : (
           <>
             {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} onNavigateToFacture={handleNavigateToFacture} />}
+            {activeTab === 'pending' && <PendingOrdersView articles={articles || []} factures={factures || []} />}
             {activeTab === 'factures' && <FacturesView articles={articles || []} factures={factures || []} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} />}
             {activeTab === 'categories' && <CategoriesView articles={articles || []} />}
             {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
@@ -167,7 +153,7 @@ export default function StockVueApp() {
 
       <AddFactureModal
         open={isFactureModalOpen}
-        onOpenChange={setIsOrderModalOpen}
+        onOpenChange={setIsFactureModalOpen}
         factures={factures || []}
       />
     </div>

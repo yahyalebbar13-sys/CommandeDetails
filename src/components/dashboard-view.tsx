@@ -16,7 +16,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Package, Banknote, Cuboid as Cube, FileText, CheckCircle2, Ship } from 'lucide-react';
+import { Package, Banknote, Cuboid as Cube, FileText, CheckCircle2, Ship, Factory } from 'lucide-react';
 
 interface DashboardViewProps {
   articles: any[];
@@ -27,12 +27,22 @@ interface DashboardViewProps {
 export default function DashboardView({ articles, factures, onNavigate }: DashboardViewProps) {
   const stats = useMemo(() => {
     const now = new Date();
-    let totalQty = 0, arrivedQty = 0;
-    let totalVal = 0, arrivedVal = 0;
-    let totalCbm = 0, arrivedCbm = 0;
+    let totalQty = 0, arrivedQty = 0, transitQty = 0, pendingQty = 0;
+    let totalVal = 0, arrivedVal = 0, transitVal = 0, pendingVal = 0;
+    let totalCbm = 0, arrivedCbm = 0, transitCbm = 0, pendingCbm = 0;
 
     articles.forEach(o => {
       const val = o.quantity * o.purchasePricePerUnit;
+      
+      // Cas : Commande en Production (PI)
+      if (!o.factureId) {
+        pendingQty += o.quantity;
+        pendingVal += val;
+        pendingCbm += o.cubicMeasurement;
+        return;
+      }
+
+      // Cas : Commande Expédiée (Facturée)
       const arrival = new Date(o.arrivalDate);
       const isArrived = arrival <= now;
 
@@ -44,22 +54,28 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
         arrivedQty += o.quantity;
         arrivedVal += val;
         arrivedCbm += o.cubicMeasurement;
+      } else {
+        transitQty += o.quantity;
+        transitVal += val;
+        transitCbm += o.cubicMeasurement;
       }
     });
 
-    // Add freight to total value
+    // Add freight to total value (only for factures)
     factures.forEach(f => {
       const freight = f.freightCost || f.freight || 0;
       totalVal += freight;
       if (new Date(f.arrivalDate) <= now) {
         arrivedVal += freight;
+      } else {
+        transitVal += freight;
       }
     });
 
     return {
-      totalQty, arrivedQty, transitQty: totalQty - arrivedQty,
-      totalVal, arrivedVal, transitVal: totalVal - arrivedVal,
-      totalCbm, arrivedCbm, transitCbm: totalCbm - arrivedCbm,
+      totalQty, arrivedQty, transitQty, pendingQty,
+      totalVal, arrivedVal, transitVal, pendingVal,
+      totalCbm, arrivedCbm, transitCbm, pendingCbm,
       facturesCount: factures.length,
       arrivedFactures: factures.filter(f => new Date(f.arrivalDate) <= now).length,
       transitFactures: factures.filter(f => new Date(f.arrivalDate) > now).length
@@ -69,6 +85,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
   const categoryData = useMemo(() => {
     const data: Record<string, number> = {};
     articles.forEach(o => {
+      if (!o.factureId) return; // Exclure PI du graphe principal
       const cat = o.categoryId || 'Inconnu';
       data[cat] = (data[cat] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
@@ -78,6 +95,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
   const timelineData = useMemo(() => {
     const data: Record<string, number> = {};
     articles.forEach(o => {
+      if (!o.factureId) return; // Exclure PI de la chronologie d'import
       const month = o.orderDate?.substring(0, 7) || 'Inconnu';
       data[month] = (data[month] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
@@ -88,14 +106,28 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6">
-        <h1 className="text-3xl font-bold text-stone-800 mb-2">Vue d'ensemble Générale</h1>
-        <p className="text-stone-600">Consolidation de tous les imports (Tissus, Zips, Fils, Boutons...).</p>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-stone-800 mb-2">Tableau de Bord</h1>
+          <p className="text-stone-600">Vue d'ensemble des flux d'importation.</p>
+        </div>
+        <div 
+          onClick={() => onNavigate('pending')}
+          className="bg-amber-100 text-amber-800 px-6 py-4 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-200 transition-colors group"
+        >
+          <div className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+            <Factory className="w-3 h-3" /> Commandes en Production
+          </div>
+          <div className="text-2xl font-black">{stats.pendingQty.toLocaleString()} <span className="text-sm font-bold opacity-70">Unités</span></div>
+          <div className="text-xs font-bold text-amber-700 mt-1 flex items-center gap-1">
+            Cliquez pour valider l'expédition <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <KpiCard 
-          label="Quantité Globale" 
+          label="Quantité Expédiée" 
           value={stats.totalQty} 
           arrived={stats.arrivedQty} 
           transit={stats.transitQty} 
@@ -135,7 +167,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader>
-            <CardTitle>Chronologie des Commandes</CardTitle>
+            <CardTitle>Chronologie des Imports (Valeur)</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -206,4 +238,24 @@ function KpiCard({ label, value, arrived, transit, unit, colorClass, className, 
       </CardContent>
     </Card>
   );
+}
+
+function ArrowRight(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
+  )
 }

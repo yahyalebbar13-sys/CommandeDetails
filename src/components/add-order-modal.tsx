@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -6,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, Factory } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
@@ -45,7 +44,11 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     const val = e.target.value.toUpperCase();
     setFormData((prev: any) => ({ ...prev, factureId: val }));
     
-    // Recherche de la facture pour l'auto-remplissage
+    if (!val) {
+      setFormData((prev: any) => ({ ...prev, arrivalDate: '' }));
+      return;
+    }
+
     const knownFacture = factures.find(f => f.id === val);
     if (knownFacture) {
       setFormData((prev: any) => ({
@@ -78,7 +81,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     e.preventDefault();
     if (!user || !firestore) return;
 
-    if (formData.categoryId && formData.name && formData.supplierId && formData.factureId) {
+    if (formData.categoryId && formData.name && formData.supplierId) {
       const articleId = crypto.randomUUID();
       const articlesRef = collection(firestore, 'users', user.uid, 'articles');
       const docRef = doc(articlesRef, articleId);
@@ -89,13 +92,16 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
         createdAt: serverTimestamp()
       };
 
-      // Utilisation de setDocumentNonBlocking pour garantir l'ID
       setDocumentNonBlocking(docRef, articleData, { merge: true });
 
-      toast({ title: "Article ajouté !", description: `${formData.name} a été enregistré.` });
+      const isPending = !formData.factureId;
+      toast({ 
+        title: isPending ? "Commande PI enregistrée !" : "Article ajouté !", 
+        description: isPending ? "Retrouvez-la dans l'onglet 'Commandes PI'." : `${formData.name} a été enregistré.` 
+      });
+      
       onOpenChange(false);
       
-      // Reset form
       setFormData({
         orderDate: new Date().toISOString().split('T')[0],
         arrivalDate: '',
@@ -122,17 +128,23 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 mb-4 transition-all">
-            <Label className="block text-sm font-bold text-stone-800 mb-1">
-              N° de Facture <span className="text-amber-600 font-normal">(Auto-remplissage actif)</span>
-            </Label>
+            <div className="flex justify-between items-center mb-1">
+              <Label className="block text-sm font-bold text-stone-800">
+                N° de Facture <span className="text-stone-500 font-normal">(Laisser vide si en production)</span>
+              </Label>
+              {!formData.factureId && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 uppercase">
+                  <Factory className="w-3 h-3" /> État : PI / Production
+                </div>
+              )}
+            </div>
             <div className="relative">
               <Input 
                 value={formData.factureId || ''}
                 onChange={handleFactureInput}
                 list="factures-suggestions"
-                required 
                 className="uppercase font-bold text-lg bg-white border-amber-200 focus:ring-amber-500" 
-                placeholder="Saisissez ou sélectionnez une facture"
+                placeholder="Ex: 26HD1004"
               />
               <datalist id="factures-suggestions">
                 {factures.map(f => (
@@ -157,7 +169,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                 required 
                 value={formData.supplierId || ''} 
                 onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
-                placeholder="Auto-rempli par la facture"
+                placeholder="Ex: MH"
                 className={autofillVisible ? "highlight-autofill" : ""}
               />
             </div>
@@ -220,11 +232,11 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-blue-700">Date Arrivée</Label>
+                <Label className={formData.factureId ? "text-blue-700" : "text-stone-400"}>Date Arrivée</Label>
                 <Input 
                   type="date" 
-                  required 
-                  className={`bg-blue-50 border-blue-200 ${autofillVisible ? "highlight-autofill" : ""}`}
+                  required={!!formData.factureId}
+                  className={`bg-blue-50 border-blue-200 ${autofillVisible ? "highlight-autofill" : ""} ${!formData.factureId ? "opacity-50" : ""}`}
                   value={formData.arrivalDate || ''} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))} 
                 />
@@ -278,7 +290,9 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
 
         <DialogFooter className="border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">Enregistrer l'article</Button>
+          <Button onClick={handleSubmit} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">
+            {formData.factureId ? "Enregistrer l'article" : "Enregistrer en Production (PI)"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -20,4 +20,4 @@ export type Facture = {
   freight: number;
 };
 
-export type ViewType = 'dashboard' | 'factures' | 'categories' | 'suppliers' | 'data';
+export type ViewType = 'dashboard' | 'factures' | 'categories' | 'suppliers' | 'data' | 'pending';
