@@ -146,6 +146,7 @@ function CategoryTableSection({ title, data, color, count }: any) {
                 <TableHead>Article</TableHead>
                 <TableHead>Couleur</TableHead>
                 <TableHead>Facture</TableHead>
+                <TableHead>Date Cmd</TableHead>
                 <TableHead>Arrivée</TableHead>
                 <TableHead className="text-right">Qté</TableHead>
                 <TableHead className="text-right">CBM</TableHead>
@@ -156,13 +157,14 @@ function CategoryTableSection({ title, data, color, count }: any) {
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-stone-400 italic py-8">Aucune commande</TableCell>
+                  <TableCell colSpan={9} className="text-center text-stone-400 italic py-8">Aucune commande</TableCell>
                 </TableRow>
               ) : data.map((d: any, i: number) => (
                 <TableRow key={i} className="hover:bg-stone-50 transition-colors">
                   <TableCell className="font-bold">{d.name}</TableCell>
                   <TableCell className="text-xs">{d.color}</TableCell>
                   <TableCell className="font-bold text-stone-600 bg-stone-50/50">{d.factureId}</TableCell>
+                  <TableCell className="text-xs font-medium text-stone-500">{d.orderDate}</TableCell>
                   <TableCell className={`font-bold ${color === 'blue' ? 'text-blue-600' : 'text-green-600'}`}>{d.arrivalDate}</TableCell>
                   <TableCell className="text-right font-bold">{d.quantity.toLocaleString()}</TableCell>
                   <TableCell className="text-right text-emerald-700 font-bold text-xs">{d.cubicMeasurement?.toFixed(2)}</TableCell>
