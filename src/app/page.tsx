@@ -24,6 +24,7 @@ export default function StockVueApp() {
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,6 +47,11 @@ export default function StockVueApp() {
   const handleNavigateToFacture = (factureId: string) => {
     setSelectedFactureId(factureId);
     setActiveTab('factures');
+  };
+
+  const handleNavigateToCategory = (categoryName: string) => {
+    setSelectedCategoryName(categoryName);
+    setActiveTab('categories');
   };
 
   const handleExport = () => {
@@ -85,6 +91,7 @@ export default function StockVueApp() {
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
+            if (id === 'categories') setSelectedCategoryName(null);
             if (isMobile) setIsMobileMenuOpen(false);
           }}
         >
@@ -170,10 +177,24 @@ export default function StockVueApp() {
           </div>
         ) : (
           <>
-            {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} onNavigateToFacture={handleNavigateToFacture} />}
+            {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} />}
             {activeTab === 'pending' && <PendingOrdersView articles={articles || []} factures={factures || []} />}
-            {activeTab === 'factures' && <FacturesView articles={articles || []} factures={factures || []} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} />}
-            {activeTab === 'categories' && <CategoriesView articles={articles || []} />}
+            {activeTab === 'factures' && (
+              <FacturesView 
+                articles={articles || []} 
+                factures={factures || []} 
+                selectedFactureId={selectedFactureId} 
+                setSelectedFactureId={setSelectedFactureId}
+                onNavigateToCategory={handleNavigateToCategory}
+              />
+            )}
+            {activeTab === 'categories' && (
+              <CategoriesView 
+                articles={articles || []} 
+                selectedCategory={selectedCategoryName}
+                setSelectedCategory={setSelectedCategoryName}
+              />
+            )}
             {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'data' && <DataView articles={articles || []} />}
           </>

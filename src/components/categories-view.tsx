@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,11 +25,11 @@ import {
 
 interface CategoriesViewProps {
   articles: any[];
+  selectedCategory: string | null;
+  setSelectedCategory: (category: string | null) => void;
 }
 
-export default function CategoriesView({ articles }: CategoriesViewProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
+export default function CategoriesView({ articles, selectedCategory, setSelectedCategory }: CategoriesViewProps) {
   const categories = useMemo(() => {
     const data: Record<string, { qty: number; val: number; count: number }> = {};
     articles.forEach(o => {

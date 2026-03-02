@@ -17,9 +17,16 @@ interface FacturesViewProps {
   factures: any[];
   selectedFactureId: string | null;
   setSelectedFactureId: (id: string | null) => void;
+  onNavigateToCategory: (categoryName: string) => void;
 }
 
-export default function FacturesView({ articles, factures, selectedFactureId, setSelectedFactureId }: FacturesViewProps) {
+export default function FacturesView({ 
+  articles, 
+  factures, 
+  selectedFactureId, 
+  setSelectedFactureId,
+  onNavigateToCategory 
+}: FacturesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -122,7 +129,14 @@ export default function FacturesView({ articles, factures, selectedFactureId, se
                 <TableBody>
                   {selectedFactureArticles.map((o, i) => (
                     <TableRow key={o.id || i} className="hover:bg-blue-50 transition-colors">
-                      <TableCell className="font-bold text-stone-600">{o.categoryId}</TableCell>
+                      <TableCell>
+                        <button 
+                          onClick={() => onNavigateToCategory(o.categoryId)}
+                          className="font-bold text-blue-600 hover:text-blue-800 hover:underline text-left"
+                        >
+                          {o.categoryId}
+                        </button>
+                      </TableCell>
                       <TableCell className="font-bold">{o.name}</TableCell>
                       <TableCell className="text-stone-500 text-xs">{o.specs}</TableCell>
                       <TableCell className="text-right font-bold">{o.quantity.toLocaleString()}</TableCell>
