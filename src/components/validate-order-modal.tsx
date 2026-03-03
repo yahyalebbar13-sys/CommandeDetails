@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -57,6 +58,7 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     updateDocumentNonBlocking(docRef, {
       factureId: formData.factureId,
       arrivalDate: formData.arrivalDate,
+      status: 'SHIPPED', // Move to Shipped status
       validatedAt: serverTimestamp()
     });
 

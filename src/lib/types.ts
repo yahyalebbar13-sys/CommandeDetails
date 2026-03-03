@@ -1,3 +1,6 @@
+
+export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
+
 export type Order = {
   category: string;
   article: string;
@@ -11,6 +14,7 @@ export type Order = {
   unit: string;
   pa: number;
   cbm: number;
+  status?: OrderStatus;
 };
 
 export type Facture = {
@@ -20,4 +24,4 @@ export type Facture = {
   freight: number;
 };
 
-export type ViewType = 'dashboard' | 'factures' | 'categories' | 'suppliers' | 'data' | 'pending';
+export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'factures' | 'categories' | 'suppliers' | 'data';

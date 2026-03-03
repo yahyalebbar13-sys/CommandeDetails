@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -8,12 +9,13 @@ import CategoriesView from '@/components/categories-view';
 import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
 import PendingOrdersView from '@/components/pending-orders-view';
+import ToOrderView from '@/components/to-order-view';
 import AddOrderModal from '@/components/add-order-modal';
 import AddFactureModal from '@/components/add-facture-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu } from 'lucide-react';
+import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -58,8 +60,8 @@ export default function StockVueApp() {
     const headers = ['Statut', 'Catégorie', 'Article', 'Spécifications', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
     const rows = articles.map(d => {
       const total = (d.quantity * d.purchasePricePerUnit).toFixed(2);
-      const isPending = !d.factureId;
-      return [isPending ? 'EN PRODUCTION' : 'EXPÉDIÉ', d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
+      const statusLabel = d.status === 'TO_ORDER' ? 'À COMMANDER' : (!d.factureId ? 'EN PRODUCTION' : 'EXPÉDIÉ');
+      return [statusLabel, d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
         .map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(',');
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
@@ -74,6 +76,7 @@ export default function StockVueApp() {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'to-order', label: 'À Commander', icon: ListTodo },
     { id: 'pending', label: 'Commandes PI', icon: Clock },
     { id: 'factures', label: 'Factures', icon: FileText },
     { id: 'categories', label: 'Catégories', icon: Package },
@@ -178,6 +181,7 @@ export default function StockVueApp() {
         ) : (
           <>
             {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} />}
+            {activeTab === 'to-order' && <ToOrderView articles={articles || []} />}
             {activeTab === 'pending' && <PendingOrdersView articles={articles || []} factures={factures || []} />}
             {activeTab === 'factures' && (
               <FacturesView 

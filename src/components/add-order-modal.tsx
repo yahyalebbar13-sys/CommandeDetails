@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -5,12 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, CheckCircle2, Factory } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, Factory, ListTodo } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface AddOrderModalProps {
   open: boolean;
@@ -24,7 +26,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
   const { toast } = useToast();
   
   const [formData, setFormData] = useState<any>({
-    orderDate: new Date().toISOString().split('T')[0],
+    orderDate: '',
     arrivalDate: '',
     quantity: 0,
     purchasePricePerUnit: 0,
@@ -35,7 +37,8 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     name: '',
     supplierId: '',
     factureId: '',
-    specs: ''
+    specs: '',
+    status: 'PI'
   });
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [autofillVisible, setAutofillVisible] = useState(false);
@@ -81,29 +84,31 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     e.preventDefault();
     if (!user || !firestore) return;
 
-    if (formData.categoryId && formData.name && formData.supplierId) {
+    if (formData.categoryId && formData.name) {
       const articleId = crypto.randomUUID();
       const articlesRef = collection(firestore, 'users', user.uid, 'articles');
       const docRef = doc(articlesRef, articleId);
       
+      const finalStatus = formData.factureId ? 'SHIPPED' : formData.status;
+      
       const articleData = {
         ...formData,
+        status: finalStatus,
         id: articleId,
         createdAt: serverTimestamp()
       };
 
       setDocumentNonBlocking(docRef, articleData, { merge: true });
 
-      const isPending = !formData.factureId;
-      toast({ 
-        title: isPending ? "Commande PI enregistrée !" : "Article ajouté !", 
-        description: isPending ? "Retrouvez-la dans l'onglet 'Commandes PI'." : `${formData.name} a été enregistré.` 
-      });
+      const msg = finalStatus === 'TO_ORDER' ? "Enregistré en rappel !" : 
+                 (finalStatus === 'PI' ? "Commande PI enregistrée !" : "Article ajouté !");
+      
+      toast({ title: msg, description: `${formData.name} a été enregistré.` });
       
       onOpenChange(false);
       
       setFormData({
-        orderDate: new Date().toISOString().split('T')[0],
+        orderDate: '',
         arrivalDate: '',
         quantity: 0,
         purchasePricePerUnit: 0,
@@ -114,7 +119,8 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
         name: '',
         supplierId: '',
         factureId: '',
-        specs: ''
+        specs: '',
+        status: 'PI'
       });
     }
   };
@@ -123,56 +129,59 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-stone-800">Nouvelle Commande d'Article</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-stone-800">Nouvel Article / Commande</DialogTitle>
         </DialogHeader>
 
+        <Tabs defaultValue="PI" onValueChange={(v) => setFormData(p => ({...p, status: v}))} className="mb-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="PI" className="flex items-center gap-2">
+              <Factory className="w-4 h-4" /> Commande (PI)
+            </TabsTrigger>
+            <TabsTrigger value="TO_ORDER" className="flex items-center gap-2">
+              <ListTodo className="w-4 h-4" /> Rappel (À Commander)
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 mb-4 transition-all">
-            <div className="flex justify-between items-center mb-1">
-              <Label className="block text-sm font-bold text-stone-800">
-                N° de Facture <span className="text-stone-500 font-normal">(Laisser vide si en production)</span>
-              </Label>
-              {!formData.factureId && (
-                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 uppercase">
-                  <Factory className="w-3 h-3" /> État : PI / Production
+          {formData.status === 'PI' && (
+            <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 mb-4 transition-all">
+              <div className="flex justify-between items-center mb-1">
+                <Label className="block text-sm font-bold text-stone-800">
+                  N° de Facture <span className="text-stone-500 font-normal">(Optionnel si en prod.)</span>
+                </Label>
+                {!formData.factureId && (
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 uppercase">
+                    <Factory className="w-3 h-3" /> État : PI / Production
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <Input 
+                  value={formData.factureId || ''}
+                  onChange={handleFactureInput}
+                  list="factures-suggestions"
+                  className="uppercase font-bold text-lg bg-white border-amber-200 focus:ring-amber-500" 
+                  placeholder="Ex: 26HD1004"
+                />
+                <datalist id="factures-suggestions">
+                  {factures.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.supplierId || f.supplier} - {f.arrivalDate}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+              {autofillVisible && (
+                <div className="flex items-center gap-1 text-xs font-bold text-blue-600 mt-2 animate-pulse">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Données pré-remplies !
                 </div>
               )}
             </div>
-            <div className="relative">
-              <Input 
-                value={formData.factureId || ''}
-                onChange={handleFactureInput}
-                list="factures-suggestions"
-                className="uppercase font-bold text-lg bg-white border-amber-200 focus:ring-amber-500" 
-                placeholder="Ex: 26HD1004"
-              />
-              <datalist id="factures-suggestions">
-                {factures.map(f => (
-                  <option key={f.id} value={f.id}>
-                    {f.supplierId || f.supplier} - {f.arrivalDate}
-                  </option>
-                ))}
-              </datalist>
-            </div>
-            {autofillVisible && (
-              <div className="flex items-center gap-1 text-xs font-bold text-blue-600 mt-2 animate-pulse">
-                <CheckCircle2 className="w-3 h-3" />
-                Données pré-remplies par la facture !
-              </div>
-            )}
-          </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label>Fournisseur</Label>
-              <Input 
-                required 
-                value={formData.supplierId || ''} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
-                placeholder="Ex: MH"
-                className={autofillVisible ? "highlight-autofill" : ""}
-              />
-            </div>
             <div className="space-y-1">
               <Label>Catégorie</Label>
               <Input 
@@ -182,7 +191,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                 placeholder="Ex: Zipper No5" 
               />
             </div>
-            <div className="space-y-1 md:col-span-2">
+            <div className="space-y-1">
               <Label>Article</Label>
               <Input 
                 required 
@@ -221,77 +230,89 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                 onChange={e => setFormData((prev: any) => ({ ...prev, color: e.target.value }))} 
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label>Date Commande</Label>
-                <Input 
-                  type="date" 
-                  required 
-                  value={formData.orderDate || ''} 
-                  onChange={e => setFormData((prev: any) => ({ ...prev, orderDate: e.target.value }))} 
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className={formData.factureId ? "text-blue-700" : "text-stone-400"}>Date Arrivée</Label>
-                <Input 
-                  type="date" 
-                  required={!!formData.factureId}
-                  className={`bg-blue-50 border-blue-200 ${autofillVisible ? "highlight-autofill" : ""} ${!formData.factureId ? "opacity-50" : ""}`}
-                  value={formData.arrivalDate || ''} 
-                  onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))} 
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 md:col-span-2">
-              <div className="space-y-1">
-                <Label>Quantité</Label>
+            <div className="space-y-1">
+              <Label>Quantité & Unité</Label>
+              <div className="flex gap-2">
                 <Input 
                   type="number" 
                   required 
                   value={formData.quantity || 0} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} 
                 />
-              </div>
-              <div className="space-y-1">
-                <Label>Unité</Label>
                 <Input 
                   required 
+                  className="w-24"
                   value={formData.unitOfMeasure || ''} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, unitOfMeasure: e.target.value }))} 
                 />
               </div>
-              <div className="space-y-1">
-                <Label className="text-emerald-700">Volume (CBM)</Label>
-                <Input 
-                  type="number" 
-                  step="0.001" 
-                  className="bg-emerald-50 border-emerald-200" 
-                  required 
-                  value={formData.cubicMeasurement || 0} 
-                  onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
-                />
-              </div>
             </div>
 
-            <div className="space-y-1 md:col-span-2">
-              <Label>Prix (PA)</Label>
-              <Input 
-                type="number" 
-                step="0.0001" 
-                required 
-                value={formData.purchasePricePerUnit || 0} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} 
-                className="max-w-[200px]" 
-              />
-            </div>
+            {formData.status === 'PI' && (
+              <>
+                <div className="space-y-1">
+                  <Label>Fournisseur</Label>
+                  <Input 
+                    required 
+                    value={formData.supplierId || ''} 
+                    onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
+                    placeholder="Ex: MH"
+                    className={autofillVisible ? "highlight-autofill" : ""}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label>Date Commande</Label>
+                    <Input 
+                      type="date" 
+                      required 
+                      value={formData.orderDate || ''} 
+                      onChange={e => setFormData((prev: any) => ({ ...prev, orderDate: e.target.value }))} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className={formData.factureId ? "text-blue-700" : "text-stone-400"}>Date Arrivée</Label>
+                    <Input 
+                      type="date" 
+                      required={!!formData.factureId}
+                      className={`bg-blue-50 border-blue-200 ${autofillVisible ? "highlight-autofill" : ""} ${!formData.factureId ? "opacity-50" : ""}`}
+                      value={formData.arrivalDate || ''} 
+                      onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))} 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-emerald-700">Volume (CBM)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.001" 
+                    className="bg-emerald-50 border-emerald-200" 
+                    required 
+                    value={formData.cubicMeasurement || 0} 
+                    onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Prix (PA)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.0001" 
+                    required 
+                    value={formData.purchasePricePerUnit || 0} 
+                    onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} 
+                  />
+                </div>
+              </>
+            )}
           </div>
         </form>
 
         <DialogFooter className="border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">
-            {formData.factureId ? "Enregistrer l'article" : "Enregistrer en Production (PI)"}
+          <Button onClick={handleSubmit} className={`${formData.status === 'TO_ORDER' ? 'bg-stone-800' : 'bg-amber-600'} hover:opacity-90 text-white font-bold`}>
+            {formData.status === 'TO_ORDER' ? 'Enregistrer en Rappel (À Commander)' : (formData.factureId ? 'Enregistrer Shipped' : 'Enregistrer en Prod. (PI)')}
           </Button>
         </DialogFooter>
       </DialogContent>

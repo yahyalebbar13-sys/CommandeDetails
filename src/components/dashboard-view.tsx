@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from 'react';
@@ -16,7 +17,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-import { Package, Banknote, Cuboid as Cube, FileText, CheckCircle2, Ship, Factory } from 'lucide-react';
+import { Package, Banknote, Cuboid as Cube, FileText, CheckCircle2, Ship, Factory, ListTodo } from 'lucide-react';
 
 interface DashboardViewProps {
   articles: any[];
@@ -27,18 +28,23 @@ interface DashboardViewProps {
 export default function DashboardView({ articles, factures, onNavigate }: DashboardViewProps) {
   const stats = useMemo(() => {
     const now = new Date();
-    let totalQty = 0, arrivedQty = 0, transitQty = 0, pendingQty = 0;
+    let totalQty = 0, arrivedQty = 0, transitQty = 0, pendingQty = 0, toOrderQty = 0;
     let totalVal = 0, arrivedVal = 0, transitVal = 0, pendingVal = 0;
     let totalCbm = 0, arrivedCbm = 0, transitCbm = 0, pendingCbm = 0;
 
     articles.forEach(o => {
-      const val = o.quantity * o.purchasePricePerUnit;
+      const val = (o.quantity || 0) * (o.purchasePricePerUnit || 0);
       
+      if (o.status === 'TO_ORDER') {
+        toOrderQty += 1;
+        return;
+      }
+
       // Cas : Commande en Production (PI)
-      if (!o.factureId) {
-        pendingQty += o.quantity;
+      if (o.status === 'PI' || !o.factureId) {
+        pendingQty += (o.quantity || 0);
         pendingVal += val;
-        pendingCbm += o.cubicMeasurement;
+        pendingCbm += (o.cubicMeasurement || 0);
         return;
       }
 
@@ -46,18 +52,18 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
       const arrival = new Date(o.arrivalDate);
       const isArrived = arrival <= now;
 
-      totalQty += o.quantity;
+      totalQty += (o.quantity || 0);
       totalVal += val;
-      totalCbm += o.cubicMeasurement;
+      totalCbm += (o.cubicMeasurement || 0);
 
       if (isArrived) {
-        arrivedQty += o.quantity;
+        arrivedQty += (o.quantity || 0);
         arrivedVal += val;
-        arrivedCbm += o.cubicMeasurement;
+        arrivedCbm += (o.cubicMeasurement || 0);
       } else {
-        transitQty += o.quantity;
+        transitQty += (o.quantity || 0);
         transitVal += val;
-        transitCbm += o.cubicMeasurement;
+        transitCbm += (o.cubicMeasurement || 0);
       }
     });
 
@@ -73,7 +79,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
     });
 
     return {
-      totalQty, arrivedQty, transitQty, pendingQty,
+      totalQty, arrivedQty, transitQty, pendingQty, toOrderQty,
       totalVal, arrivedVal, transitVal, pendingVal,
       totalCbm, arrivedCbm, transitCbm, pendingCbm,
       facturesCount: factures.length,
@@ -85,7 +91,8 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
   const categoryData = useMemo(() => {
     const data: Record<string, number> = {};
     articles.forEach(o => {
-      if (!o.factureId) return; // Exclure PI du graphe principal
+      if (o.status === 'TO_ORDER') return;
+      if (o.status === 'PI' || !o.factureId) return; 
       const cat = o.categoryId || 'Inconnu';
       data[cat] = (data[cat] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
@@ -95,7 +102,8 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
   const timelineData = useMemo(() => {
     const data: Record<string, number> = {};
     articles.forEach(o => {
-      if (!o.factureId) return; // Exclure PI de la chronologie d'import
+      if (o.status === 'TO_ORDER') return;
+      if (o.status === 'PI' || !o.factureId) return; 
       const month = o.orderDate?.substring(0, 7) || 'Inconnu';
       data[month] = (data[month] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
@@ -106,21 +114,37 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex justify-between items-center">
+      <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h1 className="text-3xl font-bold text-stone-800 mb-2">Tableau de Bord</h1>
           <p className="text-stone-600">Vue d'ensemble des flux d'importation.</p>
         </div>
-        <div 
-          onClick={() => onNavigate('pending')}
-          className="bg-amber-100 text-amber-800 px-6 py-4 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-200 transition-colors group"
-        >
-          <div className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-            <Factory className="w-3 h-3" /> Commandes en Production
+        
+        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+          <div 
+            onClick={() => onNavigate('to-order')}
+            className="bg-stone-800 text-white px-6 py-4 rounded-xl cursor-pointer hover:bg-black transition-colors group flex-1"
+          >
+            <div className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+              <ListTodo className="w-3 h-3" /> À Commander (Rappels)
+            </div>
+            <div className="text-2xl font-black">{stats.toOrderQty} <span className="text-sm font-bold opacity-70">Articles</span></div>
+            <div className="text-xs font-bold text-stone-400 mt-1 flex items-center gap-1">
+              Voir les besoins <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+            </div>
           </div>
-          <div className="text-2xl font-black">{stats.pendingQty.toLocaleString()} <span className="text-sm font-bold opacity-70">Unités</span></div>
-          <div className="text-xs font-bold text-amber-700 mt-1 flex items-center gap-1">
-            Cliquez pour valider l'expédition <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+
+          <div 
+            onClick={() => onNavigate('pending')}
+            className="bg-amber-100 text-amber-800 px-6 py-4 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-200 transition-colors group flex-1"
+          >
+            <div className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+              <Factory className="w-3 h-3" /> En Production (PI)
+            </div>
+            <div className="text-2xl font-black">{stats.pendingQty.toLocaleString()} <span className="text-sm font-bold opacity-70">Unités</span></div>
+            <div className="text-xs font-bold text-amber-700 mt-1 flex items-center gap-1">
+              Gérer les expéditions <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+            </div>
           </div>
         </div>
       </div>

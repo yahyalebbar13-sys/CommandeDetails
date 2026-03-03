@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -26,7 +27,7 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
 
   const pendingOrders = useMemo(() => {
     return articles
-      .filter(o => !o.factureId)
+      .filter(o => o.status === 'PI') // Explicitly check for PI status
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [articles]);
 
