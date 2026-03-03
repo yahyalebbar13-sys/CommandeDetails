@@ -1,24 +1,49 @@
 
 {
   "entities": {
-    "Category": {
+    "GeneralCategory": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Category",
+      "title": "GeneralCategory",
       "type": "object",
-      "description": "Represents a classification or type for various articles, allowing for organized inventory and reporting.",
+      "description": "Représente un groupe de haut niveau (ex: Accessoires, Tissus, Mercerie) pour organiser les sous-catégories.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Category entity."
+          "description": "Identifiant unique."
         },
         "name": {
           "type": "string",
-          "description": "The name of the category (e.g., 'Sewing Thread', 'Zipper No5')."
+          "description": "Le nom du groupe (ex: TEXTILES)."
         }
       },
       "required": [
         "id",
         "name"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Désormais considérée comme une Sous-catégorie. Elle est rattachée à une Catégorie Générale.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifiant unique."
+        },
+        "name": {
+          "type": "string",
+          "description": "Le nom de la sous-catégorie (e.g., 'Sewing Thread')."
+        },
+        "generalCategoryId": {
+          "type": "string",
+          "description": "Référence à la catégorie générale parente."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "generalCategoryId"
       ]
     },
     "Supplier": {
@@ -189,21 +214,41 @@
   "firestore": {
     "structure": [
       {
+        "path": "/users/{userId}/generalCategories/{genCatId}",
+        "definition": {
+          "entityName": "GeneralCategory",
+          "schema": {
+            "$ref": "#/backend/entities/GeneralCategory"
+          },
+          "description": "Catégories de haut niveau.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "UID"
+            },
+            {
+              "name": "genCatId",
+              "description": "ID"
+            }
+          ]
+        }
+      },
+      {
         "path": "/users/{userId}/categories/{categoryId}",
         "definition": {
           "entityName": "Category",
           "schema": {
             "$ref": "#/backend/entities/Category"
           },
-          "description": "Categories defined by the user for organizing articles. Owned by the authenticated user.",
+          "description": "Sous-catégories.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the authenticated user who owns this category."
+              "description": "UID"
             },
             {
               "name": "categoryId",
-              "description": "The unique identifier of the category."
+              "description": "ID"
             }
           ]
         }

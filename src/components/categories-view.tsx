@@ -1,15 +1,18 @@
 
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2 } from 'lucide-react';
+import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, deleteDocumentNonBlocking, setDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   BarChart, 
   Bar, 
@@ -27,9 +30,23 @@ interface CategoriesViewProps {
   articles: any[];
   selectedCategory: string | null;
   setSelectedCategory: (category: string | null) => void;
+  initialGeneralCategoryId?: string | null;
 }
 
-export default function CategoriesView({ articles, selectedCategory, setSelectedCategory }: CategoriesViewProps) {
+export default function CategoriesView({ articles, selectedCategory, setSelectedCategory, initialGeneralCategoryId }: CategoriesViewProps) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  
+  const genCatsRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'generalCategories');
+  }, [firestore, user]);
+  const { data: generalCategories = [] } = useCollection(genCatsRef);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newSubCat, setNewSubCat] = useState({ name: '', generalCategoryId: initialGeneralCategoryId || '' });
+
   const categories = useMemo(() => {
     const data: Record<string, { qty: number; val: number; count: number }> = {};
     articles.forEach(o => {
@@ -41,6 +58,16 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
     });
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
   }, [articles]);
+
+  const handleAddSubCategory = () => {
+    if (!user || !firestore || !newSubCat.name.trim() || !newSubCat.generalCategoryId) return;
+    const id = crypto.randomUUID();
+    const docRef = doc(firestore, 'users', user.uid, 'categories', id);
+    setDocumentNonBlocking(docRef, { ...newSubCat, id, name: newSubCat.name.trim() }, { merge: true });
+    toast({ title: "Sous-catégorie créée", description: newSubCat.name });
+    setIsModalOpen(false);
+    setNewSubCat({ name: '', generalCategoryId: initialGeneralCategoryId || '' });
+  };
 
   if (selectedCategory) {
     return (
@@ -54,10 +81,16 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
 
   return (
     <div className="space-y-6 fade-in">
-      <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6">
-        <h1 className="text-3xl font-bold text-stone-800 mb-2">Catalogue des Catégories</h1>
-        <p className="text-stone-600">Sélectionnez une catégorie ci-dessous pour ouvrir sa page dédiée avec analyse complète.</p>
+      <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-stone-800 mb-2">Sous-catégories de Produits</h1>
+          <p className="text-stone-600">Détail analytique par type de produit spécifique.</p>
+        </div>
+        <Button onClick={() => setIsModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2">
+          <Plus className="w-5 h-5" /> Nouvelle Sous-catégorie
+        </Button>
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {categories.map(([name, stats]) => (
           <Card 
@@ -84,6 +117,44 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
           </Card>
         ))}
       </div>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nouvelle Sous-catégorie</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-stone-700">Nom de la Sous-catégorie</label>
+              <Input 
+                value={newSubCat.name} 
+                onChange={e => setNewSubCat(p => ({...p, name: e.target.value}))}
+                placeholder="Ex: Zip N°5, Fil 40/2..."
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-bold text-stone-700">Grouper dans (Catégorie Générale)</label>
+              <Select 
+                value={newSubCat.generalCategoryId} 
+                onValueChange={v => setNewSubCat(p => ({...p, generalCategoryId: v}))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir un groupe..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {generalCategories.map(gc => (
+                    <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Annuler</Button>
+            <Button onClick={handleAddSubCategory} className="bg-amber-600 text-white">Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

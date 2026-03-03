@@ -6,6 +6,7 @@ import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
 import CategoriesView from '@/components/categories-view';
+import GeneralCategoriesView from '@/components/general-categories-view';
 import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
 import PendingOrdersView from '@/components/pending-orders-view';
@@ -15,7 +16,7 @@ import AddFactureModal from '@/components/add-facture-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo } from 'lucide-react';
+import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo, Layers } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -26,7 +27,8 @@ export default function StockVueApp() {
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
-  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [selectedSubCategoryName, setSelectedSubCategoryName] = useState<string | null>(null);
+  const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -43,17 +45,34 @@ export default function StockVueApp() {
     return collection(firestore, 'users', user.uid, 'articles');
   }, [firestore, user]);
 
+  const generalCategoriesRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'generalCategories');
+  }, [firestore, user]);
+
+  const categoriesRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'categories');
+  }, [firestore, user]);
+
   const { data: factures = [], isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: articles = [], isLoading: isArticlesLoading } = useCollection(articlesRef);
+  const { data: generalCategories = [], isLoading: isGenCatsLoading } = useCollection(generalCategoriesRef);
+  const { data: categories = [], isLoading: isCatsLoading } = useCollection(categoriesRef);
 
   const handleNavigateToFacture = (factureId: string) => {
     setSelectedFactureId(factureId);
     setActiveTab('factures');
   };
 
-  const handleNavigateToCategory = (categoryName: string) => {
-    setSelectedCategoryName(categoryName);
+  const handleNavigateToSubCategory = (categoryName: string) => {
+    setSelectedSubCategoryName(categoryName);
     setActiveTab('categories');
+  };
+
+  const handleNavigateToGeneralCategory = (genCatId: string) => {
+    setSelectedGeneralCategoryId(genCatId);
+    setActiveTab('general-categories');
   };
 
   const handleExport = () => {
@@ -79,7 +98,8 @@ export default function StockVueApp() {
     { id: 'to-order', label: 'À Commander', icon: ListTodo },
     { id: 'pending', label: 'Commandes PI', icon: Clock },
     { id: 'factures', label: 'Factures', icon: FileText },
-    { id: 'categories', label: 'Catégories', icon: Package },
+    { id: 'general-categories', label: 'Catégories', icon: Layers },
+    { id: 'categories', label: 'Sous-catégories', icon: Package },
     { id: 'suppliers', label: 'Fournisseurs', icon: Users },
     { id: 'data', label: 'Base', icon: Database },
   ] as const;
@@ -94,7 +114,8 @@ export default function StockVueApp() {
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
-            if (id === 'categories') setSelectedCategoryName(null);
+            if (id === 'categories') setSelectedSubCategoryName(null);
+            if (id === 'general-categories') setSelectedGeneralCategoryId(null);
             if (isMobile) setIsMobileMenuOpen(false);
           }}
         >
@@ -174,7 +195,7 @@ export default function StockVueApp() {
       </nav>
 
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 w-full">
-        {(isFacturesLoading || isArticlesLoading) ? (
+        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isCatsLoading) ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-stone-300" />
           </div>
@@ -189,14 +210,25 @@ export default function StockVueApp() {
                 factures={factures || []} 
                 selectedFactureId={selectedFactureId} 
                 setSelectedFactureId={setSelectedFactureId}
-                onNavigateToCategory={handleNavigateToCategory}
+                onNavigateToSubCategory={handleNavigateToSubCategory}
+              />
+            )}
+            {activeTab === 'general-categories' && (
+              <GeneralCategoriesView 
+                generalCategories={generalCategories}
+                subCategories={categories}
+                onSelectGeneralCategory={(id) => {
+                  setSelectedGeneralCategoryId(id);
+                  setActiveTab('categories');
+                }}
               />
             )}
             {activeTab === 'categories' && (
               <CategoriesView 
                 articles={articles || []} 
-                selectedCategory={selectedCategoryName}
-                setSelectedCategory={setSelectedCategoryName}
+                selectedCategory={selectedSubCategoryName}
+                setSelectedCategory={setSelectedSubCategoryName}
+                initialGeneralCategoryId={selectedGeneralCategoryId}
               />
             )}
             {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
