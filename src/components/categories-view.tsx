@@ -47,13 +47,13 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newSubCat, setNewSubCat] = useState({ name: '', generalCategoryId: initialGeneralCategoryId || '' });
 
-  const categories = useMemo(() => {
+  const categoriesData = useMemo(() => {
     const data: Record<string, { qty: number; val: number; count: number }> = {};
-    articles.forEach(o => {
+    (articles || []).forEach(o => {
       const cat = o.categoryId || 'Inconnu';
       if (!data[cat]) data[cat] = { qty: 0, val: 0, count: 0 };
-      data[cat].qty += o.quantity;
-      data[cat].val += (o.quantity * o.purchasePricePerUnit);
+      data[cat].qty += o.quantity || 0;
+      data[cat].val += ((o.quantity || 0) * (o.purchasePricePerUnit || 0));
       data[cat].count += 1;
     });
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
@@ -73,7 +73,7 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
     return (
       <CategoryDetailView 
         categoryName={selectedCategory} 
-        articles={articles} 
+        articles={articles || []} 
         onBack={() => setSelectedCategory(null)} 
       />
     );
@@ -92,7 +92,9 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {categories.map(([name, stats]) => (
+        {categoriesData.length === 0 ? (
+          <div className="col-span-full py-20 text-center text-stone-400">Aucune donnée disponible.</div>
+        ) : categoriesData.map(([name, stats]) => (
           <Card 
             key={name} 
             onClick={() => setSelectedCategory(name)}

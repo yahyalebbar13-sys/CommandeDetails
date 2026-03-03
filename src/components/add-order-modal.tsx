@@ -43,7 +43,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
   
   const filteredSubCategories = useMemo(() => {
-    if (!selectedGenCatId) return [];
+    if (!selectedGenCatId || !subCategories) return [];
     return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
 
@@ -55,7 +55,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     cubicMeasurement: 0,
     unitOfMeasure: 'pcs',
     color: '',
-    categoryId: '', // This will store the sub-category name or ID
+    categoryId: '', // Stores the sub-category name
     name: '',
     supplierId: '',
     factureId: '',
@@ -227,7 +227,10 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
               <Select 
                 disabled={!selectedGenCatId} 
                 value={formData.categoryId} 
-                onValueChange={(v) => setFormData((p: any) => ({...p, categoryId: v}))}
+                onValueChange={(v) => {
+                  setFormData((p: any) => ({...p, categoryId: v}));
+                  // Option: auto-fill name if needed, but usually Article Name is unique
+                }}
               >
                 <SelectTrigger className="bg-white">
                   <SelectValue placeholder={selectedGenCatId ? "Choisir une sous-catégorie..." : "Sélectionnez d'abord un groupe"} />
