@@ -28,14 +28,8 @@ export default function ToOrderView({ articles }: ToOrderViewProps) {
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   }, [articles]);
 
-  const handleDelete = (e: React.MouseEvent, articleId: string, name: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user || !firestore || !articleId) {
-      console.warn("Suppression impossible: UID ou Firestore manquant");
-      return;
-    }
+  const handleDelete = (articleId: string, name: string) => {
+    if (!user || !firestore || !articleId) return;
     
     if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
       const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
@@ -107,7 +101,7 @@ export default function ToOrderView({ articles }: ToOrderViewProps) {
                           size="sm" 
                           variant="ghost"
                           className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
-                          onClick={(e) => handleDelete(e, o.id, o.name)}
+                          onClick={() => handleDelete(o.id, o.name)}
                           title="Supprimer ce rappel"
                         >
                           <Trash2 className="w-4 h-4" />

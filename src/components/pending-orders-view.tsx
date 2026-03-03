@@ -35,14 +35,8 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
     setIsValidating(true);
   };
 
-  const handleDelete = (e: React.MouseEvent, articleId: string, name: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!user || !firestore || !articleId) {
-      console.warn("Suppression impossible: UID ou Firestore manquant");
-      return;
-    }
+  const handleDelete = (articleId: string, name: string) => {
+    if (!user || !firestore || !articleId) return;
     
     if (window.confirm(`Supprimer définitivement la commande PI "${name}" ?`)) {
       const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
@@ -117,7 +111,7 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
                           size="sm" 
                           variant="ghost"
                           className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
-                          onClick={(e) => handleDelete(e, o.id, o.name)}
+                          onClick={() => handleDelete(o.id, o.name)}
                           title="Supprimer cette commande PI"
                         >
                           <Trash2 className="w-4 h-4" />

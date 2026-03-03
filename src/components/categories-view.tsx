@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from 'react';
@@ -6,9 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { 
   BarChart, 
@@ -144,9 +144,9 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
     <div className="space-y-6 fade-in pb-12">
       <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-8 border-l-amber-500">
         <div>
-          <Button variant="ghost" size="sm" onClick={onBack} className="text-stone-500 hover:text-amber-600 mb-2 p-0 h-auto">
+          <button onClick={onBack} className="flex items-center text-stone-500 hover:text-amber-600 mb-2 text-sm font-medium transition-colors">
             <ChevronLeft className="w-4 h-4 mr-1" /> Retour au catalogue
-          </Button>
+          </button>
           <h2 className="text-3xl font-bold text-stone-900">{categoryName}</h2>
         </div>
         <div className="text-right bg-stone-50 p-3 rounded-lg border border-stone-200">
@@ -280,10 +280,12 @@ function CategoryTableSection({ title, data, color, count }: any) {
   } as const;
 
   const handleDelete = (articleId: string, name: string) => {
-    if (!user || !firestore || !window.confirm(`Supprimer l'article "${name}" ?`)) return;
-    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ title: "Article supprimé", description: name });
+    if (!user || !firestore || !articleId) return;
+    if (window.confirm(`Supprimer l'article "${name}" ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+      deleteDocumentNonBlocking(docRef);
+      toast({ title: "Article supprimé", description: name });
+    }
   };
 
   return (
@@ -329,7 +331,7 @@ function CategoryTableSection({ title, data, color, count }: any) {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8 text-stone-200 hover:text-red-500"
+                      className="h-8 w-8 text-stone-300 hover:text-red-500"
                       onClick={() => handleDelete(d.id, d.name)}
                     >
                       <Trash2 className="w-4 h-4" />
