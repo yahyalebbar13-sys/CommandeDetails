@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -32,7 +31,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
   const handleActionDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
     
-    if (confirm(`Supprimer ce rappel pour "${name}" ?`)) {
+    if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
       const docRef = doc(firestore, 'users', user.uid, 'articles', id);
       deleteDocumentNonBlocking(docRef);
       toast({ 
@@ -108,11 +107,14 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-stone-400 hover:text-red-500"
-                          onClick={() => handleActionDelete(o.id, o.name)}
-                          title="Supprimer"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleActionDelete(o.id, o.name);
+                          }}
+                          title="Supprimer ce rappel"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

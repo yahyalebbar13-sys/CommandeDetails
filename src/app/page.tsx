@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -189,11 +188,11 @@ export default function StockVueApp() {
             </div>
 
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex gap-1 border-stone-200 hover:bg-stone-50">
-                <Download className="w-4 h-4" /> Export
-              </Button>
               <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1 px-3 md:px-4">
                 <Plus className="w-4 h-4" /> <span className="hidden xs:inline">Cmd</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex gap-1 border-stone-200 hover:bg-stone-50">
+                <Download className="w-4 h-4" /> Export
               </Button>
               <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="hidden md:flex text-stone-400 hover:text-red-500">
                 <LogOut className="w-4 h-4" />
