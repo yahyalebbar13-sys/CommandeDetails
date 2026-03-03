@@ -1,18 +1,19 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, CheckCircle2, Factory, ListTodo } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, Factory, ListTodo, Layers, Package } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface AddOrderModalProps {
   open: boolean;
@@ -25,6 +26,27 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
   const firestore = useFirestore();
   const { toast } = useToast();
   
+  // Fetch Categories for selection
+  const genCatsRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'generalCategories');
+  }, [firestore, user]);
+
+  const catsRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'categories');
+  }, [firestore, user]);
+
+  const { data: generalCategories = [] } = useCollection(genCatsRef);
+  const { data: subCategories = [] } = useCollection(catsRef);
+
+  const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
+  
+  const filteredSubCategories = useMemo(() => {
+    if (!selectedGenCatId) return [];
+    return subCategories.filter(sc => sc.generalCategoryId === selectedGenCatId);
+  }, [selectedGenCatId, subCategories]);
+
   const [formData, setFormData] = useState<any>({
     orderDate: '',
     arrivalDate: '',
@@ -33,7 +55,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
     cubicMeasurement: 0,
     unitOfMeasure: 'pcs',
     color: '',
-    categoryId: '',
+    categoryId: '', // This will store the sub-category name or ID
     name: '',
     supplierId: '',
     factureId: '',
@@ -107,6 +129,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
       
       onOpenChange(false);
       
+      // Reset form
       setFormData({
         orderDate: '',
         arrivalDate: '',
@@ -122,6 +145,9 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
         specs: '',
         status: 'PI'
       });
+      setSelectedGenCatId('');
+    } else {
+      toast({ variant: "destructive", title: "Erreur", description: "Veuillez sélectionner une sous-catégorie et un nom d'article." });
     }
   };
 
@@ -132,7 +158,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
           <DialogTitle className="text-xl font-bold text-stone-800">Nouvel Article / Commande</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="PI" onValueChange={(v) => setFormData(p => ({...p, status: v}))} className="mb-4">
+        <Tabs defaultValue="PI" onValueChange={(v) => setFormData((p: any) => ({...p, status: v}))} className="mb-4">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="PI" className="flex items-center gap-2">
               <Factory className="w-4 h-4" /> Commande (PI)
@@ -183,16 +209,39 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label>Catégorie</Label>
-              <Input 
-                required 
-                value={formData.categoryId || ''} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, categoryId: e.target.value }))} 
-                placeholder="Ex: Zipper No5" 
-              />
+              <Label className="flex items-center gap-1"><Layers className="w-3 h-3" /> Catégorie Générale</Label>
+              <Select value={selectedGenCatId} onValueChange={setSelectedGenCatId}>
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Choisir un groupe..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {generalCategories.map(gc => (
+                    <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
             <div className="space-y-1">
-              <Label>Article</Label>
+              <Label className="flex items-center gap-1"><Package className="w-3 h-3" /> Sous-catégorie</Label>
+              <Select 
+                disabled={!selectedGenCatId} 
+                value={formData.categoryId} 
+                onValueChange={(v) => setFormData((p: any) => ({...p, categoryId: v}))}
+              >
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder={selectedGenCatId ? "Choisir une sous-catégorie..." : "Sélectionnez d'abord un groupe"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredSubCategories.map(sc => (
+                    <SelectItem key={sc.id} value={sc.name}>{sc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1 md:col-span-2">
+              <Label>Nom de l'Article</Label>
               <Input 
                 required 
                 value={formData.name || ''} 
