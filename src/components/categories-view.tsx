@@ -142,7 +142,7 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
                   <SelectValue placeholder="Choisir un groupe..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {generalCategories.map(gc => (
+                  {(generalCategories || []).map(gc => (
                     <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -165,7 +165,7 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
   const now = new Date();
   const transit = catArticles.filter(o => o.factureId && new Date(o.arrivalDate) > now);
   const arrived = catArticles.filter(o => o.factureId && new Date(o.arrivalDate) <= now);
-  const pending = catArticles.filter(o => !o.factureId);
+  const pending = catArticles.filter(o => !o.factureId && o.status === 'PI');
   
   const totalVal = useMemo(() => catArticles.reduce((s, o) => s + (o.quantity * o.purchasePricePerUnit), 0), [catArticles]);
   const totalQty = useMemo(() => catArticles.reduce((s, o) => s + o.quantity, 0), [catArticles]);
