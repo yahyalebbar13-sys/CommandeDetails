@@ -3,103 +3,32 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * STOKVUE COMMANDES - SECURITY RULES
-     * 
-     * CORE PHILOSOPHY:
-     * This ruleset enforces a strict "Authorization Independence" model based on user ownership. 
-     * Every piece of application data is logically partitioned under a user's unique identifier (UID).
+     * STOKVUE COMMANDES - SECURITY RULES v1.1
+     * Mise à jour pour supporter la hiérarchie à 3 niveaux et les permissions de listing.
      */
 
-    // --- Helper Functions ---
-
-    /**
-     * @description Checks if the request is made by a signed-in user.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId from the path.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * @description Combined check for ownership and document existence for state-changing operations.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    // --- Collection Rules ---
-
-    /**
-     * @description Rules for the root user document.
-     */
+    // --- Racine Utilisateur et Sous-collections ---
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
+      allow update, delete: if isOwner(userId);
 
-    /**
-     * @description Rules for general categories (high-level grouping).
-     */
-    match /users/{userId}/generalCategories/{genCatId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == genCatId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for categories (sub-categories) used to organize articles.
-     */
-    match /users/{userId}/categories/{categoryId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == categoryId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for suppliers managed by the user.
-     */
-    match /users/{userId}/suppliers/{supplierId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == supplierId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for articles (product variants) owned by the user.
-     */
-    match /users/{userId}/articles/{articleId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == articleId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for factures (invoices/shipments).
-     */
-    match /users/{userId}/factures/{factureId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == factureId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-
-      match /orderItems/{orderItemId} {
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.id == orderItemId;
-        allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-        allow delete: if isExistingOwner(userId);
+      // Règles globales pour toutes les sous-collections appartenant à l'utilisateur
+      match /generalCategories/{id} { allow read, write: if isOwner(userId); }
+      match /categories/{id} { allow read, write: if isOwner(userId); }
+      match /suppliers/{id} { allow read, write: if isOwner(userId); }
+      match /articles/{id} { allow read, write: if isOwner(userId); }
+      match /factures/{id} { 
+        allow read, write: if isOwner(userId); 
+        match /orderItems/{itemId} { allow read, write: if isOwner(userId); }
       }
     }
   }

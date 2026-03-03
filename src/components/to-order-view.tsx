@@ -28,11 +28,11 @@ export default function ToOrderView({ articles }: ToOrderViewProps) {
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   }, [articles]);
 
-  const handleDelete = (articleId: string, name: string) => {
-    if (!user || !firestore || !articleId) return;
+  const handleActionDelete = (id: string, name: string) => {
+    if (!user || !firestore || !id) return;
     
-    if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    if (confirm(`Supprimer ce rappel pour "${name}" ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
       deleteDocumentNonBlocking(docRef);
       toast({ 
         title: "Rappel supprimé", 
@@ -98,11 +98,10 @@ export default function ToOrderView({ articles }: ToOrderViewProps) {
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
                         <Button 
-                          size="sm" 
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
-                          onClick={() => handleDelete(o.id, o.name)}
-                          title="Supprimer ce rappel"
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-stone-400 hover:text-red-500 hover:bg-red-50"
+                          onClick={() => handleActionDelete(o.id, o.name)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

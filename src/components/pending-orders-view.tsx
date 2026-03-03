@@ -35,14 +35,14 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
     setIsValidating(true);
   };
 
-  const handleDelete = (articleId: string, name: string) => {
-    if (!user || !firestore || !articleId) return;
+  const handleActionDelete = (id: string, name: string) => {
+    if (!user || !firestore || !id) return;
     
-    if (window.confirm(`Supprimer définitivement la commande PI "${name}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    if (confirm(`Supprimer définitivement la commande PI "${name}" ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
       deleteDocumentNonBlocking(docRef);
       toast({ 
-        title: "Commande PI supprimée", 
+        title: "Commande supprimée", 
         description: name 
       });
     }
@@ -108,11 +108,10 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
                         <Button 
-                          size="sm" 
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
-                          onClick={() => handleDelete(o.id, o.name)}
-                          title="Supprimer cette commande PI"
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-stone-400 hover:text-red-500 hover:bg-red-50"
+                          onClick={() => handleActionDelete(o.id, o.name)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
