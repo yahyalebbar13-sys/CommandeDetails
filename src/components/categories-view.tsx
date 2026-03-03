@@ -1,11 +1,11 @@
 
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus } from 'lucide-react';
+import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, deleteDocumentNonBlocking, setDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -31,9 +31,10 @@ interface CategoriesViewProps {
   selectedCategory: string | null;
   setSelectedCategory: (category: string | null) => void;
   initialGeneralCategoryId?: string | null;
+  subCategories: any[];
 }
 
-export default function CategoriesView({ articles, selectedCategory, setSelectedCategory, initialGeneralCategoryId }: CategoriesViewProps) {
+export default function CategoriesView({ articles, selectedCategory, setSelectedCategory, initialGeneralCategoryId, subCategories }: CategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -46,18 +47,36 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newSubCat, setNewSubCat] = useState({ name: '', generalCategoryId: initialGeneralCategoryId || '' });
+  const [filterGenCatId, setFilterGenCatId] = useState<string | null>(initialGeneralCategoryId || null);
+
+  useEffect(() => {
+    if (initialGeneralCategoryId) {
+      setFilterGenCatId(initialGeneralCategoryId);
+    }
+  }, [initialGeneralCategoryId]);
+
+  const filteredCategoriesNames = useMemo(() => {
+    if (!filterGenCatId) return null;
+    return (subCategories || [])
+      .filter(sc => sc.generalCategoryId === filterGenCatId)
+      .map(sc => sc.name);
+  }, [filterGenCatId, subCategories]);
 
   const categoriesData = useMemo(() => {
     const data: Record<string, { qty: number; val: number; count: number }> = {};
     (articles || []).forEach(o => {
       const cat = o.categoryId || 'Inconnu';
+      
+      // Filter if needed
+      if (filteredCategoriesNames && !filteredCategoriesNames.includes(cat)) return;
+
       if (!data[cat]) data[cat] = { qty: 0, val: 0, count: 0 };
       data[cat].qty += o.quantity || 0;
       data[cat].val += ((o.quantity || 0) * (o.purchasePricePerUnit || 0));
       data[cat].count += 1;
     });
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [articles]);
+  }, [articles, filteredCategoriesNames]);
 
   const handleAddSubCategory = () => {
     if (!user || !firestore || !newSubCat.name.trim() || !newSubCat.generalCategoryId) return;
@@ -66,8 +85,13 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
     setDocumentNonBlocking(docRef, { ...newSubCat, id, name: newSubCat.name.trim() }, { merge: true });
     toast({ title: "Sous-catégorie créée", description: newSubCat.name });
     setIsModalOpen(false);
-    setNewSubCat({ name: '', generalCategoryId: initialGeneralCategoryId || '' });
+    setNewSubCat({ name: '', generalCategoryId: filterGenCatId || '' });
   };
+
+  const activeGenCatName = useMemo(() => {
+    if (!filterGenCatId) return null;
+    return generalCategories?.find(gc => gc.id === filterGenCatId)?.name;
+  }, [filterGenCatId, generalCategories]);
 
   if (selectedCategory) {
     return (
@@ -84,16 +108,27 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
       <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-stone-800 mb-2">Sous-catégories de Produits</h1>
-          <p className="text-stone-600">Détail analytique par type de produit spécifique.</p>
+          <p className="text-stone-600">
+            {activeGenCatName ? `Affichage des types de produits du groupe : ${activeGenCatName}` : 'Détail analytique par type de produit spécifique.'}
+          </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2">
-          <Plus className="w-5 h-5" /> Nouvelle Sous-catégorie
-        </Button>
+        <div className="flex gap-2">
+          {filterGenCatId && (
+            <Button variant="outline" onClick={() => setFilterGenCatId(null)} className="gap-2 border-stone-200">
+              <FilterX className="w-4 h-4" /> Effacer filtre
+            </Button>
+          )}
+          <Button onClick={() => setIsModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2">
+            <Plus className="w-5 h-5" /> Nouvelle Sous-catégorie
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {categoriesData.length === 0 ? (
-          <div className="col-span-full py-20 text-center text-stone-400">Aucune donnée disponible.</div>
+          <div className="col-span-full py-20 text-center text-stone-400 border-2 border-dashed border-stone-100 rounded-xl">
+            Aucun article trouvé dans cette sélection.
+          </div>
         ) : categoriesData.map(([name, stats]) => (
           <Card 
             key={name} 

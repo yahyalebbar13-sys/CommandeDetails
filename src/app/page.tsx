@@ -13,6 +13,7 @@ import PendingOrdersView from '@/components/pending-orders-view';
 import ToOrderView from '@/components/to-order-view';
 import AddOrderModal from '@/components/add-order-modal';
 import AddFactureModal from '@/components/add-facture-modal';
+import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -31,6 +32,7 @@ export default function StockVueApp() {
   const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<any | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
@@ -72,7 +74,11 @@ export default function StockVueApp() {
 
   const handleNavigateToGeneralCategory = (genCatId: string) => {
     setSelectedGeneralCategoryId(genCatId);
-    setActiveTab('general-categories');
+    setActiveTab('categories');
+  };
+
+  const handleEditArticle = (article: any) => {
+    setEditingArticle(article);
   };
 
   const handleExport = () => {
@@ -114,7 +120,10 @@ export default function StockVueApp() {
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
-            if (id === 'categories') setSelectedSubCategoryName(null);
+            if (id === 'categories') {
+              setSelectedSubCategoryName(null);
+              setSelectedGeneralCategoryId(null);
+            }
             if (id === 'general-categories') setSelectedGeneralCategoryId(null);
             if (isMobile) setIsMobileMenuOpen(false);
           }}
@@ -202,25 +211,22 @@ export default function StockVueApp() {
         ) : (
           <>
             {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} />}
-            {activeTab === 'to-order' && <ToOrderView articles={articles || []} />}
-            {activeTab === 'pending' && <PendingOrdersView articles={articles || []} factures={factures || []} />}
+            {activeTab === 'to-order' && <ToOrderView articles={articles || []} onEdit={handleEditArticle} />}
+            {activeTab === 'pending' && <PendingOrdersView articles={articles || []} factures={factures || []} onEdit={handleEditArticle} />}
             {activeTab === 'factures' && (
               <FacturesView 
                 articles={articles || []} 
                 factures={factures || []} 
                 selectedFactureId={selectedFactureId} 
                 setSelectedFactureId={setSelectedFactureId}
-                onNavigateToSubCategory={handleNavigateToSubCategory}
+                onNavigateToCategory={handleNavigateToSubCategory}
               />
             )}
             {activeTab === 'general-categories' && (
               <GeneralCategoriesView 
                 generalCategories={generalCategories}
                 subCategories={categories}
-                onSelectGeneralCategory={(id) => {
-                  setSelectedGeneralCategoryId(id);
-                  setActiveTab('categories');
-                }}
+                onSelectGeneralCategory={handleNavigateToGeneralCategory}
               />
             )}
             {activeTab === 'categories' && (
@@ -229,10 +235,11 @@ export default function StockVueApp() {
                 selectedCategory={selectedSubCategoryName}
                 setSelectedCategory={setSelectedSubCategoryName}
                 initialGeneralCategoryId={selectedGeneralCategoryId}
+                subCategories={categories}
               />
             )}
             {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
-            {activeTab === 'data' && <DataView articles={articles || []} />}
+            {activeTab === 'data' && <DataView articles={articles || []} onEdit={handleEditArticle} />}
           </>
         )}
       </main>
@@ -246,6 +253,12 @@ export default function StockVueApp() {
       <AddFactureModal
         open={isFactureModalOpen}
         onOpenChange={setIsFactureModalOpen}
+        factures={factures || []}
+      />
+
+      <EditOrderModal
+        article={editingArticle}
+        onOpenChange={(open) => !open && setEditingArticle(null)}
         factures={factures || []}
       />
     </div>

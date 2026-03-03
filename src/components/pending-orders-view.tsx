@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, Factory, Ship, ArrowRight, Loader2, Trash2 } from 'lucide-react';
+import { Clock, Factory, Ship, ArrowRight, Loader2, Trash2, Pencil } from 'lucide-react';
 import ValidateOrderModal from './validate-order-modal';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -15,9 +15,10 @@ import { useToast } from '@/hooks/use-toast';
 interface PendingOrdersViewProps {
   articles: any[];
   factures: any[];
+  onEdit: (article: any) => void;
 }
 
-export default function PendingOrdersView({ articles, factures }: PendingOrdersViewProps) {
+export default function PendingOrdersView({ articles, factures, onEdit }: PendingOrdersViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -106,12 +107,22 @@ export default function PendingOrdersView({ articles, factures }: PendingOrdersV
                       {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-2">
+                      <div className="flex justify-end items-center gap-1">
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="text-stone-400 hover:text-red-500 hover:bg-red-50"
+                          className="text-stone-400 hover:text-amber-600"
+                          onClick={() => onEdit(o)}
+                          title="Modifier"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-stone-400 hover:text-red-500"
                           onClick={() => handleActionDelete(o.id, o.name)}
+                          title="Supprimer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -13,9 +13,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface DataViewProps {
   articles: any[];
+  onEdit: (article: any) => void;
 }
 
-export default function DataView({ articles }: DataViewProps) {
+export default function DataView({ articles, onEdit }: DataViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -74,7 +75,7 @@ export default function DataView({ articles }: DataViewProps) {
                   <TableHead className="text-right">Qté</TableHead>
                   <TableHead className="text-right">CBM</TableHead>
                   <TableHead className="text-right bg-orange-50">Valeur</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -94,14 +95,24 @@ export default function DataView({ articles }: DataViewProps) {
                       <TableCell className="text-right text-emerald-700 font-bold text-xs">{o.cubicMeasurement?.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-stone-400 hover:text-red-500 hover:bg-red-50"
-                          onClick={() => handleDelete(o.id, o.name)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-stone-400 hover:text-amber-600"
+                            onClick={() => onEdit(o)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-stone-400 hover:text-red-500"
+                            onClick={() => handleDelete(o.id, o.name)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
