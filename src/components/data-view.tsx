@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -6,9 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 
 interface DataViewProps {
@@ -34,11 +34,16 @@ export default function DataView({ articles }: DataViewProps) {
   }, [articles, searchTerm]);
 
   const handleDelete = (articleId: string, name: string) => {
-    if (!user || !firestore || !window.confirm(`Supprimer l'article "${name}" ?`)) return;
+    if (!user || !firestore || !articleId) return;
     
-    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ title: "Article supprimé", description: name });
+    if (window.confirm(`Supprimer définitivement l'article "${name}" de la base de données ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+      deleteDocumentNonBlocking(docRef);
+      toast({ 
+        title: "Article supprimé", 
+        description: name 
+      });
+    }
   };
 
   return (
@@ -92,7 +97,7 @@ export default function DataView({ articles }: DataViewProps) {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 text-stone-300 hover:text-red-500"
+                          className="h-8 w-8 text-stone-400 hover:text-red-500 hover:bg-red-50"
                           onClick={() => handleDelete(o.id, o.name)}
                         >
                           <Trash2 className="w-4 h-4" />

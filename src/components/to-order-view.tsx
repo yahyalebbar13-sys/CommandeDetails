@@ -6,9 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ListTodo, Trash2, ArrowRight, ShoppingCart } from 'lucide-react';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 
@@ -30,10 +29,16 @@ export default function ToOrderView({ articles }: ToOrderViewProps) {
   }, [articles]);
 
   const handleDelete = (articleId: string, name: string) => {
-    if (!user || !firestore || !window.confirm(`Supprimer ce rappel "${name}" ?`)) return;
-    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ title: "Rappel supprimé", description: name });
+    if (!user || !firestore || !articleId) return;
+    
+    if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+      deleteDocumentNonBlocking(docRef);
+      toast({ 
+        title: "Rappel supprimé", 
+        description: name 
+      });
+    }
   };
 
   const handleLaunch = (article: any) => {
@@ -95,8 +100,9 @@ export default function ToOrderView({ articles }: ToOrderViewProps) {
                         <Button 
                           size="sm" 
                           variant="ghost"
-                          className="h-8 w-8 p-0 text-stone-300 hover:text-red-500"
+                          className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
                           onClick={() => handleDelete(o.id, o.name)}
+                          title="Supprimer ce rappel"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
