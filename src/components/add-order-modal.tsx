@@ -44,7 +44,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
   
   const filteredSubCategories = useMemo(() => {
     if (!selectedGenCatId) return [];
-    return subCategories.filter(sc => sc.generalCategoryId === selectedGenCatId);
+    return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
 
   const [formData, setFormData] = useState<any>({
@@ -74,7 +74,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
       return;
     }
 
-    const knownFacture = factures.find(f => f.id === val);
+    const knownFacture = (factures || []).find(f => f.id === val);
     if (knownFacture) {
       setFormData((prev: any) => ({
         ...prev,
@@ -191,7 +191,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                   placeholder="Ex: 26HD1004"
                 />
                 <datalist id="factures-suggestions">
-                  {factures.map(f => (
+                  {(factures || []).map(f => (
                     <option key={f.id} value={f.id}>
                       {f.supplierId || f.supplier} - {f.arrivalDate}
                     </option>
@@ -215,7 +215,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                   <SelectValue placeholder="Choisir un groupe..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {generalCategories.map(gc => (
+                  {(generalCategories || []).map(gc => (
                     <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -233,7 +233,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: AddOrder
                   <SelectValue placeholder={selectedGenCatId ? "Choisir une sous-catégorie..." : "Sélectionnez d'abord un groupe"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredSubCategories.map(sc => (
+                  {(filteredSubCategories || []).map(sc => (
                     <SelectItem key={sc.id} value={sc.name}>{sc.name}</SelectItem>
                   ))}
                 </SelectContent>
