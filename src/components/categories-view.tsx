@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX, LineChart as LineIcon, Truck, Banknote } from 'lucide-react';
+import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX, LineChart as LineIcon, Truck, Cuboid } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, deleteDocumentNonBlocking, setDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -66,15 +66,16 @@ export default function CategoriesView({ articles, factures, selectedCategory, s
   }, [filterGenCatId, subCategories]);
 
   const categoriesData = useMemo(() => {
-    const data: Record<string, { qty: number; val: number; count: number }> = {};
+    const data: Record<string, { qty: number; val: number; count: number; cbm: number }> = {};
     (articles || []).forEach(o => {
       const cat = o.categoryId || 'Inconnu';
       
       if (filteredCategoriesNames && !filteredCategoriesNames.includes(cat)) return;
 
-      if (!data[cat]) data[cat] = { qty: 0, val: 0, count: 0 };
+      if (!data[cat]) data[cat] = { qty: 0, val: 0, count: 0, cbm: 0 };
       data[cat].qty += o.quantity || 0;
       data[cat].val += ((o.quantity || 0) * (o.purchasePricePerUnit || 0));
+      data[cat].cbm += (o.cubicMeasurement || 0);
       data[cat].count += 1;
     });
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
@@ -100,7 +101,6 @@ export default function CategoriesView({ articles, factures, selectedCategory, s
       <CategoryDetailView 
         categoryName={selectedCategory} 
         articles={articles || []} 
-        factures={factures || []}
         onBack={() => setSelectedCategory(null)} 
       />
     );
@@ -142,7 +142,11 @@ export default function CategoriesView({ articles, factures, selectedCategory, s
               <div className="flex-grow">
                 <h3 className="text-xl font-bold text-stone-800 group-hover:text-amber-600 mb-4">{name}</h3>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="text-stone-500">Volume:</span>
+                  <span className="text-stone-500">Volume (CBM):</span>
+                  <span className="font-bold text-emerald-700">{stats.cbm.toFixed(2)} m³</span>
+                </div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-stone-500">Quantité:</span>
                   <span className="font-bold">{stats.qty.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -199,7 +203,7 @@ export default function CategoriesView({ articles, factures, selectedCategory, s
   );
 }
 
-function CategoryDetailView({ categoryName, articles, factures, onBack }: { categoryName: string, articles: any[], factures: any[], onBack: () => void }) {
+function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: string, articles: any[], onBack: () => void }) {
   const catArticles = useMemo(() => articles.filter(o => o.categoryId === categoryName), [articles, categoryName]);
   
   const now = new Date();
@@ -211,42 +215,11 @@ function CategoryDetailView({ categoryName, articles, factures, onBack }: { cate
   const totalQty = useMemo(() => catArticles.reduce((s, o) => s + o.quantity, 0), [catArticles]);
   const totalCbm = useMemo(() => catArticles.reduce((s, o) => s + (o.cubicMeasurement || 0), 0), [catArticles]);
 
-  // Landed Cost Calculation (Freight allocation)
-  const allocatedFreight = useMemo(() => {
-    let freight = 0;
-    catArticles.forEach(art => {
-      if (!art.factureId) return;
-      const facture = factures.find(f => f.id === art.factureId);
-      if (!facture) return;
-      
-      const factureArticles = articles.filter(a => a.factureId === art.factureId);
-      const totalFactureCbm = factureArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
-      
-      if (totalFactureCbm > 0) {
-        freight += (art.cubicMeasurement / totalFactureCbm) * (facture.freightCost || 0);
-      }
-    });
-    return freight;
-  }, [catArticles, factures, articles]);
-
-  const landedCostPerUnit = (totalVal + allocatedFreight) / (totalQty || 1);
-  const purchasePricePerUnit = totalVal / (totalQty || 1);
-
   const orderDates = useMemo(() => catArticles
     .map(o => new Date(o.orderDate).getTime())
     .filter(t => !isNaN(t))
     .sort((a, b) => a - b), [catArticles]);
   
-  const latestOrderDate = orderDates.length ? new Date(Math.max(...orderDates)).toISOString().split('T')[0] : '-';
-  
-  const avgIntervalDays = useMemo(() => {
-    if (orderDates.length > 1) {
-      const totalDiff = orderDates[orderDates.length - 1] - orderDates[0];
-      return Math.round((totalDiff / (orderDates.length - 1)) / (1000 * 60 * 60 * 24));
-    }
-    return 0;
-  }, [orderDates]);
-
   const seasonalityData = useMemo(() => {
     const months: Record<string, number> = {};
     catArticles.forEach(o => {
@@ -276,17 +249,21 @@ function CategoryDetailView({ categoryName, articles, factures, onBack }: { cate
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [catArticles]);
 
-  const supplierDistData = useMemo(() => {
-    const sups: Record<string, number> = {};
-    catArticles.forEach(o => {
-      sups[o.supplierId || 'Inconnu'] = (sups[o.supplierId || 'Inconnu'] || 0) + (o.quantity * o.purchasePricePerUnit);
-    });
-    return Object.entries(sups)
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value]) => ({ name, value }));
-  }, [catArticles]);
+  const cbmEvolutionData = useMemo(() => {
+    const groupedByDate = catArticles.reduce((acc: any, o) => {
+      const d = o.orderDate || 'N/A';
+      if (d === 'N/A') return acc;
+      acc[d] = (acc[d] || 0) + (o.cubicMeasurement || 0);
+      return acc;
+    }, {});
 
-  const COLORS = ['#d97706', '#78716c', '#a8a29e', '#fbbf24', '#44403c'];
+    return Object.entries(groupedByDate)
+      .map(([date, cbm]: any) => ({
+        date,
+        cbm
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [catArticles]);
 
   return (
     <div className="space-y-6 fade-in pb-12">
@@ -298,76 +275,60 @@ function CategoryDetailView({ categoryName, articles, factures, onBack }: { cate
           <h2 className="text-3xl font-bold text-stone-900">{categoryName}</h2>
         </div>
         <div className="flex gap-4">
-          <div className="text-right bg-stone-50 p-3 rounded-lg border border-stone-200">
-            <div className="text-[10px] text-stone-500 uppercase tracking-wide font-bold">Valeur Marchandise</div>
-            <div className="text-2xl font-black text-amber-700">{Math.round(totalVal).toLocaleString()} €</div>
+          <div className="text-right bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+            <div className="text-[10px] text-emerald-600 uppercase tracking-wide font-bold">Volume Total CBM</div>
+            <div className="text-2xl font-black text-emerald-700">{totalCbm.toFixed(2)} m³</div>
           </div>
           <div className="text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
-            <div className="text-[10px] text-amber-600 uppercase tracking-wide font-bold">Coût Landed (TTC)</div>
-            <div className="text-2xl font-black text-amber-800">{Math.round(totalVal + allocatedFreight).toLocaleString()} €</div>
+            <div className="text-[10px] text-amber-600 uppercase tracking-wide font-bold">Valeur Marchandise</div>
+            <div className="text-2xl font-black text-amber-700">{Math.round(totalVal).toLocaleString()} €</div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard label="Quantité Totale" value={totalQty.toLocaleString()} icon={<Package className="w-4 h-4 text-stone-400" />} />
-        <StatCard label="Poids du Fret" value={`${Math.round((allocatedFreight / (totalVal || 1)) * 100)}%`} icon={<Truck className="w-4 h-4 text-amber-500" />} />
-        <StatCard label="Land. Cost Unitaire" value={`${landedCostPerUnit.toFixed(3)} €`} icon={<Banknote className="w-4 h-4 text-emerald-600" />} />
-        <StatCard label="Intervalle Commande" value={avgIntervalDays > 0 ? `${avgIntervalDays} jours` : 'Unique'} icon={<Clock className="w-4 h-4 text-stone-400" />} />
+        <StatCard label="Moyenne CBM / Commande" value={`${(totalCbm / (catArticles.length || 1)).toFixed(2)} m³`} icon={<Cuboid className="w-4 h-4 text-emerald-500" />} />
+        <StatCard label="Articles Distincts" value={catArticles.length} icon={<BarChart3 className="w-4 h-4 text-amber-500" />} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-amber-500" />
-              Comparaison Prix vs Coût Réel (Landed)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-             <div className="grid grid-cols-2 gap-4">
-                <div className="bg-stone-50 p-4 rounded-lg">
-                   <div className="text-xs text-stone-500 uppercase font-bold mb-1">Prix Achat Moyen</div>
-                   <div className="text-xl font-bold text-stone-800">{purchasePricePerUnit.toFixed(4)} €</div>
-                </div>
-                <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
-                   <div className="text-xs text-emerald-600 uppercase font-bold mb-1">Coût Réel Moyen (TTC)</div>
-                   <div className="text-xl font-bold text-emerald-700">{landedCostPerUnit.toFixed(4)} €</div>
-                </div>
-             </div>
-             <p className="text-xs text-stone-500 italic">
-               *Le coût réel inclut le prix d'achat plus une quote-part du fret calculée au volume (CBM).
-             </p>
-          </CardContent>
-        </Card>
-        
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-amber-500" />
-              Répartition par Fournisseur
+              <Cuboid className="w-4 h-4 text-emerald-500" />
+              Étude des Volumes (CBM) par Commande
             </CardTitle>
           </CardHeader>
-          <CardContent className="h-[200px]">
+          <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={supplierDistData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={60}
-                  paddingAngle={5}
-                  dataKey="value"
-                  nameKey="name"
-                >
-                  {supplierDistData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: any) => [`${Math.round(value).toLocaleString()} €`, 'Volume']} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
-              </PieChart>
+              <BarChart data={cbmEvolutionData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value: any) => [`${value.toFixed(2)} m³`, 'Volume CBM']} />
+                <Bar dataKey="cbm" fill="#10b981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <LineIcon className="w-4 h-4 text-amber-500" />
+              Évolution du Prix d'Achat (PA)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={priceEvolutionData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value: any) => [`${parseFloat(value).toFixed(4)} €`, 'Prix Moyen']} />
+                <Line type="monotone" dataKey="price" stroke="#d97706" strokeWidth={3} dot={{ r: 4, fill: '#d97706' }} />
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -376,65 +337,6 @@ function CategoryDetailView({ categoryName, articles, factures, onBack }: { cate
       {pending.length > 0 && <CategoryTableSection title="🏭 En Production (PI)" data={pending} color="amber" count={pending.length} />}
       <CategoryTableSection title="🚢 Commandes en Transit" data={transit} color="blue" count={transit.length} />
       <CategoryTableSection title="✅ Commandes Arrivées" data={arrived} color="green" count={arrived.length} />
-
-      <div className="pt-8">
-        <div className="flex items-center gap-2 mb-6 border-b pb-2">
-          <BarChart3 className="w-6 h-6 text-amber-600" />
-          <h3 className="text-2xl font-black text-stone-800 uppercase tracking-tight">Analyse Temporelle</h3>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <LineIcon className="w-4 h-4 text-amber-500" />
-                Évolution du Prix d'Achat (PA)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={priceEvolutionData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    formatter={(value: any) => [`${parseFloat(value).toFixed(4)} €`, 'Prix Moyen']}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="price" 
-                    stroke="#d97706" 
-                    strokeWidth={3} 
-                    dot={{ r: 4, fill: '#d97706' }} 
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-amber-500" />
-                Saisonnalité : Montants par mois
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={seasonalityData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                  <Tooltip 
-                    formatter={(value: any) => [`${Math.round(value).toLocaleString()} €`, 'Montant']}
-                  />
-                  <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }
