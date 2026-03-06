@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Layers, Plus, Trash2, ArrowRight, FolderSearch, Tag } from 'lucide-react';
+import { Layers, Plus, Trash2, ArrowRight, FolderSearch, Tag, MoreVertical } from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -18,14 +18,12 @@ interface GeneralCategoriesViewProps {
 }
 
 const CATEGORY_COLORS = [
-  'border-l-amber-500 bg-amber-50/30',
-  'border-l-blue-500 bg-blue-50/30',
-  'border-l-emerald-500 bg-emerald-50/30',
-  'border-l-purple-500 bg-purple-50/30',
-  'border-l-rose-500 bg-rose-50/30',
-  'border-l-indigo-500 bg-indigo-50/30',
-  'border-l-orange-500 bg-orange-50/30',
-  'border-l-cyan-500 bg-cyan-50/30',
+  'bg-blue-600',
+  'bg-emerald-600',
+  'bg-amber-600',
+  'bg-indigo-600',
+  'bg-rose-600',
+  'bg-slate-800',
 ];
 
 export default function GeneralCategoriesView({ generalCategories, subCategories, onSelectGeneralCategory }: GeneralCategoriesViewProps) {
@@ -40,7 +38,7 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
     setDocumentNonBlocking(docRef, { id, name: newCatName.trim().toUpperCase() }, { merge: true });
-    toast({ title: "Catégorie créée", description: newCatName.toUpperCase() });
+    toast({ title: "Groupe créé" });
     setNewCatName('');
     setIsModalOpen(false);
   };
@@ -48,77 +46,69 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
   const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
     if (!user || !firestore) return;
-    if (window.confirm(`Supprimer la catégorie générale "${name}" ? Attention, cela n'affecte pas les sous-catégories existantes.`)) {
+    if (window.confirm(`Supprimer le groupe "${name}" ?`)) {
       const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
       deleteDocumentNonBlocking(docRef);
-      toast({ title: "Catégorie supprimée", description: name });
+      toast({ title: "Groupe supprimé" });
     }
   };
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-stone-900 uppercase tracking-tight">Catégories Principales</h1>
-          <p className="text-stone-500 font-medium">Structuration de l'inventaire par pôles d'activité</p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-stone-900 uppercase tracking-tight">Groupes de Produits</h1>
+          <p className="text-sm text-stone-500 font-medium">Organisation de haut niveau de l'inventaire</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white font-bold h-12 px-8 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95">
-          <Plus className="w-5 h-5 mr-2" /> Créer un groupe
+        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-6 h-10 rounded-md shadow-sm flex items-center gap-2 text-xs uppercase font-bold">
+          <Plus className="w-4 h-4" /> Nouveau Groupe
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {generalCategories.length === 0 ? (
-          <div className="col-span-full py-24 text-center border-2 border-dashed border-stone-200 rounded-2xl bg-white/50">
-            <FolderSearch className="w-16 h-16 text-stone-300 mx-auto mb-4" />
-            <p className="text-stone-400 font-medium text-lg">Aucune catégorie pour le moment</p>
-            <Button variant="link" onClick={() => setIsModalOpen(true)} className="text-amber-600 font-bold">Ajouter la première</Button>
+          <div className="col-span-full py-20 text-center border border-dashed border-stone-300 rounded-lg bg-white/50">
+            <FolderSearch className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+            <p className="text-stone-400 font-bold uppercase tracking-widest text-[10px]">Aucun groupe défini</p>
           </div>
         ) : generalCategories.map((gc, index) => {
-          const colorClass = CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+          const color = CATEGORY_COLORS[index % CATEGORY_COLORS.length];
           const linkedSubs = (subCategories || []).filter(s => s.generalCategoryId === gc.id).length;
           
           return (
             <Card 
               key={gc.id} 
               onClick={() => onSelectGeneralCategory(gc.id)}
-              className={`cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border-l-[6px] ${colorClass} group relative overflow-hidden`}
+              className="cursor-pointer hover:border-stone-400 border-stone-200 transition-all group overflow-hidden"
             >
-              <CardContent className="p-8 flex flex-col h-full">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-stone-400 mb-1">
-                      <Tag className="w-3 h-3" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Catégorie</span>
+              <CardContent className="p-0">
+                <div className={`h-1.5 ${color}`} />
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="space-y-1">
+                      <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Catégorie</p>
+                      <h3 className="text-lg font-black text-stone-800 uppercase leading-none">{gc.name}</h3>
                     </div>
-                    <h3 className="text-2xl font-black text-stone-800 group-hover:text-stone-900 transition-colors uppercase leading-tight">
-                      {gc.name}
-                    </h3>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-stone-300 hover:text-red-600 -mt-1 -mr-1"
+                      onClick={(e) => handleDelete(e, gc.id, gc.name)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-10 w-10 text-stone-300 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
-                    onClick={(e) => handleDelete(e, gc.id, gc.name)}
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                </div>
-                
-                <div className="flex-grow flex items-center gap-3 text-stone-600 bg-white/50 p-3 rounded-xl border border-stone-100">
-                  <div className="p-2 bg-stone-900 text-white rounded-lg">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="block text-lg font-black leading-none">{linkedSubs}</span>
-                    <span className="text-[10px] font-bold uppercase text-stone-400">Sous-catégories</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex justify-end items-center">
-                  <span className="text-[10px] font-black uppercase text-stone-400 group-hover:text-stone-600 transition-colors mr-2">Explorer</span>
-                  <div className="p-1.5 bg-stone-100 rounded-full group-hover:bg-stone-900 group-hover:text-white transition-all">
-                    <ArrowRight className="w-4 h-4" />
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-stone-600">
+                      <div className="w-7 h-7 rounded bg-stone-100 flex items-center justify-center">
+                        <Layers className="w-3.5 h-3.5 text-stone-500" />
+                      </div>
+                      <span className="text-xs font-bold">{linkedSubs} Sous-cat.</span>
+                    </div>
+                    <div className="p-1.5 bg-stone-50 rounded group-hover:bg-stone-900 group-hover:text-white transition-all">
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -128,27 +118,26 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden border-none">
-          <div className="bg-stone-900 p-6 text-white">
-            <DialogTitle className="text-xl font-black uppercase tracking-tight">Nouveau Groupe</DialogTitle>
-            <p className="text-stone-400 text-sm">Créez une nouvelle famille de produits</p>
-          </div>
-          <div className="p-8 space-y-6 bg-white">
+        <DialogContent className="max-w-sm rounded-lg">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold uppercase tracking-wider text-stone-900">Nouveau Groupe</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <label className="text-xs font-black text-stone-500 uppercase tracking-widest">Nom de la catégorie</label>
+              <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Désignation du groupe</label>
               <Input 
                 value={newCatName}
                 onChange={e => setNewCatName(e.target.value)}
-                placeholder="EX: TEXTILES, BOUTONS..."
-                className="uppercase font-bold h-12 border-stone-200 focus:ring-amber-500 rounded-xl"
+                placeholder="EX: ACCESSOIRES"
+                className="uppercase font-bold border-stone-200"
                 autoFocus
               />
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 h-12 rounded-xl border-stone-200 font-bold">Annuler</Button>
-              <Button onClick={handleAddGeneralCategory} className="flex-1 h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold">Créer le groupe</Button>
-            </div>
           </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="text-xs font-bold uppercase">Annuler</Button>
+            <Button onClick={handleAddGeneralCategory} className="bg-stone-900 text-white text-xs font-bold uppercase px-6">Confirmer</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -16,7 +16,7 @@ import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo, Layers, Package, FileText, Ship } from 'lucide-react';
+import { Plus, Database, LogOut, Loader2, Menu, Layers, FileText, Factory, Truck, ClipboardList, LayoutDashboard, Boxes, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -70,10 +70,14 @@ export default function StockVueApp() {
 
   const handleSelectGeneralCategory = (id: string) => {
     setSelectedGeneralCategoryId(id);
-    setActiveTab('categories');
+    if (id) {
+      setActiveTab('categories');
+    } else {
+      setActiveTab('general-categories');
+    }
   };
 
-  const resetFilters = () => {
+  const resetToHome = () => {
     setActiveTab('dashboard');
     setSelectedFactureId(null);
     setSelectedGeneralCategoryId(null);
@@ -92,23 +96,23 @@ export default function StockVueApp() {
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
     const link = document.createElement("a");
     link.href = encodeURI(csvContent);
-    link.download = `Export_Commandes_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Export_StockVue_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Export réussi !" });
+    toast({ title: "Export CSV généré" });
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Tableau de bord', icon: LayoutGrid },
-    { id: 'to-order', label: 'À Commander', icon: ListTodo },
-    { id: 'pending', label: 'Production', icon: Clock },
-    { id: 'transit', label: 'Transit', icon: Ship },
-    { id: 'factures', label: 'Factures', icon: FileText },
-    { id: 'general-categories', label: 'Catégories', icon: Layers },
-    { id: 'categories', label: 'Sous-Catégories', icon: Package },
-    { id: 'suppliers', label: 'Fournisseurs', icon: Users },
-    { id: 'data', label: 'Inventaire', icon: Database },
+    { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+    { id: 'to-order', label: 'Besoins', icon: ClipboardList },
+    { id: 'pending', label: 'Production', icon: Factory },
+    { id: 'transit', label: 'Transit', icon: Truck },
+    { id: 'factures', label: 'Arrivages', icon: FileText },
+    { id: 'general-categories', label: 'Groupes', icon: Layers },
+    { id: 'categories', label: 'Articles', icon: Boxes },
+    { id: 'suppliers', label: 'Fournisseurs', icon: UserCheck },
+    { id: 'data', label: 'Stock Global', icon: Database },
   ] as const;
 
   const NavButtons = ({ isMobile = false }: { isMobile?: boolean }) => (
@@ -117,7 +121,7 @@ export default function StockVueApp() {
         <Button
           key={id}
           variant={activeTab === id ? "secondary" : "ghost"}
-          className={`flex items-center gap-3 justify-start rounded-xl transition-all ${isMobile ? 'w-full text-lg py-6' : 'px-4 py-2'} ${activeTab === id ? 'bg-amber-50 text-amber-700 font-semibold shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-50'}`}
+          className={`flex items-center gap-3 justify-start rounded-md transition-all ${isMobile ? 'w-full text-base py-5' : 'px-3 py-1.5 h-9'} ${activeTab === id ? 'bg-amber-100 text-amber-900 font-bold' : 'text-stone-600 hover:bg-stone-100'}`}
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
@@ -127,54 +131,57 @@ export default function StockVueApp() {
           }}
         >
           <Icon className={isMobile ? "w-5 h-5" : "w-4 h-4"} />
-          {label}
+          <span className="truncate">{label}</span>
         </Button>
       ))}
     </>
   );
 
   if (isUserLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]"><Loader2 className="animate-spin text-amber-600" /></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-[#F9F6F0]"><Loader2 className="animate-spin text-amber-600" /></div>;
   }
 
   if (!user) return <AuthView />;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdfbf7] font-sans">
-      <nav className="bg-white/80 backdrop-blur-md border-b border-stone-200/60 sticky top-0 z-50 transition-all">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+    <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
+      <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-[1600px] mx-auto px-4 h-16 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden text-stone-600"><Menu /></Button></SheetTrigger>
-              <SheetContent side="left" className="w-72 p-0 border-r border-stone-200">
-                <SheetHeader className="p-6 border-b border-stone-100"><SheetTitle className="text-xl font-black tracking-tighter">📦 STOCK<span className="text-amber-600">VUE</span></SheetTitle></SheetHeader>
-                <div className="flex flex-col p-4 space-y-1"><NavButtons isMobile /></div>
+              <SheetContent side="left" className="w-64 p-0">
+                <SheetHeader className="p-4 border-b"><SheetTitle className="text-lg font-bold tracking-tight">STOCKVUE</SheetTitle></SheetHeader>
+                <div className="flex flex-col p-2 space-y-1"><NavButtons isMobile /></div>
               </SheetContent>
             </Sheet>
             <button 
-              onClick={resetFilters}
-              className="flex items-center gap-2 hover:opacity-80 transition-all active:scale-95"
+              onClick={resetToHome}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              <span className="text-xl font-black tracking-tighter text-stone-900">📦 STOCK<span className="text-amber-600">VUE</span></span>
+              <span className="text-2xl font-black tracking-tighter text-stone-900 uppercase">STOCK<span className="text-[#CC8626]">VUE</span></span>
             </button>
           </div>
+          
           <div className="hidden lg:flex items-center space-x-1"><NavButtons /></div>
-          <div className="flex items-center space-x-3">
-            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-4 py-2 rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2">
-              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nouvelle Commande</span><span className="sm:hidden">Cmd</span>
+          
+          <div className="flex items-center space-x-2">
+            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-[#CC8626] hover:bg-[#b07421] text-white px-4 py-2 h-10 rounded-md shadow-sm flex items-center gap-2 text-xs uppercase font-bold">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Ajouter</span>
             </Button>
-            <div className="h-6 w-px bg-stone-200 hidden md:block mx-1"></div>
-            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
+            <div className="h-6 w-px bg-stone-200 mx-2"></div>
+            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-[#BF3914] h-10 w-10">
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </nav>
-      <main className="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
+
+      <main className="flex-grow max-w-[1600px] mx-auto px-4 py-8 w-full">
         {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <Loader2 className="animate-spin text-amber-600 w-10 h-10" />
-            <p className="text-stone-400 font-medium animate-pulse uppercase tracking-widest text-xs">Chargement des données...</p>
+            <Loader2 className="animate-spin text-[#CC8626] w-10 h-10" />
+            <p className="text-stone-500 font-bold uppercase tracking-widest text-xs">Chargement des données...</p>
           </div>
         ) : (
           <>
@@ -184,22 +191,24 @@ export default function StockVueApp() {
             {activeTab === 'transit' && <TransitOrdersView articles={articles} onEdit={handleEditArticle} />}
             {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
             {activeTab === 'general-categories' && <GeneralCategoriesView generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={handleSelectGeneralCategory} />}
-            {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} />}
+            {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={handleSelectGeneralCategory} />}
             {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'data' && <DataView articles={articles} onEdit={handleEditArticle} />}
           </>
         )}
       </main>
-      <footer className="border-t border-stone-200/60 bg-white py-6">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-stone-400 text-xs font-medium uppercase tracking-widest gap-4">
-          <p>© 2024 STOCKVUE ERP - Gestion de Chaîne Logistique</p>
+
+      <footer className="border-t border-stone-200 bg-white py-6">
+        <div className="max-w-[1600px] mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-stone-500 text-[10px] font-bold uppercase tracking-widest gap-4">
+          <p>© 2024 STOCKVUE • PLATEFORME DE GESTION LOGISTIQUE</p>
           <div className="flex gap-6">
-            <button onClick={handleExport} className="hover:text-amber-600 transition-colors">Exporter les données (CSV)</button>
+            <button onClick={handleExport} className="hover:text-[#CC8626] transition-colors border-b border-transparent hover:border-[#CC8626]">TÉLÉCHARGER EXPORT (CSV)</button>
             <span className="text-stone-200">|</span>
-            <span className="text-stone-300">v2.1.0</span>
+            <span className="text-stone-400">VERSION 2.5</span>
           </div>
         </div>
       </footer>
+      
       <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} factures={factures} />
       <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
     </div>
