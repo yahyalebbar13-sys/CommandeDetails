@@ -33,9 +33,11 @@ import {
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   BarChart, 
-  Bar,
-  AreaChart,
-  Area
+  Bar, 
+  AreaChart, 
+  Area,
+  LineChart,
+  Line
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 
