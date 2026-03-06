@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from 'react';
@@ -74,6 +73,13 @@ export default function StockVueApp() {
     setActiveTab('categories');
   };
 
+  const resetFilters = () => {
+    setActiveTab('dashboard');
+    setSelectedFactureId(null);
+    setSelectedGeneralCategoryId(null);
+    setSelectedCategoryName(null);
+  };
+
   const handleExport = () => {
     const headers = ['Statut', 'Groupe', 'Sous-Cat', 'Article', 'Specs', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
     const rows = (articles || []).map(d => {
@@ -94,15 +100,15 @@ export default function StockVueApp() {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { id: 'dashboard', label: 'Tableau de bord', icon: LayoutGrid },
     { id: 'to-order', label: 'À Commander', icon: ListTodo },
-    { id: 'pending', label: 'Commandes PI', icon: Clock },
+    { id: 'pending', label: 'Production', icon: Clock },
     { id: 'transit', label: 'Transit', icon: Ship },
     { id: 'factures', label: 'Factures', icon: FileText },
     { id: 'general-categories', label: 'Catégories', icon: Layers },
     { id: 'categories', label: 'Sous-Catégories', icon: Package },
     { id: 'suppliers', label: 'Fournisseurs', icon: Users },
-    { id: 'data', label: 'Base', icon: Database },
+    { id: 'data', label: 'Inventaire', icon: Database },
   ] as const;
 
   const NavButtons = ({ isMobile = false }: { isMobile?: boolean }) => (
@@ -111,7 +117,7 @@ export default function StockVueApp() {
         <Button
           key={id}
           variant={activeTab === id ? "secondary" : "ghost"}
-          className={`flex items-center gap-2 justify-start ${isMobile ? 'w-full text-lg py-6' : ''} ${activeTab === id ? 'text-amber-600 font-bold' : 'text-stone-600'}`}
+          className={`flex items-center gap-3 justify-start rounded-xl transition-all ${isMobile ? 'w-full text-lg py-6' : 'px-4 py-2'} ${activeTab === id ? 'bg-amber-50 text-amber-700 font-semibold shadow-sm' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-50'}`}
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
@@ -134,30 +140,42 @@ export default function StockVueApp() {
   if (!user) return <AuthView />;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fdfbf7]">
-      <nav className="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
+    <div className="min-h-screen flex flex-col bg-[#fdfbf7] font-sans">
+      <nav className="bg-white/80 backdrop-blur-md border-b border-stone-200/60 sticky top-0 z-50 transition-all">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden"><Menu /></Button></SheetTrigger>
-              <SheetContent side="left" className="w-72">
-                <SheetHeader className="p-6"><SheetTitle>📦 STOCKVUE</SheetTitle></SheetHeader>
-                <div className="flex flex-col p-4 space-y-2"><NavButtons isMobile /></div>
+              <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden text-stone-600"><Menu /></Button></SheetTrigger>
+              <SheetContent side="left" className="w-72 p-0 border-r border-stone-200">
+                <SheetHeader className="p-6 border-b border-stone-100"><SheetTitle className="text-xl font-black tracking-tighter">📦 STOCK<span className="text-amber-600">VUE</span></SheetTitle></SheetHeader>
+                <div className="flex flex-col p-4 space-y-1"><NavButtons isMobile /></div>
               </SheetContent>
             </Sheet>
-            <span className="text-xl font-bold">📦 STOCK<span className="text-amber-600">VUE</span></span>
+            <button 
+              onClick={resetFilters}
+              className="flex items-center gap-2 hover:opacity-80 transition-all active:scale-95"
+            >
+              <span className="text-xl font-black tracking-tighter text-stone-900">📦 STOCK<span className="text-amber-600">VUE</span></span>
+            </button>
           </div>
           <div className="hidden lg:flex items-center space-x-1"><NavButtons /></div>
-          <div className="flex items-center space-x-2">
-            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1"><Plus className="w-4 h-4" /> Cmd</Button>
-            <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex">Export</Button>
-            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="hidden md:flex text-stone-400 hover:text-red-500"><LogOut className="w-4 h-4" /></Button>
+          <div className="flex items-center space-x-3">
+            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-4 py-2 rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nouvelle Commande</span><span className="sm:hidden">Cmd</span>
+            </Button>
+            <div className="h-6 w-px bg-stone-200 hidden md:block mx-1"></div>
+            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors">
+              <LogOut className="w-5 h-5" />
+            </Button>
           </div>
         </div>
       </nav>
       <main className="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
         {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
-          <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-stone-300" /></div>
+          <div className="flex flex-col items-center justify-center py-32 space-y-4">
+            <Loader2 className="animate-spin text-amber-600 w-10 h-10" />
+            <p className="text-stone-400 font-medium animate-pulse uppercase tracking-widest text-xs">Chargement des données...</p>
+          </div>
         ) : (
           <>
             {activeTab === 'dashboard' && <DashboardView articles={articles} factures={factures} onNavigate={setActiveTab} />}
@@ -172,6 +190,16 @@ export default function StockVueApp() {
           </>
         )}
       </main>
+      <footer className="border-t border-stone-200/60 bg-white py-6">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-stone-400 text-xs font-medium uppercase tracking-widest gap-4">
+          <p>© 2024 STOCKVUE ERP - Gestion de Chaîne Logistique</p>
+          <div className="flex gap-6">
+            <button onClick={handleExport} className="hover:text-amber-600 transition-colors">Exporter les données (CSV)</button>
+            <span className="text-stone-200">|</span>
+            <span className="text-stone-300">v2.1.0</span>
+          </div>
+        </div>
+      </footer>
       <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} factures={factures} />
       <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
     </div>

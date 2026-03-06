@@ -9,15 +9,14 @@ import {
   Plus, 
   TrendingUp, 
   Cuboid, 
-  Calendar, 
   Package, 
   Ship, 
   ArrowUpRight, 
-  BarChart3,
   History,
   LayoutGrid,
   CheckCircle2,
-  Clock
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -58,7 +57,7 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
   const [newCatName, setNewCatName] = useState('');
   const [targetGenCatId, setTargetGenCatId] = useState(selectedGeneralCategoryId || '');
 
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
 
   const filteredCategoriesList = useMemo(() => {
     const data: Record<string, { qtyByUnit: Record<string, number>; val: number; count: number; cbm: number; genCatId: string }> = {};
@@ -71,7 +70,7 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
         data[cat] = { qtyByUnit: {}, val: 0, count: 0, cbm: 0, genCatId: o.generalCategoryId || '' };
       }
       
-      const unit = (o.unitOfMeasure || 'pcs').toLowerCase();
+      const unit = (o.unitOfMeasure || 'pcs').toUpperCase();
       const qty = Number(o.quantity) || 0;
       const price = Number(o.purchasePricePerUnit) || 0;
       const cbm = Number(o.cubicMeasurement) || 0;
@@ -124,7 +123,7 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
       const qty = Number(o.quantity) || 0;
       const price = Number(o.purchasePricePerUnit) || 0;
       const itemVal = qty * price;
-      const unit = (o.unitOfMeasure || 'pcs').toLowerCase();
+      const unit = (o.unitOfMeasure || 'pcs').toUpperCase();
       const itemCbm = Number(o.cubicMeasurement) || 0;
       
       if (!qtyByUnit[unit]) {
@@ -212,58 +211,76 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
     setNewCatName('');
   };
 
-  const renderTable = (title: string, data: any[], icon: React.ReactNode, type: 'transit' | 'arrived' | 'pending') => {
+  const renderTableSection = (title: string, data: any[], icon: React.ReactNode, type: 'transit' | 'arrived' | 'pending') => {
     if (data.length === 0) return null;
 
-    const accentClass = 
-      type === 'transit' ? 'border-l-blue-500' : 
-      type === 'arrived' ? 'border-l-emerald-500' : 'border-l-amber-500';
+    const colors = {
+      transit: { border: 'border-l-blue-500', bg: 'bg-blue-50/30', text: 'text-blue-700' },
+      arrived: { border: 'border-l-emerald-500', bg: 'bg-emerald-50/30', text: 'text-emerald-700' },
+      pending: { border: 'border-l-amber-500', bg: 'bg-amber-50/30', text: 'text-amber-700' }
+    };
 
-    const bgHeaderClass = 
-      type === 'transit' ? 'bg-blue-50/50' : 
-      type === 'arrived' ? 'bg-emerald-50/50' : 'bg-amber-50/50';
+    const currentStyle = colors[type];
 
     return (
-      <Card className={`shadow-sm border-stone-200 border-l-4 ${accentClass} overflow-hidden mb-6`}>
-        <CardHeader className={`${bgHeaderClass} border-b flex flex-row items-center justify-between py-3`}>
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            {icon} {title}
-          </CardTitle>
-          <Badge variant="outline" className="bg-white/50">{data.length} articles</Badge>
-        </CardHeader>
+      <Card className={`shadow-sm border-none border-l-4 ${currentStyle.border} overflow-hidden bg-white mb-8`}>
+        <div className={`${currentStyle.bg} px-6 py-4 border-b border-stone-100 flex items-center justify-between`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg bg-white shadow-sm ${currentStyle.text}`}>
+              {icon}
+            </div>
+            <h3 className="font-bold text-stone-800">{title}</h3>
+          </div>
+          <Badge variant="outline" className="bg-white/80 border-stone-200 text-stone-600 font-bold">
+            {data.length} RÉFÉRENCES
+          </Badge>
+        </div>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-white">
-                <TableRow>
-                  <TableHead>Article</TableHead>
-                  <TableHead>Specs / Couleur</TableHead>
-                  <TableHead><Calendar className="w-3 h-3 inline mr-1" /> Commande</TableHead>
-                  <TableHead><Ship className="w-3 h-3 inline mr-1" /> Arrivée</TableHead>
-                  <TableHead className="text-right">Quantité</TableHead>
-                  <TableHead className="text-right">PA (€)</TableHead>
-                  <TableHead className="text-right">Vol. (CBM)</TableHead>
-                  <TableHead className="text-right">Valeur Totale</TableHead>
+              <TableHeader>
+                <TableRow className="bg-stone-50/50">
+                  <TableHead className="py-4 px-6 text-xs font-black uppercase tracking-widest">Article</TableHead>
+                  <TableHead className="text-xs font-black uppercase tracking-widest">Spécifications</TableHead>
+                  <TableHead className="text-xs font-black uppercase tracking-widest">Dates</TableHead>
+                  <TableHead className="text-right text-xs font-black uppercase tracking-widest">Quantité</TableHead>
+                  <TableHead className="text-right text-xs font-black uppercase tracking-widest">Volume</TableHead>
+                  <TableHead className="text-right text-xs font-black uppercase tracking-widest">Valeur</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map(o => (
-                  <TableRow key={o.id} className="hover:bg-stone-50/50 transition-colors">
-                    <TableCell className="font-bold text-stone-900">{o.name}</TableCell>
-                    <TableCell className="text-[10px] text-stone-500 uppercase font-bold">
-                      {o.specs || '-'} • <span className="text-stone-400">{o.color || 'UNIQUE'}</span>
+                  <TableRow key={o.id} className="hover:bg-stone-50/80 transition-colors border-stone-100">
+                    <TableCell className="py-4 px-6">
+                      <div className="font-bold text-stone-900">{o.name}</div>
+                      <div className="text-[10px] text-stone-400 font-bold uppercase">{o.supplierId || 'Sans fournisseur'}</div>
                     </TableCell>
-                    <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate || '-'}</TableCell>
-                    <TableCell className={`text-xs font-bold ${type === 'arrived' ? 'text-emerald-600' : type === 'transit' ? 'text-blue-600' : 'text-amber-600'}`}>
-                      {o.arrivalDate || '-'}
+                    <TableCell>
+                      <div className="text-xs font-medium text-stone-600">{o.specs || 'N/A'}</div>
+                      <div className="text-[10px] text-stone-400 font-bold uppercase">{o.color || 'Unique'}</div>
                     </TableCell>
-                    <TableCell className="text-right font-black">
-                      {(o.quantity || 0).toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-stone-300"></span> CMD: {o.orderDate}
+                        </div>
+                        {o.arrivalDate && (
+                          <div className={`flex items-center gap-1.5 text-[10px] font-bold ${type === 'arrived' ? 'text-emerald-600' : 'text-blue-600'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${type === 'arrived' ? 'bg-emerald-500' : 'bg-blue-500'}`}></span> ARR: {o.arrivalDate}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right text-stone-400 font-mono text-xs">{(o.purchasePricePerUnit || 0).toFixed(4)}</TableCell>
-                    <TableCell className="text-right text-emerald-700 font-bold">{(o.cubicMeasurement || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-black">
-                      {((o.quantity || 0) * (o.purchasePricePerUnit || 0)).toLocaleString()} €
+                    <TableCell className="text-right">
+                      <div className="font-black text-stone-900">{o.quantity.toLocaleString()}</div>
+                      <div className="text-[10px] font-bold text-stone-400 uppercase">{o.unitOfMeasure}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-emerald-700">
+                      {o.cubicMeasurement ? `${o.cubicMeasurement.toFixed(2)} m³` : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-black text-stone-900">{Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</div>
+                      <div className="text-[10px] font-bold text-stone-400">@ {o.purchasePricePerUnit.toFixed(4)}</div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -279,82 +296,52 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
     return (
       <div className="space-y-8 fade-in">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="space-y-1">
-            <Button variant="ghost" onClick={() => setSelectedCategory(null)} className="p-0 h-auto hover:bg-transparent text-stone-500 mb-2">
-              <ChevronLeft className="mr-1 w-4 h-4" /> Retour aux sous-catégories
-            </Button>
-            <h2 className="text-4xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
+          <div className="space-y-2">
+            <button 
+              onClick={() => setSelectedCategory(null)} 
+              className="flex items-center gap-2 text-stone-400 hover:text-stone-900 transition-all font-bold text-xs uppercase tracking-widest group"
+            >
+              <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Retour à la liste
+            </button>
+            <h2 className="text-4xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-4">
               {selectedCategory}
-              <Badge className="bg-amber-600 text-white border-none">{catArticles.length} au total</Badge>
+              <div className="h-10 w-px bg-stone-200 mx-2"></div>
+              <span className="text-amber-600">{catArticles.length} <span className="text-stone-400 text-lg">RÉFS</span></span>
             </h2>
-            <p className="text-stone-500 font-medium">Analyse stratégique et étude des flux pour {selectedCategory}</p>
           </div>
           
           <div className="flex flex-wrap gap-3 justify-end w-full md:w-auto">
             <KPIItem label="Valeur Totale" value={Math.round(stats.val).toLocaleString() + " €"} icon={<TrendingUp className="w-4 h-4" />} color="text-amber-700" />
             <KPIItem label="Volume Total" value={stats.cbm.toFixed(2) + " m³"} icon={<Cuboid className="w-4 h-4" />} color="text-emerald-700" />
-            <KPIItem label="Dernière Commande" value={stats.lastOrder} icon={<History className="w-4 h-4" />} color="text-stone-800" />
-            <KPIItem label="Prochaine Arrivée" value={stats.nextArrival} icon={<Ship className="w-4 h-4" />} color="text-blue-700" isHighlight={stats.nextArrival !== 'Aucune'} />
+            <KPIItem label="Dernière Cmd" value={stats.lastOrder} icon={<History className="w-4 h-4" />} color="text-stone-800" />
+            <KPIItem label="Next Arrivée" value={stats.nextArrival} icon={<Ship className="w-4 h-4" />} color="text-blue-700" isHighlight={stats.nextArrival !== 'Aucune'} />
           </div>
         </div>
 
-        {/* Units Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.entries(stats.qtyByUnit).map(([unit, q]) => (
-            <Card key={unit} className="border-l-4 border-l-stone-800 shadow-sm">
-              <CardContent className="p-4">
-                <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 flex justify-between items-center">
-                   <span>Unités: {unit}</span>
-                   <Package className="w-3 h-3" />
-                </div>
-                <div className="text-2xl font-black text-stone-800 mb-3">{q.total.toLocaleString()}</div>
-                <div className="space-y-1 text-xs font-bold">
-                  <div className="flex justify-between text-emerald-600 bg-emerald-50/50 p-1 rounded">
-                    <span className="flex items-center gap-1">✅ Arrivé</span>
-                    <span>{q.arrived.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-blue-600 bg-blue-50/50 p-1 rounded">
-                    <span className="flex items-center gap-1">🚢 En Transit</span>
-                    <span>{q.transit.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-amber-600 bg-amber-50/50 p-1 rounded">
-                    <span className="flex items-center gap-1">🕒 En cours</span>
-                    <span>{q.pending.toLocaleString()}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          <Card className="bg-stone-50 border-dashed shadow-none">
-            <CardContent className="p-4 flex flex-col justify-center h-full">
-              <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Intervalle de Commande</div>
-              <div className="text-xl font-black text-stone-700">{stats.avgInterval} jours</div>
-              <p className="text-[10px] text-stone-400 mt-1">Délai moyen entre chaque rappel de stock.</p>
-            </CardContent>
-          </Card>
+        {/* Tables Section First as requested */}
+        <div className="space-y-4">
+          {renderTableSection("Commandes en Transit", transitArticles, <Ship className="w-5 h-5" />, 'transit')}
+          {renderTableSection("Historique des Réceptions", arrivedArticles, <CheckCircle2 className="w-5 h-5" />, 'arrived')}
+          {renderTableSection("En cours de commande / Production", pendingArticles, <Clock className="w-5 h-5" />, 'pending')}
         </div>
 
-        {/* Tables Section */}
-        <div className="space-y-8">
-          {renderTable("Commandes en Transit", transitArticles, <Ship className="w-4 h-4 text-blue-500" />, 'transit')}
-          {renderTable("Commandes Arrivées", arrivedArticles, <CheckCircle2 className="w-4 h-4 text-emerald-500" />, 'arrived')}
-          {renderTable("Rappels et Production", pendingArticles, <Clock className="w-4 h-4 text-amber-500" />, 'pending')}
-        </div>
-
-        {/* Analysis Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <Card className="lg:col-span-1 border-none shadow-sm bg-stone-900 text-white">
-            <CardHeader className="border-b border-stone-800 pb-4">
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-400"><ArrowUpRight className="w-4 h-4" /> Top 5 Articles (Valeur)</CardTitle>
+        {/* Analytics Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+          <Card className="lg:col-span-1 border-none shadow-sm bg-stone-900 text-white rounded-2xl">
+            <CardHeader className="border-b border-stone-800 pb-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-xs font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+                <ArrowUpRight className="w-4 h-4" /> Top 5 Articles
+              </CardTitle>
+              <div className="text-[10px] text-stone-500 font-bold">PAR VALEUR</div>
             </CardHeader>
             <CardContent className="p-0">
               {topArticles.map((art, idx) => (
-                <div key={idx} className="p-4 border-b border-stone-800 last:border-0 flex justify-between items-center hover:bg-stone-800/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg font-black text-stone-700">0{idx + 1}</span>
+                <div key={idx} className="p-5 border-b border-stone-800 last:border-0 flex justify-between items-center hover:bg-stone-800/50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <span className="text-xl font-black text-stone-700">0{idx + 1}</span>
                     <div>
-                      <div className="text-xs font-black text-stone-100 uppercase truncate max-w-[150px]">{art.name}</div>
-                      <div className="text-[10px] text-stone-500">{art.qty.toLocaleString()} {art.unit}</div>
+                      <div className="text-xs font-black text-stone-100 uppercase truncate max-w-[160px]">{art.name}</div>
+                      <div className="text-[10px] text-stone-500 font-bold uppercase">{art.qty.toLocaleString()} {art.unit}</div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -367,56 +354,61 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
           </Card>
 
           <div className="lg:col-span-2 space-y-6">
-            <Card className="shadow-sm">
-              <CardHeader className="pb-0">
-                <CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Analyse de la Valeur Mensuelle</CardTitle>
+            <Card className="shadow-sm border-none bg-white rounded-2xl overflow-hidden">
+              <CardHeader className="bg-stone-50/50 border-b border-stone-100 pb-4">
+                <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-stone-600">
+                  <TrendingUp className="w-4 h-4 text-amber-600" /> Analyse de Flux Financier
+                </CardTitle>
               </CardHeader>
-              <CardContent className="h-[280px] pt-4">
+              <CardContent className="h-[300px] pt-8">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analysisData}>
                     <defs>
-                      <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#d97706" stopOpacity={0.1}/>
+                      <linearGradient id="colorValCat" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#d97706" stopOpacity={0.15}/>
                         <stop offset="95%" stopColor="#d97706" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
-                    <XAxis dataKey="month" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v/1000}k`} />
-                    <RechartsTooltip formatter={(v: any) => [`${Number(v).toLocaleString()} €`, 'Valeur Mensuelle']} />
-                    <Area type="monotone" dataKey="val" stroke="#d97706" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                    <XAxis dataKey="month" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} tick={{fill: '#a8a29e'}} />
+                    <YAxis fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} tick={{fill: '#a8a29e'}} tickFormatter={(v) => `${v/1000}k`} />
+                    <RechartsTooltip 
+                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                      formatter={(v: any) => [`${Number(v).toLocaleString()} €`, 'Volume Mensuel']} 
+                    />
+                    <Area type="monotone" dataKey="val" stroke="#d97706" strokeWidth={4} fillOpacity={1} fill="url(#colorValCat)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <Card className="shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <Card className="shadow-sm border-none bg-white rounded-2xl">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-stone-400">Tendance du Prix (PA)</CardTitle>
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-stone-400">Tendance Prix d'Achat</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[150px]">
+                <CardContent className="h-[160px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={analysisData}>
                       <XAxis dataKey="month" hide />
                       <YAxis hide domain={['auto', 'auto']} />
                       <RechartsTooltip />
-                      <Line type="stepAfter" dataKey="pa" stroke="#44403c" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="pa" stroke="#44403c" strokeWidth={3} dot={{r: 4, fill: '#44403c'}} />
                     </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-              <Card className="shadow-sm">
+              <Card className="shadow-sm border-none bg-white rounded-2xl">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-stone-400">Flux de Volume (CBM)</CardTitle>
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-stone-400">Flux Volumétrique (CBM)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[150px]">
+                <CardContent className="h-[160px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={analysisData}>
                       <XAxis dataKey="month" hide />
                       <YAxis hide />
                       <RechartsTooltip />
-                      <Bar dataKey="cbm" fill="#059669" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="cbm" fill="#059669" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -430,68 +422,74 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-stone-900 uppercase tracking-tighter">Types de Produits</h1>
+          <h1 className="text-4xl font-black text-stone-900 uppercase tracking-tighter">Sous-Catégories</h1>
           {selectedGeneralCategoryId ? (
-            <div className="flex items-center gap-2 mt-2">
-               <Badge className="bg-amber-100 text-amber-800 border-none font-bold">
-                 GROUPE : {generalCategories.find(gc => gc.id === selectedGeneralCategoryId)?.name || 'Inconnu'}
+            <div className="flex items-center gap-3 mt-3">
+               <Badge className="bg-amber-600 text-white px-3 py-1 rounded-lg font-black text-xs uppercase tracking-widest border-none">
+                 GROUPE: {generalCategories.find(gc => gc.id === selectedGeneralCategoryId)?.name || 'Inconnu'}
                </Badge>
-               <span className="text-stone-400 text-xs font-medium">• {filteredCategoriesList.length} types trouvés</span>
+               <div className="h-4 w-px bg-stone-200"></div>
+               <span className="text-stone-400 text-xs font-bold uppercase tracking-widest">{filteredCategoriesList.length} TYPES RÉPERTORIÉS</span>
             </div>
           ) : (
-            <p className="text-stone-500 font-medium mt-1 italic">Sélectionnez une famille générale pour affiner la liste.</p>
+            <div className="flex items-center gap-2 mt-3 text-stone-400 animate-pulse">
+              <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+              <p className="text-xs font-bold uppercase tracking-widest">Sélectionnez un groupe pour filtrer</p>
+            </div>
           )}
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white font-bold h-12 px-6 rounded-xl shadow-lg shadow-stone-200 transition-all hover:-translate-y-1">
-          <Plus className="mr-2 w-5 h-5" /> Nouveau Type
+        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest h-14 px-8 rounded-2xl shadow-xl shadow-stone-200 transition-all hover:-translate-y-1 active:scale-95 flex items-center gap-3">
+          <Plus className="w-6 h-6" /> Nouveau Type
         </Button>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {filteredCategoriesList.length === 0 ? (
-          <div className="col-span-full py-24 text-center border-2 border-dashed border-stone-200 rounded-3xl bg-white/50">
-            <div className="bg-stone-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-               <Package className="w-8 h-8 text-stone-300" />
+          <div className="col-span-full py-32 text-center border-2 border-dashed border-stone-200 rounded-[2.5rem] bg-white/40">
+            <div className="bg-white w-20 h-20 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
+               <Package className="w-10 h-10 text-stone-200" />
             </div>
-            <p className="text-stone-400 font-bold uppercase tracking-widest text-sm">Aucun type de produit trouvé</p>
+            <p className="text-stone-400 font-black uppercase tracking-widest text-sm">Aucune donnée disponible</p>
           </div>
         ) : filteredCategoriesList.map(([name, stats]) => (
           <Card 
             key={name} 
             onClick={() => setSelectedCategory(name)} 
-            className="cursor-pointer hover:shadow-xl transition-all group border-none shadow-sm overflow-hidden bg-white"
+            className="cursor-pointer hover:shadow-2xl hover:scale-[1.02] transition-all group border-none shadow-lg overflow-hidden bg-white rounded-[2rem]"
           >
-            <div className="h-2 w-full bg-stone-800 group-hover:bg-amber-600 transition-colors" />
-            <CardContent className="p-6">
-              <h3 className="text-xl font-black mb-6 group-hover:text-amber-600 transition-colors uppercase tracking-tight truncate">{name}</h3>
+            <div className="h-3 w-full bg-stone-100 group-hover:bg-amber-500 transition-colors" />
+            <CardContent className="p-8">
+              <h3 className="text-2xl font-black mb-8 group-hover:text-amber-600 transition-colors uppercase tracking-tighter leading-none h-12 flex items-center">{name}</h3>
               
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-6 mb-8">
                 <div>
-                  <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-1">Volume Fis.</div>
-                  <div className="text-lg font-black text-emerald-700">{stats.cbm.toFixed(2)} m³</div>
+                  <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-2">Volume Total</div>
+                  <div className="text-xl font-black text-emerald-700 tracking-tight">{stats.cbm.toFixed(2)} m³</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-1">Val. Totale</div>
-                  <div className="text-lg font-black text-amber-700">{Math.round(stats.val).toLocaleString()} €</div>
+                  <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-2">Val. Cumulée</div>
+                  <div className="text-xl font-black text-amber-700 tracking-tight">{Math.round(stats.val).toLocaleString()} €</div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-stone-100">
-                <div className="text-[10px] text-stone-400 font-bold uppercase mb-2">Répartition Quantités</div>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="pt-6 border-t border-stone-50">
+                <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-3">Répartition Principale</div>
+                <div className="flex flex-wrap gap-2">
                   {Object.entries(stats.qtyByUnit).slice(0, 3).map(([unit, qty]) => (
-                    <Badge key={unit} variant="secondary" className="bg-stone-50 text-stone-600 border-stone-100 text-[10px] font-bold">
+                    <div key={unit} className="bg-stone-50 text-stone-600 px-3 py-1.5 rounded-xl text-[10px] font-black border border-stone-100 uppercase">
                       {qty.toLocaleString()} {unit}
-                    </Badge>
+                    </div>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-between items-center text-xs pt-4 border-t border-stone-50">
-                <span className="text-stone-400 font-medium">{stats.count} Articles</span>
-                <span className="text-stone-900 font-black uppercase tracking-tighter group-hover:translate-x-1 transition-transform flex items-center gap-1">Détails <LayoutGrid className="w-3 h-3" /></span>
+              <div className="mt-8 flex justify-between items-center pt-6 border-t border-stone-50">
+                <span className="text-stone-400 text-[10px] font-black uppercase tracking-widest">{stats.count} RÉFÉRENCES</span>
+                <span className="bg-stone-900 text-white p-2 rounded-xl group-hover:bg-amber-600 transition-all">
+                  <ArrowRight className="w-4 h-4" />
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -499,34 +497,34 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="rounded-2xl border-none shadow-2xl">
+        <DialogContent className="rounded-[2.5rem] border-none shadow-2xl p-8">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-stone-900 uppercase tracking-tighter">Nouveau Type de Produit</DialogTitle>
+            <DialogTitle className="text-3xl font-black text-stone-900 uppercase tracking-tighter">Paramétrage Type</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 py-6">
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase text-stone-500 tracking-widest">Famille Générale (Parent)</label>
+          <div className="space-y-8 py-8">
+            <div className="space-y-3">
+              <label className="text-xs font-black uppercase text-stone-400 tracking-widest">Groupe Parent</label>
               <Select value={targetGenCatId} onValueChange={setTargetGenCatId}>
-                <SelectTrigger className="h-12 rounded-xl bg-stone-50 border-stone-100"><SelectValue placeholder="Choisir le groupe..." /></SelectTrigger>
-                <SelectContent className="rounded-xl">
+                <SelectTrigger className="h-14 rounded-2xl bg-stone-50 border-stone-100 px-6 font-bold text-stone-700"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                <SelectContent className="rounded-2xl border-stone-100">
                   {(generalCategories || []).map(gc => (
-                    <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
+                    <SelectItem key={gc.id} value={gc.id} className="font-bold uppercase py-3">{gc.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase text-stone-500 tracking-widest">Nom du Type (ex: ZIP NO5)</label>
+            <div className="space-y-3">
+              <label className="text-xs font-black uppercase text-stone-400 tracking-widest">Désignation du Type</label>
               <Input 
                 value={newCatName} 
                 onChange={e => setNewCatName(e.target.value.toUpperCase())} 
-                placeholder="Nom..." 
-                className="h-12 rounded-xl uppercase font-bold bg-stone-50 border-stone-100" 
+                placeholder="Ex: ZIPPER NO5" 
+                className="h-14 rounded-2xl uppercase font-black bg-stone-50 border-stone-100 px-6 text-lg focus:ring-amber-500" 
               />
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleAddCategory} className="w-full bg-stone-900 h-12 rounded-xl text-white font-black uppercase tracking-widest">Créer la Sous-Catégorie</Button>
+            <Button onClick={handleAddCategory} className="w-full bg-stone-900 hover:bg-black h-16 rounded-2xl text-white font-black uppercase tracking-widest text-sm shadow-xl transition-all active:scale-95">Créer la Sous-Catégorie</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -536,11 +534,12 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
 
 function KPIItem({ label, value, icon, color, isHighlight }: any) {
   return (
-    <div className={`bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex flex-col min-w-[140px] ${isHighlight ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}>
-      <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-        {icon} {label}
+    <div className={`bg-white p-5 rounded-2xl shadow-sm border border-stone-100 flex flex-col min-w-[160px] transition-all ${isHighlight ? 'ring-2 ring-blue-500/20 bg-blue-50/10' : ''}`}>
+      <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+        <span className={isHighlight ? 'text-blue-500' : 'text-stone-300'}>{icon}</span>
+        {label}
       </div>
-      <div className={`text-lg font-black tracking-tight ${color}`}>{value}</div>
+      <div className={`text-xl font-black tracking-tight ${color}`}>{value}</div>
     </div>
   );
 }
