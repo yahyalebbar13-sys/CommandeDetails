@@ -41,7 +41,7 @@ interface CategoriesViewProps {
   onSelectGeneralCategory: (id: string | null) => void;
 }
 
-const UI_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E'];
+const UI_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
 const STATUS_COLORS = {
   'TRANSIT': '#3B82F6',
   'ARRIVED': '#10B981',
@@ -177,15 +177,22 @@ export default function CategoriesView({
     });
     const supplierData = Object.entries(supplierMap).map(([name, value]) => ({ name, value }));
 
-    const priceData = currentArticles
-      .map(a => ({
-        date: a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null),
-        price: Number(a.purchasePricePerUnit) || 0
-      }))
-      .filter(d => d.date !== null)
-      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+    // Price evolution by color
+    const colorsSet = new Set<string>();
+    currentArticles.forEach(a => colorsSet.add((a.color || 'DIVERS').toUpperCase()));
+    const uniqueColors = Array.from(colorsSet);
 
-    return { statusValue, supplierData, priceData };
+    const dateGroups: Record<string, any> = {};
+    currentArticles.forEach(a => {
+      const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
+      if (!date) return;
+      if (!dateGroups[date]) dateGroups[date] = { date };
+      dateGroups[date][(a.color || 'DIVERS').toUpperCase()] = Number(a.purchasePricePerUnit) || 0;
+    });
+
+    const priceData = Object.values(dateGroups).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return { statusValue, supplierData, priceData, uniqueColors };
   }, [selectedCategory, currentArticles, groupedData]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
@@ -414,7 +421,7 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix d'Achat (€)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Couleur (€)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] p-6">
@@ -424,7 +431,20 @@ export default function CategoriesView({
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                   <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
                   <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Line type="monotone" dataKey="price" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
+                  {detailedAnalytics.uniqueColors.map((color, idx) => (
+                    <Line 
+                      key={color} 
+                      type="monotone" 
+                      dataKey={color} 
+                      name={color}
+                      stroke={UI_COLORS[idx % UI_COLORS.length]} 
+                      strokeWidth={3} 
+                      dot={{ r: 4, fill: UI_COLORS[idx % UI_COLORS.length], strokeWidth: 0 }} 
+                      activeDot={{ r: 6 }} 
+                      connectNulls={true}
+                    />
+                  ))}
                 </RechartsLineChart>
               </ResponsiveContainer>
             </CardContent>
