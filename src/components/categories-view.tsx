@@ -17,9 +17,8 @@ import {
   Clock, 
   ArrowUpRight, 
   BarChart3,
-  CalendarDays,
   History,
-  Info
+  LayoutGrid
 } from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -38,11 +37,9 @@ import {
   BarChart, 
   Bar,
   AreaChart,
-  Area,
-  Legend
+  Area
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface CategoriesViewProps {
   articles: any[];
@@ -96,7 +93,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     const now = new Date();
     const catArticles = (articles || [])
       .filter(o => o.categoryId === selectedCategory && (!selectedGeneralCategoryId || o.generalCategoryId === selectedGeneralCategoryId))
-      .sort((a, b) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
+      .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
 
     // STATS AVANCÉES
     const stats = useMemo(() => {
@@ -157,18 +154,20 @@ export default function CategoriesView({ articles, factures, generalCategories, 
       return Object.values(artMap).sort((a, b) => b.val - a.val).slice(0, 5);
     }, [catArticles]);
 
-    // SAISONNALITÉ & CHART DATA
+    // TIMELINE DATA
     const analysisData = useMemo(() => {
       const monthly: Record<string, { val: number; cbm: number; pa: number; count: number }> = {};
       const timeline: any[] = [];
       
       catArticles.forEach(o => {
         const month = o.orderDate?.substring(0, 7);
-        if (!monthly[month]) monthly[month] = { val: 0, cbm: 0, pa: 0, count: 0 };
-        monthly[month].val += (o.quantity * o.purchasePricePerUnit);
-        monthly[month].cbm += (o.cubicMeasurement || 0);
-        monthly[month].pa += o.purchasePricePerUnit;
-        monthly[month].count += 1;
+        if (month) {
+          if (!monthly[month]) monthly[month] = { val: 0, cbm: 0, pa: 0, count: 0 };
+          monthly[month].val += (o.quantity * o.purchasePricePerUnit);
+          monthly[month].cbm += (o.cubicMeasurement || 0);
+          monthly[month].pa += o.purchasePricePerUnit;
+          monthly[month].count += 1;
+        }
       });
 
       Object.entries(monthly).sort().forEach(([month, data]) => {
@@ -206,10 +205,10 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </div>
         </div>
 
-        {/* DISTINCTION TRANSIT / ARRIVÉ PAR UNITÉ */}
+        {/* DISTINCTION TRANSIT / ARRIVÉ PAR UNITÉ (POUR CHAQUE UNITE DIFFÉRENTE) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(stats.qtyByUnit).map(([unit, q]) => (
-            <Card key={unit} className="border-l-4 border-l-stone-800">
+            <Card key={unit} className="border-l-4 border-l-stone-800 shadow-sm">
               <CardContent className="p-4">
                 <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 flex justify-between items-center">
                    <span>Unités: {unit}</span>
@@ -217,75 +216,81 @@ export default function CategoriesView({ articles, factures, generalCategories, 
                 </div>
                 <div className="text-2xl font-black text-stone-800 mb-3">{q.total.toLocaleString()}</div>
                 <div className="space-y-1 text-xs font-bold">
-                  <div className="flex justify-between text-emerald-600">
-                    <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Arrivé</span>
+                  <div className="flex justify-between text-emerald-600 bg-emerald-50/50 p-1 rounded">
+                    <span className="flex items-center gap-1">✅ Arrivé</span>
                     <span>{q.arrived.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-blue-600">
-                    <span className="flex items-center gap-1"><Ship className="w-3 h-3" /> En Transit</span>
+                  <div className="flex justify-between text-blue-600 bg-blue-50/50 p-1 rounded">
+                    <span className="flex items-center gap-1">🚢 En Transit</span>
                     <span>{q.transit.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-amber-600">
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> En Production</span>
+                  <div className="flex justify-between text-amber-600 bg-amber-50/50 p-1 rounded">
+                    <span className="flex items-center gap-1">🕒 En Prod.</span>
                     <span>{q.pending.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
           ))}
-          <Card className="bg-stone-50 border-dashed">
+          <Card className="bg-stone-50 border-dashed shadow-none">
             <CardContent className="p-4 flex flex-col justify-center h-full">
-              <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Intervalle Moyen</div>
+              <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Intervalle de Commande</div>
               <div className="text-xl font-black text-stone-700">{stats.avgInterval} jours</div>
-              <p className="text-[10px] text-stone-400 mt-1">Délai moyen entre deux passages de commandes.</p>
+              <p className="text-[10px] text-stone-400 mt-1">Délai moyen entre chaque rappel de stock.</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* 1. TABLEAU DES ARTICLES (PLANTÉ EN PREMIER) */}
-        <Card className="shadow-sm border-stone-200">
-          <CardHeader className="bg-stone-50/50 border-b flex flex-row items-center justify-between py-4">
-            <CardTitle className="text-sm font-bold flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Historique Détaillé des Commandes</CardTitle>
-            <div className="text-[10px] font-bold text-stone-400 uppercase">Tri chronologique</div>
+        {/* 1. TABLEAU HISTORIQUE DÉTAILLÉ (PRIORITAIRE) */}
+        <Card className="shadow-sm border-stone-200 overflow-hidden">
+          <CardHeader className="bg-stone-50 border-b flex flex-row items-center justify-between py-4">
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Historique des Commandes</CardTitle>
+            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Tri chronologique</div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-stone-50">
+                <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead>Statut</TableHead>
                     <TableHead>Article</TableHead>
+                    <TableHead>Specs / Couleur</TableHead>
                     <TableHead><Calendar className="w-3 h-3 inline mr-1" /> Commande</TableHead>
                     <TableHead><Ship className="w-3 h-3 inline mr-1" /> Arrivée</TableHead>
                     <TableHead className="text-right">Quantité</TableHead>
                     <TableHead className="text-right">PA (€)</TableHead>
                     <TableHead className="text-right">Vol. (CBM)</TableHead>
-                    <TableHead className="text-right bg-amber-50/50">Valeur Totale</TableHead>
+                    <TableHead className="text-right bg-amber-50/30">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {catArticles.map(o => {
+                  {catArticles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-10 text-stone-400 italic">Aucune donnée pour cette sélection</TableCell>
+                    </TableRow>
+                  ) : catArticles.map(o => {
                     const isArrived = o.status === 'SHIPPED' && new Date(o.arrivalDate) <= now;
                     const isTransit = o.status === 'SHIPPED' && new Date(o.arrivalDate) > now;
                     return (
                       <TableRow key={o.id} className="hover:bg-stone-50/80 transition-colors">
                         <TableCell>
-                          {isArrived && <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px]">ARRIVÉ</Badge>}
-                          {isTransit && <Badge className="bg-blue-100 text-blue-800 border-none text-[10px]">TRANSIT</Badge>}
-                          {o.status === 'PI' && <Badge className="bg-amber-100 text-amber-800 border-none text-[10px]">EN PROD.</Badge>}
+                          {isArrived && <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px] font-black tracking-tighter">✅ ARRIVÉ</Badge>}
+                          {isTransit && <Badge className="bg-blue-100 text-blue-800 border-none text-[10px] font-black tracking-tighter">🚢 TRANSIT</Badge>}
+                          {o.status === 'PI' && <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] font-black tracking-tighter">🕒 EN PROD.</Badge>}
+                          {o.status === 'TO_ORDER' && <Badge className="bg-stone-100 text-stone-800 border-none text-[10px] font-black tracking-tighter">📋 RAPPEL</Badge>}
                         </TableCell>
-                        <TableCell className="font-bold">
-                          <div>{o.name}</div>
-                          <div className="text-[10px] text-stone-400 uppercase font-medium">{o.specs || 'Pas de specs'} • {o.color || 'Unique'}</div>
+                        <TableCell className="font-bold text-stone-900">{o.name}</TableCell>
+                        <TableCell className="text-[10px] text-stone-500 uppercase font-bold">
+                          {o.specs || '-'} • <span className="text-stone-400">{o.color || 'UNIQUE'}</span>
                         </TableCell>
-                        <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate}</TableCell>
+                        <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate || '-'}</TableCell>
                         <TableCell className={`text-xs font-bold ${isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{o.arrivalDate || '-'}</TableCell>
-                        <TableCell className="text-right font-bold">
+                        <TableCell className="text-right font-black">
                           {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
                         </TableCell>
-                        <TableCell className="text-right text-amber-700 font-mono text-xs">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
+                        <TableCell className="text-right text-stone-400 font-mono text-xs">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
                         <TableCell className="text-right text-emerald-600 font-bold">{o.cubicMeasurement?.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-black bg-amber-50/20">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                        <TableCell className="text-right font-black bg-amber-50/10">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
                       </TableRow>
                     );
                   })}
@@ -295,26 +300,26 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </CardContent>
         </Card>
 
-        {/* 2. ANALYSE ET GRAPHIQUES */}
+        {/* 2. ANALYSE ET GRAPHIQUES (EN DESSOUS DU TABLEAU) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* TOP 5 ARTICLES PAR VALEUR */}
-          <Card className="lg:col-span-1">
-            <CardHeader className="border-b pb-4">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><ArrowUpRight className="w-4 h-4" /> Top 5 Articles (Valeur)</CardTitle>
+          <Card className="lg:col-span-1 border-none shadow-sm bg-stone-900 text-white">
+            <CardHeader className="border-b border-stone-800 pb-4">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-400"><ArrowUpRight className="w-4 h-4" /> Top 5 Articles (Valeur)</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {topArticles.map((art, idx) => (
-                <div key={idx} className="p-4 border-b last:border-0 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div key={idx} className="p-4 border-b border-stone-800 last:border-0 flex justify-between items-center hover:bg-stone-800/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className="text-lg font-black text-stone-200">0{idx + 1}</span>
+                    <span className="text-lg font-black text-stone-700">0{idx + 1}</span>
                     <div>
-                      <div className="text-xs font-black text-stone-800 uppercase truncate max-w-[150px]">{art.name}</div>
-                      <div className="text-[10px] text-stone-400">{art.qty.toLocaleString()} {art.unit}</div>
+                      <div className="text-xs font-black text-stone-100 uppercase truncate max-w-[150px]">{art.name}</div>
+                      <div className="text-[10px] text-stone-500">{art.qty.toLocaleString()} {art.unit}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-black text-amber-700">{Math.round(art.val).toLocaleString()} €</div>
-                    <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{((art.val / stats.val) * 100).toFixed(1)}%</div>
+                    <div className="text-sm font-black text-amber-400">{Math.round(art.val).toLocaleString()} €</div>
+                    <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">{((art.val / stats.val) * 100).toFixed(1)}%</div>
                   </div>
                 </div>
               ))}
@@ -323,11 +328,11 @@ export default function CategoriesView({ articles, factures, generalCategories, 
 
           {/* ÉVOLUTION DES PRIX ET VOLUMES */}
           <div className="lg:col-span-2 space-y-6">
-            <Card>
+            <Card className="shadow-sm">
               <CardHeader className="pb-0">
-                <CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Analyse de la Valeur et Saisonnalité</CardTitle>
+                <CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Analyse de la Valeur Mensuelle</CardTitle>
               </CardHeader>
-              <CardContent className="h-[350px] pt-4">
+              <CardContent className="h-[280px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analysisData}>
                     <defs>
@@ -347,11 +352,11 @@ export default function CategoriesView({ articles, factures, generalCategories, 
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <Card>
+               <Card className="shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-bold uppercase tracking-widest text-stone-500">Tendance du Prix (PA)</CardTitle>
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-stone-400">Tendance du Prix (PA)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[200px]">
+                <CardContent className="h-[150px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={analysisData}>
                       <XAxis dataKey="month" hide />
@@ -362,11 +367,11 @@ export default function CategoriesView({ articles, factures, generalCategories, 
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs font-bold uppercase tracking-widest text-stone-500">Flux de Volume (CBM)</CardTitle>
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-stone-400">Flux de Volume (CBM)</CardTitle>
                 </CardHeader>
-                <CardContent className="h-[200px]">
+                <CardContent className="h-[150px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={analysisData}>
                       <XAxis dataKey="month" hide />
@@ -438,18 +443,17 @@ export default function CategoriesView({ articles, factures, generalCategories, 
               <div className="pt-4 border-t border-stone-100">
                 <div className="text-[10px] text-stone-400 font-bold uppercase mb-2">Répartition Quantités</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(stats.qtyByUnit).slice(0, 2).map(([unit, qty]) => (
+                  {Object.entries(stats.qtyByUnit).slice(0, 3).map(([unit, qty]) => (
                     <Badge key={unit} variant="secondary" className="bg-stone-50 text-stone-600 border-stone-100 text-[10px] font-bold">
                       {qty.toLocaleString()} {unit}
                     </Badge>
                   ))}
-                  {Object.keys(stats.qtyByUnit).length > 2 && <span className="text-[10px] text-stone-300 font-bold">+{Object.keys(stats.qtyByUnit).length - 2}</span>}
                 </div>
               </div>
 
               <div className="mt-6 flex justify-between items-center text-xs pt-4 border-t border-stone-50">
                 <span className="text-stone-400 font-medium">{stats.count} Articles</span>
-                <span className="text-stone-900 font-black uppercase tracking-tighter group-hover:translate-x-1 transition-transform">Étude →</span>
+                <span className="text-stone-900 font-black uppercase tracking-tighter group-hover:translate-x-1 transition-transform flex items-center gap-1">Détails <LayoutGrid className="w-3 h-3" /></span>
               </div>
             </CardContent>
           </Card>
