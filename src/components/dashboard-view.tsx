@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Users,
   ShieldAlert,
-  Activity
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { ViewType } from '@/lib/types';
 
@@ -98,24 +99,41 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     // Dependency Analysis: Qualitative (Low/Medium/Strong)
     const dependencyData = Object.entries(depMap)
       .map(([category, sups]) => {
-        const values = Object.values(sups) as number[];
-        const total = values.reduce((s, v) => s + v, 0);
-        const maxVal = Math.max(...values);
+        const entries = Object.entries(sups);
+        const total = entries.reduce((s, [_, v]) => s + v, 0);
+        
+        let maxVal = 0;
+        let dominantSupplier = 'N/A';
+        entries.forEach(([sup, val]) => {
+          if (val > maxVal) {
+            maxVal = val;
+            dominantSupplier = sup;
+          }
+        });
+
         const concentration = total > 0 ? (maxVal / total) * 100 : 0;
         
         let level = 'Faible';
-        if (concentration > 70) level = 'Forte';
-        else if (concentration > 40) level = 'Moyenne';
+        let color = 'text-emerald-600';
+        if (concentration > 70) {
+          level = 'Forte';
+          color = 'text-red-600';
+        }
+        else if (concentration > 40) {
+          level = 'Moyenne';
+          color = 'text-amber-600';
+        }
 
         return { 
           category, 
           concentration: Number(concentration.toFixed(1)),
+          dominantSupplier,
           level,
+          color,
           fullMark: 100 
         };
       })
-      .sort((a, b) => b.concentration - a.concentration)
-      .slice(0, 8);
+      .sort((a, b) => b.concentration - a.concentration);
 
     return { 
       categoryData, 
@@ -126,7 +144,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Quick Nav Indicators with mini volume recalls */}
+      {/* Quick Nav Indicators */}
       <div className="flex flex-wrap gap-4">
         <button 
           onClick={() => onNavigate('to-order')}
@@ -159,7 +177,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </button>
       </div>
 
-      {/* Primary KPI Cards */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-none shadow-sm bg-white overflow-hidden group">
           <div className="h-1 w-full bg-stone-900" />
@@ -218,7 +236,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Category Distribution Chart - Vertical Bar */}
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
@@ -244,7 +261,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           </CardContent>
         </Card>
 
-        {/* Supplier Value Chart - Vertical Bar */}
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
@@ -267,7 +283,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
-      {/* Dependency Analysis - Radar Chart (Spider Chart) */}
+      {/* Dependency Radar Chart */}
       <Card className="border-none shadow-sm bg-white">
         <CardHeader className="py-6 border-b border-stone-50">
           <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
@@ -275,10 +291,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
-          <div className="h-[450px] w-full flex flex-col md:flex-row items-center gap-8">
-            <div className="flex-1 h-full w-full">
+          <div className="h-auto w-full flex flex-col xl:flex-row items-center gap-12">
+            <div className="flex-1 h-[450px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={analyticsData.dependencyData}>
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={analyticsData.dependencyData.slice(0, 12)}>
                   <PolarGrid stroke="#e2e8f0" />
                   <PolarAngleAxis dataKey="category" tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} />
                   <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
@@ -291,33 +307,41 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                   />
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
-                    formatter={(val: number) => [`${val}%`, 'Concentration Fournisseur']}
+                    formatter={(val: number, name: string, props: any) => [
+                      `${val}% (${props.payload.dominantSupplier})`, 
+                      'Concentration'
+                    ]}
                   />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
-            <div className="w-full md:w-64 space-y-4">
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Activity className="w-3 h-3 text-amber-500" /> Échelle de Risque
+            
+            <div className="w-full xl:w-96 space-y-6">
+              <div className="p-6 bg-stone-50 rounded-[2rem] border border-stone-100">
+                <p className="text-[10px] font-black text-stone-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500" /> Alertes de Concentration
                 </p>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-black text-red-600 uppercase">Forte Dépendance</span>
-                    <span className="text-[9px] font-black text-stone-400">&gt; 70%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-black text-amber-600 uppercase">Risque Moyen</span>
-                    <span className="text-[9px] font-black text-stone-400">40-70%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-black text-emerald-600 uppercase">Flux Diversifié</span>
-                    <span className="text-[9px] font-black text-stone-400">&lt; 40%</span>
-                  </div>
+                <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                  {analyticsData.dependencyData.filter(d => d.concentration > 40).map((d) => (
+                    <div key={d.category} className="flex flex-col border-b border-stone-200/50 pb-3 last:border-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[9px] font-black text-stone-900 uppercase tracking-tighter truncate w-2/3">{d.category}</span>
+                        <span className={`text-[10px] font-black ${d.color}`}>{d.concentration}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[8px] font-bold text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                          <Users className="w-2 h-2" /> {d.dominantSupplier}
+                        </span>
+                        <span className={`text-[8px] font-black uppercase tracking-widest bg-white px-2 py-0.5 rounded border border-stone-100 shadow-sm`}>
+                          Risque {d.level}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <p className="text-[9px] text-stone-400 font-bold uppercase leading-relaxed italic">
-                Ce radar mesure la concentration de vos achats. Une pointe vers l'extérieur indique qu'un seul fournisseur domine la catégorie.
+              <p className="text-[9px] text-stone-400 font-bold uppercase leading-relaxed italic px-2">
+                * Le risque est calculé sur la part de valeur détenue par le fournisseur principal au sein de la catégorie.
               </p>
             </div>
           </div>
