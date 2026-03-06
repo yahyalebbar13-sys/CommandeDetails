@@ -9,7 +9,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { FileText, Calendar, Truck, Save } from 'lucide-react';
+import { FileText, Calendar, Truck, Save, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -37,7 +37,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         id: editFacture.id || '',
         arrivalDate: editFacture.arrivalDate || new Date().toISOString().split('T')[0],
         supplierId: editFacture.supplierId || editFacture.supplier || '',
-        freightCost: editFacture.freightCost || editFacture.freight || 0
+        freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0
       });
     } else {
       setFormData({
@@ -63,21 +63,24 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       updatedAt: serverTimestamp()
     };
 
-    // Non-blocking write for the facture
+    // Save the main facture doc
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
-    // PROPAGATION: If the arrival date has changed for an existing facture, update all linked articles
+    // PROPAGATION: If arrival date changed and we have linked articles, update them
     if (editFacture && formData.arrivalDate !== editFacture.arrivalDate && associatedArticles && associatedArticles.length > 0) {
       associatedArticles.forEach((article: any) => {
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
         updateDocumentNonBlocking(articleRef, { arrivalDate: formData.arrivalDate });
       });
       toast({ 
-        title: "Dossier mis à jour", 
-        description: `N° ${factureId} - Date propagée à ${associatedArticles.length} articles.` 
+        title: "Dossier et articles synchronisés", 
+        description: `Date propagée à ${associatedArticles.length} articles liés.` 
       });
     } else {
-      toast({ title: "Facture enregistrée", description: `Dossier ${factureId} activé.` });
+      toast({ 
+        title: editFacture?.isOrphaned ? "Dossier régularisé" : "Facture enregistrée", 
+        description: `Référence ${factureId} activée.` 
+      });
     }
 
     onOpenChange(false);
@@ -85,58 +88,63 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-stone-200">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
-            <FileText className="w-5 h-5 text-stone-400" />
-            {editFacture?.isOrphaned ? 'Régulariser Facture' : (editFacture ? 'Modifier Dossier' : 'Déclaration d\'Arrivage')}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-md border-stone-200 overflow-hidden p-0 rounded-2xl">
+        <div className="bg-stone-900 p-6 flex items-center gap-3 text-white">
+          <div className="p-2 bg-white/10 rounded-lg">
+            <FileText className="w-6 h-6" />
+          </div>
+          <div>
+            <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none">
+              {editFacture?.isOrphaned ? 'Régulariser Arrivage' : (editFacture ? 'Modifier Dossier' : 'Nouveau Dossier')}
+            </DialogTitle>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Paramétrage logistique et fret</p>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° de Facture / Conteneur</Label>
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° FACTURE / CONTENEUR</Label>
             <Input 
               value={formData.id}
               onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
               required 
               disabled={!!editFacture && !editFacture.isOrphaned}
-              className="uppercase font-black border-stone-200 h-11" 
-              placeholder="EX: INV-2026-001"
+              className="uppercase font-black border-stone-200 h-12 rounded-xl focus:ring-stone-900" 
+              placeholder="EX: 26HD1004"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Fournisseur</Label>
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">FOURNISSEUR</Label>
             <Input 
               value={formData.supplierId}
-              onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
-              placeholder="Ex: MH, JIMMY..."
-              className="font-bold border-stone-200 h-11"
+              onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
+              placeholder="EX: MH, JIMMY..."
+              className="font-bold border-stone-200 h-12 rounded-xl uppercase"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Calendar className="w-3 h-3" /> Arrivée
+                <Calendar className="w-3 h-3" /> DATE D'ARRIVÉE
               </Label>
               <Input 
                 type="date"
                 required
-                className="border-stone-200 h-11 font-bold"
+                className="border-stone-200 h-12 font-bold rounded-xl"
                 value={formData.arrivalDate}
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Truck className="w-3 h-3" /> Fret (€)
+                <Truck className="w-3 h-3" /> FRAIS DE FRET (€)
               </Label>
               <Input 
                 type="number"
                 step="0.01"
-                className="border-stone-200 h-11 font-bold"
+                className="border-stone-200 h-12 font-black text-stone-900 rounded-xl"
                 value={formData.freightCost}
                 onChange={e => setFormData((prev: any) => ({ ...prev, freightCost: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
@@ -145,18 +153,34 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           </div>
           
           {associatedArticles && associatedArticles.length > 0 && (
-            <div className="p-3 bg-stone-50 rounded-lg border border-stone-100">
-              <p className="text-[9px] font-bold text-stone-500 uppercase leading-tight">
-                Attention : Modifier la date mettra à jour {associatedArticles.length} articles déjà liés à ce numéro.
-              </p>
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              <div>
+                <p className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Propagation Automatique</p>
+                <p className="text-[9px] font-bold text-amber-600 uppercase leading-tight mt-0.5">
+                  La modification de la date impactera {associatedArticles.length} articles déjà liés à ce numéro.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!editFacture?.isOrphaned && !editFacture && (
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex gap-3">
+              <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
+              <div>
+                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-tight">Dossier Certifié</p>
+                <p className="text-[9px] font-bold text-emerald-600 uppercase leading-tight mt-0.5">
+                  Ce numéro pourra être sélectionné dans les fiches articles.
+                </p>
+              </div>
             </div>
           )}
         </form>
 
-        <DialogFooter className="border-t pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[10px] font-black uppercase tracking-widest">Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest px-8 h-11 rounded-lg gap-2">
-            <Save className="w-4 h-4" /> Enregistrer le dossier
+        <DialogFooter className="p-6 bg-stone-50 border-t border-stone-100 flex flex-row gap-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 text-[10px] font-black uppercase tracking-widest h-11">Annuler</Button>
+          <Button onClick={handleSubmit} className="flex-[2] bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-stone-200">
+            <Save className="w-4 h-4" /> Enregistrer Dossier
           </Button>
         </DialogFooter>
       </DialogContent>
