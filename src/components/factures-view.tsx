@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Plus, CalendarDays, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, Ship } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import { useUser, useFirestore } from '@/firebase';
@@ -33,13 +33,14 @@ export default function FacturesView({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const aggregatedFactures = useMemo(() => {
-    return factures.map(f => {
+    return (factures || []).map(f => {
       const fArticles = articles.filter(o => o.factureId === f.id);
       const itemsCount = fArticles.length;
       const itemsVal = fArticles.reduce((sum, o) => sum + (o.quantity * o.purchasePricePerUnit), 0);
       const cbm = fArticles.reduce((sum, o) => sum + (o.cubicMeasurement || 0), 0);
       const freight = f.freightCost || f.freight || 0;
-      return { ...f, itemsCount, itemsVal, cbm, freight };
+      const efficiency = cbm > 0 ? (freight / cbm) : 0;
+      return { ...f, itemsCount, itemsVal, cbm, freight, efficiency };
     }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
   }, [articles, factures]);
 
@@ -77,10 +78,15 @@ export default function FacturesView({
           </div>
           
           <div className="flex flex-wrap gap-4 mt-4 lg:mt-0 justify-end w-full lg:w-auto">
+             <div className="text-right bg-stone-50 p-3 rounded-lg border border-stone-200" title="Coût du fret par mètre cube">
+              <div className="text-[10px] text-stone-500 uppercase tracking-wide font-bold flex items-center justify-end gap-1">
+                Efficacité <TrendingDown className="w-3 h-3" />
+              </div>
+              <div className="text-lg font-black text-stone-800">{selectedFacture.efficiency.toFixed(2)} €/CBM</div>
+            </div>
             <div 
               onClick={() => setIsEditModalOpen(true)} 
               className="text-right bg-blue-50 p-3 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors group"
-              title="Modifier la date d'arrivée"
             >
               <div className="text-[10px] text-blue-600 uppercase tracking-wide font-bold flex items-center justify-end gap-1">
                 Arrivée <CalendarDays className="w-3 h-3" />
@@ -197,8 +203,13 @@ export default function FacturesView({
             <div className="flex-grow pt-2">
               <div className="text-[10px] text-stone-500 font-medium uppercase mb-1">{f.supplierId || f.supplier}</div>
               <h3 className="text-xl font-black text-stone-800 tracking-tight mb-2 group-hover:text-blue-600 transition-colors">{f.id}</h3>
-              <div className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded mb-4">
-                Vol: {f.cbm.toFixed(2)} m³
+              <div className="flex gap-2">
+                <div className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-1 rounded mb-4">
+                  Vol: {f.cbm.toFixed(2)} m³
+                </div>
+                <div className="inline-block bg-stone-100 text-stone-800 text-[10px] font-bold px-2 py-1 rounded mb-4">
+                  {f.efficiency.toFixed(2)} €/CBM
+                </div>
               </div>
               <div className="flex justify-between items-center text-sm border-t border-stone-100 pt-3">
                 <span className="text-stone-500">Articles :</span>

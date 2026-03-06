@@ -1,11 +1,10 @@
-
 "use client";
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX, LineChart as LineIcon } from 'lucide-react';
+import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX, LineChart as LineIcon, Truck, Banknote } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, deleteDocumentNonBlocking, setDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -25,18 +24,20 @@ import {
   Pie, 
   Cell,
   LineChart,
-  Line
+  Line,
+  Legend
 } from 'recharts';
 
 interface CategoriesViewProps {
   articles: any[];
+  factures: any[];
   selectedCategory: string | null;
   setSelectedCategory: (category: string | null) => void;
   initialGeneralCategoryId?: string | null;
   subCategories: any[];
 }
 
-export default function CategoriesView({ articles, selectedCategory, setSelectedCategory, initialGeneralCategoryId, subCategories }: CategoriesViewProps) {
+export default function CategoriesView({ articles, factures, selectedCategory, setSelectedCategory, initialGeneralCategoryId, subCategories }: CategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -69,7 +70,6 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
     (articles || []).forEach(o => {
       const cat = o.categoryId || 'Inconnu';
       
-      // Filter if needed
       if (filteredCategoriesNames && !filteredCategoriesNames.includes(cat)) return;
 
       if (!data[cat]) data[cat] = { qty: 0, val: 0, count: 0 };
@@ -100,6 +100,7 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
       <CategoryDetailView 
         categoryName={selectedCategory} 
         articles={articles || []} 
+        factures={factures || []}
         onBack={() => setSelectedCategory(null)} 
       />
     );
@@ -198,7 +199,7 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
   );
 }
 
-function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: string, articles: any[], onBack: () => void }) {
+function CategoryDetailView({ categoryName, articles, factures, onBack }: { categoryName: string, articles: any[], factures: any[], onBack: () => void }) {
   const catArticles = useMemo(() => articles.filter(o => o.categoryId === categoryName), [articles, categoryName]);
   
   const now = new Date();
@@ -208,6 +209,28 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
   
   const totalVal = useMemo(() => catArticles.reduce((s, o) => s + (o.quantity * o.purchasePricePerUnit), 0), [catArticles]);
   const totalQty = useMemo(() => catArticles.reduce((s, o) => s + o.quantity, 0), [catArticles]);
+  const totalCbm = useMemo(() => catArticles.reduce((s, o) => s + (o.cubicMeasurement || 0), 0), [catArticles]);
+
+  // Landed Cost Calculation (Freight allocation)
+  const allocatedFreight = useMemo(() => {
+    let freight = 0;
+    catArticles.forEach(art => {
+      if (!art.factureId) return;
+      const facture = factures.find(f => f.id === art.factureId);
+      if (!facture) return;
+      
+      const factureArticles = articles.filter(a => a.factureId === art.factureId);
+      const totalFactureCbm = factureArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
+      
+      if (totalFactureCbm > 0) {
+        freight += (art.cubicMeasurement / totalFactureCbm) * (facture.freightCost || 0);
+      }
+    });
+    return freight;
+  }, [catArticles, factures, articles]);
+
+  const landedCostPerUnit = (totalVal + allocatedFreight) / (totalQty || 1);
+  const purchasePricePerUnit = totalVal / (totalQty || 1);
 
   const orderDates = useMemo(() => catArticles
     .map(o => new Date(o.orderDate).getTime())
@@ -223,8 +246,6 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
     }
     return 0;
   }, [orderDates]);
-
-  const avgOrderQty = Math.round(totalQty / catArticles.length);
 
   const seasonalityData = useMemo(() => {
     const months: Record<string, number> = {};
@@ -255,14 +276,13 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [catArticles]);
 
-  const articleDistData = useMemo(() => {
-    const items: Record<string, number> = {};
+  const supplierDistData = useMemo(() => {
+    const sups: Record<string, number> = {};
     catArticles.forEach(o => {
-      items[o.name] = (items[o.name] || 0) + (o.quantity * o.purchasePricePerUnit);
+      sups[o.supplierId || 'Inconnu'] = (sups[o.supplierId || 'Inconnu'] || 0) + (o.quantity * o.purchasePricePerUnit);
     });
-    return Object.entries(items)
+    return Object.entries(sups)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
       .map(([name, value]) => ({ name, value }));
   }, [catArticles]);
 
@@ -277,17 +297,80 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
           </button>
           <h2 className="text-3xl font-bold text-stone-900">{categoryName}</h2>
         </div>
-        <div className="text-right bg-stone-50 p-3 rounded-lg border border-stone-200">
-          <div className="text-[10px] text-stone-500 uppercase tracking-wide font-bold">Valeur Totale</div>
-          <div className="text-2xl font-black text-amber-700">{Math.round(totalVal).toLocaleString()} €</div>
+        <div className="flex gap-4">
+          <div className="text-right bg-stone-50 p-3 rounded-lg border border-stone-200">
+            <div className="text-[10px] text-stone-500 uppercase tracking-wide font-bold">Valeur Marchandise</div>
+            <div className="text-2xl font-black text-amber-700">{Math.round(totalVal).toLocaleString()} €</div>
+          </div>
+          <div className="text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
+            <div className="text-[10px] text-amber-600 uppercase tracking-wide font-bold">Coût Landed (TTC)</div>
+            <div className="text-2xl font-black text-amber-800">{Math.round(totalVal + allocatedFreight).toLocaleString()} €</div>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Quantité Totale" value={totalQty.toLocaleString()} icon={<Package className="w-4 h-4 text-stone-400" />} />
+        <StatCard label="Poids du Fret" value={`${Math.round((allocatedFreight / (totalVal || 1)) * 100)}%`} icon={<Truck className="w-4 h-4 text-amber-500" />} />
+        <StatCard label="Land. Cost Unitaire" value={`${landedCostPerUnit.toFixed(3)} €`} icon={<Banknote className="w-4 h-4 text-emerald-600" />} />
         <StatCard label="Intervalle Commande" value={avgIntervalDays > 0 ? `${avgIntervalDays} jours` : 'Unique'} icon={<Clock className="w-4 h-4 text-stone-400" />} />
-        <StatCard label="Quantité Moyenne" value={avgOrderQty.toLocaleString()} icon={<TrendingUp className="w-4 h-4 text-stone-400" />} />
-        <StatCard label="Dernière Commande" value={latestOrderDate} icon={<Calendar className="w-4 h-4 text-stone-400" />} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-amber-500" />
+              Comparaison Prix vs Coût Réel (Landed)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+             <div className="grid grid-cols-2 gap-4">
+                <div className="bg-stone-50 p-4 rounded-lg">
+                   <div className="text-xs text-stone-500 uppercase font-bold mb-1">Prix Achat Moyen</div>
+                   <div className="text-xl font-bold text-stone-800">{purchasePricePerUnit.toFixed(4)} €</div>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100">
+                   <div className="text-xs text-emerald-600 uppercase font-bold mb-1">Coût Réel Moyen (TTC)</div>
+                   <div className="text-xl font-bold text-emerald-700">{landedCostPerUnit.toFixed(4)} €</div>
+                </div>
+             </div>
+             <p className="text-xs text-stone-500 italic">
+               *Le coût réel inclut le prix d'achat plus une quote-part du fret calculée au volume (CBM).
+             </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <PieIcon className="w-4 h-4 text-amber-500" />
+              Répartition par Fournisseur
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={supplierDistData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={40}
+                  outerRadius={60}
+                  paddingAngle={5}
+                  dataKey="value"
+                  nameKey="name"
+                >
+                  {supplierDistData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: any) => [`${Math.round(value).toLocaleString()} €`, 'Volume']} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {pending.length > 0 && <CategoryTableSection title="🏭 En Production (PI)" data={pending} color="amber" count={pending.length} />}
@@ -297,15 +380,15 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
       <div className="pt-8">
         <div className="flex items-center gap-2 mb-6 border-b pb-2">
           <BarChart3 className="w-6 h-6 text-amber-600" />
-          <h3 className="text-2xl font-black text-stone-800 uppercase tracking-tight">Étude du Produit & Prévisions</h3>
+          <h3 className="text-2xl font-black text-stone-800 uppercase tracking-tight">Analyse Temporelle</h3>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <Card className="lg:col-span-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card>
             <CardHeader>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <LineIcon className="w-4 h-4 text-amber-500" />
-                Évolution du Prix d'Achat Moyen (PA)
+                Évolution du Prix d'Achat (PA)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px]">
@@ -316,7 +399,6 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
                   <YAxis fontSize={10} tickLine={false} axisLine={false} />
                   <Tooltip 
                     formatter={(value: any) => [`${parseFloat(value).toFixed(4)} €`, 'Prix Moyen']}
-                    labelFormatter={(label) => `Date : ${label}`}
                   />
                   <Line 
                     type="monotone" 
@@ -324,18 +406,17 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
                     stroke="#d97706" 
                     strokeWidth={3} 
                     dot={{ r: 4, fill: '#d97706' }} 
-                    activeDot={{ r: 6 }} 
                   />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-amber-500" />
-                Saisonnalité : Valeur des commandes par mois
+                Saisonnalité : Montants par mois
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px]">
@@ -345,67 +426,11 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
                   <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 1000}k`} />
                   <Tooltip 
-                    formatter={(value: any) => [`${Math.round(value).toLocaleString()} €`, 'Montant Commandé']}
-                    labelFormatter={(label) => `Mois : ${label}`}
+                    formatter={(value: any) => [`${Math.round(value).toLocaleString()} €`, 'Montant']}
                   />
                   <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <PieIcon className="w-4 h-4 text-amber-500" />
-                Top 5 Articles (Valeur)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={articleDistData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {articleDistData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: any, name: string) => [`${Math.round(value).toLocaleString()} €`, name]} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-8">
-          <Card className="bg-stone-50 border-stone-200">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold flex items-center gap-2 text-stone-800">
-                <Info className="w-4 h-4" />
-                Analyse Stratégique
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-stone-500">Dépendance Fournisseur :</span>
-                <span className="font-bold text-stone-700">{catArticles[0]?.supplierId || '-'}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-stone-500">Variante la plus commandée :</span>
-                <span className="font-bold text-stone-700 truncate max-w-[150px]">{articleDistData[0]?.name || '-'}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-stone-500">Stabilité des prix (PA) :</span>
-                <Badge variant="outline" className="text-green-600 bg-white border-green-200">Stable</Badge>
-              </div>
             </CardContent>
           </Card>
         </div>

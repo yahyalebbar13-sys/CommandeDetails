@@ -82,7 +82,7 @@ export default function StockVueApp() {
 
   const handleExport = () => {
     const headers = ['Statut', 'Catégorie', 'Article', 'Spécifications', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
-    const rows = articles.map(d => {
+    const rows = (articles || []).map(d => {
       const total = (d.quantity * d.purchasePricePerUnit).toFixed(2);
       const statusLabel = d.status === 'TO_ORDER' ? 'À COMMANDER' : (!d.factureId ? 'EN PRODUCTION' : 'EXPÉDIÉ');
       return [statusLabel, d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
@@ -223,18 +223,19 @@ export default function StockVueApp() {
             )}
             {activeTab === 'general-categories' && (
               <GeneralCategoriesView 
-                generalCategories={generalCategories}
-                subCategories={categories}
+                generalCategories={generalCategories || []}
+                subCategories={categories || []}
                 onSelectGeneralCategory={handleNavigateToGeneralCategory}
               />
             )}
             {activeTab === 'categories' && (
               <CategoriesView 
                 articles={articles || []} 
+                factures={factures || []}
                 selectedCategory={selectedSubCategoryName}
                 setSelectedCategory={setSelectedSubCategoryName}
                 initialGeneralCategoryId={selectedGeneralCategoryId}
-                subCategories={categories}
+                subCategories={categories || []}
               />
             )}
             {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
