@@ -10,8 +10,6 @@ import {
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   ResponsiveContainer, 
-  PieChart, 
-  Pie, 
   Cell,
   AreaChart,
   Area,
@@ -19,11 +17,9 @@ import {
   Bar
 } from 'recharts';
 import { 
-  Package, 
   Banknote, 
   Cuboid as Cube, 
   FileText, 
-  Ship, 
   Factory, 
   ListTodo, 
   TrendingUp, 
@@ -199,57 +195,6 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
         </Card>
       </div>
 
-      {/* Units Breakdown - Distinct per Unit */}
-      <div className="grid grid-cols-1 gap-6">
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="border-b border-stone-50 flex flex-row items-center justify-between py-4">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Package className="w-4 h-4 text-amber-600" />
-              État des Stocks par Unité de Mesure
-            </CardTitle>
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Analyse granulaire</div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {Object.entries(stats.unitStats).map(([unit, data]) => (
-                <div key={unit} className="space-y-4 p-5 rounded-2xl bg-stone-50 border border-stone-100 hover:border-amber-200 transition-colors">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xl font-black uppercase text-stone-800">{unit}</span>
-                    <Badge className="bg-stone-800 text-white border-none">{data.total.toLocaleString()}</Badge>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                        <span className="text-emerald-600">Disponibles</span>
-                        <span className="text-stone-600">{Math.round((data.arrived / data.total) * 100)}%</span>
-                      </div>
-                      <div className="w-full bg-white rounded-full h-2 overflow-hidden border border-stone-100">
-                        <div 
-                          className="bg-emerald-500 h-full transition-all duration-1000" 
-                          style={{ width: `${(data.arrived / data.total) * 100}%` }} 
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-200/50">
-                      <div className="text-center p-2 bg-blue-50/50 rounded-lg">
-                        <div className="text-[9px] font-bold text-blue-400 uppercase">Transit</div>
-                        <div className="text-sm font-black text-blue-700">{data.transit.toLocaleString()}</div>
-                      </div>
-                      <div className="text-center p-2 bg-amber-50/50 rounded-lg">
-                        <div className="text-[9px] font-bold text-amber-400 uppercase">Prod.</div>
-                        <div className="text-sm font-black text-amber-700">{data.production.toLocaleString()}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Bottom Visualizations */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 border-none shadow-sm bg-white">
@@ -312,33 +257,27 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
             <div className="pt-4 border-t border-stone-800 space-y-2">
               <Button 
                 variant="ghost" 
-                className="w-full justify-between text-xs hover:bg-stone-800 text-stone-300 group" 
+                className="w-full justify-start text-xs hover:bg-stone-800 text-stone-300" 
                 onClick={() => onNavigate('to-order')}
               >
-                <div className="flex items-center">
-                  <ArrowRight className="w-3 h-3 mr-2 group-hover:translate-x-1 transition-transform" /> 
-                  Gérer les rappels
-                </div>
+                <ArrowRight className="w-3 h-3 mr-2" /> 
+                Gérer les rappels de commande
               </Button>
               <Button 
                 variant="ghost" 
-                className="w-full justify-between text-xs hover:bg-stone-800 text-stone-300 group" 
+                className="w-full justify-start text-xs hover:bg-stone-800 text-stone-300" 
                 onClick={() => onNavigate('factures')}
               >
-                <div className="flex items-center">
-                  <ArrowRight className="w-3 h-3 mr-2 group-hover:translate-x-1 transition-transform" /> 
-                  Liste des factures
-                </div>
+                <ArrowRight className="w-3 h-3 mr-2" /> 
+                Liste des factures et arrivages
               </Button>
               <Button 
                 variant="ghost" 
-                className="w-full justify-between text-xs hover:bg-stone-800 text-stone-300 group" 
+                className="w-full justify-start text-xs hover:bg-stone-800 text-stone-300" 
                 onClick={() => onNavigate('data')}
               >
-                <div className="flex items-center">
-                  <ArrowRight className="w-3 h-3 mr-2 group-hover:translate-x-1 transition-transform" /> 
-                  Base de données
-                </div>
+                <ArrowRight className="w-3 h-3 mr-2" /> 
+                Consulter la base de données
               </Button>
             </div>
           </CardContent>
