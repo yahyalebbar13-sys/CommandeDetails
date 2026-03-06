@@ -402,7 +402,7 @@ export default function CategoriesView({
     );
   }
 
-  // RENDER: Sub-category Grid (The Grid of cards when viewing a General Category)
+  // RENDER: Sub-category Grid
   if (selectedGeneralCategoryId) {
     const parent = generalCategories.find(g => g.id === selectedGeneralCategoryId);
     return (

@@ -68,7 +68,7 @@ export default function StockVueApp() {
     setEditingArticle(article);
   };
 
-  const handleSelectGeneralCategory = (id: string) => {
+  const handleSelectGeneralCategory = (id: string | null) => {
     setSelectedGeneralCategoryId(id);
     if (id) {
       setActiveTab('categories');
