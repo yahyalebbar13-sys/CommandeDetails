@@ -32,7 +32,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
     let totalVal = 0, arrivedVal = 0, transitVal = 0, pendingVal = 0;
     let totalCbm = 0, arrivedCbm = 0, transitCbm = 0, pendingCbm = 0;
 
-    articles.forEach(o => {
+    (articles || []).forEach(o => {
       const val = (o.quantity || 0) * (o.purchasePricePerUnit || 0);
       
       if (o.status === 'TO_ORDER') {
@@ -68,7 +68,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
     });
 
     // Add freight to total value (only for factures)
-    factures.forEach(f => {
+    (factures || []).forEach(f => {
       const freight = f.freightCost || f.freight || 0;
       totalVal += freight;
       if (new Date(f.arrivalDate) <= now) {
@@ -82,15 +82,15 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
       totalQty, arrivedQty, transitQty, pendingQty, toOrderQty,
       totalVal, arrivedVal, transitVal, pendingVal,
       totalCbm, arrivedCbm, transitCbm, pendingCbm,
-      facturesCount: factures.length,
-      arrivedFactures: factures.filter(f => new Date(f.arrivalDate) <= now).length,
-      transitFactures: factures.filter(f => new Date(f.arrivalDate) > now).length
+      facturesCount: (factures || []).length,
+      arrivedFactures: (factures || []).filter(f => new Date(f.arrivalDate) <= now).length,
+      transitFactures: (factures || []).filter(f => new Date(f.arrivalDate) > now).length
     };
   }, [articles, factures]);
 
   const categoryData = useMemo(() => {
     const data: Record<string, number> = {};
-    articles.forEach(o => {
+    (articles || []).forEach(o => {
       if (o.status === 'TO_ORDER') return;
       if (o.status === 'PI' || !o.factureId) return; 
       const cat = o.categoryId || 'Inconnu';
@@ -101,7 +101,7 @@ export default function DashboardView({ articles, factures, onNavigate }: Dashbo
 
   const timelineData = useMemo(() => {
     const data: Record<string, number> = {};
-    articles.forEach(o => {
+    (articles || []).forEach(o => {
       if (o.status === 'TO_ORDER') return;
       if (o.status === 'PI' || !o.factureId) return; 
       const month = o.orderDate?.substring(0, 7) || 'Inconnu';
