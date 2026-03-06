@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie, Legend
+  Cell, PieChart, Pie, Legend, ResponsiveContainer as RespCont
 } from 'recharts';
 import { 
   Package, 
@@ -13,46 +13,39 @@ import {
   DollarSign,
   Box,
   Truck,
-  AlertCircle
+  TrendingUp
 } from 'lucide-react';
 
 interface DashboardViewProps {
   articles: any[];
   factures: any[];
-  onNavigate: (tab: string) => void;
+  onNavigate: (view: string) => void;
 }
 
 const COLORS = ['#d97706', '#059669', '#2563eb', '#7c3aed', '#db2777', '#4b5563'];
 
 export default function DashboardView({ articles = [], factures = [], onNavigate }: DashboardViewProps) {
-  // Sécurisation de l'accès aux données avec une valeur par défaut
-  const safeArticles = articles || [];
-  const safeFactures = factures || [];
-
+  
   const stats = useMemo(() => {
-    const now = new Date();
+    const safeArticles = articles || [];
+    const safeFactures = factures || [];
+
     let totalVal = 0;
     let totalCbm = 0;
     let inTransitCbm = 0;
     let inTransitVal = 0;
 
     safeArticles.forEach(art => {
-      const val = (Number(art.quantity) * (Number(art.purchasePricePerUnit) || 0)) || 0;
+      const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       const cbm = Number(art.cubicMeasurement) || 0;
       
-      if (art.status === 'SHIPPED') {
-        const arrival = art.arrivalDate ? new Date(art.arrivalDate) : null;
-        if (arrival && arrival > now) {
-          inTransitCbm += cbm;
-          inTransitVal += val;
-        }
-      }
       totalVal += val;
       totalCbm += cbm;
-    });
 
-    safeFactures.forEach(f => {
-      totalVal += (Number(f.freightCost) || 0);
+      if (art.status === 'SHIPPED') {
+        inTransitCbm += cbm;
+        inTransitVal += val;
+      }
     });
 
     return {
@@ -63,85 +56,78 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
       totalFactures: safeFactures.length,
       pendingOrders: safeArticles.filter(a => a.status === 'TO_ORDER').length
     };
-  }, [safeArticles, safeFactures]);
+  }, [articles, factures]);
 
-  const categoryData = useMemo(() => {
+  const categoryValueData = useMemo(() => {
+    const safeArticles = articles || [];
     const data: Record<string, number> = {};
     safeArticles.forEach(art => {
-      const cat = art.categoryId || 'Non classé';
-      data[cat] = (data[cat] || 0) + (Number(art.quantity) * (Number(art.purchasePricePerUnit) || 0));
+      const cat = art.generalCategoryId || 'Autres';
+      const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
+      data[cat] = (data[cat] || 0) + val;
     });
     return Object.entries(data).map(([name, value]) => ({ name, value }));
-  }, [safeArticles]);
-
-  const unitData = useMemo(() => {
-    const data: Record<string, number> = {};
-    safeArticles.forEach(art => {
-      const unit = art.unitOfMeasure || 'PCS';
-      data[unit] = (data[unit] || 0) + Number(art.quantity);
-    });
-    return Object.entries(data).map(([name, value]) => ({ name, value }));
-  }, [safeArticles]);
+  }, [articles]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-bold text-stone-800">Vue d'ensemble</h2>
-        <p className="text-stone-500 text-sm">Indicateurs clés de performance de votre inventaire.</p>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-bold text-stone-800">Tableau de bord</h2>
+        <p className="text-stone-500 text-sm">Vue globale de l'activité et des stocks.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-none shadow-sm bg-white">
+        <Card className="border border-stone-200 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Valeur Totale Stock</p>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Valeur Totale</p>
                 <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalVal.toLocaleString()} €</h3>
               </div>
-              <div className="p-3 bg-amber-50 rounded-full">
+              <div className="p-3 bg-amber-50 rounded-lg">
                 <DollarSign className="w-5 h-5 text-amber-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white">
+        <Card className="border border-stone-200 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Volume Total</p>
                 <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalCbm.toFixed(2)} m³</h3>
               </div>
-              <div className="p-3 bg-orange-50 rounded-full">
-                <Box className="w-5 h-5 text-orange-600" />
+              <div className="p-3 bg-blue-50 rounded-lg">
+                <Box className="w-5 h-5 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white">
+        <Card className="border border-stone-200 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Stock en Transit</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.inTransitCbm.toFixed(2)} m³</h3>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">En Transit</p>
+                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.inTransitVal.toLocaleString()} €</h3>
               </div>
-              <div className="p-3 bg-blue-50 rounded-full">
-                <Truck className="w-5 h-5 text-blue-600" />
+              <div className="p-3 bg-indigo-50 rounded-lg">
+                <Truck className="w-5 h-5 text-indigo-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white">
+        <Card className="border border-stone-200 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Rappels en attente</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.pendingOrders}</h3>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Factures Actives</p>
+                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalFactures}</h3>
               </div>
-              <div className="p-3 bg-red-50 rounded-full">
-                <AlertCircle className="w-5 h-5 text-red-600" />
+              <div className="p-3 bg-emerald-50 rounded-lg">
+                <FileText className="w-5 h-5 text-emerald-600" />
               </div>
             </div>
           </CardContent>
@@ -149,47 +135,54 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-none shadow-sm bg-white">
+        <Card className="border border-stone-200 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Répartition de la valeur par catégorie</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Répartition de la Valeur (€)
+            </CardTitle>
           </CardHeader>
-          <CardContent className="h-[300px]">
+          <CardContent className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={categoryData}
+                  data={categoryValueData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
+                  innerRadius={80}
+                  outerRadius={110}
                   paddingAngle={5}
                   dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {categoryData.map((entry, index) => (
+                  {categoryValueData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend layout="vertical" align="right" verticalAlign="middle" />
+                <Tooltip 
+                  formatter={(value: number) => `${value.toLocaleString()} €`}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-white">
+        <Card className="border border-stone-200 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Volume total par unité</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Statistiques de Stock</CardTitle>
           </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={unitData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{fill: '#f8fafc'}} />
-                <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="flex flex-col justify-center items-center h-[350px] text-center space-y-4">
+             <div className="p-4 bg-stone-50 rounded-xl w-full">
+                <p className="text-sm text-stone-500 mb-1 font-medium">Capacité Totale Utilisée</p>
+                <p className="text-3xl font-bold text-stone-900">{stats.totalCbm.toFixed(2)} m³</p>
+             </div>
+             <div className="p-4 bg-stone-50 rounded-xl w-full">
+                <p className="text-sm text-stone-500 mb-1 font-medium">Valeur Moyenne par Article</p>
+                <p className="text-3xl font-bold text-stone-900">
+                  {articles && articles.length > 0 ? (stats.totalVal / articles.length).toFixed(2) : 0} €
+                </p>
+             </div>
+             <p className="text-xs text-stone-400 italic">Données synchronisées en temps réel avec la base de données.</p>
           </CardContent>
         </Card>
       </div>
