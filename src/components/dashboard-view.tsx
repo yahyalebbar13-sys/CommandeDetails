@@ -37,10 +37,11 @@ const STATUS_COLORS = {
 };
 
 const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], onNavigate }) => {
-  const stats = useMemo(() => {
-    const safeArticles = articles || [];
-    const safeFactures = factures || [];
+  // Garantir que les props ne sont jamais null pour les opérations de filtrage
+  const safeArticles = articles || [];
+  const safeFactures = factures || [];
 
+  const stats = useMemo(() => {
     let totalVal = 0;
     let totalCbm = 0;
     let inTransitVal = 0;
@@ -75,11 +76,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       piCount: piArticles.length,
       avgEfficiency
     };
-  }, [articles, factures]);
+  }, [safeArticles, safeFactures]);
 
   const categoryData = useMemo(() => {
     const data: Record<string, number> = {};
-    articles?.forEach(art => {
+    safeArticles.forEach(art => {
       const cat = art.categoryId || 'Non classé';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       data[cat] = (data[cat] || 0) + val;
@@ -88,19 +89,34 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
-  }, [articles]);
+  }, [safeArticles]);
 
   const statusValueData = useMemo(() => {
     return [
-      { name: 'À commander', key: 'TO_ORDER', value: articles.filter(a => a.status === 'TO_ORDER').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), color: STATUS_COLORS.TO_ORDER },
-      { name: 'En production', key: 'PI', value: articles.filter(a => a.status === 'PI').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), color: STATUS_COLORS.PI },
-      { name: 'En transit', key: 'SHIPPED', value: articles.filter(a => a.status === 'SHIPPED').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), color: STATUS_COLORS.SHIPPED },
-      { name: 'Arrivé', key: 'ARRIVED', value: articles.filter(a => a.status === 'ARRIVED').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), color: STATUS_COLORS.ARRIVED },
+      { 
+        name: 'À commander', 
+        value: safeArticles.filter(a => a.status === 'TO_ORDER').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), 
+        color: STATUS_COLORS.TO_ORDER 
+      },
+      { 
+        name: 'En production', 
+        value: safeArticles.filter(a => a.status === 'PI').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), 
+        color: STATUS_COLORS.PI 
+      },
+      { 
+        name: 'En transit', 
+        value: safeArticles.filter(a => a.status === 'SHIPPED').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), 
+        color: STATUS_COLORS.SHIPPED 
+      },
+      { 
+        name: 'Arrivé', 
+        value: safeArticles.filter(a => a.status === 'ARRIVED').reduce((sum, a) => sum + (a.quantity * a.purchasePricePerUnit), 0), 
+        color: STATUS_COLORS.ARRIVED 
+      },
     ];
-  }, [articles]);
+  }, [safeArticles]);
 
   const volumeTrend = useMemo(() => {
-    // Simulated trend data based on current total
     return [
       { name: 'M-3', value: stats.totalCbm * 0.7 },
       { name: 'M-2', value: stats.totalCbm * 0.85 },
@@ -111,11 +127,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Quick Nav Indicators */}
+      {/* Quick Nav Indicators - Besoins & Production */}
       <div className="flex flex-wrap gap-4">
         <button 
           onClick={() => onNavigate('to-order')}
-          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group"
+          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group min-w-[200px]"
         >
           <div className="p-2 bg-stone-100 rounded-xl group-hover:bg-amber-100 transition-colors">
             <ClipboardList className="w-5 h-5 text-stone-500 group-hover:text-amber-600" />
@@ -124,12 +140,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Besoins</p>
             <p className="text-xl font-black text-stone-900 leading-none mt-1">{stats.toOrderCount} <span className="text-[10px] text-stone-400 font-bold">RAPPELS</span></p>
           </div>
-          <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-4" />
+          <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-auto" />
         </button>
 
         <button 
           onClick={() => onNavigate('pending')}
-          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group"
+          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group min-w-[200px]"
         >
           <div className="p-2 bg-stone-100 rounded-xl group-hover:bg-amber-100 transition-colors">
             <Factory className="w-5 h-5 text-stone-500 group-hover:text-amber-600" />
@@ -138,7 +154,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Production</p>
             <p className="text-xl font-black text-stone-900 leading-none mt-1">{stats.piCount} <span className="text-[10px] text-stone-400 font-bold">PI LNC</span></p>
           </div>
-          <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-4" />
+          <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-auto" />
         </button>
       </div>
 
