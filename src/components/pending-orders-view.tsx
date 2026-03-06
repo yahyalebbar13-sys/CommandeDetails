@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -117,13 +118,10 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button 
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-stone-400 hover:text-red-500 hover:bg-red-50"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleActionDelete(o.id, o.name);
-                          }}
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-stone-400 hover:text-red-500"
+                          onClick={() => handleActionDelete(o.id, o.name)}
                           title="Supprimer cette commande PI"
                         >
                           <Trash2 className="w-4 h-4" />

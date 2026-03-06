@@ -109,99 +109,61 @@
         },
         "categoryId": {
           "type": "string",
-          "description": "Reference to the Category this article belongs to. (Relationship: Category 1:N Article)"
+          "description": "Reference to the Sub-Category (Category name) this article belongs to."
+        },
+        "generalCategoryId": {
+          "type": "string",
+          "description": "Reference to the General Category this article belongs to."
         },
         "name": {
           "type": "string",
-          "description": "The name or primary description of the article (e.g., 'Visor for Cap 2.8*72*182mm')."
+          "description": "The name or primary description of the article."
         },
         "specs": {
           "type": "string",
-          "description": "Detailed specifications or packaging information for this particular article variant (e.g., '20pcs/bundle', '5000pc/box')."
+          "description": "Detailed specifications or packaging information."
         },
-        "defaultUnit": {
+        "color": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "unitOfMeasure": {
+          "type": "string"
+        },
+        "purchasePricePerUnit": {
+          "type": "number"
+        },
+        "cubicMeasurement": {
+          "type": "number"
+        },
+        "orderDate": {
           "type": "string",
-          "description": "The common unit of measure for this article (e.g., 'ctn', 'box', 'doz', 'roll', 'pcs', 'm', 'kg')."
+          "format": "date"
+        },
+        "arrivalDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "supplierId": {
+          "type": "string"
+        },
+        "factureId": {
+          "type": "string"
         },
         "status": {
           "type": "string",
           "enum": ["TO_ORDER", "PI", "SHIPPED"],
-          "description": "The lifecycle status of the article: TO_ORDER (Reminder), PI (In Production), SHIPPED (Assigned to Facture)."
+          "description": "TO_ORDER (Reminder), PI (In Production), SHIPPED (Assigned to Facture)."
         }
       },
       "required": [
         "id",
         "categoryId",
         "name",
-        "specs",
-        "defaultUnit"
-      ]
-    },
-    "OrderItem": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "OrderItem",
-      "type": "object",
-      "description": "Represents a single line item within an order, detailing a specific quantity of an article from a supplier, associated with a particular invoice.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the OrderItem entity."
-        },
-        "factureId": {
-          "type": "string",
-          "description": "Reference to the Facture (invoice/container) this order item belongs to. (Relationship: Facture 1:N OrderItem)"
-        },
-        "articleId": {
-          "type": "string",
-          "description": "Reference to the Article (product variant) being ordered in this line item. (Relationship: Article 1:N OrderItem)"
-        },
-        "supplierId": {
-          "type": "string",
-          "description": "Reference to the Supplier from whom this specific article was purchased for this order item. (Relationship: Supplier 1:N OrderItem)"
-        },
-        "color": {
-          "type": "string",
-          "description": "The color of the ordered article."
-        },
-        "orderDate": {
-          "type": "string",
-          "description": "The date when this specific order item was placed.",
-          "format": "date"
-        },
-        "arrivalDate": {
-          "type": "string",
-          "description": "The estimated or actual date of arrival for this specific order item.",
-          "format": "date"
-        },
-        "quantity": {
-          "type": "number",
-          "description": "The quantity of the article ordered in this line item."
-        },
-        "unitOfMeasure": {
-          "type": "string",
-          "description": "The unit in which the quantity is measured for this order item (e.g., 'ctn', 'box', 'doz', 'roll', 'pcs', 'm', 'kg')."
-        },
-        "cubicMeasurement": {
-          "type": "number",
-          "description": "The total volume of this order item in cubic meters (CBM)."
-        },
-        "purchasePricePerUnit": {
-          "type": "number",
-          "description": "The purchase price per unit of the article for this order item."
-        }
-      },
-      "required": [
-        "id",
-        "factureId",
-        "articleId",
-        "supplierId",
-        "color",
-        "orderDate",
-        "arrivalDate",
         "quantity",
-        "unitOfMeasure",
-        "cubicMeasurement",
-        "purchasePricePerUnit"
+        "status"
       ]
     }
   },
@@ -260,15 +222,15 @@
           "schema": {
             "$ref": "#/backend/entities/Supplier"
           },
-          "description": "Suppliers managed by the user for sourcing articles. Owned by the authenticated user.",
+          "description": "Suppliers managed by the user.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the authenticated user who manages this supplier."
+              "description": "UID"
             },
             {
               "name": "supplierId",
-              "description": "The unique identifier of the supplier."
+              "description": "ID"
             }
           ]
         }
@@ -280,15 +242,15 @@
           "schema": {
             "$ref": "#/backend/entities/Article"
           },
-          "description": "Product articles or variants available to the user, each referencing a category. Owned by the authenticated user.",
+          "description": "Articles, commandés ou à commander.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the authenticated user who owns this article."
+              "description": "UID"
             },
             {
               "name": "articleId",
-              "description": "The unique identifier of the article."
+              "description": "ID"
             }
           ]
         }
@@ -300,44 +262,20 @@
           "schema": {
             "$ref": "#/backend/entities/Facture"
           },
-          "description": "Invoices or container shipments created by the user. Each facture references a supplier and includes freight cost. Owned by the authenticated user.",
+          "description": "Invoices or container shipments.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the authenticated user who owns this facture."
+              "description": "UID"
             },
             {
               "name": "factureId",
-              "description": "The unique identifier of the facture (invoice/container)."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/users/{userId}/factures/{factureId}/orderItems/{orderItemId}",
-        "definition": {
-          "entityName": "OrderItem",
-          "schema": {
-            "$ref": "#/backend/entities/OrderItem"
-          },
-          "description": "Individual line items within a specific facture. Includes references to 'articleId' and 'supplierId'. Inherits ownership from the parent facture, ensuring authorization independence for the user. Owned by the authenticated user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the authenticated user who owns the parent facture."
-            },
-            {
-              "name": "factureId",
-              "description": "The unique identifier of the parent facture to which this order item belongs."
-            },
-            {
-              "name": "orderItemId",
-              "description": "The unique identifier of the order item."
+              "description": "ID"
             }
           ]
         }
       }
     ],
-    "reasoning": "Standard path-based ownership for a single user context. Article entity now includes a status field to manage the lifecycle from Reminder (TO_ORDER) to Production (PI) to Shipped (SHIPPED)."
+    "reasoning": "Standard path-based ownership. Articles include lifecycle fields and pricing for tracking."
   }
 }

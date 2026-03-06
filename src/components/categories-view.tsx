@@ -5,7 +5,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX } from 'lucide-react';
+import { ChevronLeft, Package, Calendar, Clock, TrendingUp, BarChart3, PieChart as PieIcon, Info, Trash2, Plus, FilterX, LineChart as LineIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, deleteDocumentNonBlocking, setDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -23,7 +23,9 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell 
+  Cell,
+  LineChart,
+  Line
 } from 'recharts';
 
 interface CategoriesViewProps {
@@ -90,7 +92,7 @@ export default function CategoriesView({ articles, selectedCategory, setSelected
 
   const activeGenCatName = useMemo(() => {
     if (!filterGenCatId) return null;
-    return generalCategories?.find(gc => gc.id === filterGenCatId)?.name;
+    return (generalCategories || [])?.find(gc => gc.id === filterGenCatId)?.name;
   }, [filterGenCatId, generalCategories]);
 
   if (selectedCategory) {
@@ -235,6 +237,24 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
       .map(([name, value]) => ({ name, value }));
   }, [catArticles]);
 
+  const priceEvolutionData = useMemo(() => {
+    const groupedByDate = catArticles.reduce((acc: any, o) => {
+      const d = o.orderDate || 'N/A';
+      if (d === 'N/A') return acc;
+      if (!acc[d]) acc[d] = { sum: 0, count: 0 };
+      acc[d].sum += o.purchasePricePerUnit;
+      acc[d].count += 1;
+      return acc;
+    }, {});
+
+    return Object.entries(groupedByDate)
+      .map(([date, stats]: any) => ({
+        date,
+        price: stats.sum / stats.count
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [catArticles]);
+
   const articleDistData = useMemo(() => {
     const items: Record<string, number> = {};
     catArticles.forEach(o => {
@@ -281,6 +301,36 @@ function CategoryDetailView({ categoryName, articles, onBack }: { categoryName: 
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <LineIcon className="w-4 h-4 text-amber-500" />
+                Évolution du Prix d'Achat Moyen (PA)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={priceEvolutionData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                  <Tooltip 
+                    formatter={(value: any) => [`${parseFloat(value).toFixed(4)} €`, 'Prix Moyen']}
+                    labelFormatter={(label) => `Date : ${label}`}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="price" 
+                    stroke="#d97706" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#d97706' }} 
+                    activeDot={{ r: 6 }} 
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="text-sm font-bold flex items-center gap-2">
