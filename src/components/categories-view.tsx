@@ -20,9 +20,9 @@ import {
   TrendingUp,
   Box,
   Factory,
-  Calendar,
   ClipboardList,
-  Activity
+  Activity,
+  DollarSign
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -58,7 +58,6 @@ export default function CategoriesView({
 }: CategoriesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Global Memos for data processing
   const groupStats = useMemo(() => {
     const stats: Record<string, any> = {};
     generalCategories.forEach(gc => {
@@ -94,29 +93,6 @@ export default function CategoriesView({
     return articles.filter(a => a.categoryId === selectedCategory);
   }, [selectedCategory, articles]);
 
-  const headerStats = useMemo(() => {
-    if (!currentArticles.length) return null;
-    const now = new Date();
-    
-    // Prochaine arrivée (transit le plus proche)
-    const transitDates = currentArticles
-      .filter(a => a.status === 'SHIPPED' && a.arrivalDate)
-      .map(a => new Date(a.arrivalDate).getTime())
-      .filter(t => t >= now.getTime());
-    const nextArrival = transitDates.length ? new Date(Math.min(...transitDates)).toLocaleDateString('fr-FR') : 'AUCUNE';
-
-    // Dernière commande
-    const orderDates = currentArticles
-      .filter(a => a.orderDate)
-      .map(a => new Date(a.orderDate).getTime());
-    const lastOrder = orderDates.length ? new Date(Math.max(...orderDates)).toLocaleDateString('fr-FR') : 'AUCUNE';
-
-    // Quantité totale
-    const totalQty = currentArticles.reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
-
-    return { nextArrival, lastOrder, totalQty };
-  }, [currentArticles]);
-
   const groupedData = useMemo(() => {
     if (!selectedCategory) return null;
     const now = new Date();
@@ -127,14 +103,24 @@ export default function CategoriesView({
     };
   }, [currentArticles, selectedCategory]);
 
-  const currentTotalsByUnit = useMemo(() => {
-    const totals: Record<string, number> = {};
-    currentArticles.forEach(a => {
-      const unit = (a.unitOfMeasure || 'PCS').toUpperCase();
-      totals[unit] = (totals[unit] || 0) + (Number(a.quantity) || 0);
-    });
-    return totals;
-  }, [currentArticles]);
+  const headerStats = useMemo(() => {
+    if (!currentArticles.length || !groupedData) return null;
+    
+    // Helper to sum value and quantity
+    const sumVal = (arr: any[]) => arr.reduce((s, a) => s + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)), 0);
+    const sumQty = (arr: any[]) => arr.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
+
+    return {
+      totalVal: sumVal(currentArticles),
+      totalQty: sumQty(currentArticles),
+      transitVal: sumVal(groupedData.transit),
+      transitQty: sumQty(groupedData.transit),
+      arrivedVal: sumVal(groupedData.arrived),
+      arrivedQty: sumQty(groupedData.arrived),
+      pendingVal: sumVal(groupedData.pending),
+      pendingQty: sumQty(groupedData.pending)
+    };
+  }, [currentArticles, groupedData]);
 
   const detailedAnalytics = useMemo(() => {
     if (!selectedCategory || !groupedData) return null;
@@ -145,20 +131,20 @@ export default function CategoriesView({
       { name: 'En Attente', value: 0, color: STATUS_COLORS.PENDING },
     ];
     
-    groupedData.transit.forEach(a => statusValue[0].value += (a.quantity * a.purchasePricePerUnit));
-    groupedData.arrived.forEach(a => statusValue[1].value += (a.quantity * a.purchasePricePerUnit));
-    groupedData.pending.forEach(a => statusValue[2].value += (a.quantity * a.purchasePricePerUnit));
+    groupedData.transit.forEach(a => statusValue[0].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
+    groupedData.arrived.forEach(a => statusValue[1].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
+    groupedData.pending.forEach(a => statusValue[2].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
 
     const supplierMap: Record<string, number> = {};
     currentArticles.forEach(a => {
       const s = a.supplierId || 'Inconnu';
-      supplierMap[s] = (supplierMap[s] || 0) + (a.quantity * a.purchasePricePerUnit);
+      supplierMap[s] = (supplierMap[s] || 0) + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0));
     });
     const supplierData = Object.entries(supplierMap).map(([name, value]) => ({ name, value }));
 
     const volumeData = [
-      { name: 'Transit', cbm: groupedData.transit.reduce((s, a) => s + (a.cubicMeasurement || 0), 0) || 0 },
-      { name: 'Réceptionné', cbm: groupedData.arrived.reduce((s, a) => s + (a.cubicMeasurement || 0), 0) || 0 },
+      { name: 'Transit', cbm: groupedData.transit.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0) || 0 },
+      { name: 'Réceptionné', cbm: groupedData.arrived.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0) || 0 },
     ];
 
     return { statusValue, supplierData, volumeData };
@@ -171,7 +157,7 @@ export default function CategoriesView({
           <div className="bg-stone-900 p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative">
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
             
-            <div className="flex items-center gap-6 relative z-10">
+            <div className="flex items-center gap-6 relative z-10 lg:w-1/3">
               <Button 
                 variant="outline" 
                 size="icon" 
@@ -185,32 +171,17 @@ export default function CategoriesView({
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
                 <div className="flex gap-2 mt-4">
                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Audit Actif</Badge>
-                  <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Supply Chain Sync</Badge>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 relative z-10 w-full lg:w-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative z-10 w-full lg:w-2/3">
               {headerStats && (
                 <>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md min-w-[160px]">
-                    <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                      <Truck className="w-3 h-3" /> Prochaine Arrivée
-                    </p>
-                    <p className="text-lg font-black text-white leading-none">{headerStats.nextArrival}</p>
-                  </div>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md min-w-[160px]">
-                    <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1 flex items-center gap-1">
-                      <ClipboardList className="w-3 h-3" /> Dernière Commande
-                    </p>
-                    <p className="text-lg font-black text-white leading-none">{headerStats.lastOrder}</p>
-                  </div>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md min-w-[160px]">
-                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                      <Activity className="w-3 h-3" /> Quantité Totale
-                    </p>
-                    <p className="text-lg font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
-                  </div>
+                  <SummaryStat label="Total Commandes" val={headerStats.totalVal} qty={headerStats.totalQty} color="text-white" />
+                  <SummaryStat label="En Transit" val={headerStats.transitVal} qty={headerStats.transitQty} color="text-blue-400" />
+                  <SummaryStat label="Réceptionné" val={headerStats.arrivedVal} qty={headerStats.arrivedQty} color="text-emerald-400" />
+                  <SummaryStat label="Besoins / PI" val={headerStats.pendingVal} qty={headerStats.pendingQty} color="text-amber-500" />
                 </>
               )}
             </div>
@@ -218,7 +189,6 @@ export default function CategoriesView({
         </header>
 
         <div className="grid grid-cols-1 gap-10">
-          {/* SECTION TRANSIT */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-3">
@@ -238,10 +208,10 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation Technique</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée Prévue</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
@@ -272,7 +242,6 @@ export default function CategoriesView({
             </Card>
           </section>
 
-          {/* SECTION STOCK RÉEL */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-3">
@@ -319,7 +288,6 @@ export default function CategoriesView({
             </Card>
           </section>
 
-          {/* SECTION ATTENTE */}
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-3">
@@ -337,7 +305,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Création/Cmd</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Identification</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité Estimée</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Estimée</TableHead>
@@ -371,7 +339,6 @@ export default function CategoriesView({
           </section>
         </div>
 
-        {/* ANALYTIQUE BAS DE PAGE */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-10 border-t border-stone-200">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
             <div className="h-1.5 w-full bg-stone-900" />
@@ -428,9 +395,6 @@ export default function CategoriesView({
     );
   }
 
-  // ==========================================
-  // VUE EXPLORATION (LISTE SOUS-CATÉGORIES)
-  // ==========================================
   if (selectedGeneralCategoryId) {
     const parent = generalCategories.find(g => g.id === selectedGeneralCategoryId);
     return (
@@ -485,20 +449,11 @@ export default function CategoriesView({
               </CardContent>
             </Card>
           ))}
-          {subCategoryStats.length === 0 && (
-            <div className="col-span-full py-24 text-center text-stone-300 font-black uppercase text-xs tracking-[0.3em] border-4 border-dashed border-stone-50 rounded-[3rem] bg-white/50">
-              <Search className="w-12 h-12 mx-auto mb-6 text-stone-100" />
-              Aucun résultat pour "{searchTerm}"
-            </div>
-          )}
         </div>
       </div>
     );
   }
 
-  // ==========================================
-  // VUE INITIALE (LISTE DES GROUPES)
-  // ==========================================
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
       <header className="bg-stone-900 p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
@@ -545,6 +500,18 @@ export default function CategoriesView({
             </CardContent>
           </Card>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function SummaryStat({ label, val, qty, color }: { label: string, val: number, qty: number, color: string }) {
+  return (
+    <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
+      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">{label}</p>
+      <div className="space-y-0.5">
+        <p className={`text-sm font-black ${color} leading-none`}>{val.toLocaleString()} €</p>
+        <p className="text-[9px] font-bold text-stone-400 leading-none">{qty.toLocaleString()} U</p>
       </div>
     </div>
   );
