@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, Calendar, ClipboardList } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -48,7 +48,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (article) {
       setFormData({ 
         ...article,
-        factureId: article.factureId || 'NONE' // Correction SelectItem
+        factureId: article.factureId || 'NONE'
       });
       setSelectedGenCatId(article.generalCategoryId || '');
     } else {
@@ -124,7 +124,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </Label>
               <Select value={selectedGenCatId} onValueChange={setSelectedGenCatId}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
-                  <SelectValue placeholder="Choisir un groupe..." />
+                  <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
                 <SelectContent>
                   {(generalCategories || []).map(gc => (
@@ -136,7 +136,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Package className="w-3 h-3" /> Type de Produit (Sous-Cat)
+                <Package className="w-3 h-3" /> Type de Produit
               </Label>
               <Select 
                 disabled={!selectedGenCatId} 
@@ -155,7 +155,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             </div>
             
             <div className="space-y-1.5 md:col-span-2">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Spécifications Techniques</Label>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <ClipboardList className="w-3 h-3" /> Détails Techniques / Spécifications
+              </Label>
               <div className="flex gap-2">
                 <Input 
                   value={formData.specs || ''} 
@@ -190,7 +192,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Ruler className="w-3 h-3" /> Unité de Mesure
+                <Ruler className="w-3 h-3" /> Unité
               </Label>
               <Select value={formData.unitOfMeasure} onValueChange={v => setFormData((p: any) => ({...p, unitOfMeasure: v}))}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
@@ -202,26 +204,40 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
-              <Input 
-                type="number" 
-                required 
-                value={formData.quantity || 0} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} 
-                className="h-11 border-stone-200 font-bold"
-              />
+            <div className="grid grid-cols-2 gap-4 md:col-span-2">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
+                <Input 
+                  type="number" 
+                  required 
+                  value={formData.quantity || 0} 
+                  onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} 
+                  className="h-11 border-stone-200 font-bold"
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire (€)</Label>
+                <Input 
+                  type="number" 
+                  step="0.0001" 
+                  required 
+                  value={formData.purchasePricePerUnit || 0} 
+                  onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} 
+                  className="h-11 border-stone-200 font-bold text-amber-700"
+                />
+              </div>
             </div>
-            
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix d'Achat Unitaire (€)</Label>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Date de Commande
+              </Label>
               <Input 
-                type="number" 
-                step="0.0001" 
-                required 
-                value={formData.purchasePricePerUnit || 0} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} 
-                className="h-11 border-stone-200 font-bold text-amber-700"
+                type="date" 
+                className="h-11 border-stone-200 font-bold" 
+                value={formData.orderDate || ''} 
+                onChange={e => setFormData((p: any) => ({...p, orderDate: e.target.value}))} 
               />
             </div>
 
@@ -242,12 +258,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 {formData.status !== 'TO_ORDER' && (
                   <Select value={formData.factureId || 'NONE'} onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}>
                     <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
-                      <SelectValue placeholder="Lier Facture..." />
+                      <SelectValue placeholder="Facture..." />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="NONE" className="font-bold italic">PAS DE FACTURE</SelectItem>
                       {(factures || []).map(f => (
-                        <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id} - {f.arrivalDate}</SelectItem>
+                        <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -264,7 +280,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     <Input 
                       type="number" 
                       step="0.001" 
-                      placeholder="Encombrement (CBM)"
+                      placeholder="Volume (CBM)"
                       value={formData.cubicMeasurement || 0} 
                       onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
                       className="h-11 border-stone-200 font-bold"
