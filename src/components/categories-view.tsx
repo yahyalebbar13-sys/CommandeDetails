@@ -22,7 +22,8 @@ import {
   Factory,
   ClipboardList,
   Activity,
-  DollarSign
+  DollarSign,
+  CalendarDays
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -106,9 +107,28 @@ export default function CategoriesView({
   const headerStats = useMemo(() => {
     if (!currentArticles.length || !groupedData) return null;
     
-    // Helper to sum value and quantity
     const sumVal = (arr: any[]) => arr.reduce((s, a) => s + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)), 0);
     const sumQty = (arr: any[]) => arr.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
+
+    const now = new Date();
+    const transitDates = groupedData.transit
+      .map(a => a.arrivalDate)
+      .filter(Boolean)
+      .map(d => new Date(d))
+      .filter(d => d > now);
+    
+    const nextArrival = transitDates.length > 0 
+      ? new Date(Math.min(...transitDates.map(d => d.getTime()))).toISOString().split('T')[0]
+      : '-';
+
+    const allOrderDates = currentArticles
+      .map(a => a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null))
+      .filter(Boolean)
+      .map(d => new Date(d as string));
+    
+    const lastOrder = allOrderDates.length > 0
+      ? new Date(Math.max(...allOrderDates.map(d => d.getTime()))).toISOString().split('T')[0]
+      : '-';
 
     return {
       totalVal: sumVal(currentArticles),
@@ -118,7 +138,9 @@ export default function CategoriesView({
       arrivedVal: sumVal(groupedData.arrived),
       arrivedQty: sumQty(groupedData.arrived),
       pendingVal: sumVal(groupedData.pending),
-      pendingQty: sumQty(groupedData.pending)
+      pendingQty: sumQty(groupedData.pending),
+      nextArrival,
+      lastOrder
     };
   }, [currentArticles, groupedData]);
 
@@ -154,10 +176,10 @@ export default function CategoriesView({
     return (
       <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <header className="bg-white rounded-[2.5rem] shadow-xl border border-stone-200 overflow-hidden">
-          <div className="bg-stone-900 p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative">
+          <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative">
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
             
-            <div className="flex items-center gap-6 relative z-10 lg:w-1/3">
+            <div className="flex items-center gap-6 relative z-10 lg:w-1/4">
               <Button 
                 variant="outline" 
                 size="icon" 
@@ -167,7 +189,7 @@ export default function CategoriesView({
                 <ChevronLeft className="w-6 h-6" />
               </Button>
               <div>
-                <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Détail Analytique Produit</p>
+                <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
                 <div className="flex gap-2 mt-4">
                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Audit Actif</Badge>
@@ -175,13 +197,28 @@ export default function CategoriesView({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative z-10 w-full lg:w-2/3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 relative z-10 w-full xl:w-3/4">
               {headerStats && (
                 <>
-                  <SummaryStat label="Total Commandes" val={headerStats.totalVal} qty={headerStats.totalQty} color="text-white" />
-                  <SummaryStat label="En Transit" val={headerStats.transitVal} qty={headerStats.transitQty} color="text-blue-400" />
-                  <SummaryStat label="Réceptionné" val={headerStats.arrivedVal} qty={headerStats.arrivedQty} color="text-emerald-400" />
+                  <SummaryStat label="Bilan Global" val={headerStats.totalVal} qty={headerStats.totalQty} color="text-white" />
+                  <SummaryStat label="Flux Transit" val={headerStats.transitVal} qty={headerStats.transitQty} color="text-blue-400" />
+                  <SummaryStat label="Stock Physique" val={headerStats.arrivedVal} qty={headerStats.arrivedQty} color="text-emerald-400" />
                   <SummaryStat label="Besoins / PI" val={headerStats.pendingVal} qty={headerStats.pendingQty} color="text-amber-500" />
+                  <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <CalendarDays className="w-2 h-2" /> Timeline Logistique
+                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[7px] font-black text-stone-400 uppercase tracking-tighter">Prochaine Arrivée</span>
+                        <span className="text-[9px] font-black text-blue-400">{headerStats.nextArrival}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[7px] font-black text-stone-400 uppercase tracking-tighter">Dernière Commande</span>
+                        <span className="text-[9px] font-black text-stone-200">{headerStats.lastOrder}</span>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
