@@ -16,7 +16,8 @@ import {
   ArrowRight,
   TrendingUp,
   Users,
-  Layers
+  Layers,
+  ShieldAlert
 } from 'lucide-react';
 import { ViewType } from '@/lib/types';
 
@@ -64,11 +65,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
   }, [safeArticles, safeFactures]);
 
   const analyticsData = useMemo(() => {
-    // 1. Category Distribution
     const catMap: Record<string, number> = {};
-    // 2. Supplier Value
     const supMap: Record<string, number> = {};
-    // 3. Category/Supplier Dependency
     const depMap: Record<string, Record<string, number>> = {};
     const allSuppliers = new Set<string>();
 
@@ -94,17 +92,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
+    // Dependency Analysis: Normalized to 100% to show relative concentration
     const dependencyData = Object.entries(depMap)
-      .map(([category, sups]) => ({
-        category,
-        ...sups
-      }))
-      .sort((a, b) => {
-        const totalA = Object.values(a).filter(v => typeof v === 'number').reduce((s, v) => s + (v as number), 0);
-        const totalB = Object.values(b).filter(v => typeof v === 'number').reduce((s, v) => s + (v as number), 0);
-        return (totalB as number) - (totalA as number);
+      .map(([category, sups]) => {
+        const total = Object.values(sups).reduce((s, v) => s + (v as number), 0);
+        const normalized: Record<string, any> = { category };
+        Object.entries(sups).forEach(([sup, val]) => {
+          normalized[sup] = total > 0 ? Number(((val / total) * 100).toFixed(1)) : 0;
+        });
+        return normalized;
       })
-      .slice(0, 8);
+      .sort((a, b) => a.category.localeCompare(b.category))
+      .slice(0, 10);
 
     return { 
       categoryData, 
@@ -255,11 +254,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
-      {/* Dependency Chart - Full Width */}
+      {/* Dependency Analysis (Normalized to 100%) */}
       <Card className="border-none shadow-sm bg-white">
         <CardHeader className="py-6 border-b border-stone-50">
           <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-            <Layers className="w-4 h-4 text-emerald-500" /> Dépendance Catégories / Fournisseurs
+            <ShieldAlert className="w-4 h-4 text-emerald-500" /> Analyse de Dépendance Relative (%)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
@@ -267,11 +266,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analyticsData.dependencyData} layout="vertical" margin={{ left: 60, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
-                <XAxis type="number" hide />
+                <XAxis type="number" domain={[0, 100]} hide />
                 <YAxis dataKey="category" type="category" axisLine={false} tickLine={false} width={140} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
                 <Tooltip 
                   cursor={{ fill: '#f8fafc' }} 
-                  formatter={(val: number) => [`${val.toLocaleString()} €`]} 
+                  formatter={(val: number) => [`${val}%`]} 
                   contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
@@ -289,6 +288,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <p className="mt-4 text-[9px] text-stone-400 font-bold uppercase text-center italic">
+            Visualisation de la concentration : ce graphique montre quel fournisseur domine chaque catégorie en pourcentage de valeur.
+          </p>
         </CardContent>
       </Card>
     </div>
