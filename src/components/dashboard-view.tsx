@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell
+  Cell, Legend
 } from 'recharts';
 import { 
   DollarSign,
@@ -14,7 +14,9 @@ import {
   ClipboardList,
   Factory,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  Users,
+  Layers
 } from 'lucide-react';
 import { ViewType } from '@/lib/types';
 
@@ -24,7 +26,7 @@ interface DashboardViewProps {
   onNavigate: (view: ViewType) => void;
 }
 
-const COLORS = ['#CC8626', '#1E293B', '#334155', '#475569', '#64748B', '#94A3B8'];
+const COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
 
 const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], onNavigate }) => {
   const safeArticles = articles || [];
@@ -61,17 +63,55 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     };
   }, [safeArticles, safeFactures]);
 
-  const categoryData = useMemo(() => {
-    const data: Record<string, number> = {};
+  const analyticsData = useMemo(() => {
+    // 1. Category Distribution
+    const catMap: Record<string, number> = {};
+    // 2. Supplier Value
+    const supMap: Record<string, number> = {};
+    // 3. Category/Supplier Dependency
+    const depMap: Record<string, Record<string, number>> = {};
+    const allSuppliers = new Set<string>();
+
     safeArticles.forEach(art => {
       const cat = art.categoryId || 'Non classé';
+      const sup = art.supplierId || 'Inconnu';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
-      data[cat] = (data[cat] || 0) + val;
+
+      catMap[cat] = (catMap[cat] || 0) + val;
+      supMap[sup] = (supMap[sup] || 0) + val;
+      allSuppliers.add(sup);
+
+      if (!depMap[cat]) depMap[cat] = {};
+      depMap[cat][sup] = (depMap[cat][sup] || 0) + val;
     });
-    return Object.entries(data)
+
+    const categoryData = Object.entries(catMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10); // Top 10 categories
+      .slice(0, 10);
+
+    const supplierValueData = Object.entries(supMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    const dependencyData = Object.entries(depMap)
+      .map(([category, sups]) => ({
+        category,
+        ...sups
+      }))
+      .sort((a, b) => {
+        const totalA = Object.values(a).filter(v => typeof v === 'number').reduce((s, v) => s + (v as number), 0);
+        const totalB = Object.values(b).filter(v => typeof v === 'number').reduce((s, v) => s + (v as number), 0);
+        return (totalB as number) - (totalA as number);
+      })
+      .slice(0, 8);
+
+    return { 
+      categoryData, 
+      supplierValueData, 
+      dependencyData, 
+      suppliers: Array.from(allSuppliers) 
+    };
   }, [safeArticles]);
 
   return (
@@ -165,41 +205,87 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
-      {/* Main Analytics: Category Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Category Distribution Chart */}
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="py-6 border-b border-stone-50">
+            <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
+              <TrendingUp className="w-4 h-4 text-amber-500" /> Répartition du Capital par Catégorie (€)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analyticsData.categoryData} layout="vertical" margin={{ left: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={120} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+                    {analyticsData.categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Supplier Value Chart */}
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="py-6 border-b border-stone-50">
+            <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
+              <Users className="w-4 h-4 text-blue-500" /> Valeur Totale par Fournisseur (€)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analyticsData.supplierValueData} layout="vertical" margin={{ left: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={120} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <Bar dataKey="value" fill="#1E293B" radius={[0, 4, 4, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Dependency Chart - Full Width */}
       <Card className="border-none shadow-sm bg-white">
         <CardHeader className="py-6 border-b border-stone-50">
           <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-            <TrendingUp className="w-4 h-4 text-amber-500" /> Répartition du Capital par Catégorie (€)
+            <Layers className="w-4 h-4 text-emerald-500" /> Dépendance Catégories / Fournisseurs
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
           <div className="h-[500px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={categoryData} 
-                layout="vertical" 
-                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-              >
+              <BarChart data={analyticsData.dependencyData} layout="vertical" margin={{ left: 60, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
                 <XAxis type="number" hide />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  width={150}
-                  style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }}
-                />
+                <YAxis dataKey="category" type="category" axisLine={false} tickLine={false} width={140} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
                 <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  formatter={(val: number) => [`${val.toLocaleString()} €`, 'Valeur']}
-                  contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
+                  cursor={{ fill: '#f8fafc' }} 
+                  formatter={(val: number) => [`${val.toLocaleString()} €`]} 
+                  contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
                 />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={32}>
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
+                {analyticsData.suppliers.map((sup, index) => (
+                  <Bar 
+                    key={sup} 
+                    dataKey={sup} 
+                    name={sup} 
+                    stackId="a" 
+                    fill={COLORS[index % COLORS.length]} 
+                    radius={[0, 0, 0, 0]}
+                    barSize={32}
+                  />
+                ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
