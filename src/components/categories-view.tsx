@@ -17,8 +17,9 @@ import {
   History,
   LayoutGrid
 } from 'lucide-react';
-import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -47,7 +48,7 @@ interface CategoriesViewProps {
   selectedGeneralCategoryId?: string | null;
 }
 
-export default function CategoriesView({ articles, factures, generalCategories, selectedCategory, setSelectedCategory, selectedGeneralCategoryId }: CategoriesViewProps) {
+export default function CategoriesView({ articles = [], factures = [], generalCategories = [], selectedCategory, setSelectedCategory, selectedGeneralCategoryId }: CategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -55,6 +56,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
   const [newCatName, setNewCatName] = useState('');
   const [targetGenCatId, setTargetGenCatId] = useState(selectedGeneralCategoryId || '');
 
+  // Move useMemo hooks out of any conditional blocks
   const filteredCategoriesList = useMemo(() => {
     const data: Record<string, { qtyByUnit: Record<string, number>; val: number; count: number; cbm: number; genCatId: string }> = {};
     
@@ -66,10 +68,14 @@ export default function CategoriesView({ articles, factures, generalCategories, 
         data[cat] = { qtyByUnit: {}, val: 0, count: 0, cbm: 0, genCatId: o.generalCategoryId || '' };
       }
       
-      const unit = o.unitOfMeasure || 'pcs';
-      data[cat].qtyByUnit[unit] = (data[cat].qtyByUnit[unit] || 0) + (o.quantity || 0);
-      data[cat].val += ((o.quantity || 0) * (o.purchasePricePerUnit || 0));
-      data[cat].cbm += (o.cubicMeasurement || 0);
+      const unit = (o.unitOfMeasure || 'pcs').toLowerCase();
+      const qty = Number(o.quantity) || 0;
+      const price = Number(o.purchasePricePerUnit) || 0;
+      const cbm = Number(o.cubicMeasurement) || 0;
+
+      data[cat].qtyByUnit[unit] = (data[cat].qtyByUnit[unit] || 0) + qty;
+      data[cat].val += (qty * price);
+      data[cat].cbm += cbm;
       data[cat].count += 1;
     });
 
@@ -87,36 +93,34 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     if (!selectedCategory || catArticles.length === 0) return null;
     
     const now = new Date();
-    let val = 0, valArrived = 0, valTransit = 0, valPending = 0;
-    let cbm = 0, cbmArrived = 0, cbmTransit = 0;
+    let val = 0;
+    let cbm = 0;
     const qtyByUnit: Record<string, { total: number; arrived: number; transit: number; pending: number }> = {};
     
     catArticles.forEach(o => {
-      const itemVal = (o.quantity || 0) * (o.purchasePricePerUnit || 0);
-      const unit = o.unitOfMeasure || 'pcs';
+      const qty = Number(o.quantity) || 0;
+      const price = Number(o.purchasePricePerUnit) || 0;
+      const itemVal = qty * price;
+      const unit = (o.unitOfMeasure || 'pcs').toLowerCase();
+      const itemCbm = Number(o.cubicMeasurement) || 0;
       
       if (!qtyByUnit[unit]) {
         qtyByUnit[unit] = { total: 0, arrived: 0, transit: 0, pending: 0 };
       }
       
-      qtyByUnit[unit].total += o.quantity;
+      qtyByUnit[unit].total += qty;
       val += itemVal;
-      cbm += (o.cubicMeasurement || 0);
+      cbm += itemCbm;
 
       if (o.status === 'PI' || !o.factureId) {
-        valPending += itemVal;
-        qtyByUnit[unit].pending += o.quantity;
+        qtyByUnit[unit].pending += qty;
       } else {
         const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
         const isArrived = arrivalDate && arrivalDate <= now;
         if (isArrived) {
-          valArrived += itemVal;
-          cbmArrived += (o.cubicMeasurement || 0);
-          qtyByUnit[unit].arrived += o.quantity;
+          qtyByUnit[unit].arrived += qty;
         } else {
-          valTransit += itemVal;
-          cbmTransit += (o.cubicMeasurement || 0);
-          qtyByUnit[unit].transit += o.quantity;
+          qtyByUnit[unit].transit += qty;
         }
       }
     });
@@ -128,8 +132,8 @@ export default function CategoriesView({ articles, factures, generalCategories, 
       .filter(d => !isNaN(d));
 
     return {
-      val, valArrived, valTransit, valPending,
-      cbm, cbmArrived, cbmTransit,
+      val,
+      cbm,
       qtyByUnit,
       lastOrder: dates.length > 0 ? new Date(Math.max(...dates)).toISOString().split('T')[0] : '-',
       nextArrival: arrivals.length > 0 ? new Date(Math.min(...arrivals)).toISOString().split('T')[0] : 'Aucune',
@@ -142,8 +146,8 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     const artMap: Record<string, { name: string; val: number; qty: number; unit: string }> = {};
     catArticles.forEach(o => {
       if (!artMap[o.name]) artMap[o.name] = { name: o.name, val: 0, qty: 0, unit: o.unitOfMeasure };
-      artMap[o.name].val += (o.quantity * o.purchasePricePerUnit);
-      artMap[o.name].qty += o.quantity;
+      artMap[o.name].val += (Number(o.quantity) * Number(o.purchasePricePerUnit));
+      artMap[o.name].qty += Number(o.quantity);
     });
     return Object.values(artMap).sort((a, b) => b.val - a.val).slice(0, 5);
   }, [catArticles, selectedCategory]);
@@ -157,9 +161,9 @@ export default function CategoriesView({ articles, factures, generalCategories, 
       const month = o.orderDate?.substring(0, 7);
       if (month) {
         if (!monthly[month]) monthly[month] = { val: 0, cbm: 0, pa: 0, count: 0 };
-        monthly[month].val += (o.quantity * o.purchasePricePerUnit);
-        monthly[month].cbm += (o.cubicMeasurement || 0);
-        monthly[month].pa += o.purchasePricePerUnit;
+        monthly[month].val += (Number(o.quantity) * Number(o.purchasePricePerUnit));
+        monthly[month].cbm += (Number(o.cubicMeasurement) || 0);
+        monthly[month].pa += Number(o.purchasePricePerUnit);
         monthly[month].count += 1;
       }
     });
@@ -186,11 +190,11 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     setNewCatName('');
   };
 
+  const now = new Date();
+
   if (selectedCategory && stats) {
-    const now = new Date();
     return (
       <div className="space-y-8 fade-in">
-        {/* HEADER & NAV */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-1">
             <Button variant="ghost" onClick={() => setSelectedCategory(null)} className="p-0 h-auto hover:bg-transparent text-stone-500 mb-2">
@@ -211,7 +215,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </div>
         </div>
 
-        {/* DISTINCTION TRANSIT / ARRIVÉ PAR UNITÉ */}
+        {/* Units Breakdown */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(stats.qtyByUnit).map(([unit, q]) => (
             <Card key={unit} className="border-l-4 border-l-stone-800 shadow-sm">
@@ -247,7 +251,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </Card>
         </div>
 
-        {/* 1. TABLEAU HISTORIQUE DÉTAILLÉ */}
+        {/* 1. TABLEAU HISTORIQUE DÉTAILLÉ (Main request: Table before charts) */}
         <Card className="shadow-sm border-stone-200 overflow-hidden">
           <CardHeader className="bg-stone-50 border-b flex flex-row items-center justify-between py-4">
             <CardTitle className="text-sm font-bold flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Historique des Commandes</CardTitle>
@@ -309,7 +313,6 @@ export default function CategoriesView({ articles, factures, generalCategories, 
 
         {/* 2. ANALYSE ET GRAPHIQUES */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* TOP 5 ARTICLES PAR VALEUR */}
           <Card className="lg:col-span-1 border-none shadow-sm bg-stone-900 text-white">
             <CardHeader className="border-b border-stone-800 pb-4">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-400"><ArrowUpRight className="w-4 h-4" /> Top 5 Articles (Valeur)</CardTitle>
@@ -333,7 +336,6 @@ export default function CategoriesView({ articles, factures, generalCategories, 
             </CardContent>
           </Card>
 
-          {/* ÉVOLUTION DES PRIX ET VOLUMES */}
           <div className="lg:col-span-2 space-y-6">
             <Card className="shadow-sm">
               <CardHeader className="pb-0">
@@ -396,7 +398,6 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     );
   }
 
-  // VUE LISTE DES SOUS-CATÉGORIES
   return (
     <div className="space-y-8 fade-in">
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
