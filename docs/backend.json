@@ -1,23 +1,28 @@
 
 {
   "entities": {
+    "GeneralCategory": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GeneralCategory",
+      "type": "object",
+      "description": "Represents a high-level product family.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
     "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Category",
       "type": "object",
-      "description": "Represents a product category.",
+      "description": "Represents a product sub-category linked to a general category.",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "generalCategoryId": { "type": "string" }
       },
-      "required": [
-        "id",
-        "name"
-      ]
+      "required": ["id", "name"]
     },
     "Supplier": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -25,17 +30,10 @@
       "type": "object",
       "description": "Represents a commercial partner.",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" }
       },
-      "required": [
-        "id",
-        "name"
-      ]
+      "required": ["id", "name"]
     },
     "Facture": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -43,26 +41,12 @@
       "type": "object",
       "description": "Represents an invoice or container shipment.",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "supplierId": {
-          "type": "string"
-        },
-        "arrivalDate": {
-          "type": "string",
-          "format": "date"
-        },
-        "freightCost": {
-          "type": "number"
-        }
+        "id": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "arrivalDate": { "type": "string", "format": "date" },
+        "freightCost": { "type": "number" }
       },
-      "required": [
-        "id",
-        "supplierId",
-        "arrivalDate",
-        "freightCost"
-      ]
+      "required": ["id", "supplierId", "arrivalDate", "freightCost"]
     },
     "Article": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -70,123 +54,68 @@
       "type": "object",
       "description": "Represents a product variant.",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "categoryId": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "specs": {
-          "type": "string"
-        },
-        "color": {
-          "type": "string"
-        },
-        "quantity": {
-          "type": "number"
-        },
-        "unitOfMeasure": {
-          "type": "string"
-        },
-        "purchasePricePerUnit": {
-          "type": "number"
-        },
-        "cubicMeasurement": {
-          "type": "number"
-        },
-        "orderDate": {
-          "type": "string",
-          "format": "date"
-        },
-        "arrivalDate": {
-          "type": "string",
-          "format": "date"
-        },
-        "supplierId": {
-          "type": "string"
-        },
-        "factureId": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["TO_ORDER", "PI", "SHIPPED"]
-        }
+        "id": { "type": "string" },
+        "generalCategoryId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "name": { "type": "string" },
+        "specs": { "type": "string" },
+        "color": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitOfMeasure": { "type": "string" },
+        "purchasePricePerUnit": { "type": "number" },
+        "cubicMeasurement": { "type": "number" },
+        "orderDate": { "type": "string", "format": "date" },
+        "arrivalDate": { "type": "string", "format": "date" },
+        "supplierId": { "type": "string" },
+        "factureId": { "type": "string" },
+        "status": { "type": "string", "enum": ["TO_ORDER", "PI", "SHIPPED"] }
       },
-      "required": [
-        "id",
-        "categoryId",
-        "name",
-        "quantity",
-        "status"
-      ]
+      "required": ["id", "categoryId", "name", "quantity", "status"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}/categories/{categoryId}",
+        "path": "/users/{userId}/generalCategories/{id}",
+        "definition": {
+          "entityName": "GeneralCategory",
+          "schema": { "$ref": "#/backend/entities/GeneralCategory" },
+          "description": "General product families."
+        }
+      },
+      {
+        "path": "/users/{userId}/categories/{id}",
         "definition": {
           "entityName": "Category",
-          "schema": {
-            "$ref": "#/backend/entities/Category"
-          },
-          "description": "Product categories.",
-          "params": [
-            { "name": "userId" },
-            { "name": "categoryId" }
-          ]
+          "schema": { "$ref": "#/backend/entities/Category" },
+          "description": "Sub-categories."
         }
       },
       {
-        "path": "/users/{userId}/suppliers/{supplierId}",
+        "path": "/users/{userId}/suppliers/{id}",
         "definition": {
           "entityName": "Supplier",
-          "schema": {
-            "$ref": "#/backend/entities/Supplier"
-          },
-          "description": "Suppliers.",
-          "params": [
-            { "name": "userId" },
-            { "name": "supplierId" }
-          ]
+          "schema": { "$ref": "#/backend/entities/Supplier" },
+          "description": "Suppliers."
         }
       },
       {
-        "path": "/users/{userId}/articles/{articleId}",
+        "path": "/users/{userId}/articles/{id}",
         "definition": {
           "entityName": "Article",
-          "schema": {
-            "$ref": "#/backend/entities/Article"
-          },
-          "description": "Articles.",
-          "params": [
-            { "name": "userId" },
-            { "name": "articleId" }
-          ]
+          "schema": { "$ref": "#/backend/entities/Article" },
+          "description": "Articles."
         }
       },
       {
-        "path": "/users/{userId}/factures/{factureId}",
+        "path": "/users/{userId}/factures/{id}",
         "definition": {
           "entityName": "Facture",
-          "schema": {
-            "$ref": "#/backend/entities/Facture"
-          },
-          "description": "Invoices.",
-          "params": [
-            { "name": "userId" },
-            { "name": "factureId" }
-          ]
+          "schema": { "$ref": "#/backend/entities/Facture" },
+          "description": "Invoices."
         }
       }
     ]

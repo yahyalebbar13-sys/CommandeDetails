@@ -12,6 +12,8 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update, delete: if isOwner(userId);
+      
+      match /generalCategories/{id} { allow read, write: if isOwner(userId); }
       match /categories/{id} { allow read, write: if isOwner(userId); }
       match /suppliers/{id} { allow read, write: if isOwner(userId); }
       match /articles/{id} { allow read, write: if isOwner(userId); }

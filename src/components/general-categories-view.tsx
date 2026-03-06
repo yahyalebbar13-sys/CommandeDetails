@@ -53,7 +53,7 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
           <p className="text-stone-600">Regroupez vos produits par grandes familles d'activité.</p>
         </div>
         <Button onClick={() => setIsModalOpen(true)} className="bg-stone-800 hover:bg-black text-white font-bold gap-2">
-          <Plus className="w-5 h-5" /> Nouvelle Catégorie
+          <Plus className="w-5 h-5" /> Nouvelle CatégorieFamily
         </Button>
       </div>
 
@@ -64,7 +64,7 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
             <p className="text-stone-400 font-medium">Aucune catégorie générale définie.</p>
           </div>
         ) : generalCategories.map((gc) => {
-          const linkedSubs = subCategories.filter(s => s.generalCategoryId === gc.id).length;
+          const linkedSubs = (subCategories || []).filter(s => s.generalCategoryId === gc.id).length;
           return (
             <Card 
               key={gc.id} 
@@ -87,7 +87,7 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
                 </div>
                 <div className="flex-grow flex items-center gap-2 text-stone-500 text-sm mb-4">
                   <Layers className="w-4 h-4" />
-                  <span className="font-bold">{linkedSubs}</span> sous-catégories
+                  <span className="font-bold">{linkedSubs}</span> types de produits
                 </div>
                 <div className="pt-4 border-t border-stone-100 flex justify-between items-center">
                   <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Voir le groupe</span>
