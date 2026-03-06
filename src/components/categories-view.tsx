@@ -243,7 +243,8 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée Prévue</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Quantité</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -256,12 +257,15 @@ export default function CategoriesView({
                       <TableCell className="py-5">
                         <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
                       </TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-5 px-6">
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-blue-700 text-xs py-5 px-6">
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -289,7 +293,8 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Stock Réel</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Stock Réel</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -299,12 +304,15 @@ export default function CategoriesView({
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                       <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
                       <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
-                      <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={5} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -331,7 +339,8 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Création/Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Quantité Estimée</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité Estimée</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Estimée</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -346,12 +355,15 @@ export default function CategoriesView({
                           {a.status === 'PI' ? 'COMMANDE LANCÉE' : 'BESOIN IDENTIFIÉ'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-xs py-5 px-6">
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-xs py-5 px-6">
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
