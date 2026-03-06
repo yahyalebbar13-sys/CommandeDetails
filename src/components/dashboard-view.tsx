@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie, Legend, ResponsiveContainer as RespCont
+  Cell, PieChart, Pie, Legend 
 } from 'recharts';
 import { 
   Package, 
@@ -13,27 +13,32 @@ import {
   DollarSign,
   Box,
   Truck,
-  TrendingUp
+  History
 } from 'lucide-react';
 
 interface DashboardViewProps {
   articles: any[];
   factures: any[];
-  onNavigate: (view: string) => void;
+  onNavigate: (view: any) => void;
 }
 
-const COLORS = ['#d97706', '#059669', '#2563eb', '#7c3aed', '#db2777', '#4b5563'];
+const COLORS = ['#CC8626', '#44403c', '#78716c', '#a8a29e', '#d6d3d1', '#e7e5e4'];
+const STATUS_COLORS = {
+  'TO_ORDER': '#78716c',
+  'PI': '#d97706',
+  'SHIPPED': '#3b82f6',
+  'ARRIVED': '#10b981'
+};
 
-export default function DashboardView({ articles = [], factures = [], onNavigate }: DashboardViewProps) {
-  
+const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], onNavigate }) => {
   const stats = useMemo(() => {
     const safeArticles = articles || [];
     const safeFactures = factures || [];
 
     let totalVal = 0;
     let totalCbm = 0;
-    let inTransitCbm = 0;
     let inTransitVal = 0;
+    let arrivedVal = 0;
 
     safeArticles.forEach(art => {
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
@@ -42,91 +47,103 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
       totalVal += val;
       totalCbm += cbm;
 
-      if (art.status === 'SHIPPED') {
-        inTransitCbm += cbm;
-        inTransitVal += val;
-      }
+      if (art.status === 'SHIPPED') inTransitVal += val;
+      if (art.status === 'ARRIVED') arrivedVal += val;
     });
 
     return {
       totalVal,
       totalCbm,
-      inTransitCbm,
       inTransitVal,
+      arrivedVal,
       totalFactures: safeFactures.length,
-      pendingOrders: safeArticles.filter(a => a.status === 'TO_ORDER').length
+      pendingCount: safeArticles.filter(a => a.status === 'TO_ORDER' || a.status === 'PI').length
     };
   }, [articles, factures]);
 
-  const categoryValueData = useMemo(() => {
-    const safeArticles = articles || [];
+  const valueData = useMemo(() => {
     const data: Record<string, number> = {};
-    safeArticles.forEach(art => {
-      const cat = art.generalCategoryId || 'Autres';
+    articles?.forEach(art => {
+      const cat = art.categoryId || 'Non classé';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       data[cat] = (data[cat] || 0) + val;
     });
-    return Object.entries(data).map(([name, value]) => ({ name, value }));
+    return Object.entries(data)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [articles]);
+
+  const statusValueData = useMemo(() => {
+    const data = [
+      { name: 'À commander', key: 'TO_ORDER', value: 0, color: STATUS_COLORS.TO_ORDER },
+      { name: 'En production', key: 'PI', value: 0, color: STATUS_COLORS.PI },
+      { name: 'En transit', key: 'SHIPPED', value: 0, color: STATUS_COLORS.SHIPPED },
+      { name: 'Arrivé', key: 'ARRIVED', value: 0, color: STATUS_COLORS.ARRIVED },
+    ];
+
+    articles?.forEach(art => {
+      const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
+      const item = data.find(d => d.key === art.status);
+      if (item) item.value += val;
+    });
+
+    return data;
   }, [articles]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-bold text-stone-800">Tableau de bord</h2>
-        <p className="text-stone-500 text-sm">Vue globale de l'activité et des stocks.</p>
-      </div>
-
+    <div className="space-y-6">
+      {/* Header Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-stone-200 shadow-sm">
-          <CardContent className="p-5">
+        <Card className="border-none shadow-sm bg-white">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Valeur Totale</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalVal.toLocaleString()} €</h3>
+                <p className="text-xs font-medium text-stone-500 uppercase mb-1">Valeur Totale</p>
+                <h3 className="text-2xl font-bold text-stone-900">{stats.totalVal.toLocaleString()} €</h3>
               </div>
-              <div className="p-3 bg-amber-50 rounded-lg">
+              <div className="p-3 bg-amber-50 rounded-full">
                 <DollarSign className="w-5 h-5 text-amber-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border border-stone-200 shadow-sm">
-          <CardContent className="p-5">
+        <Card className="border-none shadow-sm bg-white">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Volume Total</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalCbm.toFixed(2)} m³</h3>
+                <p className="text-xs font-medium text-stone-500 uppercase mb-1">Volume Stock</p>
+                <h3 className="text-2xl font-bold text-stone-900">{stats.totalCbm.toFixed(2)} m³</h3>
               </div>
-              <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="p-3 bg-blue-50 rounded-full">
                 <Box className="w-5 h-5 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border border-stone-200 shadow-sm">
-          <CardContent className="p-5">
+        <Card className="border-none shadow-sm bg-white">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">En Transit</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.inTransitVal.toLocaleString()} €</h3>
+                <p className="text-xs font-medium text-stone-500 uppercase mb-1">Valeur en Transit</p>
+                <h3 className="text-2xl font-bold text-stone-900">{stats.inTransitVal.toLocaleString()} €</h3>
               </div>
-              <div className="p-3 bg-indigo-50 rounded-lg">
+              <div className="p-3 bg-indigo-50 rounded-full">
                 <Truck className="w-5 h-5 text-indigo-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border border-stone-200 shadow-sm">
-          <CardContent className="p-5">
+        <Card className="border-none shadow-sm bg-white">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Factures Actives</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalFactures}</h3>
+                <p className="text-xs font-medium text-stone-500 uppercase mb-1">Factures Impor.</p>
+                <h3 className="text-2xl font-bold text-stone-900">{stats.totalFactures}</h3>
               </div>
-              <div className="p-3 bg-emerald-50 rounded-lg">
+              <div className="p-3 bg-emerald-50 rounded-full">
                 <FileText className="w-5 h-5 text-emerald-600" />
               </div>
             </div>
@@ -134,58 +151,134 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
         </Card>
       </div>
 
+      {/* Analytics Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border border-stone-200 shadow-sm">
+        <Card className="border-none shadow-sm bg-white">
           <CardHeader>
-            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" /> Répartition de la Valeur (€)
+            <CardTitle className="text-sm font-bold uppercase text-stone-500 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Répartition par Catégorie (€)
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={categoryValueData}
+                  data={valueData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={80}
-                  outerRadius={110}
+                  innerRadius={70}
+                  outerRadius={100}
                   paddingAngle={5}
                   dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {categoryValueData.map((entry, index) => (
+                  {valueData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip 
-                  formatter={(value: number) => `${value.toLocaleString()} €`}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value: number) => [`${value.toLocaleString()} €`, 'Valeur']}
+                  contentStyle={{ border: 'none', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
+                <Legend iconType="circle" />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="border border-stone-200 shadow-sm">
+        <Card className="border-none shadow-sm bg-white">
           <CardHeader>
-            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Statistiques de Stock</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase text-stone-500 flex items-center gap-2">
+              <History className="w-4 h-4" /> Valeur par État Logistique (€)
+            </CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col justify-center items-center h-[350px] text-center space-y-4">
-             <div className="p-4 bg-stone-50 rounded-xl w-full">
-                <p className="text-sm text-stone-500 mb-1 font-medium">Capacité Totale Utilisée</p>
-                <p className="text-3xl font-bold text-stone-900">{stats.totalCbm.toFixed(2)} m³</p>
-             </div>
-             <div className="p-4 bg-stone-50 rounded-xl w-full">
-                <p className="text-sm text-stone-500 mb-1 font-medium">Valeur Moyenne par Article</p>
-                <p className="text-3xl font-bold text-stone-900">
-                  {articles && articles.length > 0 ? (stats.totalVal / articles.length).toFixed(2) : 0} €
-                </p>
-             </div>
-             <p className="text-xs text-stone-400 italic">Données synchronisées en temps réel avec la base de données.</p>
+          <CardContent className="h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={statusValueData} layout="vertical" margin={{ left: 40, right: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f5f5f5" />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  axisLine={false} 
+                  tickLine={false}
+                  width={100}
+                  style={{ fontSize: '12px', fontWeight: 500 }}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`${value.toLocaleString()} €`, 'Valeur']}
+                  cursor={{ fill: '#f5f5f5' }}
+                  contentStyle={{ border: 'none', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+                <Bar 
+                  dataKey="value" 
+                  radius={[0, 4, 4, 0]} 
+                  barSize={30}
+                >
+                  {statusValueData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="pb-2 border-b">
+            <CardTitle className="text-sm font-bold uppercase text-stone-500">Alertes Commandes</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-3xl font-bold text-stone-900">{stats.pendingCount}</p>
+                <p className="text-xs text-stone-500 mt-1">Articles en attente ou production</p>
+              </div>
+              <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
+                <Factory className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="pb-2 border-b">
+            <CardTitle className="text-sm font-bold uppercase text-stone-500">Flux de Valeur</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-stone-500">Stock Arrivé</span>
+                  <span className="font-bold">{Math.round((stats.arrivedVal / stats.totalVal) * 100 || 0)}%</span>
+                </div>
+                <div className="h-2 w-full bg-stone-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-500" 
+                    style={{ width: `${(stats.arrivedVal / stats.totalVal) * 100 || 0}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-stone-500">Stock en Transit</span>
+                  <span className="font-bold">{Math.round((stats.inTransitVal / stats.totalVal) * 100 || 0)}%</span>
+                </div>
+                <div className="h-2 w-full bg-stone-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-500" 
+                    style={{ width: `${(stats.inTransitVal / stats.totalVal) * 100 || 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
-}
+};
+
+export default DashboardView;
