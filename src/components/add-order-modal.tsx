@@ -35,7 +35,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     color: 'white',
     orderDate: new Date().toISOString().split('T')[0],
     status: 'TO_ORDER',
-    factureId: '',
+    factureId: 'NONE', // Correction: "NONE" au lieu de ""
     cubicMeasurement: 0,
     supplierId: ''
   });
@@ -54,8 +54,10 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     
     // Auto-fill arrival date if linked to a known facture
     let arrivalDate = '';
-    if (formData.status === 'SHIPPED' && formData.factureId) {
-      const selectedFacture = (factures || []).find(f => f.id === formData.factureId);
+    const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
+
+    if (formData.status === 'SHIPPED' && finalFactureId) {
+      const selectedFacture = (factures || []).find(f => f.id === finalFactureId);
       if (selectedFacture) arrivalDate = selectedFacture.arrivalDate;
     }
 
@@ -64,6 +66,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
       id, 
       name: formData.categoryId, // Le nom est TOUJOURS le nom de la sous-catégorie
       generalCategoryId: selectedGenCatId,
+      factureId: finalFactureId,
       arrivalDate,
       createdAt: serverTimestamp() 
     }, { merge: true });
@@ -80,7 +83,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
       color: 'white',
       orderDate: new Date().toISOString().split('T')[0],
       status: 'TO_ORDER',
-      factureId: '',
+      factureId: 'NONE',
       cubicMeasurement: 0,
       supplierId: ''
     });
@@ -176,7 +179,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
           <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
             <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Suivi Opérationnel</Label>
             <div className="grid grid-cols-1 gap-3">
-              <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({...p, status: v, factureId: v === 'TO_ORDER' ? '' : p.factureId}))}>
+              <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({...p, status: v, factureId: v === 'TO_ORDER' ? 'NONE' : p.factureId}))}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
                   <SelectValue />
                 </SelectTrigger>
@@ -213,7 +216,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
                         <SelectValue placeholder="Lier Facture..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="" className="font-bold italic">AUCUNE</SelectItem>
+                        <SelectItem value="NONE" className="font-bold italic">AUCUNE</SelectItem>
                         {safeFactures.map(f => (
                           <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id}</SelectItem>
                         ))}

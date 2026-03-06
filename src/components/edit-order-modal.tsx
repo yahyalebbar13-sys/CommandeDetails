@@ -46,7 +46,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   useEffect(() => {
     if (article) {
-      setFormData({ ...article });
+      setFormData({ 
+        ...article,
+        factureId: article.factureId || 'NONE' // Correction SelectItem
+      });
       setSelectedGenCatId(article.generalCategoryId || '');
     } else {
       setFormData(null);
@@ -81,8 +84,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
     
     let arrivalDate = formData.arrivalDate || '';
-    if (formData.status === 'SHIPPED' && formData.factureId) {
-      const selectedFacture = (factures || []).find(f => f.id === formData.factureId);
+    const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
+
+    if (formData.status === 'SHIPPED' && finalFactureId) {
+      const selectedFacture = (factures || []).find(f => f.id === finalFactureId);
       if (selectedFacture) arrivalDate = selectedFacture.arrivalDate;
     }
 
@@ -90,6 +95,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       ...formData,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
+      factureId: finalFactureId,
       arrivalDate
     };
 
@@ -234,12 +240,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 </Select>
 
                 {formData.status !== 'TO_ORDER' && (
-                  <Select value={formData.factureId || ''} onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}>
+                  <Select value={formData.factureId || 'NONE'} onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}>
                     <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
                       <SelectValue placeholder="Lier Facture..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="" className="font-bold italic">PAS DE FACTURE</SelectItem>
+                      <SelectItem value="NONE" className="font-bold italic">PAS DE FACTURE</SelectItem>
                       {(factures || []).map(f => (
                         <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id} - {f.arrivalDate}</SelectItem>
                       ))}
