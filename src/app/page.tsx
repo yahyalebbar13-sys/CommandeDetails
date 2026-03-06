@@ -11,12 +11,13 @@ import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
 import PendingOrdersView from '@/components/pending-orders-view';
 import ToOrderView from '@/components/to-order-view';
+import TransitOrdersView from '@/components/transit-orders-view';
 import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo, Layers, Package, FileText } from 'lucide-react';
+import { Plus, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo, Layers, Package, FileText, Ship } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -78,7 +79,7 @@ export default function StockVueApp() {
     const rows = (articles || []).map(d => {
       const total = ((d.quantity || 0) * (d.purchasePricePerUnit || 0)).toFixed(2);
       const statusLabel = d.status === 'TO_ORDER' ? 'À COMMANDER' : (d.status === 'PI' ? 'EN PRODUCTION' : 'EXPÉDIÉ');
-      const genCat = generalCategories.find(gc => gc.id === d.generalCategoryId)?.name || '-';
+      const genCat = (generalCategories || []).find(gc => gc.id === d.generalCategoryId)?.name || '-';
       return [statusLabel, genCat, d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
         .map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(',');
     });
@@ -96,6 +97,7 @@ export default function StockVueApp() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { id: 'to-order', label: 'À Commander', icon: ListTodo },
     { id: 'pending', label: 'Commandes PI', icon: Clock },
+    { id: 'transit', label: 'Transit', icon: Ship },
     { id: 'factures', label: 'Factures', icon: FileText },
     { id: 'general-categories', label: 'Catégories', icon: Layers },
     { id: 'categories', label: 'Sous-Catégories', icon: Package },
@@ -161,6 +163,7 @@ export default function StockVueApp() {
             {activeTab === 'dashboard' && <DashboardView articles={articles} factures={factures} onNavigate={setActiveTab} />}
             {activeTab === 'to-order' && <ToOrderView articles={articles} onEdit={handleEditArticle} />}
             {activeTab === 'pending' && <PendingOrdersView articles={articles} factures={factures} onEdit={handleEditArticle} />}
+            {activeTab === 'transit' && <TransitOrdersView articles={articles} onEdit={handleEditArticle} />}
             {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
             {activeTab === 'general-categories' && <GeneralCategoriesView generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={handleSelectGeneralCategory} />}
             {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} />}
