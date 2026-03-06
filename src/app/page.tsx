@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -5,7 +6,6 @@ import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
 import CategoriesView from '@/components/categories-view';
-import GeneralCategoriesView from '@/components/general-categories-view';
 import SuppliersView from '@/components/suppliers-view';
 import DataView from '@/components/data-view';
 import PendingOrdersView from '@/components/pending-orders-view';
@@ -16,7 +16,7 @@ import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo, Layers } from 'lucide-react';
+import { Plus, Download, Package, FileText, LayoutGrid, Users, Database, LogOut, Loader2, Clock, Menu, ListTodo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -27,15 +27,13 @@ export default function StockVueApp() {
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
-  const [selectedSubCategoryName, setSelectedSubCategoryName] = useState<string | null>(null);
-  const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isFactureModalOpen, setIsFactureModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
-  // Firestore Collections
   const facturesRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'factures');
@@ -46,11 +44,6 @@ export default function StockVueApp() {
     return collection(firestore, 'users', user.uid, 'articles');
   }, [firestore, user]);
 
-  const generalCategoriesRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'generalCategories');
-  }, [firestore, user]);
-
   const categoriesRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'users', user.uid, 'categories');
@@ -58,22 +51,11 @@ export default function StockVueApp() {
 
   const { data: factures = [], isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: articles = [], isLoading: isArticlesLoading } = useCollection(articlesRef);
-  const { data: generalCategories = [], isLoading: isGenCatsLoading } = useCollection(generalCategoriesRef);
   const { data: categories = [], isLoading: isCatsLoading } = useCollection(categoriesRef);
 
   const handleNavigateToFacture = (factureId: string) => {
     setSelectedFactureId(factureId);
     setActiveTab('factures');
-  };
-
-  const handleNavigateToSubCategory = (categoryName: string) => {
-    setSelectedSubCategoryName(categoryName);
-    setActiveTab('categories');
-  };
-
-  const handleNavigateToGeneralCategory = (genCatId: string) => {
-    setSelectedGeneralCategoryId(genCatId);
-    setActiveTab('categories');
   };
 
   const handleEditArticle = (article: any) => {
@@ -95,7 +77,7 @@ export default function StockVueApp() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Export réussi !", description: "Le fichier CSV a été téléchargé." });
+    toast({ title: "Export réussi !" });
   };
 
   const navItems = [
@@ -103,8 +85,7 @@ export default function StockVueApp() {
     { id: 'to-order', label: 'À Commander', icon: ListTodo },
     { id: 'pending', label: 'Commandes PI', icon: Clock },
     { id: 'factures', label: 'Factures', icon: FileText },
-    { id: 'general-categories', label: 'Catégories', icon: Layers },
-    { id: 'categories', label: 'Sous-catégories', icon: Package },
+    { id: 'categories', label: 'Catégories', icon: Package },
     { id: 'suppliers', label: 'Fournisseurs', icon: Users },
     { id: 'data', label: 'Base', icon: Database },
   ] as const;
@@ -119,11 +100,7 @@ export default function StockVueApp() {
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
-            if (id === 'categories') {
-              setSelectedSubCategoryName(null);
-              setSelectedGeneralCategoryId(null);
-            }
-            if (id === 'general-categories') setSelectedGeneralCategoryId(null);
+            if (id === 'categories') setSelectedCategoryName(null);
             if (isMobile) setIsMobileMenuOpen(false);
           }}
         >
@@ -135,132 +112,50 @@ export default function StockVueApp() {
   );
 
   if (isUserLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]"><Loader2 className="animate-spin text-amber-600" /></div>;
   }
 
-  if (!user) {
-    return <AuthView />;
-  }
+  if (!user) return <AuthView />;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fdfbf7]">
       <nav className="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-2">
-              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="lg:hidden text-stone-600">
-                    <Menu className="w-6 h-6" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-72 bg-white p-0">
-                  <SheetHeader className="p-6 border-b">
-                    <SheetTitle className="text-xl font-bold text-stone-700">
-                      📦 STOCK<span className="text-amber-600">VUE</span>
-                    </SheetTitle>
-                  </SheetHeader>
-                  <div className="flex flex-col p-4 space-y-2">
-                    <NavButtons isMobile />
-                    <div className="pt-4 border-t mt-4 flex flex-col space-y-2">
-                      <Button variant="outline" onClick={handleExport} className="justify-start gap-2">
-                        <Download className="w-5 h-5" /> Export CSV
-                      </Button>
-                      <Button variant="ghost" onClick={() => signOut(auth)} className="justify-start gap-2 text-red-500 hover:text-red-600 hover:bg-red-50">
-                        <LogOut className="w-5 h-5" /> Déconnexion
-                      </Button>
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-              
-              <span className="text-lg md:text-xl font-bold text-stone-700 tracking-tight whitespace-nowrap">
-                📦 GESTION<span className="text-amber-600">COMMANDES</span>
-              </span>
-            </div>
-            
-            <div className="hidden lg:flex items-center space-x-1">
-              <NavButtons />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1 px-3 md:px-4">
-                <Plus className="w-4 h-4" /> <span className="hidden xs:inline">Cmd</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex gap-1 border-stone-200 hover:bg-stone-50">
-                <Download className="w-4 h-4" /> Export
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="hidden md:flex text-stone-400 hover:text-red-500">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden"><Menu /></Button></SheetTrigger>
+              <SheetContent side="left" className="w-72">
+                <SheetHeader className="p-6"><SheetTitle>📦 STOCKVUE</SheetTitle></SheetHeader>
+                <div className="flex flex-col p-4 space-y-2"><NavButtons isMobile /></div>
+              </SheetContent>
+            </Sheet>
+            <span className="text-xl font-bold">📦 STOCK<span className="text-amber-600">VUE</span></span>
+          </div>
+          <div className="hidden lg:flex items-center space-x-1"><NavButtons /></div>
+          <div className="flex items-center space-x-2">
+            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white gap-1"><Plus className="w-4 h-4" /> Cmd</Button>
+            <Button variant="outline" size="sm" onClick={handleExport} className="hidden md:flex">Export</Button>
+            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="hidden md:flex text-stone-400 hover:text-red-500"><LogOut className="w-4 h-4" /></Button>
           </div>
         </div>
       </nav>
-
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 w-full">
-        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isCatsLoading) ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-stone-300" />
-          </div>
+      <main className="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
+        {(isFacturesLoading || isArticlesLoading || isCatsLoading) ? (
+          <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-stone-300" /></div>
         ) : (
           <>
-            {activeTab === 'dashboard' && <DashboardView articles={articles || []} factures={factures || []} onNavigate={setActiveTab} />}
-            {activeTab === 'to-order' && <ToOrderView articles={articles || []} onEdit={handleEditArticle} />}
-            {activeTab === 'pending' && <PendingOrdersView articles={articles || []} factures={factures || []} onEdit={handleEditArticle} />}
-            {activeTab === 'factures' && (
-              <FacturesView 
-                articles={articles || []} 
-                factures={factures || []} 
-                selectedFactureId={selectedFactureId} 
-                setSelectedFactureId={setSelectedFactureId}
-                onNavigateToCategory={handleNavigateToSubCategory}
-              />
-            )}
-            {activeTab === 'general-categories' && (
-              <GeneralCategoriesView 
-                generalCategories={generalCategories || []}
-                subCategories={categories || []}
-                onSelectGeneralCategory={handleNavigateToGeneralCategory}
-              />
-            )}
-            {activeTab === 'categories' && (
-              <CategoriesView 
-                articles={articles || []} 
-                factures={factures || []}
-                selectedCategory={selectedSubCategoryName}
-                setSelectedCategory={setSelectedSubCategoryName}
-                initialGeneralCategoryId={selectedGeneralCategoryId}
-                subCategories={categories || []}
-              />
-            )}
-            {activeTab === 'suppliers' && <SuppliersView articles={articles || []} factures={factures || []} onNavigateToFacture={handleNavigateToFacture} />}
-            {activeTab === 'data' && <DataView articles={articles || []} onEdit={handleEditArticle} />}
+            {activeTab === 'dashboard' && <DashboardView articles={articles} factures={factures} onNavigate={setActiveTab} />}
+            {activeTab === 'to-order' && <ToOrderView articles={articles} onEdit={handleEditArticle} />}
+            {activeTab === 'pending' && <PendingOrdersView articles={articles} factures={factures} onEdit={handleEditArticle} />}
+            {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
+            {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} />}
+            {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} onNavigateToFacture={handleNavigateToFacture} />}
+            {activeTab === 'data' && <DataView articles={articles} onEdit={handleEditArticle} />}
           </>
         )}
       </main>
-
-      <AddOrderModal
-        open={isOrderModalOpen}
-        onOpenChange={setIsOrderModalOpen}
-        factures={factures || []}
-      />
-
-      <AddFactureModal
-        open={isFactureModalOpen}
-        onOpenChange={setIsFactureModalOpen}
-        factures={factures || []}
-      />
-
-      <EditOrderModal
-        article={editingArticle}
-        onOpenChange={(open) => !open && setEditingArticle(null)}
-        factures={factures || []}
-      />
+      <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} factures={factures} />
+      <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
     </div>
   );
 }

@@ -1,15 +1,9 @@
 
 export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
 
-export type GeneralCategory = {
-  id: string;
-  name: string;
-};
-
 export type Category = {
   id: string;
   name: string;
-  generalCategoryId: string;
 };
 
 export type Order = {
@@ -35,4 +29,4 @@ export type Facture = {
   freight: number;
 };
 
-export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data';
+export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'factures' | 'categories' | 'suppliers' | 'data';

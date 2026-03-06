@@ -1,19 +1,17 @@
 
 {
   "entities": {
-    "GeneralCategory": {
+    "Category": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GeneralCategory",
+      "title": "Category",
       "type": "object",
-      "description": "Représente un groupe de haut niveau (ex: Accessoires, Tissus, Mercerie) pour organiser les sous-catégories.",
+      "description": "Represents a product category.",
       "properties": {
         "id": {
-          "type": "string",
-          "description": "Identifiant unique."
+          "type": "string"
         },
         "name": {
-          "type": "string",
-          "description": "Le nom du groupe (ex: TEXTILES)."
+          "type": "string"
         }
       },
       "required": [
@@ -21,44 +19,17 @@
         "name"
       ]
     },
-    "Category": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Category",
-      "type": "object",
-      "description": "Désormais considérée comme une Sous-catégorie. Elle est rattachée à une Catégorie Générale.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Identifiant unique."
-        },
-        "name": {
-          "type": "string",
-          "description": "Le nom de la sous-catégorie (e.g., 'Sewing Thread')."
-        },
-        "generalCategoryId": {
-          "type": "string",
-          "description": "Référence à la catégorie générale parente."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "generalCategoryId"
-      ]
-    },
     "Supplier": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Supplier",
       "type": "object",
-      "description": "Represents a commercial partner or company that provides articles.",
+      "description": "Represents a commercial partner.",
       "properties": {
         "id": {
-          "type": "string",
-          "description": "Unique identifier for the Supplier entity."
+          "type": "string"
         },
         "name": {
-          "type": "string",
-          "description": "The official name of the supplier."
+          "type": "string"
         }
       },
       "required": [
@@ -70,24 +41,20 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Facture",
       "type": "object",
-      "description": "Represents an invoice or a container shipment, which serves to group multiple ordered items. It includes overall shipment details and costs.",
+      "description": "Represents an invoice or container shipment.",
       "properties": {
         "id": {
-          "type": "string",
-          "description": "Unique identifier for the Facture (invoice/container). This ID is typically provided by the supplier."
+          "type": "string"
         },
         "supplierId": {
-          "type": "string",
-          "description": "Reference to the primary Supplier for this facture. (Relationship: Supplier 1:N Facture)"
+          "type": "string"
         },
         "arrivalDate": {
           "type": "string",
-          "description": "The estimated or actual date of arrival for the entire shipment associated with this facture.",
           "format": "date"
         },
         "freightCost": {
-          "type": "number",
-          "description": "The total cost of freight or transport associated with this invoice/container."
+          "type": "number"
         }
       },
       "required": [
@@ -101,27 +68,19 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Article",
       "type": "object",
-      "description": "Represents a distinct type of product or item that can be ordered, including its generic name and specific technical specifications. This entity defines a product variant.",
+      "description": "Represents a product variant.",
       "properties": {
         "id": {
-          "type": "string",
-          "description": "Unique identifier for the Article entity."
+          "type": "string"
         },
         "categoryId": {
-          "type": "string",
-          "description": "Reference to the Sub-Category (Category name) this article belongs to."
-        },
-        "generalCategoryId": {
-          "type": "string",
-          "description": "Reference to the General Category this article belongs to."
+          "type": "string"
         },
         "name": {
-          "type": "string",
-          "description": "The name or primary description of the article."
+          "type": "string"
         },
         "specs": {
-          "type": "string",
-          "description": "Detailed specifications or packaging information."
+          "type": "string"
         },
         "color": {
           "type": "string"
@@ -154,8 +113,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["TO_ORDER", "PI", "SHIPPED"],
-          "description": "TO_ORDER (Reminder), PI (In Production), SHIPPED (Assigned to Facture)."
+          "enum": ["TO_ORDER", "PI", "SHIPPED"]
         }
       },
       "required": [
@@ -176,42 +134,16 @@
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}/generalCategories/{genCatId}",
-        "definition": {
-          "entityName": "GeneralCategory",
-          "schema": {
-            "$ref": "#/backend/entities/GeneralCategory"
-          },
-          "description": "Catégories de haut niveau.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "UID"
-            },
-            {
-              "name": "genCatId",
-              "description": "ID"
-            }
-          ]
-        }
-      },
-      {
         "path": "/users/{userId}/categories/{categoryId}",
         "definition": {
           "entityName": "Category",
           "schema": {
             "$ref": "#/backend/entities/Category"
           },
-          "description": "Sous-catégories.",
+          "description": "Product categories.",
           "params": [
-            {
-              "name": "userId",
-              "description": "UID"
-            },
-            {
-              "name": "categoryId",
-              "description": "ID"
-            }
+            { "name": "userId" },
+            { "name": "categoryId" }
           ]
         }
       },
@@ -222,16 +154,10 @@
           "schema": {
             "$ref": "#/backend/entities/Supplier"
           },
-          "description": "Suppliers managed by the user.",
+          "description": "Suppliers.",
           "params": [
-            {
-              "name": "userId",
-              "description": "UID"
-            },
-            {
-              "name": "supplierId",
-              "description": "ID"
-            }
+            { "name": "userId" },
+            { "name": "supplierId" }
           ]
         }
       },
@@ -242,16 +168,10 @@
           "schema": {
             "$ref": "#/backend/entities/Article"
           },
-          "description": "Articles, commandés ou à commander.",
+          "description": "Articles.",
           "params": [
-            {
-              "name": "userId",
-              "description": "UID"
-            },
-            {
-              "name": "articleId",
-              "description": "ID"
-            }
+            { "name": "userId" },
+            { "name": "articleId" }
           ]
         }
       },
@@ -262,20 +182,13 @@
           "schema": {
             "$ref": "#/backend/entities/Facture"
           },
-          "description": "Invoices or container shipments.",
+          "description": "Invoices.",
           "params": [
-            {
-              "name": "userId",
-              "description": "UID"
-            },
-            {
-              "name": "factureId",
-              "description": "ID"
-            }
+            { "name": "userId" },
+            { "name": "factureId" }
           ]
         }
       }
-    ],
-    "reasoning": "Standard path-based ownership. Articles include lifecycle fields and pricing for tracking."
+    ]
   }
 }
