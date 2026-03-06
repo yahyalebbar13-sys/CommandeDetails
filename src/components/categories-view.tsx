@@ -4,18 +4,19 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Label } from '@/components/ui/label';
 import { 
   ChevronLeft, 
   Plus, 
-  TrendingUp, 
   Package, 
   Ship, 
-  History,
   CheckCircle2,
   Clock,
   ArrowRight,
   BarChart3,
-  LineChart as LineChartIcon
+  LineChart as LineChartIcon,
+  TrendingUp,
+  Box
 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -30,8 +31,6 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
-  BarChart, 
-  Bar, 
   AreaChart, 
   Area,
   LineChart,
@@ -191,12 +190,6 @@ export default function CategoriesView({
   const renderTable = (title: string, data: any[], icon: React.ReactNode, variant: 'blue' | 'emerald' | 'amber') => {
     if (data.length === 0) return null;
 
-    const styles = {
-      blue: "border-t-blue-500 text-blue-600",
-      emerald: "border-t-emerald-500 text-emerald-600",
-      amber: "border-t-amber-500 text-amber-600"
-    };
-
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
@@ -204,12 +197,13 @@ export default function CategoriesView({
           <h3 className="text-sm font-bold uppercase tracking-wider text-stone-700">{title}</h3>
           <Badge variant="secondary" className="ml-2 font-bold">{data.length}</Badge>
         </div>
-        <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-hidden">
           <Table>
             <TableHeader className="bg-stone-50">
               <TableRow>
                 <TableHead className="text-[11px] font-bold uppercase">Article</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase">Specs / Couleur</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase text-center">Facture</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase">Dates</TableHead>
                 <TableHead className="text-right text-[11px] font-bold uppercase">Quantité</TableHead>
                 <TableHead className="text-right text-[11px] font-bold uppercase">Valeur</TableHead>
@@ -226,9 +220,18 @@ export default function CategoriesView({
                     <div className="text-xs text-stone-600">{o.specs || '-'}</div>
                     <div className="text-[10px] text-stone-400 font-medium uppercase">{o.color || '-'}</div>
                   </TableCell>
+                  <TableCell className="text-center">
+                    {o.factureId ? (
+                      <Badge variant="outline" className="font-mono text-[10px] bg-stone-50 text-stone-600 border-stone-200">
+                        {o.factureId}
+                      </Badge>
+                    ) : (
+                      <span className="text-stone-300">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="text-[10px] font-medium text-stone-500">Cmd: {o.orderDate}</div>
-                    {o.arrivalDate && <div className="text-[10px] font-bold text-blue-600">Arr: {o.arrivalDate}</div>}
+                    {o.arrivalDate && <div className={`text-[10px] font-bold ${variant === 'blue' ? 'text-blue-600' : 'text-emerald-600'}`}>Arr: {o.arrivalDate}</div>}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="font-bold text-stone-900">{o.quantity.toLocaleString()}</div>
@@ -284,13 +287,13 @@ export default function CategoriesView({
 
         {/* 2. ANALYSES ET GRAPHIQUES */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6 border-t border-stone-200">
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader>
+          <Card className="border border-stone-200 shadow-sm bg-white">
+            <CardHeader className="border-b border-stone-100 bg-stone-50/50">
               <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-amber-600" /> Flux d'achats mensuels
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[250px]">
+            <CardContent className="h-[250px] p-6">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={analysisData}>
                   <defs>
@@ -309,13 +312,13 @@ export default function CategoriesView({
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader>
+          <Card className="border border-stone-200 shadow-sm bg-white">
+            <CardHeader className="border-b border-stone-100 bg-stone-50/50">
               <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                 <LineChartIcon className="w-4 h-4 text-blue-600" /> Évolution du prix d'achat
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[250px]">
+            <CardContent className="h-[250px] p-6">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={analysisData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
@@ -351,24 +354,27 @@ export default function CategoriesView({
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCategoriesList.length === 0 ? (
-          <div className="col-span-full py-20 text-center border-2 border-dashed border-stone-200 rounded-xl bg-stone-50/50">
+          <div className="col-span-full py-20 text-center border-2 border-dashed border-stone-200 rounded-xl bg-white">
             <Package className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-            <p className="text-stone-400 font-medium">Aucune donnée disponible</p>
+            <p className="text-stone-400 font-medium italic">Aucune donnée disponible</p>
           </div>
         ) : filteredCategoriesList.map(([name, stats]) => (
           <Card 
             key={name} 
             onClick={() => setSelectedCategory(name)} 
-            className="cursor-pointer hover:border-amber-500/50 hover:shadow-md transition-all border border-stone-200 shadow-sm rounded-xl group"
+            className="cursor-pointer hover:border-amber-500/50 hover:shadow-md transition-all border border-stone-200 shadow-sm rounded-xl group bg-white"
           >
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-6">
-                <h3 className="text-lg font-black text-stone-800 uppercase group-hover:text-amber-600 transition-colors leading-tight">
-                  {name}
-                </h3>
-                <div className="bg-stone-50 p-2 rounded-lg">
-                  <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-amber-600" />
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-stone-50 rounded-lg group-hover:bg-amber-50 transition-colors">
+                    <Box className="w-5 h-5 text-stone-400 group-hover:text-amber-600" />
+                  </div>
+                  <h3 className="text-lg font-black text-stone-800 uppercase group-hover:text-amber-600 transition-colors leading-tight">
+                    {name}
+                  </h3>
                 </div>
+                <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
               </div>
               
               <div className="space-y-4">
@@ -402,7 +408,7 @@ export default function CategoriesView({
             <div className="space-y-2">
               <Label>Groupe Parent</Label>
               <Select value={targetGenCatId} onValueChange={setTargetGenCatId}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-white">
                   <SelectValue placeholder="Sélectionner un groupe..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -427,18 +433,6 @@ export default function CategoriesView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function KPIItem({ label, value, icon, color, isHighlight }: any) {
-  return (
-    <div className={`bg-white p-4 rounded-xl border shadow-sm flex flex-col min-w-[140px] ${isHighlight ? 'border-blue-200 bg-blue-50/20' : 'border-stone-100'}`}>
-      <div className="text-[10px] text-stone-400 font-bold uppercase mb-1 flex items-center gap-2">
-        <span className="text-stone-300">{icon}</span>
-        {label}
-      </div>
-      <div className={`text-lg font-black ${color}`}>{value}</div>
     </div>
   );
 }
