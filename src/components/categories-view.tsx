@@ -20,7 +20,9 @@ import {
   TrendingUp,
   Box,
   Factory,
-  Calendar
+  Calendar,
+  ClipboardList,
+  Activity
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -92,6 +94,29 @@ export default function CategoriesView({
     return articles.filter(a => a.categoryId === selectedCategory);
   }, [selectedCategory, articles]);
 
+  const headerStats = useMemo(() => {
+    if (!currentArticles.length) return null;
+    const now = new Date();
+    
+    // Prochaine arrivée (transit le plus proche)
+    const transitDates = currentArticles
+      .filter(a => a.status === 'SHIPPED' && a.arrivalDate)
+      .map(a => new Date(a.arrivalDate).getTime())
+      .filter(t => t >= now.getTime());
+    const nextArrival = transitDates.length ? new Date(Math.min(...transitDates)).toLocaleDateString('fr-FR') : 'AUCUNE';
+
+    // Dernière commande
+    const orderDates = currentArticles
+      .filter(a => a.orderDate)
+      .map(a => new Date(a.orderDate).getTime());
+    const lastOrder = orderDates.length ? new Date(Math.max(...orderDates)).toLocaleDateString('fr-FR') : 'AUCUNE';
+
+    // Quantité totale
+    const totalQty = currentArticles.reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
+
+    return { nextArrival, lastOrder, totalQty };
+  }, [currentArticles]);
+
   const groupedData = useMemo(() => {
     if (!selectedCategory) return null;
     const now = new Date();
@@ -144,7 +169,7 @@ export default function CategoriesView({
       <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <header className="bg-white rounded-[2.5rem] shadow-xl border border-stone-200 overflow-hidden">
           <div className="bg-stone-900 p-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
             
             <div className="flex items-center gap-6 relative z-10">
               <Button 
@@ -160,17 +185,34 @@ export default function CategoriesView({
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
                 <div className="flex gap-2 mt-4">
                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Audit Actif</Badge>
+                  <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Supply Chain Sync</Badge>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-4 relative z-10">
-              {Object.entries(currentTotalsByUnit).map(([unit, total]) => (
-                <div key={unit} className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-center min-w-[120px] backdrop-blur-sm">
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Stock {unit}</p>
-                  <p className="text-2xl font-black text-white leading-none">{total.toLocaleString()}</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 relative z-10 w-full lg:w-auto">
+              {headerStats && (
+                <>
+                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md min-w-[160px]">
+                    <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <Truck className="w-3 h-3" /> Prochaine Arrivée
+                    </p>
+                    <p className="text-lg font-black text-white leading-none">{headerStats.nextArrival}</p>
+                  </div>
+                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md min-w-[160px]">
+                    <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <ClipboardList className="w-3 h-3" /> Dernière Commande
+                    </p>
+                    <p className="text-lg font-black text-white leading-none">{headerStats.lastOrder}</p>
+                  </div>
+                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md min-w-[160px]">
+                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                      <Activity className="w-3 h-3" /> Quantité Totale
+                    </p>
+                    <p className="text-lg font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
