@@ -16,7 +16,9 @@ import {
   BarChart3,
   LineChart as LineChartIcon,
   TrendingUp,
-  Box
+  Box,
+  LayoutGrid,
+  Info
 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -46,6 +48,17 @@ interface CategoriesViewProps {
   setSelectedCategory: (category: string | null) => void;
   selectedGeneralCategoryId?: string | null;
 }
+
+const SUB_COLORS = [
+  'border-t-blue-500',
+  'border-t-amber-500',
+  'border-t-emerald-500',
+  'border-t-purple-500',
+  'border-t-rose-500',
+  'border-t-indigo-500',
+  'border-t-orange-500',
+  'border-t-cyan-500',
+];
 
 export default function CategoriesView({ 
   articles = [], 
@@ -85,7 +98,7 @@ export default function CategoriesView({
       data[cat].count += 1;
     });
 
-    return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
+    return Object.entries(data).sort((a, b) => b.val - a.val);
   }, [articles, selectedGeneralCategoryId]);
 
   // 2. Articles de la catégorie sélectionnée
@@ -158,20 +171,20 @@ export default function CategoriesView({
   // 5. Données pour les graphiques
   const analysisData = useMemo(() => {
     if (!selectedCategory) return [];
-    const monthly: Record<string, { val: number; pa: number; count: number }> = {};
+    const monthly: Record<string, { month: string; val: number; pa: number; count: number }> = {};
     
     catArticles.forEach(o => {
       const month = o.orderDate?.substring(0, 7);
       if (month) {
-        if (!monthly[month]) monthly[month] = { val: 0, pa: 0, count: 0 };
+        if (!monthly[month]) monthly[month] = { month, val: 0, pa: 0, count: 0 };
         monthly[month].val += (Number(o.quantity) * Number(o.purchasePricePerUnit));
         monthly[month].pa += Number(o.purchasePricePerUnit);
         monthly[month].count += 1;
       }
     });
 
-    return Object.entries(monthly).sort().map(([month, data]) => ({
-      month,
+    return Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month)).map(data => ({
+      ...data,
       val: Math.round(data.val),
       pa: Number((data.pa / data.count).toFixed(4))
     }));
@@ -190,63 +203,75 @@ export default function CategoriesView({
   const renderTable = (title: string, data: any[], icon: React.ReactNode, variant: 'blue' | 'emerald' | 'amber') => {
     if (data.length === 0) return null;
 
+    const variantStyles = {
+      blue: "border-l-blue-500 bg-blue-50/20",
+      emerald: "border-l-emerald-500 bg-emerald-50/20",
+      amber: "border-l-amber-500 bg-amber-50/20"
+    };
+
     return (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h3 className="text-sm font-bold uppercase tracking-wider text-stone-700">{title}</h3>
-          <Badge variant="secondary" className="ml-2 font-bold">{data.length}</Badge>
-        </div>
-        <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader className="bg-stone-50">
-              <TableRow>
-                <TableHead className="text-[11px] font-bold uppercase">Article</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase">Specs / Couleur</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase text-center">Facture</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase">Dates</TableHead>
-                <TableHead className="text-right text-[11px] font-bold uppercase">Quantité</TableHead>
-                <TableHead className="text-right text-[11px] font-bold uppercase">Valeur</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.map(o => (
-                <TableRow key={o.id} className="hover:bg-stone-50/50">
-                  <TableCell className="py-3">
-                    <div className="font-bold text-stone-900">{o.name}</div>
-                    <div className="text-[10px] text-stone-400 font-medium uppercase">{o.supplierId || 'N/A'}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs text-stone-600">{o.specs || '-'}</div>
-                    <div className="text-[10px] text-stone-400 font-medium uppercase">{o.color || '-'}</div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {o.factureId ? (
-                      <Badge variant="outline" className="font-mono text-[10px] bg-stone-50 text-stone-600 border-stone-200">
-                        {o.factureId}
-                      </Badge>
-                    ) : (
-                      <span className="text-stone-300">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-[10px] font-medium text-stone-500">Cmd: {o.orderDate}</div>
-                    {o.arrivalDate && <div className={`text-[10px] font-bold ${variant === 'blue' ? 'text-blue-600' : 'text-emerald-600'}`}>Arr: {o.arrivalDate}</div>}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="font-bold text-stone-900">{o.quantity.toLocaleString()}</div>
-                    <div className="text-[10px] text-stone-400 font-bold uppercase">{o.unitOfMeasure}</div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="font-bold text-stone-900">{Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</div>
-                    <div className="text-[10px] text-stone-400">@ {o.purchasePricePerUnit.toFixed(3)}</div>
-                  </TableCell>
+      <Card className={`border-l-4 ${variantStyles[variant]} shadow-sm overflow-hidden`}>
+        <CardHeader className="py-4 border-b bg-white/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {icon}
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-stone-700">{title}</CardTitle>
+            </div>
+            <Badge variant="outline" className="font-black">{data.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 bg-white">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-stone-50">
+                <TableRow>
+                  <TableHead className="text-[10px] font-black uppercase py-2">Article</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-2">Specs / Couleur</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-2 text-center">Facture</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-2">Dates</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-2">Quantité</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-2">Valeur</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {data.map(o => (
+                  <TableRow key={o.id} className="hover:bg-stone-50/50 border-b last:border-0">
+                    <TableCell className="py-3">
+                      <div className="font-bold text-stone-900 leading-tight">{o.name}</div>
+                      <div className="text-[10px] text-stone-400 font-bold uppercase">{o.supplierId || 'N/A'}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs text-stone-600 font-medium">{o.specs || '-'}</div>
+                      <div className="text-[10px] text-stone-400 font-bold uppercase">{o.color || '-'}</div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {o.factureId ? (
+                        <Badge variant="outline" className="font-mono text-[9px] bg-stone-50 text-stone-600 border-stone-200">
+                          {o.factureId}
+                        </Badge>
+                      ) : (
+                        <span className="text-stone-300 text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-[10px] font-bold text-stone-500">Cmd: {o.orderDate}</div>
+                      {o.arrivalDate && <div className={`text-[10px] font-black ${variant === 'blue' ? 'text-blue-600' : 'text-emerald-600'}`}>Arr: {o.arrivalDate}</div>}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-black text-stone-900">{o.quantity.toLocaleString()}</div>
+                      <div className="text-[10px] text-stone-400 font-bold uppercase">{o.unitOfMeasure}</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-black text-stone-900">{Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</div>
+                      <div className="text-[10px] text-stone-400">@ {o.purchasePricePerUnit.toFixed(3)}</div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -254,42 +279,76 @@ export default function CategoriesView({
   if (selectedCategory && stats) {
     return (
       <div className="space-y-8 fade-in">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-stone-200 pb-6">
-          <div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-stone-200 pb-8">
+          <div className="space-y-2">
             <button 
               onClick={() => setSelectedCategory(null)} 
-              className="flex items-center gap-1 text-stone-400 hover:text-stone-900 transition-all font-bold text-xs uppercase tracking-widest mb-2"
+              className="flex items-center gap-1 text-amber-600 hover:text-amber-700 transition-all font-black text-[10px] uppercase tracking-widest"
             >
-              <ChevronLeft className="w-4 h-4" /> Retour
+              <ChevronLeft className="w-4 h-4" /> Retour à la liste
             </button>
-            <h2 className="text-3xl font-black text-stone-900 uppercase tracking-tight">{selectedCategory}</h2>
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-stone-900 text-white rounded-xl shadow-lg">
+                <Box className="w-6 h-6" />
+              </div>
+              <h2 className="text-4xl font-black text-stone-900 uppercase tracking-tighter">{selectedCategory}</h2>
+            </div>
           </div>
           
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-6 bg-white p-4 rounded-2xl shadow-sm border border-stone-100">
             <div className="text-right">
-              <p className="text-[10px] font-bold text-stone-400 uppercase">Valeur Totale</p>
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Totale</p>
               <p className="text-2xl font-black text-amber-600">{Math.round(stats.totalValue).toLocaleString()} €</p>
             </div>
             <div className="w-px h-10 bg-stone-200 hidden md:block"></div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-stone-400 uppercase">Dernière commande</p>
-              <p className="text-lg font-bold text-stone-700">{stats.lastOrder}</p>
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Dernière commande</p>
+              <p className="text-xl font-black text-stone-700 uppercase">{stats.lastOrder}</p>
             </div>
           </div>
         </div>
 
+        {/* Unités Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Object.entries(stats.qtyByUnit).map(([unit, data]) => (
+            <Card key={unit} className="border-none shadow-sm bg-white overflow-hidden">
+              <div className="h-1 bg-stone-900 w-full opacity-20" />
+              <CardContent className="p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-xs font-black text-stone-400 uppercase tracking-wider">{unit}</span>
+                  <Badge className="bg-stone-100 text-stone-900 border-none font-black">{data.total.toLocaleString()}</Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex justify-between text-[10px] font-bold">
+                    <span className="text-stone-400">ARRIVÉ :</span>
+                    <span className="text-emerald-600">{data.arrived.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] font-bold">
+                    <span className="text-stone-400">TRANSIT :</span>
+                    <span className="text-blue-600">{data.transit.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] font-bold">
+                    <span className="text-stone-400">PROD :</span>
+                    <span className="text-amber-600">{data.pending.toLocaleString()}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         {/* 1. TABLEAUX DE DONNÉES */}
-        <div className="space-y-10">
+        <div className="space-y-8">
           {renderTable("Commandes en Transit", transitArticles, <Ship className="w-5 h-5 text-blue-500" />, 'blue')}
           {renderTable("Articles en Stock (Arrivés)", arrivedArticles, <CheckCircle2 className="w-5 h-5 text-emerald-500" />, 'emerald')}
           {renderTable("Rappels & Production", pendingArticles, <Clock className="w-5 h-5 text-amber-500" />, 'amber')}
         </div>
 
         {/* 2. ANALYSES ET GRAPHIQUES */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6 border-t border-stone-200">
-          <Card className="border border-stone-200 shadow-sm bg-white">
-            <CardHeader className="border-b border-stone-100 bg-stone-50/50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-12 border-t border-stone-200">
+          <Card className="border border-stone-200 shadow-sm bg-white rounded-2xl overflow-hidden">
+            <CardHeader className="bg-stone-50/50 border-b border-stone-100">
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-stone-600">
                 <BarChart3 className="w-4 h-4 text-amber-600" /> Flux d'achats mensuels
               </CardTitle>
             </CardHeader>
@@ -303,29 +362,33 @@ export default function CategoriesView({
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
-                  <XAxis dataKey="month" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={10} axisLine={false} tickLine={false} />
-                  <RechartsTooltip />
-                  <Area type="monotone" dataKey="val" stroke="#d97706" fillOpacity={1} fill="url(#colorVal)" />
+                  <XAxis dataKey="month" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                  <YAxis fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  />
+                  <Area type="monotone" dataKey="val" stroke="#d97706" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="border border-stone-200 shadow-sm bg-white">
-            <CardHeader className="border-b border-stone-100 bg-stone-50/50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                <LineChartIcon className="w-4 h-4 text-blue-600" /> Évolution du prix d'achat
+          <Card className="border border-stone-200 shadow-sm bg-white rounded-2xl overflow-hidden">
+            <CardHeader className="bg-stone-50/50 border-b border-stone-100">
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-stone-600">
+                <LineChartIcon className="w-4 h-4 text-blue-600" /> Évolution du prix d'achat (Moyen)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[250px] p-6">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={analysisData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
-                  <XAxis dataKey="month" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={10} axisLine={false} tickLine={false} />
-                  <RechartsTooltip />
-                  <Line type="monotone" dataKey="pa" stroke="#2563eb" strokeWidth={2} dot={{r: 4}} />
+                  <XAxis dataKey="month" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                  <YAxis fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  />
+                  <Line type="monotone" dataKey="pa" stroke="#2563eb" strokeWidth={3} dot={{r: 4, strokeWidth: 2, fill: '#fff'}} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -338,99 +401,112 @@ export default function CategoriesView({
   // VUE LISTE DES CATÉGORIES
   return (
     <div className="space-y-8 fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-stone-900 uppercase tracking-tight">Sous-Catégories</h1>
-          {selectedGeneralCategoryId && (
-            <Badge variant="secondary" className="mt-2 font-bold bg-stone-100 text-stone-600">
-              FILTRE : {generalCategories.find(gc => gc.id === selectedGeneralCategoryId)?.name}
-            </Badge>
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black text-stone-900 uppercase tracking-tighter">Sous-Catégories</h1>
+          {selectedGeneralCategoryId ? (
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-3 h-3 text-amber-600" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-stone-400">
+                Filtre : {generalCategories.find(gc => gc.id === selectedGeneralCategoryId)?.name}
+              </span>
+            </div>
+          ) : (
+            <p className="text-stone-500 font-medium">Gestion et analyse par type de produit</p>
           )}
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white font-bold h-11 px-6 rounded-lg shadow-sm transition-all">
-          <Plus className="w-4 h-4 mr-2" /> Ajouter un type
+        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white font-bold h-12 px-8 rounded-xl shadow-lg transition-all hover:scale-105">
+          <Plus className="w-5 h-5 mr-2" /> Nouveau type
         </Button>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCategoriesList.length === 0 ? (
-          <div className="col-span-full py-20 text-center border-2 border-dashed border-stone-200 rounded-xl bg-white">
-            <Package className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-            <p className="text-stone-400 font-medium italic">Aucune donnée disponible</p>
+          <div className="col-span-full py-24 text-center border-2 border-dashed border-stone-200 rounded-2xl bg-white/50">
+            <Package className="w-16 h-16 text-stone-200 mx-auto mb-4" />
+            <p className="text-stone-400 font-bold uppercase tracking-widest text-sm">Aucune donnée disponible</p>
           </div>
-        ) : filteredCategoriesList.map(([name, stats]) => (
-          <Card 
-            key={name} 
-            onClick={() => setSelectedCategory(name)} 
-            className="cursor-pointer hover:border-amber-500/50 hover:shadow-md transition-all border border-stone-200 shadow-sm rounded-xl group bg-white"
-          >
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-stone-50 rounded-lg group-hover:bg-amber-50 transition-colors">
-                    <Box className="w-5 h-5 text-stone-400 group-hover:text-amber-600" />
+        ) : filteredCategoriesList.map(([name, stats], index) => {
+          const colorClass = SUB_COLORS[index % SUB_COLORS.length];
+          return (
+            <Card 
+              key={name} 
+              onClick={() => setSelectedCategory(name)} 
+              className={`cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all border-t-4 ${colorClass} group bg-white rounded-2xl overflow-hidden`}
+            >
+              <CardContent className="p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-stone-400 mb-1">
+                      <Box className="w-3 h-3" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Type</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-stone-800 group-hover:text-stone-900 transition-colors uppercase leading-tight">
+                      {name}
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-black text-stone-800 uppercase group-hover:text-amber-600 transition-colors leading-tight">
-                    {name}
-                  </h3>
+                  <div className="p-2 bg-stone-50 rounded-full group-hover:bg-stone-900 group-hover:text-white transition-all">
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-stone-300 group-hover:text-amber-600 group-hover:translate-x-1 transition-all" />
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Valeur Cumulée</p>
-                  <p className="text-xl font-black text-stone-900">{Math.round(stats.val).toLocaleString()} €</p>
-                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Cumulée</p>
+                    <p className="text-2xl font-black text-stone-900">{Math.round(stats.val).toLocaleString()} €</p>
+                  </div>
 
-                <div className="pt-4 border-t border-stone-100">
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Stocks par unité</p>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(stats.qtyByUnit).map(([unit, qty]) => (
-                      <Badge key={unit} variant="outline" className="text-[10px] font-bold bg-white text-stone-600 border-stone-200">
-                        {qty.toLocaleString()} {unit}
-                      </Badge>
+                  <div className="pt-4 border-t border-stone-100 grid grid-cols-2 gap-2">
+                    {Object.entries(stats.qtyByUnit).slice(0, 4).map(([unit, qty]) => (
+                      <div key={unit} className="flex flex-col">
+                        <span className="text-[9px] font-black text-stone-400 uppercase">{unit}</span>
+                        <span className="text-sm font-black text-stone-700">{qty.toLocaleString()}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="font-bold">Nouvelle Sous-Catégorie</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Groupe Parent</Label>
-              <Select value={targetGenCatId} onValueChange={setTargetGenCatId}>
-                <SelectTrigger className="bg-white">
-                  <SelectValue placeholder="Sélectionner un groupe..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {(generalCategories || []).map(gc => (
-                    <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden border-none">
+          <div className="bg-stone-900 p-6 text-white">
+            <DialogTitle className="text-xl font-black uppercase tracking-tight">Nouvelle Sous-Catégorie</DialogTitle>
+            <p className="text-stone-400 text-sm">Définissez un nouveau type de produit</p>
+          </div>
+          <div className="p-8 space-y-6 bg-white">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-stone-500 uppercase tracking-widest">Groupe Parent</Label>
+                <Select value={targetGenCatId} onValueChange={setTargetGenCatId}>
+                  <SelectTrigger className="h-12 border-stone-200 rounded-xl">
+                    <SelectValue placeholder="Choisir un groupe..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(generalCategories || []).map(gc => (
+                      <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-stone-500 uppercase tracking-widest">Nom du type</Label>
+                <Input 
+                  value={newCatName} 
+                  onChange={e => setNewCatName(e.target.value.toUpperCase())} 
+                  placeholder="EX: FERMETURES..." 
+                  className="uppercase font-bold h-12 border-stone-200 focus:ring-amber-500 rounded-xl"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Nom de la Sous-Catégorie</Label>
-              <Input 
-                value={newCatName} 
-                onChange={e => setNewCatName(e.target.value.toUpperCase())} 
-                placeholder="Ex: FERMETURES" 
-                className="uppercase"
-              />
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="flex-1 h-12 rounded-xl border-stone-200 font-bold">Annuler</Button>
+              <Button onClick={handleAddCategory} className="flex-1 h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold">Créer</Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={handleAddCategory} className="w-full bg-stone-900 text-white font-bold h-11">Créer</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
