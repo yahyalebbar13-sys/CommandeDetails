@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie, Legend
+  Cell, PieChart, Pie, Legend, LineChart as RechartsLineChart, Line, CartesianGrid
 } from 'recharts';
 
 interface CategoriesViewProps {
@@ -75,16 +75,36 @@ export default function CategoriesView({
 
   const subCategoryStats = useMemo(() => {
     if (!selectedGeneralCategoryId) return [];
+    const now = new Date();
+    
     return subCategories
       .filter(sc => sc.generalCategoryId === selectedGeneralCategoryId)
       .map(sc => {
         const catArticles = articles.filter(a => a.categoryId === sc.name);
         const units: Record<string, number> = {};
+        let totalValue = 0;
+        
+        const futureArrivals = catArticles
+          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > now)
+          .map(a => new Date(a.arrivalDate as string).getTime());
+        
+        const nextArrival = futureArrivals.length > 0 
+          ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0]
+          : '-';
+
         catArticles.forEach(a => {
           const unit = (a.unitOfMeasure || 'PCS').toUpperCase();
           units[unit] = (units[unit] || 0) + (Number(a.quantity) || 0);
+          totalValue += (Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0);
         });
-        return { ...sc, units, count: catArticles.length };
+
+        return { 
+          ...sc, 
+          units, 
+          count: catArticles.length, 
+          nextArrival, 
+          totalValue 
+        };
       })
       .filter(sc => sc.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [selectedGeneralCategoryId, subCategories, articles, searchTerm]);
@@ -157,12 +177,15 @@ export default function CategoriesView({
     });
     const supplierData = Object.entries(supplierMap).map(([name, value]) => ({ name, value }));
 
-    const volumeData = [
-      { name: 'Transit', cbm: groupedData.transit.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0) || 0 },
-      { name: 'Réceptionné', cbm: groupedData.arrived.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0) || 0 },
-    ];
+    const priceData = currentArticles
+      .map(a => ({
+        date: a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null),
+        price: Number(a.purchasePricePerUnit) || 0
+      }))
+      .filter(d => d.date !== null)
+      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
 
-    return { statusValue, supplierData, volumeData };
+    return { statusValue, supplierData, priceData };
   }, [selectedCategory, currentArticles, groupedData]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
@@ -190,31 +213,24 @@ export default function CategoriesView({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 relative z-10 w-full xl:w-2/3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10 w-full xl:w-2/3">
               {headerStats && (
                 <>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Valeur Totale des Commandes</p>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Valeur Totale</p>
                     <p className="text-2xl font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} €</p>
                   </div>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Quantité Totale des Commandes</p>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Quantité Totale</p>
                     <p className="text-2xl font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
                   </div>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2 flex items-center gap-1">
-                      <CalendarDays className="w-2 h-2" /> Timeline Logistique
-                    </p>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter">Prochaine Arrivée</span>
-                        <span className="text-[11px] font-black text-blue-400">{headerStats.nextArrival}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-black text-stone-400 uppercase tracking-tighter">Dernière Commande</span>
-                        <span className="text-[11px] font-black text-stone-200">{headerStats.lastOrder}</span>
-                      </div>
-                    </div>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Prochaine Arrivée</p>
+                    <p className="text-2xl font-black text-blue-400 leading-none">{headerStats.nextArrival}</p>
+                  </div>
+                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Dernière Commande</p>
+                    <p className="text-2xl font-black text-stone-200 leading-none">{headerStats.lastOrder}</p>
                   </div>
                 </>
               )}
@@ -373,19 +389,19 @@ export default function CategoriesView({
           </section>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-10 border-t border-stone-200">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-10 border-t border-stone-200">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
             <div className="h-1.5 w-full bg-stone-900" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-amber-500" /> Répartition par État (%)
+                <Factory className="w-3 h-3 text-amber-500" /> Répartition par Fournisseur (%)
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[250px] p-4">
+            <CardContent className="h-[300px] p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={detailedAnalytics.statusValue} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={8} dataKey="value" stroke="none">
-                    {detailedAnalytics.statusValue.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                  <Pie data={detailedAnalytics.supplierData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
+                    {detailedAnalytics.supplierData.map((entry, index) => <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
@@ -395,33 +411,22 @@ export default function CategoriesView({
           </Card>
 
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
-            <div className="h-1.5 w-full bg-amber-500" />
-            <CardHeader className="py-4 border-b border-stone-50">
-              <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <Factory className="w-3 h-3 text-stone-900" /> Valeur par Fournisseur (€)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[250px] p-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={detailedAnalytics.supplierData}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
-                  <Bar dataKey="value" fill="#1E293B" radius={[6, 6, 0, 0]} barSize={25} />
-                  <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} €`]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <Box className="w-3 h-3 text-blue-500" /> Encombrement Total (m³)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix d'Achat (€)
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 flex flex-col items-center justify-center h-[250px]">
-              <p className="text-6xl font-black text-stone-900 tracking-tighter">{(detailedAnalytics.volumeData[0].cbm + detailedAnalytics.volumeData[1].cbm).toFixed(2)}</p>
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.3em] mt-3">Capacité Cargo Utilisée</p>
+            <CardContent className="h-[300px] p-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsLineChart data={detailedAnalytics.priceData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                  <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <Line type="monotone" dataKey="price" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                </RechartsLineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
@@ -471,13 +476,32 @@ export default function CategoriesView({
                     <Badge className="bg-stone-900 text-white text-[9px] font-black uppercase px-2">{sc.count}</Badge>
                   </div>
                   <h3 className="font-black text-xs text-stone-800 uppercase leading-tight mb-4 line-clamp-2 min-h-[2.5rem] group-hover:text-stone-900">{sc.name}</h3>
-                  <div className="space-y-1.5 pt-4 border-t border-stone-50">
-                    {Object.entries(sc.units).slice(0, 3).map(([unit, total]) => (
-                      <div key={unit} className="flex justify-between items-center text-[10px]">
-                        <span className="text-stone-400 font-bold uppercase tracking-tighter">{unit}</span>
-                        <span className="font-black text-stone-800">{(total as number).toLocaleString()}</span>
-                      </div>
-                    ))}
+                  
+                  <div className="space-y-3 pt-4 border-t border-stone-50">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
+                        <Truck className="w-2.5 h-2.5" /> Prochaine
+                      </span>
+                      <span className={`font-black ${sc.nextArrival !== '-' ? 'text-blue-600' : 'text-stone-300'}`}>
+                        {sc.nextArrival}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
+                        <DollarSign className="w-2.5 h-2.5" /> Valeur Totale
+                      </span>
+                      <span className="font-black text-stone-900">
+                        {sc.totalValue.toLocaleString()} €
+                      </span>
+                    </div>
+                    <div className="pt-2 border-t border-stone-50/50">
+                      {Object.entries(sc.units).slice(0, 1).map(([unit, total]) => (
+                        <div key={unit} className="flex justify-between items-center text-[9px]">
+                          <span className="text-stone-300 font-bold uppercase tracking-tighter">Volume {unit}</span>
+                          <span className="font-bold text-stone-400">{(total as number).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </CardContent>
