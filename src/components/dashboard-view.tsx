@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo } from 'react';
@@ -170,7 +171,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="border-b border-stone-100 bg-stone-50/50">
             <CardTitle className="text-xs font-bold uppercase text-stone-500 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" /> Répartition par Catégorie (€)
+              <TrendingUp className="w-4 h-4" /> Répartition par Catégorie (€)
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[350px] p-6">

@@ -83,7 +83,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       generalCategoryId: selectedGenCatId
     });
 
-    toast({ title: "Modifié !", description: `L'article ${formData.name} a été mis à jour.` });
+    toast({ title: "Modifié !", description: `L'article a été mis à jour.` });
     onOpenChange(false);
   };
 
@@ -91,136 +91,140 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   return (
     <Dialog open={!!article} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-stone-200">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-stone-800 flex items-center gap-2">
-            <Package className="w-5 h-5" /> Modifier l'Article
+          <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
+            <Package className="w-5 h-5 text-stone-400" /> Paramétrage Article
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="flex items-center gap-1"><Layers className="w-3 h-3" /> Catégorie Générale</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Pôle Logistique
+              </Label>
               <Select value={selectedGenCatId} onValueChange={setSelectedGenCatId}>
-                <SelectTrigger className="bg-white">
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
                   <SelectValue placeholder="Choisir un groupe..." />
                 </SelectTrigger>
                 <SelectContent>
                   {(generalCategories || []).map(gc => (
-                    <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
+                    <SelectItem key={gc.id} value={gc.id} className="font-bold">{gc.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label className="flex items-center gap-1"><Package className="w-3 h-3" /> Sous-catégorie</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Package className="w-3 h-3" /> Désignation (Sous-Cat)
+              </Label>
               <Select 
                 disabled={!selectedGenCatId} 
                 value={formData.categoryId} 
-                onValueChange={(v) => setFormData((p: any) => ({...p, categoryId: v}))}
+                onValueChange={(v) => setFormData((p: any) => ({...p, categoryId: v, name: v}))}
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
                   <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
                 <SelectContent>
                   {(filteredSubCategories || []).map(sc => (
-                    <SelectItem key={sc.id} value={sc.name}>{sc.name}</SelectItem>
+                    <SelectItem key={sc.id} value={sc.name} className="font-bold">{sc.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-1 md:col-span-2">
-              <Label>Nom de l'Article</Label>
-              <Input 
-                required 
-                value={formData.name || ''} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, name: e.target.value }))} 
-              />
-            </div>
             
-            <div className="space-y-1 md:col-span-2">
-              <Label>Spécifications</Label>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Spécifications Techniques</Label>
               <div className="flex gap-2">
                 <Input 
                   value={formData.specs || ''} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))} 
+                  className="h-11 border-stone-200 font-bold"
+                  placeholder="Ex: 20cm, 50m/roll..."
                 />
                 <Button 
                   type="button" 
                   variant="outline" 
-                  size="icon" 
+                  className="h-11 w-11 border-stone-200"
                   onClick={handleSuggestSpecs} 
-                  disabled={isSuggesting || !formData.categoryId || !formData.name}
+                  disabled={isSuggesting || !formData.categoryId}
                 >
                   {isSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-500" />}
                 </Button>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label>Couleur</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Couleur / Référence</Label>
               <Input 
                 value={formData.color || ''} 
-                onChange={e => setFormData((prev: any) => ({ ...prev, color: e.target.value }))} 
+                onChange={e => setFormData((prev: any) => ({ ...prev, color: e.target.value.toUpperCase() }))} 
+                className="h-11 border-stone-200 font-bold uppercase"
+                placeholder="DIVERS"
               />
             </div>
-            <div className="space-y-1">
-              <Label>Quantité & Unité</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité & Unité</Label>
               <div className="flex gap-2">
                 <Input 
                   type="number" 
                   required 
                   value={formData.quantity || 0} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} 
+                  className="h-11 border-stone-200 font-bold"
                 />
                 <Input 
                   required 
-                  className="w-24"
+                  className="w-24 h-11 border-stone-200 font-bold uppercase"
                   value={formData.unitOfMeasure || ''} 
-                  onChange={e => setFormData((prev: any) => ({ ...prev, unitOfMeasure: e.target.value }))} 
+                  onChange={e => setFormData((prev: any) => ({ ...prev, unitOfMeasure: e.target.value.toLowerCase() }))} 
                 />
               </div>
             </div>
 
             {formData.status !== 'TO_ORDER' && (
               <>
-                <div className="space-y-1">
-                  <Label>Fournisseur</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Fournisseur Actuel</Label>
                   <Input 
                     required 
                     value={formData.supplierId || ''} 
-                    onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
+                    onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
+                    className="h-11 border-stone-200 font-bold uppercase"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>Volume (CBM)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Encombrement (CBM)</Label>
                   <Input 
                     type="number" 
                     step="0.001" 
                     required 
                     value={formData.cubicMeasurement || 0} 
                     onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
+                    className="h-11 border-stone-200 font-bold"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>Prix (PA)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix d'Achat Unitaire (€)</Label>
                   <Input 
                     type="number" 
                     step="0.0001" 
                     required 
                     value={formData.purchasePricePerUnit || 0} 
                     onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} 
+                    className="h-11 border-stone-200 font-bold text-amber-700"
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>Facture</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Lien Facture</Label>
                   <Input 
                     value={formData.factureId || ''} 
                     onChange={e => setFormData((prev: any) => ({ ...prev, factureId: e.target.value.toUpperCase() }))}
-                    className="uppercase"
+                    className="h-11 border-stone-200 font-bold uppercase"
+                    placeholder="PAS DE FACTURE"
                   />
                 </div>
               </>
@@ -229,9 +233,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         </form>
 
         <DialogFooter className="border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-stone-800 hover:bg-black text-white font-bold gap-2">
-            <Save className="w-4 h-4" /> Enregistrer les modifications
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[10px] font-black uppercase tracking-widest">Annuler</Button>
+          <Button onClick={handleSubmit} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest px-8 h-11 rounded-lg gap-2">
+            <Save className="w-4 h-4" /> Sauvegarder
           </Button>
         </DialogFooter>
       </DialogContent>
