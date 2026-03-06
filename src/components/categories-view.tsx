@@ -14,19 +14,16 @@ import {
   CheckCircle2,
   Clock,
   LayoutGrid,
-  BarChart3,
-  PieChart as PieChartIcon,
-  Activity,
   Package,
   ArrowUpRight,
   Search,
-  Filter,
   TrendingUp,
   Box,
-  Factory
+  Factory,
+  Calendar
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
+  BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, Legend
 } from 'recharts';
 
@@ -142,9 +139,6 @@ export default function CategoriesView({
     return { statusValue, supplierData, volumeData };
   }, [selectedCategory, currentArticles, groupedData]);
 
-  // ==========================================
-  // VUE DÉTAILLÉE DU PRODUIT
-  // ==========================================
   if (selectedCategory && groupedData && detailedAnalytics) {
     return (
       <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -166,7 +160,6 @@ export default function CategoriesView({
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
                 <div className="flex gap-2 mt-4">
                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Audit Actif</Badge>
-                  <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Tracking Global</Badge>
                 </div>
               </div>
             </div>
@@ -205,6 +198,8 @@ export default function CategoriesView({
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation Technique</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée Prévue</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Quantité</TableHead>
                   </TableRow>
@@ -214,6 +209,8 @@ export default function CategoriesView({
                     <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
                       <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
+                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
+                      <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
                       <TableCell className="py-5">
                         <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
                       </TableCell>
@@ -222,7 +219,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -241,16 +238,14 @@ export default function CategoriesView({
                   <p className="text-[10px] text-stone-400 font-bold uppercase">Stock physique certifié disponible</p>
                 </div>
               </div>
-              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[10px]">
-                PRÊT À L'EXPÉDITION
-              </Badge>
             </div>
             <Card className="border-stone-200 shadow-xl rounded-3xl overflow-hidden">
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Certifié le</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Stock Réel</TableHead>
                   </TableRow>
@@ -259,14 +254,15 @@ export default function CategoriesView({
                   {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => (
                     <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
-                      <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
+                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
+                      <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
                       <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -291,6 +287,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Création/Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Quantité Estimée</TableHead>
                   </TableRow>
@@ -299,6 +296,9 @@ export default function CategoriesView({
                   {groupedData.pending.length > 0 ? groupedData.pending.map(a => (
                     <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">
+                        {a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : '-')}
+                      </TableCell>
                       <TableCell className="py-5">
                         <Badge variant="outline" className="text-[9px] font-black uppercase h-6 px-3 border-stone-200">
                           {a.status === 'PI' ? 'COMMANDE LANCÉE' : 'BESOIN IDENTIFIÉ'}
@@ -309,7 +309,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={3} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -367,9 +367,6 @@ export default function CategoriesView({
             <CardContent className="p-8 flex flex-col items-center justify-center h-[250px]">
               <p className="text-6xl font-black text-stone-900 tracking-tighter">{(detailedAnalytics.volumeData[0].cbm + detailedAnalytics.volumeData[1].cbm).toFixed(2)}</p>
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.3em] mt-3">Capacité Cargo Utilisée</p>
-              <div className="w-full h-2 bg-stone-100 rounded-full mt-6 overflow-hidden">
-                <div className="h-full bg-blue-500" style={{ width: '65%' }} />
-              </div>
             </CardContent>
           </Card>
         </div>
