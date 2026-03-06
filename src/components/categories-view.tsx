@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -13,8 +12,6 @@ import {
   Calendar, 
   Package, 
   Ship, 
-  CheckCircle2, 
-  Clock, 
   ArrowUpRight, 
   BarChart3,
   History,
@@ -79,6 +76,106 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     return Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
   }, [articles, selectedGeneralCategoryId]);
 
+  const catArticles = useMemo(() => {
+    if (!selectedCategory) return [];
+    return (articles || [])
+      .filter(o => o.categoryId === selectedCategory && (!selectedGeneralCategoryId || o.generalCategoryId === selectedGeneralCategoryId))
+      .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+  }, [articles, selectedCategory, selectedGeneralCategoryId]);
+
+  const stats = useMemo(() => {
+    if (!selectedCategory || catArticles.length === 0) return null;
+    
+    const now = new Date();
+    let val = 0, valArrived = 0, valTransit = 0, valPending = 0;
+    let cbm = 0, cbmArrived = 0, cbmTransit = 0;
+    const qtyByUnit: Record<string, { total: number; arrived: number; transit: number; pending: number }> = {};
+    
+    catArticles.forEach(o => {
+      const itemVal = (o.quantity || 0) * (o.purchasePricePerUnit || 0);
+      const unit = o.unitOfMeasure || 'pcs';
+      
+      if (!qtyByUnit[unit]) {
+        qtyByUnit[unit] = { total: 0, arrived: 0, transit: 0, pending: 0 };
+      }
+      
+      qtyByUnit[unit].total += o.quantity;
+      val += itemVal;
+      cbm += (o.cubicMeasurement || 0);
+
+      if (o.status === 'PI' || !o.factureId) {
+        valPending += itemVal;
+        qtyByUnit[unit].pending += o.quantity;
+      } else {
+        const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
+        const isArrived = arrivalDate && arrivalDate <= now;
+        if (isArrived) {
+          valArrived += itemVal;
+          cbmArrived += (o.cubicMeasurement || 0);
+          qtyByUnit[unit].arrived += o.quantity;
+        } else {
+          valTransit += itemVal;
+          cbmTransit += (o.cubicMeasurement || 0);
+          qtyByUnit[unit].transit += o.quantity;
+        }
+      }
+    });
+
+    const dates = catArticles.map(o => new Date(o.orderDate).getTime()).filter(d => !isNaN(d));
+    const arrivals = catArticles
+      .filter(o => o.arrivalDate && new Date(o.arrivalDate) > now)
+      .map(o => new Date(o.arrivalDate).getTime())
+      .filter(d => !isNaN(d));
+
+    return {
+      val, valArrived, valTransit, valPending,
+      cbm, cbmArrived, cbmTransit,
+      qtyByUnit,
+      lastOrder: dates.length > 0 ? new Date(Math.max(...dates)).toISOString().split('T')[0] : '-',
+      nextArrival: arrivals.length > 0 ? new Date(Math.min(...arrivals)).toISOString().split('T')[0] : 'Aucune',
+      avgInterval: dates.length > 1 ? Math.round((Math.max(...dates) - Math.min(...dates)) / (dates.length - 1) / (1000 * 60 * 60 * 24)) : 0
+    };
+  }, [catArticles, selectedCategory]);
+
+  const topArticles = useMemo(() => {
+    if (!selectedCategory) return [];
+    const artMap: Record<string, { name: string; val: number; qty: number; unit: string }> = {};
+    catArticles.forEach(o => {
+      if (!artMap[o.name]) artMap[o.name] = { name: o.name, val: 0, qty: 0, unit: o.unitOfMeasure };
+      artMap[o.name].val += (o.quantity * o.purchasePricePerUnit);
+      artMap[o.name].qty += o.quantity;
+    });
+    return Object.values(artMap).sort((a, b) => b.val - a.val).slice(0, 5);
+  }, [catArticles, selectedCategory]);
+
+  const analysisData = useMemo(() => {
+    if (!selectedCategory) return [];
+    const monthly: Record<string, { val: number; cbm: number; pa: number; count: number }> = {};
+    const timeline: any[] = [];
+    
+    catArticles.forEach(o => {
+      const month = o.orderDate?.substring(0, 7);
+      if (month) {
+        if (!monthly[month]) monthly[month] = { val: 0, cbm: 0, pa: 0, count: 0 };
+        monthly[month].val += (o.quantity * o.purchasePricePerUnit);
+        monthly[month].cbm += (o.cubicMeasurement || 0);
+        monthly[month].pa += o.purchasePricePerUnit;
+        monthly[month].count += 1;
+      }
+    });
+
+    Object.entries(monthly).sort().forEach(([month, data]) => {
+      timeline.push({
+        month,
+        val: Math.round(data.val),
+        cbm: Number(data.cbm.toFixed(2)),
+        pa: Number((data.pa / data.count).toFixed(4))
+      });
+    });
+
+    return timeline;
+  }, [catArticles, selectedCategory]);
+
   const handleAddCategory = () => {
     if (!user || !firestore || !newCatName.trim() || !targetGenCatId) return;
     const id = crypto.randomUUID();
@@ -89,99 +186,8 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     setNewCatName('');
   };
 
-  if (selectedCategory) {
+  if (selectedCategory && stats) {
     const now = new Date();
-    const catArticles = (articles || [])
-      .filter(o => o.categoryId === selectedCategory && (!selectedGeneralCategoryId || o.generalCategoryId === selectedGeneralCategoryId))
-      .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
-
-    // STATS AVANCÉES
-    const stats = useMemo(() => {
-      let val = 0, valArrived = 0, valTransit = 0, valPending = 0;
-      let cbm = 0, cbmArrived = 0, cbmTransit = 0;
-      const qtyByUnit: Record<string, { total: number; arrived: number; transit: number; pending: number }> = {};
-      
-      catArticles.forEach(o => {
-        const itemVal = (o.quantity || 0) * (o.purchasePricePerUnit || 0);
-        const unit = o.unitOfMeasure || 'pcs';
-        
-        if (!qtyByUnit[unit]) {
-          qtyByUnit[unit] = { total: 0, arrived: 0, transit: 0, pending: 0 };
-        }
-        
-        qtyByUnit[unit].total += o.quantity;
-        val += itemVal;
-        cbm += (o.cubicMeasurement || 0);
-
-        if (o.status === 'PI' || !o.factureId) {
-          valPending += itemVal;
-          qtyByUnit[unit].pending += o.quantity;
-        } else {
-          const isArrived = new Date(o.arrivalDate) <= now;
-          if (isArrived) {
-            valArrived += itemVal;
-            cbmArrived += (o.cubicMeasurement || 0);
-            qtyByUnit[unit].arrived += o.quantity;
-          } else {
-            valTransit += itemVal;
-            cbmTransit += (o.cubicMeasurement || 0);
-            qtyByUnit[unit].transit += o.quantity;
-          }
-        }
-      });
-
-      const dates = catArticles.map(o => new Date(o.orderDate).getTime());
-      const arrivals = catArticles.filter(o => o.arrivalDate && new Date(o.arrivalDate) > now).map(o => new Date(o.arrivalDate).getTime());
-
-      return {
-        val, valArrived, valTransit, valPending,
-        cbm, cbmArrived, cbmTransit,
-        qtyByUnit,
-        lastOrder: dates.length > 0 ? new Date(Math.max(...dates)).toISOString().split('T')[0] : '-',
-        nextArrival: arrivals.length > 0 ? new Date(Math.min(...arrivals)).toISOString().split('T')[0] : 'Aucune',
-        avgInterval: dates.length > 1 ? Math.round((Math.max(...dates) - Math.min(...dates)) / (dates.length - 1) / (1000 * 60 * 60 * 24)) : 0
-      };
-    }, [catArticles, now]);
-
-    // TOP 5 ARTICLES
-    const topArticles = useMemo(() => {
-      const artMap: Record<string, { name: string; val: number; qty: number; unit: string }> = {};
-      catArticles.forEach(o => {
-        if (!artMap[o.name]) artMap[o.name] = { name: o.name, val: 0, qty: 0, unit: o.unitOfMeasure };
-        artMap[o.name].val += (o.quantity * o.purchasePricePerUnit);
-        artMap[o.name].qty += o.quantity;
-      });
-      return Object.values(artMap).sort((a, b) => b.val - a.val).slice(0, 5);
-    }, [catArticles]);
-
-    // TIMELINE DATA
-    const analysisData = useMemo(() => {
-      const monthly: Record<string, { val: number; cbm: number; pa: number; count: number }> = {};
-      const timeline: any[] = [];
-      
-      catArticles.forEach(o => {
-        const month = o.orderDate?.substring(0, 7);
-        if (month) {
-          if (!monthly[month]) monthly[month] = { val: 0, cbm: 0, pa: 0, count: 0 };
-          monthly[month].val += (o.quantity * o.purchasePricePerUnit);
-          monthly[month].cbm += (o.cubicMeasurement || 0);
-          monthly[month].pa += o.purchasePricePerUnit;
-          monthly[month].count += 1;
-        }
-      });
-
-      Object.entries(monthly).sort().forEach(([month, data]) => {
-        timeline.push({
-          month,
-          val: Math.round(data.val),
-          cbm: Number(data.cbm.toFixed(2)),
-          pa: Number((data.pa / data.count).toFixed(4))
-        });
-      });
-
-      return timeline;
-    }, [catArticles]);
-
     return (
       <div className="space-y-8 fade-in">
         {/* HEADER & NAV */}
@@ -205,7 +211,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </div>
         </div>
 
-        {/* DISTINCTION TRANSIT / ARRIVÉ PAR UNITÉ (POUR CHAQUE UNITE DIFFÉRENTE) */}
+        {/* DISTINCTION TRANSIT / ARRIVÉ PAR UNITÉ */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(stats.qtyByUnit).map(([unit, q]) => (
             <Card key={unit} className="border-l-4 border-l-stone-800 shadow-sm">
@@ -241,7 +247,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </Card>
         </div>
 
-        {/* 1. TABLEAU HISTORIQUE DÉTAILLÉ (PRIORITAIRE) */}
+        {/* 1. TABLEAU HISTORIQUE DÉTAILLÉ */}
         <Card className="shadow-sm border-stone-200 overflow-hidden">
           <CardHeader className="bg-stone-50 border-b flex flex-row items-center justify-between py-4">
             <CardTitle className="text-sm font-bold flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Historique des Commandes</CardTitle>
@@ -269,8 +275,9 @@ export default function CategoriesView({ articles, factures, generalCategories, 
                       <TableCell colSpan={9} className="text-center py-10 text-stone-400 italic">Aucune donnée pour cette sélection</TableCell>
                     </TableRow>
                   ) : catArticles.map(o => {
-                    const isArrived = o.status === 'SHIPPED' && new Date(o.arrivalDate) <= now;
-                    const isTransit = o.status === 'SHIPPED' && new Date(o.arrivalDate) > now;
+                    const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
+                    const isArrived = o.status === 'SHIPPED' && arrivalDate && arrivalDate <= now;
+                    const isTransit = o.status === 'SHIPPED' && arrivalDate && arrivalDate > now;
                     return (
                       <TableRow key={o.id} className="hover:bg-stone-50/80 transition-colors">
                         <TableCell>
@@ -286,11 +293,11 @@ export default function CategoriesView({ articles, factures, generalCategories, 
                         <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate || '-'}</TableCell>
                         <TableCell className={`text-xs font-bold ${isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{o.arrivalDate || '-'}</TableCell>
                         <TableCell className="text-right font-black">
-                          {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                          {(o.quantity || 0).toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
                         </TableCell>
-                        <TableCell className="text-right text-stone-400 font-mono text-xs">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
-                        <TableCell className="text-right text-emerald-600 font-bold">{o.cubicMeasurement?.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-black bg-amber-50/10">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                        <TableCell className="text-right text-stone-400 font-mono text-xs">{(o.purchasePricePerUnit || 0).toFixed(4)}</TableCell>
+                        <TableCell className="text-right text-emerald-700 font-bold">{(o.cubicMeasurement || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-black bg-amber-50/10">{((o.quantity || 0) * (o.purchasePricePerUnit || 0)).toLocaleString()} €</TableCell>
                       </TableRow>
                     );
                   })}
@@ -300,7 +307,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
           </CardContent>
         </Card>
 
-        {/* 2. ANALYSE ET GRAPHIQUES (EN DESSOUS DU TABLEAU) */}
+        {/* 2. ANALYSE ET GRAPHIQUES */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* TOP 5 ARTICLES PAR VALEUR */}
           <Card className="lg:col-span-1 border-none shadow-sm bg-stone-900 text-white">
@@ -319,7 +326,7 @@ export default function CategoriesView({ articles, factures, generalCategories, 
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-black text-amber-400">{Math.round(art.val).toLocaleString()} €</div>
-                    <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">{((art.val / stats.val) * 100).toFixed(1)}%</div>
+                    <div className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">{((art.val / (stats?.val || 1)) * 100).toFixed(1)}%</div>
                   </div>
                 </div>
               ))}
