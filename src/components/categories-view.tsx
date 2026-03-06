@@ -15,7 +15,9 @@ import {
   ArrowUpRight, 
   BarChart3,
   History,
-  LayoutGrid
+  LayoutGrid,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -26,8 +28,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   ResponsiveContainer, 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -56,7 +56,8 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
   const [newCatName, setNewCatName] = useState('');
   const [targetGenCatId, setTargetGenCatId] = useState(selectedGeneralCategoryId || '');
 
-  // Move useMemo hooks out of any conditional blocks
+  const now = new Date();
+
   const filteredCategoriesList = useMemo(() => {
     const data: Record<string, { qtyByUnit: Record<string, number>; val: number; count: number; cbm: number; genCatId: string }> = {};
     
@@ -89,10 +90,30 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [articles, selectedCategory, selectedGeneralCategoryId]);
 
+  const { transitArticles, arrivedArticles, pendingArticles } = useMemo(() => {
+    const transit: any[] = [];
+    const arrived: any[] = [];
+    const pending: any[] = [];
+
+    catArticles.forEach(o => {
+      const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
+      if (o.status === 'SHIPPED') {
+        if (arrivalDate && arrivalDate > now) {
+          transit.push(o);
+        } else {
+          arrived.push(o);
+        }
+      } else {
+        pending.push(o);
+      }
+    });
+
+    return { transitArticles: transit, arrivedArticles: arrived, pendingArticles: pending };
+  }, [catArticles, now]);
+
   const stats = useMemo(() => {
     if (!selectedCategory || catArticles.length === 0) return null;
     
-    const now = new Date();
     let val = 0;
     let cbm = 0;
     const qtyByUnit: Record<string, { total: number; arrived: number; transit: number; pending: number }> = {};
@@ -112,16 +133,15 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
       val += itemVal;
       cbm += itemCbm;
 
-      if (o.status === 'PI' || !o.factureId) {
-        qtyByUnit[unit].pending += qty;
-      } else {
-        const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
-        const isArrived = arrivalDate && arrivalDate <= now;
-        if (isArrived) {
+      const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
+      if (o.status === 'SHIPPED') {
+        if (arrivalDate && arrivalDate <= now) {
           qtyByUnit[unit].arrived += qty;
         } else {
           qtyByUnit[unit].transit += qty;
         }
+      } else {
+        qtyByUnit[unit].pending += qty;
       }
     });
 
@@ -139,7 +159,7 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
       nextArrival: arrivals.length > 0 ? new Date(Math.min(...arrivals)).toISOString().split('T')[0] : 'Aucune',
       avgInterval: dates.length > 1 ? Math.round((Math.max(...dates) - Math.min(...dates)) / (dates.length - 1) / (1000 * 60 * 60 * 24)) : 0
     };
-  }, [catArticles, selectedCategory]);
+  }, [catArticles, selectedCategory, now]);
 
   const topArticles = useMemo(() => {
     if (!selectedCategory) return [];
@@ -190,7 +210,68 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
     setNewCatName('');
   };
 
-  const now = new Date();
+  const renderTable = (title: string, data: any[], icon: React.ReactNode, type: 'transit' | 'arrived' | 'pending') => {
+    if (data.length === 0) return null;
+
+    const accentClass = 
+      type === 'transit' ? 'border-l-blue-500' : 
+      type === 'arrived' ? 'border-l-emerald-500' : 'border-l-amber-500';
+
+    const bgHeaderClass = 
+      type === 'transit' ? 'bg-blue-50/50' : 
+      type === 'arrived' ? 'bg-emerald-50/50' : 'bg-amber-50/50';
+
+    return (
+      <Card className={`shadow-sm border-stone-200 border-l-4 ${accentClass} overflow-hidden mb-6`}>
+        <CardHeader className={`${bgHeaderClass} border-b flex flex-row items-center justify-between py-3`}>
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            {icon} {title}
+          </CardTitle>
+          <Badge variant="outline" className="bg-white/50">{data.length} articles</Badge>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-white">
+                <TableRow>
+                  <TableHead>Article</TableHead>
+                  <TableHead>Specs / Couleur</TableHead>
+                  <TableHead><Calendar className="w-3 h-3 inline mr-1" /> Commande</TableHead>
+                  <TableHead><Ship className="w-3 h-3 inline mr-1" /> Arrivée</TableHead>
+                  <TableHead className="text-right">Quantité</TableHead>
+                  <TableHead className="text-right">PA (€)</TableHead>
+                  <TableHead className="text-right">Vol. (CBM)</TableHead>
+                  <TableHead className="text-right">Valeur Totale</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map(o => (
+                  <TableRow key={o.id} className="hover:bg-stone-50/50 transition-colors">
+                    <TableCell className="font-bold text-stone-900">{o.name}</TableCell>
+                    <TableCell className="text-[10px] text-stone-500 uppercase font-bold">
+                      {o.specs || '-'} • <span className="text-stone-400">{o.color || 'UNIQUE'}</span>
+                    </TableCell>
+                    <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate || '-'}</TableCell>
+                    <TableCell className={`text-xs font-bold ${type === 'arrived' ? 'text-emerald-600' : type === 'transit' ? 'text-blue-600' : 'text-amber-600'}`}>
+                      {o.arrivalDate || '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-black">
+                      {(o.quantity || 0).toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                    </TableCell>
+                    <TableCell className="text-right text-stone-400 font-mono text-xs">{(o.purchasePricePerUnit || 0).toFixed(4)}</TableCell>
+                    <TableCell className="text-right text-emerald-700 font-bold">{(o.cubicMeasurement || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-black">
+                      {((o.quantity || 0) * (o.purchasePricePerUnit || 0)).toLocaleString()} €
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (selectedCategory && stats) {
     return (
@@ -202,7 +283,7 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
             </Button>
             <h2 className="text-4xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
               {selectedCategory}
-              <Badge className="bg-amber-600 text-white border-none">{catArticles.length} Commandes</Badge>
+              <Badge className="bg-amber-600 text-white border-none">{catArticles.length} au total</Badge>
             </h2>
             <p className="text-stone-500 font-medium">Analyse stratégique et étude des flux pour {selectedCategory}</p>
           </div>
@@ -235,7 +316,7 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
                     <span>{q.transit.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-amber-600 bg-amber-50/50 p-1 rounded">
-                    <span className="flex items-center gap-1">🕒 En Prod.</span>
+                    <span className="flex items-center gap-1">🕒 En cours</span>
                     <span>{q.pending.toLocaleString()}</span>
                   </div>
                 </div>
@@ -251,67 +332,14 @@ export default function CategoriesView({ articles = [], factures = [], generalCa
           </Card>
         </div>
 
-        {/* 1. TABLEAU HISTORIQUE DÉTAILLÉ (Main request: Table before charts) */}
-        <Card className="shadow-sm border-stone-200 overflow-hidden">
-          <CardHeader className="bg-stone-50 border-b flex flex-row items-center justify-between py-4">
-            <CardTitle className="text-sm font-bold flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Historique des Commandes</CardTitle>
-            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Tri chronologique</div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-stone-50/80">
-                  <TableRow>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Article</TableHead>
-                    <TableHead>Specs / Couleur</TableHead>
-                    <TableHead><Calendar className="w-3 h-3 inline mr-1" /> Commande</TableHead>
-                    <TableHead><Ship className="w-3 h-3 inline mr-1" /> Arrivée</TableHead>
-                    <TableHead className="text-right">Quantité</TableHead>
-                    <TableHead className="text-right">PA (€)</TableHead>
-                    <TableHead className="text-right">Vol. (CBM)</TableHead>
-                    <TableHead className="text-right bg-amber-50/30">Valeur Totale</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {catArticles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-10 text-stone-400 italic">Aucune donnée pour cette sélection</TableCell>
-                    </TableRow>
-                  ) : catArticles.map(o => {
-                    const arrivalDate = o.arrivalDate ? new Date(o.arrivalDate) : null;
-                    const isArrived = o.status === 'SHIPPED' && arrivalDate && arrivalDate <= now;
-                    const isTransit = o.status === 'SHIPPED' && arrivalDate && arrivalDate > now;
-                    return (
-                      <TableRow key={o.id} className="hover:bg-stone-50/80 transition-colors">
-                        <TableCell>
-                          {isArrived && <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px] font-black tracking-tighter">✅ ARRIVÉ</Badge>}
-                          {isTransit && <Badge className="bg-blue-100 text-blue-800 border-none text-[10px] font-black tracking-tighter">🚢 TRANSIT</Badge>}
-                          {o.status === 'PI' && <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] font-black tracking-tighter">🕒 EN PROD.</Badge>}
-                          {o.status === 'TO_ORDER' && <Badge className="bg-stone-100 text-stone-800 border-none text-[10px] font-black tracking-tighter">📋 RAPPEL</Badge>}
-                        </TableCell>
-                        <TableCell className="font-bold text-stone-900">{o.name}</TableCell>
-                        <TableCell className="text-[10px] text-stone-500 uppercase font-bold">
-                          {o.specs || '-'} • <span className="text-stone-400">{o.color || 'UNIQUE'}</span>
-                        </TableCell>
-                        <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate || '-'}</TableCell>
-                        <TableCell className={`text-xs font-bold ${isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{o.arrivalDate || '-'}</TableCell>
-                        <TableCell className="text-right font-black">
-                          {(o.quantity || 0).toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
-                        </TableCell>
-                        <TableCell className="text-right text-stone-400 font-mono text-xs">{(o.purchasePricePerUnit || 0).toFixed(4)}</TableCell>
-                        <TableCell className="text-right text-emerald-700 font-bold">{(o.cubicMeasurement || 0).toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-black bg-amber-50/10">{((o.quantity || 0) * (o.purchasePricePerUnit || 0)).toLocaleString()} €</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tables Section */}
+        <div className="space-y-8">
+          {renderTable("Commandes en Transit", transitArticles, <Ship className="w-4 h-4 text-blue-500" />, 'transit')}
+          {renderTable("Commandes Arrivées", arrivedArticles, <CheckCircle2 className="w-4 h-4 text-emerald-500" />, 'arrived')}
+          {renderTable("Rappels et Production", pendingArticles, <Clock className="w-4 h-4 text-amber-500" />, 'pending')}
+        </div>
 
-        {/* 2. ANALYSE ET GRAPHIQUES */}
+        {/* Analysis Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <Card className="lg:col-span-1 border-none shadow-sm bg-stone-900 text-white">
             <CardHeader className="border-b border-stone-800 pb-4">
