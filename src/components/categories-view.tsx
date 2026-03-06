@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -12,15 +12,10 @@ import {
   ChevronRight, 
   Box, 
   Layers, 
-  Package, 
   Truck, 
-  Clock, 
   CheckCircle2,
-  AlertCircle
+  Clock
 } from 'lucide-react';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
-} from 'recharts';
 
 interface CategoriesViewProps {
   articles: any[];
@@ -35,7 +30,6 @@ interface CategoriesViewProps {
 
 export default function CategoriesView({
   articles = [],
-  factures = [],
   generalCategories = [],
   subCategories = [],
   selectedCategory,
@@ -91,9 +85,10 @@ export default function CategoriesView({
   // Table Groups
   const groupedData = useMemo(() => {
     if (!selectedCategory) return null;
+    const now = new Date();
     return {
-      transit: currentArticles.filter(a => a.status === 'SHIPPED'),
-      arrived: currentArticles.filter(a => a.status === 'ARRIVED' || (a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) <= new Date())),
+      transit: currentArticles.filter(a => a.status === 'SHIPPED' && (!a.arrivalDate || new Date(a.arrivalDate) > now)),
+      arrived: currentArticles.filter(a => a.status === 'ARRIVED' || (a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) <= now)),
       pending: currentArticles.filter(a => a.status === 'TO_ORDER' || a.status === 'PI')
     };
   }, [currentArticles, selectedCategory]);
@@ -107,13 +102,6 @@ export default function CategoriesView({
     });
     return totals;
   }, [currentArticles]);
-
-  // Mock trend data
-  const trendData = [
-    { name: 'Jan', val: 400 }, { name: 'Fév', val: 300 },
-    { name: 'Mar', val: 600 }, { name: 'Avr', val: 800 },
-    { name: 'Mai', val: 500 }
-  ];
 
   // RENDER: Detailed View for a specific sub-category
   if (selectedCategory && groupedData) {
@@ -143,13 +131,13 @@ export default function CategoriesView({
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="bg-blue-500 w-1 h-6 rounded-full" />
-            <h3 className="font-bold text-stone-700 flex items-center gap-2">
+            <h3 className="font-bold text-stone-700 flex items-center gap-2 uppercase text-sm tracking-wide">
               <Truck className="w-4 h-4" /> Commandes en Transit
             </h3>
           </div>
-          <Card className="border-none shadow-sm">
+          <Card className="border-none shadow-sm overflow-hidden">
             <Table>
-              <TableHeader className="bg-stone-50/50">
+              <TableHeader className="bg-blue-50/50">
                 <TableRow>
                   <TableHead>Désignation</TableHead>
                   <TableHead>Fournisseur</TableHead>
@@ -179,18 +167,18 @@ export default function CategoriesView({
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="bg-emerald-500 w-1 h-6 rounded-full" />
-            <h3 className="font-bold text-stone-700 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Stock Disponible (Arrivé)
+            <h3 className="font-bold text-stone-700 flex items-center gap-2 uppercase text-sm tracking-wide">
+              <CheckCircle2 className="w-4 h-4" /> Stock Réel (Arrivé)
             </h3>
           </div>
-          <Card className="border-none shadow-sm">
+          <Card className="border-none shadow-sm overflow-hidden">
             <Table>
-              <TableHeader className="bg-stone-50/50">
+              <TableHeader className="bg-emerald-50/50">
                 <TableRow>
                   <TableHead>Désignation</TableHead>
                   <TableHead>Date Arrivée</TableHead>
                   <TableHead>Spécifications</TableHead>
-                  <TableHead className="text-right">Quantité</TableHead>
+                  <TableHead className="text-right">Quantité en Stock</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -213,13 +201,13 @@ export default function CategoriesView({
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="bg-amber-500 w-1 h-6 rounded-full" />
-            <h3 className="font-bold text-stone-700 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Commandes en Préparation / Production
+            <h3 className="font-bold text-stone-700 flex items-center gap-2 uppercase text-sm tracking-wide">
+              <Clock className="w-4 h-4" /> Commandes en Attente / Production
             </h3>
           </div>
-          <Card className="border-none shadow-sm">
+          <Card className="border-none shadow-sm overflow-hidden">
             <Table>
-              <TableHeader className="bg-stone-50/50">
+              <TableHeader className="bg-amber-50/50">
                 <TableRow>
                   <TableHead>Désignation</TableHead>
                   <TableHead>État</TableHead>
@@ -244,25 +232,6 @@ export default function CategoriesView({
                 )}
               </TableBody>
             </Table>
-          </Card>
-        </section>
-
-        <section className="pt-8 border-t border-stone-200">
-          <Card className="border-none shadow-none bg-transparent">
-            <CardHeader className="px-0">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Tendance de consommation (Estimation)</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[200px] px-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} />
-                  <YAxis hide />
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Line type="monotone" dataKey="val" stroke="#d97706" strokeWidth={3} dot={{ r: 4, fill: '#d97706' }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
           </Card>
         </section>
       </div>
@@ -303,7 +272,7 @@ export default function CategoriesView({
                   {Object.entries(sc.units).map(([unit, total]) => (
                     <div key={unit} className="flex justify-between items-center border-t border-stone-50 pt-2">
                       <span className="text-xs text-stone-500 font-medium">Stock Total {unit}</span>
-                      <span className="font-bold text-stone-800">{total.toLocaleString()}</span>
+                      <span className="font-bold text-stone-800">{(total as number).toLocaleString()}</span>
                     </div>
                   ))}
                   <div className="flex justify-between items-center pt-2 border-t border-stone-100 mt-2">

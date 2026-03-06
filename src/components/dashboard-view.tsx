@@ -13,7 +13,8 @@ import {
   DollarSign,
   Box,
   Truck,
-  History
+  History,
+  TrendingUp
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -70,7 +71,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     });
     return Object.entries(data)
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8); // Top 8 categories
   }, [articles]);
 
   const statusValueData = useMemo(() => {
