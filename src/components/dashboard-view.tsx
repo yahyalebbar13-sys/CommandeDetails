@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, Legend
+  Cell, Legend, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import { 
   DollarSign,
@@ -16,8 +16,8 @@ import {
   ArrowRight,
   TrendingUp,
   Users,
-  Layers,
-  ShieldAlert
+  ShieldAlert,
+  Activity
 } from 'lucide-react';
 import { ViewType } from '@/lib/types';
 
@@ -41,6 +41,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     const toOrderArticles = safeArticles.filter(a => a.status === 'TO_ORDER');
     const piArticles = safeArticles.filter(a => a.status === 'PI');
 
+    const totalToOrderQty = toOrderArticles.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
+    const totalPiQty = piArticles.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
+
     safeArticles.forEach(art => {
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       const cbm = Number(art.cubicMeasurement) || 0;
@@ -59,7 +62,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       totalCbm,
       totalFactures: safeFactures.length,
       toOrderCount: toOrderArticles.length,
+      totalToOrderQty,
       piCount: piArticles.length,
+      totalPiQty,
       avgEfficiency
     };
   }, [safeArticles, safeFactures]);
@@ -68,7 +73,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     const catMap: Record<string, number> = {};
     const supMap: Record<string, number> = {};
     const depMap: Record<string, Record<string, number>> = {};
-    const allSuppliers = new Set<string>();
 
     safeArticles.forEach(art => {
       const cat = art.categoryId || 'Non classé';
@@ -77,7 +81,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
       catMap[cat] = (catMap[cat] || 0) + val;
       supMap[sup] = (supMap[sup] || 0) + val;
-      allSuppliers.add(sup);
 
       if (!depMap[cat]) depMap[cat] = {};
       depMap[cat][sup] = (depMap[cat][sup] || 0) + val;
@@ -92,55 +95,65 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Dependency Analysis: Normalized to 100% to show relative concentration
+    // Dependency Analysis: Qualitative (Low/Medium/Strong)
     const dependencyData = Object.entries(depMap)
       .map(([category, sups]) => {
-        const total = Object.values(sups).reduce((s, v) => s + (v as number), 0);
-        const normalized: Record<string, any> = { category };
-        Object.entries(sups).forEach(([sup, val]) => {
-          normalized[sup] = total > 0 ? Number(((val / total) * 100).toFixed(1)) : 0;
-        });
-        return normalized;
+        const values = Object.values(sups) as number[];
+        const total = values.reduce((s, v) => s + v, 0);
+        const maxVal = Math.max(...values);
+        const concentration = total > 0 ? (maxVal / total) * 100 : 0;
+        
+        let level = 'Faible';
+        if (concentration > 70) level = 'Forte';
+        else if (concentration > 40) level = 'Moyenne';
+
+        return { 
+          category, 
+          concentration: Number(concentration.toFixed(1)),
+          level,
+          fullMark: 100 
+        };
       })
-      .sort((a, b) => a.category.localeCompare(b.category))
-      .slice(0, 10);
+      .sort((a, b) => b.concentration - a.concentration)
+      .slice(0, 8);
 
     return { 
       categoryData, 
       supplierValueData, 
-      dependencyData, 
-      suppliers: Array.from(allSuppliers) 
+      dependencyData
     };
   }, [safeArticles]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Quick Nav Indicators */}
+      {/* Quick Nav Indicators with mini volume recalls */}
       <div className="flex flex-wrap gap-4">
         <button 
           onClick={() => onNavigate('to-order')}
-          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group min-w-[200px]"
+          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group min-w-[240px]"
         >
           <div className="p-2 bg-stone-100 rounded-xl group-hover:bg-amber-100 transition-colors">
             <ClipboardList className="w-5 h-5 text-stone-500 group-hover:text-amber-600" />
           </div>
           <div className="text-left">
-            <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Besoins</p>
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">Besoins Identifiés</p>
             <p className="text-xl font-black text-stone-900 leading-none mt-1">{stats.toOrderCount} <span className="text-[10px] text-stone-400 font-bold">RAPPELS</span></p>
+            <p className="text-[10px] text-amber-600 font-black mt-1">VOL: {stats.totalToOrderQty.toLocaleString()}</p>
           </div>
           <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-auto" />
         </button>
 
         <button 
           onClick={() => onNavigate('pending')}
-          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group min-w-[200px]"
+          className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-500 transition-all shadow-sm group min-w-[240px]"
         >
           <div className="p-2 bg-stone-100 rounded-xl group-hover:bg-amber-100 transition-colors">
             <Factory className="w-5 h-5 text-stone-500 group-hover:text-amber-600" />
           </div>
           <div className="text-left">
-            <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Production</p>
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">En Production</p>
             <p className="text-xl font-black text-stone-900 leading-none mt-1">{stats.piCount} <span className="text-[10px] text-stone-400 font-bold">PI LNC</span></p>
+            <p className="text-[10px] text-amber-600 font-black mt-1">VOL: {stats.totalPiQty.toLocaleString()}</p>
           </div>
           <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-auto" />
         </button>
@@ -205,11 +218,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Category Distribution Chart */}
+        {/* Category Distribution Chart - Vertical Bar */}
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <TrendingUp className="w-4 h-4 text-amber-500" /> Répartition du Capital par Catégorie (€)
+              <TrendingUp className="w-4 h-4 text-amber-500" /> Capital par Catégorie (€)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
@@ -231,7 +244,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           </CardContent>
         </Card>
 
-        {/* Supplier Value Chart */}
+        {/* Supplier Value Chart - Vertical Bar */}
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
@@ -254,43 +267,60 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
-      {/* Dependency Analysis (Normalized to 100%) */}
+      {/* Dependency Analysis - Radar Chart (Spider Chart) */}
       <Card className="border-none shadow-sm bg-white">
         <CardHeader className="py-6 border-b border-stone-50">
           <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-            <ShieldAlert className="w-4 h-4 text-emerald-500" /> Analyse de Dépendance Relative (%)
+            <ShieldAlert className="w-4 h-4 text-emerald-500" /> Radar de Dépendance Logistique (Risque %)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
-          <div className="h-[500px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analyticsData.dependencyData} layout="vertical" margin={{ left: 60, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
-                <XAxis type="number" domain={[0, 100]} hide />
-                <YAxis dataKey="category" type="category" axisLine={false} tickLine={false} width={140} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }} 
-                  formatter={(val: number) => [`${val}%`]} 
-                  contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
-                {analyticsData.suppliers.map((sup, index) => (
-                  <Bar 
-                    key={sup} 
-                    dataKey={sup} 
-                    name={sup} 
-                    stackId="a" 
-                    fill={COLORS[index % COLORS.length]} 
-                    radius={[0, 0, 0, 0]}
-                    barSize={32}
+          <div className="h-[450px] w-full flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-1 h-full w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={analyticsData.dependencyData}>
+                  <PolarGrid stroke="#e2e8f0" />
+                  <PolarAngleAxis dataKey="category" tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
+                  <Radar
+                    name="Niveau de Dépendance"
+                    dataKey="concentration"
+                    stroke="#CC8626"
+                    fill="#CC8626"
+                    fillOpacity={0.5}
                   />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                    formatter={(val: number) => [`${val}%`, 'Concentration Fournisseur']}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="w-full md:w-64 space-y-4">
+              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Activity className="w-3 h-3 text-amber-500" /> Échelle de Risque
+                </p>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black text-red-600 uppercase">Forte Dépendance</span>
+                    <span className="text-[9px] font-black text-stone-400">&gt; 70%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black text-amber-600 uppercase">Risque Moyen</span>
+                    <span className="text-[9px] font-black text-stone-400">40-70%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black text-emerald-600 uppercase">Flux Diversifié</span>
+                    <span className="text-[9px] font-black text-stone-400">&lt; 40%</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[9px] text-stone-400 font-bold uppercase leading-relaxed italic">
+                Ce radar mesure la concentration de vos achats. Une pointe vers l'extérieur indique qu'un seul fournisseur domine la catégorie.
+              </p>
+            </div>
           </div>
-          <p className="mt-4 text-[9px] text-stone-400 font-bold uppercase text-center italic">
-            Visualisation de la concentration : ce graphique montre quel fournisseur domine chaque catégorie en pourcentage de valeur.
-          </p>
         </CardContent>
       </Card>
     </div>
