@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Factory, ListTodo, Layers, Package, Save, Palette, Ruler } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -65,7 +64,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     try {
       const result = await suggestArticleSpecifications({
         category: formData.categoryId,
-        article: formData.categoryId // On utilise la catégorie car le nom de l'article est identique
+        article: formData.categoryId
       });
       setFormData((prev: any) => ({ ...prev, specs: result.specs }));
     } catch (err) {
@@ -81,11 +80,17 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
     
-    // Le nom est TOUJOURS celui de la catégorie
+    let arrivalDate = formData.arrivalDate || '';
+    if (formData.status === 'SHIPPED' && formData.factureId) {
+      const selectedFacture = (factures || []).find(f => f.id === formData.factureId);
+      if (selectedFacture) arrivalDate = selectedFacture.arrivalDate;
+    }
+
     const finalData = {
       ...formData,
       name: formData.categoryId,
-      generalCategoryId: selectedGenCatId
+      generalCategoryId: selectedGenCatId,
+      arrivalDate
     };
 
     updateDocumentNonBlocking(docRef, finalData);
@@ -192,7 +197,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité Demandée</Label>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
               <Input 
                 type="number" 
                 required 
@@ -214,44 +219,54 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               />
             </div>
 
-            {formData.status !== 'TO_ORDER' && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Fournisseur Actuel</Label>
-                  <Input 
-                    required 
-                    value={formData.supplierId || ''} 
-                    onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
-                    className="h-11 border-stone-200 font-bold uppercase"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Encombrement (CBM)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.001" 
-                    required 
-                    value={formData.cubicMeasurement || 0} 
-                    onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
-                    className="h-11 border-stone-200 font-bold"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Lien Facture / Arrivage</Label>
+            <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200 md:col-span-2">
+              <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({...p, status: v}))}>
+                  <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
+                    <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
+                    <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">Expédié (Sur Facture)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {formData.status !== 'TO_ORDER' && (
                   <Select value={formData.factureId || ''} onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}>
                     <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
-                      <SelectValue placeholder="Associer à un dossier logistique..." />
+                      <SelectValue placeholder="Lier Facture..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="" className="font-bold italic">PAS DE FACTURE (PI ISOLÉ)</SelectItem>
-                      {factures.map(f => (
+                      <SelectItem value="" className="font-bold italic">PAS DE FACTURE</SelectItem>
+                      {(factures || []).map(f => (
                         <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id} - {f.arrivalDate}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              </>
-            )}
+                )}
+                
+                {formData.status !== 'TO_ORDER' && (
+                  <>
+                    <Input 
+                      placeholder="Fournisseur" 
+                      value={formData.supplierId || ''} 
+                      onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
+                      className="h-11 border-stone-200 font-bold uppercase"
+                    />
+                    <Input 
+                      type="number" 
+                      step="0.001" 
+                      placeholder="Encombrement (CBM)"
+                      value={formData.cubicMeasurement || 0} 
+                      onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
+                      className="h-11 border-stone-200 font-bold"
+                    />
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </form>
 

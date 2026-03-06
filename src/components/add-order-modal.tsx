@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -11,12 +10,12 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, FileText } from 'lucide-react';
+import { Layers, Package, Save, Palette, Ruler } from 'lucide-react';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
 
-export default function AddOrderModal({ open, onOpenChange, factures }: { open: boolean, onOpenChange: (o: boolean) => void, factures: any[] }) {
+export default function AddOrderModal({ open, onOpenChange, factures }: { open: boolean, onOpenChange: (o: boolean) => void, factures: any[] | null }) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -36,7 +35,9 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     color: 'white',
     orderDate: new Date().toISOString().split('T')[0],
     status: 'TO_ORDER',
-    factureId: ''
+    factureId: '',
+    cubicMeasurement: 0,
+    supplierId: ''
   });
 
   const filteredSubCategories = useMemo(() => {
@@ -51,27 +52,49 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'articles', id);
     
-    // Le nom de l'article est TOUJOURS le nom de la sous-catégorie
-    const subCatName = formData.categoryId;
+    // Auto-fill arrival date if linked to a known facture
+    let arrivalDate = '';
+    if (formData.status === 'SHIPPED' && formData.factureId) {
+      const selectedFacture = (factures || []).find(f => f.id === formData.factureId);
+      if (selectedFacture) arrivalDate = selectedFacture.arrivalDate;
+    }
 
     setDocumentNonBlocking(docRef, { 
       ...formData, 
       id, 
-      name: subCatName,
+      name: formData.categoryId, // Le nom est TOUJOURS le nom de la sous-catégorie
       generalCategoryId: selectedGenCatId,
+      arrivalDate,
       createdAt: serverTimestamp() 
     }, { merge: true });
 
     toast({ title: "Article enregistré avec succès" });
     onOpenChange(false);
+    
+    // Reset
+    setFormData({
+      categoryId: '',
+      quantity: 0,
+      purchasePricePerUnit: 0,
+      unitOfMeasure: 'pièces',
+      color: 'white',
+      orderDate: new Date().toISOString().split('T')[0],
+      status: 'TO_ORDER',
+      factureId: '',
+      cubicMeasurement: 0,
+      supplierId: ''
+    });
+    setSelectedGenCatId('');
   };
+
+  const safeFactures = factures || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-stone-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
-            <Package className="w-5 h-5 text-stone-400" /> Expression de Besoin / Commande
+            <Package className="w-5 h-5 text-stone-400" /> Nouvel Article
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5 py-4">
@@ -145,43 +168,64 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
               <Input type="number" required className="h-11 border-stone-200 font-bold" value={formData.quantity} onChange={e => setFormData((p: any) => ({...p, quantity: parseFloat(e.target.value)}))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Est. (€)</Label>
-              <Input type="number" step="0.01" className="h-11 border-stone-200 font-bold" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({...p, purchasePricePerUnit: parseFloat(e.target.value)}))} />
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire (€)</Label>
+              <Input type="number" step="0.0001" className="h-11 border-stone-200 font-bold" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({...p, purchasePricePerUnit: parseFloat(e.target.value)}))} />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">État & Lien Logistique</Label>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
+            <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Suivi Opérationnel</Label>
+            <div className="grid grid-cols-1 gap-3">
               <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({...p, status: v, factureId: v === 'TO_ORDER' ? '' : p.factureId}))}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="TO_ORDER" className="font-bold">À COMMANDER</SelectItem>
-                  <SelectItem value="PI" className="font-bold text-amber-600">PRODUCTION (PI)</SelectItem>
+                  <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
+                  <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
+                  <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">Expédié (Sur Facture)</SelectItem>
                 </SelectContent>
               </Select>
-              
-              <Select 
-                disabled={formData.status === 'TO_ORDER'}
-                value={formData.factureId} 
-                onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}
-              >
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
-                  <SelectValue placeholder="Lier facture..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="" className="font-bold italic">AUCUNE</SelectItem>
-                  {factures.map(f => (
-                    <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+              {formData.status !== 'TO_ORDER' && (
+                <>
+                  <Input 
+                    placeholder="Fournisseur (ex: MH)" 
+                    className="h-11 border-stone-200 font-bold uppercase"
+                    value={formData.supplierId}
+                    onChange={e => setFormData((p: any) => ({ ...p, supplierId: e.target.value.toUpperCase() }))}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input 
+                      type="number"
+                      step="0.001"
+                      placeholder="Volume CBM" 
+                      className="h-11 border-stone-200 font-bold"
+                      value={formData.cubicMeasurement}
+                      onChange={e => setFormData((p: any) => ({ ...p, cubicMeasurement: parseFloat(e.target.value) || 0 }))}
+                    />
+                    <Select 
+                      value={formData.factureId} 
+                      onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}
+                    >
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                        <SelectValue placeholder="Lier Facture..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="" className="font-bold italic">AUCUNE</SelectItem>
+                        {safeFactures.map(f => (
+                          <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest h-12 rounded-lg gap-2 mt-4">
+          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest h-12 rounded-lg gap-2 mt-2">
             <Save className="w-4 h-4" /> Enregistrer dans le suivi
           </Button>
         </form>
