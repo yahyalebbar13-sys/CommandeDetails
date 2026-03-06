@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, Calendar, ClipboardList } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -227,18 +227,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   className="h-11 border-stone-200 font-bold text-amber-700"
                 />
               </div>
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Calendar className="w-3 h-3" /> Date de Commande
-              </Label>
-              <Input 
-                type="date" 
-                className="h-11 border-stone-200 font-bold" 
-                value={formData.orderDate || ''} 
-                onChange={e => setFormData((p: any) => ({...p, orderDate: e.target.value}))} 
-              />
             </div>
 
             <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200 md:col-span-2">

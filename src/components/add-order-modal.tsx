@@ -10,7 +10,7 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, Calendar, ClipboardList } from 'lucide-react';
+import { Layers, Package, Save, Palette, Ruler, ClipboardList } from 'lucide-react';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
@@ -34,7 +34,6 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     purchasePricePerUnit: 0,
     unitOfMeasure: 'pièces',
     color: 'white',
-    orderDate: new Date().toISOString().split('T')[0],
     status: 'TO_ORDER',
     factureId: 'NONE',
     cubicMeasurement: 0,
@@ -53,7 +52,6 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'articles', id);
     
-    // Auto-fill arrival date if linked to a known facture
     let arrivalDate = '';
     const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
 
@@ -65,7 +63,7 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     setDocumentNonBlocking(docRef, { 
       ...formData, 
       id, 
-      name: formData.categoryId, // Le nom est TOUJOURS le nom de la sous-catégorie
+      name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       factureId: finalFactureId,
       arrivalDate,
@@ -75,7 +73,6 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     toast({ title: "Article enregistré avec succès" });
     onOpenChange(false);
     
-    // Reset
     setFormData({
       categoryId: '',
       specs: '',
@@ -83,7 +80,6 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
       purchasePricePerUnit: 0,
       unitOfMeasure: 'pièces',
       color: 'white',
-      orderDate: new Date().toISOString().split('T')[0],
       status: 'TO_ORDER',
       factureId: 'NONE',
       cubicMeasurement: 0,
@@ -190,18 +186,6 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire (€)</Label>
               <Input type="number" step="0.0001" className="h-11 border-stone-200 font-bold text-amber-700" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({...p, purchasePricePerUnit: parseFloat(e.target.value)}))} />
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Date de Commande
-            </Label>
-            <Input 
-              type="date" 
-              className="h-11 border-stone-200 font-bold" 
-              value={formData.orderDate} 
-              onChange={e => setFormData((p: any) => ({...p, orderDate: e.target.value}))} 
-            />
           </div>
 
           <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
