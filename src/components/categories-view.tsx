@@ -5,15 +5,44 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ChevronLeft, Plus, TrendingUp, Cuboid, Calendar, Package } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  Plus, 
+  TrendingUp, 
+  Cuboid, 
+  Calendar, 
+  Package, 
+  Ship, 
+  CheckCircle2, 
+  Clock, 
+  ArrowUpRight, 
+  BarChart3,
+  CalendarDays,
+  History,
+  Info
+} from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, BarChart, Bar } from 'recharts';
+import { 
+  ResponsiveContainer, 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  BarChart, 
+  Bar,
+  AreaChart,
+  Area,
+  Legend
+} from 'recharts';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface CategoriesViewProps {
   articles: any[];
@@ -32,12 +61,10 @@ export default function CategoriesView({ articles, factures, generalCategories, 
   const [newCatName, setNewCatName] = useState('');
   const [targetGenCatId, setTargetGenCatId] = useState(selectedGeneralCategoryId || '');
 
-  // Filtrage et agrégation pour la vue liste des types de produits
   const filteredCategoriesList = useMemo(() => {
     const data: Record<string, { qtyByUnit: Record<string, number>; val: number; count: number; cbm: number; genCatId: string }> = {};
     
     (articles || []).forEach(o => {
-      // Si un filtre de catégorie générale est actif, on ignore les articles qui n'en font pas partie
       if (selectedGeneralCategoryId && o.generalCategoryId !== selectedGeneralCategoryId) return;
 
       const cat = o.categoryId || 'Inconnu';
@@ -65,129 +92,293 @@ export default function CategoriesView({ articles, factures, generalCategories, 
     setNewCatName('');
   };
 
-  // VUE DÉTAILLÉE D'UNE SOUS-CATÉGORIE
   if (selectedCategory) {
-    const catArticles = articles
+    const now = new Date();
+    const catArticles = (articles || [])
       .filter(o => o.categoryId === selectedCategory && (!selectedGeneralCategoryId || o.generalCategoryId === selectedGeneralCategoryId))
       .sort((a, b) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime());
 
-    const stats = {
-      val: catArticles.reduce((s, o) => s + (o.quantity * o.purchasePricePerUnit), 0),
-      qtyByUnit: catArticles.reduce((acc: Record<string, number>, o) => {
-        const u = o.unitOfMeasure || 'pcs';
-        acc[u] = (acc[u] || 0) + o.quantity;
-        return acc;
-      }, {}),
-      cbm: catArticles.reduce((s, o) => s + (o.cubicMeasurement || 0), 0)
-    };
+    // STATS AVANCÉES
+    const stats = useMemo(() => {
+      let val = 0, valArrived = 0, valTransit = 0, valPending = 0;
+      let cbm = 0, cbmArrived = 0, cbmTransit = 0;
+      const qtyByUnit: Record<string, { total: number; arrived: number; transit: number; pending: number }> = {};
+      
+      catArticles.forEach(o => {
+        const itemVal = (o.quantity || 0) * (o.purchasePricePerUnit || 0);
+        const unit = o.unitOfMeasure || 'pcs';
+        
+        if (!qtyByUnit[unit]) {
+          qtyByUnit[unit] = { total: 0, arrived: 0, transit: 0, pending: 0 };
+        }
+        
+        qtyByUnit[unit].total += o.quantity;
+        val += itemVal;
+        cbm += (o.cubicMeasurement || 0);
 
-    const chartData = catArticles.map(o => ({
-      date: o.orderDate,
-      pa: o.purchasePricePerUnit,
-      cbm: o.cubicMeasurement || 0,
-      name: o.name
-    }));
+        if (o.status === 'PI' || !o.factureId) {
+          valPending += itemVal;
+          qtyByUnit[unit].pending += o.quantity;
+        } else {
+          const isArrived = new Date(o.arrivalDate) <= now;
+          if (isArrived) {
+            valArrived += itemVal;
+            cbmArrived += (o.cubicMeasurement || 0);
+            qtyByUnit[unit].arrived += o.quantity;
+          } else {
+            valTransit += itemVal;
+            cbmTransit += (o.cubicMeasurement || 0);
+            qtyByUnit[unit].transit += o.quantity;
+          }
+        }
+      });
+
+      const dates = catArticles.map(o => new Date(o.orderDate).getTime());
+      const arrivals = catArticles.filter(o => o.arrivalDate && new Date(o.arrivalDate) > now).map(o => new Date(o.arrivalDate).getTime());
+
+      return {
+        val, valArrived, valTransit, valPending,
+        cbm, cbmArrived, cbmTransit,
+        qtyByUnit,
+        lastOrder: dates.length > 0 ? new Date(Math.max(...dates)).toISOString().split('T')[0] : '-',
+        nextArrival: arrivals.length > 0 ? new Date(Math.min(...arrivals)).toISOString().split('T')[0] : 'Aucune',
+        avgInterval: dates.length > 1 ? Math.round((Math.max(...dates) - Math.min(...dates)) / (dates.length - 1) / (1000 * 60 * 60 * 24)) : 0
+      };
+    }, [catArticles, now]);
+
+    // TOP 5 ARTICLES
+    const topArticles = useMemo(() => {
+      const artMap: Record<string, { name: string; val: number; qty: number; unit: string }> = {};
+      catArticles.forEach(o => {
+        if (!artMap[o.name]) artMap[o.name] = { name: o.name, val: 0, qty: 0, unit: o.unitOfMeasure };
+        artMap[o.name].val += (o.quantity * o.purchasePricePerUnit);
+        artMap[o.name].qty += o.quantity;
+      });
+      return Object.values(artMap).sort((a, b) => b.val - a.val).slice(0, 5);
+    }, [catArticles]);
+
+    // SAISONNALITÉ & CHART DATA
+    const analysisData = useMemo(() => {
+      const monthly: Record<string, { val: number; cbm: number; pa: number; count: number }> = {};
+      const timeline: any[] = [];
+      
+      catArticles.forEach(o => {
+        const month = o.orderDate?.substring(0, 7);
+        if (!monthly[month]) monthly[month] = { val: 0, cbm: 0, pa: 0, count: 0 };
+        monthly[month].val += (o.quantity * o.purchasePricePerUnit);
+        monthly[month].cbm += (o.cubicMeasurement || 0);
+        monthly[month].pa += o.purchasePricePerUnit;
+        monthly[month].count += 1;
+      });
+
+      Object.entries(monthly).sort().forEach(([month, data]) => {
+        timeline.push({
+          month,
+          val: Math.round(data.val),
+          cbm: Number(data.cbm.toFixed(2)),
+          pa: Number((data.pa / data.count).toFixed(4))
+        });
+      });
+
+      return timeline;
+    }, [catArticles]);
 
     return (
-      <div className="space-y-6 fade-in">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <Button variant="ghost" onClick={() => setSelectedCategory(null)} className="mb-2 p-0 h-auto hover:bg-transparent text-stone-500">
+      <div className="space-y-8 fade-in">
+        {/* HEADER & NAV */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="space-y-1">
+            <Button variant="ghost" onClick={() => setSelectedCategory(null)} className="p-0 h-auto hover:bg-transparent text-stone-500 mb-2">
               <ChevronLeft className="mr-1 w-4 h-4" /> Retour aux sous-catégories
             </Button>
-            <h2 className="text-3xl font-black text-stone-800 uppercase tracking-tight">{selectedCategory}</h2>
+            <h2 className="text-4xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
+              {selectedCategory}
+              <Badge className="bg-amber-600 text-white border-none">{catArticles.length} Commandes</Badge>
+            </h2>
+            <p className="text-stone-500 font-medium">Analyse stratégique et étude des flux pour {selectedCategory}</p>
           </div>
-          <div className="flex flex-wrap gap-4 justify-end">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100">
-              <div className="text-[10px] text-stone-500 font-bold uppercase mb-1">Volume Total</div>
-              <div className="text-xl font-black text-emerald-600">{stats.cbm.toFixed(2)} m³</div>
-            </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-stone-100">
-              <div className="text-[10px] text-stone-500 font-bold uppercase mb-1">Valeur Totale</div>
-              <div className="text-xl font-black text-amber-700">{Math.round(stats.val).toLocaleString()} €</div>
-            </div>
+          
+          <div className="flex flex-wrap gap-3 justify-end w-full md:w-auto">
+            <KPIItem label="Valeur Totale" value={Math.round(stats.val).toLocaleString() + " €"} icon={<TrendingUp className="w-4 h-4" />} color="text-amber-700" />
+            <KPIItem label="Volume Total" value={stats.cbm.toFixed(2) + " m³"} icon={<Cuboid className="w-4 h-4" />} color="text-emerald-700" />
+            <KPIItem label="Dernière Commande" value={stats.lastOrder} icon={<History className="w-4 h-4" />} color="text-stone-800" />
+            <KPIItem label="Prochaine Arrivée" value={stats.nextArrival} icon={<Ship className="w-4 h-4" />} color="text-blue-700" isHighlight={stats.nextArrival !== 'Aucune'} />
           </div>
         </div>
 
-        {/* SOMME DES QUANTITÉS PAR UNITÉ */}
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(stats.qtyByUnit).map(([unit, qty]) => (
-            <Badge key={unit} variant="secondary" className="px-3 py-1 text-sm bg-stone-100 text-stone-700 border-stone-200">
-              <Package className="w-3 h-3 mr-1" /> {qty.toLocaleString()} {unit}
-            </Badge>
+        {/* DISTINCTION TRANSIT / ARRIVÉ PAR UNITÉ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Object.entries(stats.qtyByUnit).map(([unit, q]) => (
+            <Card key={unit} className="border-l-4 border-l-stone-800">
+              <CardContent className="p-4">
+                <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 flex justify-between items-center">
+                   <span>Unités: {unit}</span>
+                   <Package className="w-3 h-3" />
+                </div>
+                <div className="text-2xl font-black text-stone-800 mb-3">{q.total.toLocaleString()}</div>
+                <div className="space-y-1 text-xs font-bold">
+                  <div className="flex justify-between text-emerald-600">
+                    <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Arrivé</span>
+                    <span>{q.arrived.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-blue-600">
+                    <span className="flex items-center gap-1"><Ship className="w-3 h-3" /> En Transit</span>
+                    <span>{q.transit.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-600">
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> En Production</span>
+                    <span>{q.pending.toLocaleString()}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ))}
+          <Card className="bg-stone-50 border-dashed">
+            <CardContent className="p-4 flex flex-col justify-center h-full">
+              <div className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Intervalle Moyen</div>
+              <div className="text-xl font-black text-stone-700">{stats.avgInterval} jours</div>
+              <p className="text-[10px] text-stone-400 mt-1">Délai moyen entre deux passages de commandes.</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* 1. TABLEAU DES ARTICLES (AVANT LES GRAPHIQUES) */}
-        <Card>
-          <CardHeader className="bg-stone-50/50 border-b">
-            <CardTitle className="text-sm font-bold">Historique des commandes pour {selectedCategory}</CardTitle>
+        {/* 1. TABLEAU DES ARTICLES (PLANTÉ EN PREMIER) */}
+        <Card className="shadow-sm border-stone-200">
+          <CardHeader className="bg-stone-50/50 border-b flex flex-row items-center justify-between py-4">
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><BarChart3 className="w-4 h-4" /> Historique Détaillé des Commandes</CardTitle>
+            <div className="text-[10px] font-bold text-stone-400 uppercase">Tri chronologique</div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-stone-50">
-                <TableRow>
-                  <TableHead>Article</TableHead>
-                  <TableHead><Calendar className="w-3 h-3 inline mr-1" /> Date</TableHead>
-                  <TableHead className="text-right">Quantité</TableHead>
-                  <TableHead className="text-right">PA (€)</TableHead>
-                  <TableHead className="text-right">Volume (CBM)</TableHead>
-                  <TableHead className="text-right">Total Valeur</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {catArticles.length === 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-stone-50">
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-stone-400 italic">Aucun article trouvé</TableCell>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Article</TableHead>
+                    <TableHead><Calendar className="w-3 h-3 inline mr-1" /> Commande</TableHead>
+                    <TableHead><Ship className="w-3 h-3 inline mr-1" /> Arrivée</TableHead>
+                    <TableHead className="text-right">Quantité</TableHead>
+                    <TableHead className="text-right">PA (€)</TableHead>
+                    <TableHead className="text-right">Vol. (CBM)</TableHead>
+                    <TableHead className="text-right bg-amber-50/50">Valeur Totale</TableHead>
                   </TableRow>
-                ) : catArticles.map(o => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-bold">{o.name}</TableCell>
-                    <TableCell className="text-stone-500 text-xs">{o.orderDate}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400">{o.unitOfMeasure}</span>
-                    </TableCell>
-                    <TableCell className="text-right text-amber-700 font-bold">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
-                    <TableCell className="text-right text-emerald-600 font-bold">{o.cubicMeasurement?.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-black">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {catArticles.map(o => {
+                    const isArrived = o.status === 'SHIPPED' && new Date(o.arrivalDate) <= now;
+                    const isTransit = o.status === 'SHIPPED' && new Date(o.arrivalDate) > now;
+                    return (
+                      <TableRow key={o.id} className="hover:bg-stone-50/80 transition-colors">
+                        <TableCell>
+                          {isArrived && <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px]">ARRIVÉ</Badge>}
+                          {isTransit && <Badge className="bg-blue-100 text-blue-800 border-none text-[10px]">TRANSIT</Badge>}
+                          {o.status === 'PI' && <Badge className="bg-amber-100 text-amber-800 border-none text-[10px]">EN PROD.</Badge>}
+                        </TableCell>
+                        <TableCell className="font-bold">
+                          <div>{o.name}</div>
+                          <div className="text-[10px] text-stone-400 uppercase font-medium">{o.specs || 'Pas de specs'} • {o.color || 'Unique'}</div>
+                        </TableCell>
+                        <TableCell className="text-stone-500 text-xs font-medium">{o.orderDate}</TableCell>
+                        <TableCell className={`text-xs font-bold ${isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{o.arrivalDate || '-'}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-amber-700 font-mono text-xs">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
+                        <TableCell className="text-right text-emerald-600 font-bold">{o.cubicMeasurement?.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-black bg-amber-50/20">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 
-        {/* 2. GRAPHIQUES D'ÉTUDE (APRÈS LE TABLEAU) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader><CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Évolution du Prix d'Achat (PA)</CardTitle></CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                  <RechartsTooltip formatter={(v: any) => [`${Number(v).toFixed(4)} €`, 'Prix d\'achat']} />
-                  <Line type="monotone" dataKey="pa" stroke="#d97706" strokeWidth={3} dot={{ r: 4, fill: '#d97706' }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
+        {/* 2. ANALYSE ET GRAPHIQUES */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* TOP 5 ARTICLES PAR VALEUR */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="border-b pb-4">
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><ArrowUpRight className="w-4 h-4" /> Top 5 Articles (Valeur)</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {topArticles.map((art, idx) => (
+                <div key={idx} className="p-4 border-b last:border-0 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-black text-stone-200">0{idx + 1}</span>
+                    <div>
+                      <div className="text-xs font-black text-stone-800 uppercase truncate max-w-[150px]">{art.name}</div>
+                      <div className="text-[10px] text-stone-400">{art.qty.toLocaleString()} {art.unit}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-amber-700">{Math.round(art.val).toLocaleString()} €</div>
+                    <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{((art.val / stats.val) * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle className="text-sm font-bold flex items-center gap-2"><Cuboid className="w-4 h-4" /> Répartition du Volume (CBM)</CardTitle></CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                  <RechartsTooltip formatter={(v: any) => [`${Number(v).toFixed(2)} m³`, 'Volume']} />
-                  <Bar dataKey="cbm" fill="#059669" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          {/* ÉVOLUTION DES PRIX ET VOLUMES */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader className="pb-0">
+                <CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Analyse de la Valeur et Saisonnalité</CardTitle>
+              </CardHeader>
+              <CardContent className="h-[350px] pt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={analysisData}>
+                    <defs>
+                      <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#d97706" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#d97706" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
+                    <XAxis dataKey="month" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v/1000}k`} />
+                    <RechartsTooltip formatter={(v: any) => [`${Number(v).toLocaleString()} €`, 'Valeur Mensuelle']} />
+                    <Area type="monotone" dataKey="val" stroke="#d97706" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold uppercase tracking-widest text-stone-500">Tendance du Prix (PA)</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={analysisData}>
+                      <XAxis dataKey="month" hide />
+                      <YAxis hide domain={['auto', 'auto']} />
+                      <RechartsTooltip />
+                      <Line type="stepAfter" dataKey="pa" stroke="#44403c" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold uppercase tracking-widest text-stone-500">Flux de Volume (CBM)</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analysisData}>
+                      <XAxis dataKey="month" hide />
+                      <YAxis hide />
+                      <RechartsTooltip />
+                      <Bar dataKey="cbm" fill="#059669" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -195,53 +386,70 @@ export default function CategoriesView({ articles, factures, generalCategories, 
 
   // VUE LISTE DES SOUS-CATÉGORIES
   return (
-    <div className="space-y-6 fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-8 fade-in">
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-stone-800">Sous-Catégories de Produits</h1>
-          {selectedGeneralCategoryId && (
-            <p className="text-stone-500 text-sm">Famille : <span className="font-bold text-amber-600">{generalCategories.find(gc => gc.id === selectedGeneralCategoryId)?.name || 'Inconnue'}</span></p>
+          <h1 className="text-3xl font-black text-stone-900 uppercase tracking-tighter">Types de Produits</h1>
+          {selectedGeneralCategoryId ? (
+            <div className="flex items-center gap-2 mt-2">
+               <Badge className="bg-amber-100 text-amber-800 border-none font-bold">
+                 GROUPE : {generalCategories.find(gc => gc.id === selectedGeneralCategoryId)?.name || 'Inconnu'}
+               </Badge>
+               <span className="text-stone-400 text-xs font-medium">• {filteredCategoriesList.length} types trouvés</span>
+            </div>
+          ) : (
+            <p className="text-stone-500 font-medium mt-1 italic">Sélectionnez une famille générale pour affiner la liste.</p>
           )}
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold"><Plus className="mr-2 w-4 h-4" /> Nouveau Type</Button>
+        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 hover:bg-black text-white font-bold h-12 px-6 rounded-xl shadow-lg shadow-stone-200 transition-all hover:-translate-y-1">
+          <Plus className="mr-2 w-5 h-5" /> Nouveau Type
+        </Button>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredCategoriesList.length === 0 ? (
-          <div className="col-span-full py-20 text-center border-2 border-dashed border-stone-200 rounded-xl text-stone-400">
-            Aucun type de produit trouvé pour cette sélection.
+          <div className="col-span-full py-24 text-center border-2 border-dashed border-stone-200 rounded-3xl bg-white/50">
+            <div className="bg-stone-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+               <Package className="w-8 h-8 text-stone-300" />
+            </div>
+            <p className="text-stone-400 font-bold uppercase tracking-widest text-sm">Aucun type de produit trouvé</p>
           </div>
         ) : filteredCategoriesList.map(([name, stats]) => (
-          <Card key={name} onClick={() => setSelectedCategory(name)} className="cursor-pointer hover:shadow-md transition-all group border-l-4 border-l-amber-600">
+          <Card 
+            key={name} 
+            onClick={() => setSelectedCategory(name)} 
+            className="cursor-pointer hover:shadow-xl transition-all group border-none shadow-sm overflow-hidden bg-white"
+          >
+            <div className="h-2 w-full bg-stone-800 group-hover:bg-amber-600 transition-colors" />
             <CardContent className="p-6">
-              <h3 className="text-lg font-black mb-4 group-hover:text-amber-600 transition-colors uppercase truncate">{name}</h3>
+              <h3 className="text-xl font-black mb-6 group-hover:text-amber-600 transition-colors uppercase tracking-tight truncate">{name}</h3>
               
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-[10px] text-stone-500 uppercase font-bold border-b border-stone-50 pb-1">
-                  <span>Volume</span>
-                  <span>Valeur</span>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-1">Volume Fis.</div>
+                  <div className="text-lg font-black text-emerald-700">{stats.cbm.toFixed(2)} m³</div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-bold text-emerald-700">{stats.cbm.toFixed(2)} m³</span>
-                  <span className="text-sm font-bold text-amber-700">{Math.round(stats.val).toLocaleString()} €</span>
+                <div>
+                  <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-1">Val. Totale</div>
+                  <div className="text-lg font-black text-amber-700">{Math.round(stats.val).toLocaleString()} €</div>
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-stone-100">
-                <div className="text-[10px] text-stone-400 font-bold uppercase mb-1">Quantités par unité</div>
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(stats.qtyByUnit).slice(0, 3).map(([unit, qty]) => (
-                    <span key={unit} className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">
+              <div className="pt-4 border-t border-stone-100">
+                <div className="text-[10px] text-stone-400 font-bold uppercase mb-2">Répartition Quantités</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(stats.qtyByUnit).slice(0, 2).map(([unit, qty]) => (
+                    <Badge key={unit} variant="secondary" className="bg-stone-50 text-stone-600 border-stone-100 text-[10px] font-bold">
                       {qty.toLocaleString()} {unit}
-                    </span>
+                    </Badge>
                   ))}
-                  {Object.keys(stats.qtyByUnit).length > 3 && <span className="text-[10px] text-stone-400">...</span>}
+                  {Object.keys(stats.qtyByUnit).length > 2 && <span className="text-[10px] text-stone-300 font-bold">+{Object.keys(stats.qtyByUnit).length - 2}</span>}
                 </div>
               </div>
 
-              <div className="mt-4 flex justify-between items-center text-xs">
-                <span className="text-stone-400">{stats.count} Articles</span>
-                <span className="text-amber-600 font-bold group-hover:translate-x-1 transition-transform">Détails →</span>
+              <div className="mt-6 flex justify-between items-center text-xs pt-4 border-t border-stone-50">
+                <span className="text-stone-400 font-medium">{stats.count} Articles</span>
+                <span className="text-stone-900 font-black uppercase tracking-tighter group-hover:translate-x-1 transition-transform">Étude →</span>
               </div>
             </CardContent>
           </Card>
@@ -249,28 +457,48 @@ export default function CategoriesView({ articles, factures, generalCategories, 
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Nouveau Type de Produit</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1">
-              <label className="text-sm font-bold">Famille Générale (Parent)</label>
+        <DialogContent className="rounded-2xl border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-stone-900 uppercase tracking-tighter">Nouveau Type de Produit</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-6">
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase text-stone-500 tracking-widest">Famille Générale (Parent)</label>
               <Select value={targetGenCatId} onValueChange={setTargetGenCatId}>
-                <SelectTrigger className="bg-white"><SelectValue placeholder="Choisir le groupe..." /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="h-12 rounded-xl bg-stone-50 border-stone-100"><SelectValue placeholder="Choisir le groupe..." /></SelectTrigger>
+                <SelectContent className="rounded-xl">
                   {(generalCategories || []).map(gc => (
                     <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-bold">Nom du Type (ex: ZIP NO5)</label>
-              <Input value={newCatName} onChange={e => setNewCatName(e.target.value.toUpperCase())} placeholder="Nom..." className="uppercase" />
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase text-stone-500 tracking-widest">Nom du Type (ex: ZIP NO5)</label>
+              <Input 
+                value={newCatName} 
+                onChange={e => setNewCatName(e.target.value.toUpperCase())} 
+                placeholder="Nom..." 
+                className="h-12 rounded-xl uppercase font-bold bg-stone-50 border-stone-100" 
+              />
             </div>
           </div>
-          <DialogFooter><Button onClick={handleAddCategory} className="bg-amber-600 text-white font-bold">Créer</Button></DialogFooter>
+          <DialogFooter>
+            <Button onClick={handleAddCategory} className="w-full bg-stone-900 h-12 rounded-xl text-white font-black uppercase tracking-widest">Créer la Sous-Catégorie</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function KPIItem({ label, value, icon, color, isHighlight }: any) {
+  return (
+    <div className={`bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex flex-col min-w-[140px] ${isHighlight ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}>
+      <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+        {icon} {label}
+      </div>
+      <div className={`text-lg font-black tracking-tight ${color}`}>{value}</div>
     </div>
   );
 }
