@@ -34,10 +34,6 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     purchasePricePerUnit: 0,
     unitOfMeasure: 'pièces',
     color: 'white',
-    status: 'TO_ORDER',
-    factureId: 'NONE',
-    cubicMeasurement: 0,
-    supplierId: ''
   });
 
   const filteredSubCategories = useMemo(() => {
@@ -52,25 +48,17 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'articles', id);
     
-    let arrivalDate = '';
-    const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
-
-    if (formData.status === 'SHIPPED' && finalFactureId) {
-      const selectedFacture = (factures || []).find(f => f.id === finalFactureId);
-      if (selectedFacture) arrivalDate = selectedFacture.arrivalDate;
-    }
-
+    // Status is strictly TO_ORDER for new additions
     setDocumentNonBlocking(docRef, { 
       ...formData, 
       id, 
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
-      factureId: finalFactureId,
-      arrivalDate,
+      status: 'TO_ORDER',
       createdAt: serverTimestamp() 
     }, { merge: true });
 
-    toast({ title: "Article enregistré avec succès" });
+    toast({ title: "Besoins enregistrés", description: "L'article a été ajouté à la liste des rappels." });
     onOpenChange(false);
     
     setFormData({
@@ -80,15 +68,9 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
       purchasePricePerUnit: 0,
       unitOfMeasure: 'pièces',
       color: 'white',
-      status: 'TO_ORDER',
-      factureId: 'NONE',
-      cubicMeasurement: 0,
-      supplierId: ''
     });
     setSelectedGenCatId('');
   };
-
-  const safeFactures = factures || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -188,60 +170,14 @@ export default function AddOrderModal({ open, onOpenChange, factures }: { open: 
             </div>
           </div>
 
-          <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
-            <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Suivi Opérationnel</Label>
-            <div className="grid grid-cols-1 gap-3">
-              <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({...p, status: v, factureId: v === 'TO_ORDER' ? 'NONE' : p.factureId}))}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
-                  <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
-                  <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">Expédié (Sur Facture)</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {formData.status !== 'TO_ORDER' && (
-                <>
-                  <Input 
-                    placeholder="Fournisseur (ex: MH)" 
-                    className="h-11 border-stone-200 font-bold uppercase"
-                    value={formData.supplierId}
-                    onChange={e => setFormData((p: any) => ({ ...p, supplierId: e.target.value.toUpperCase() }))}
-                  />
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input 
-                      type="number"
-                      step="0.001"
-                      placeholder="Volume CBM" 
-                      className="h-11 border-stone-200 font-bold"
-                      value={formData.cubicMeasurement}
-                      onChange={e => setFormData((p: any) => ({ ...p, cubicMeasurement: parseFloat(e.target.value) || 0 }))}
-                    />
-                    <Select 
-                      value={formData.factureId} 
-                      onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}
-                    >
-                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
-                        <SelectValue placeholder="Facture..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE" className="font-bold italic">AUCUNE</SelectItem>
-                        {safeFactures.map(f => (
-                          <SelectItem key={f.id} value={f.id} className="font-bold uppercase">{f.id}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-            </div>
+          <div className="p-4 bg-stone-50 rounded-lg border border-dashed border-stone-300">
+            <p className="text-[9px] font-bold text-stone-500 uppercase text-center italic">
+              Le suivi opérationnel (PI/Facture) sera activé une fois l'article lancé.
+            </p>
           </div>
 
           <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest h-12 rounded-lg gap-2 mt-2">
-            <Save className="w-4 h-4" /> Enregistrer l'article
+            <Save className="w-4 h-4" /> Enregistrer le besoin
           </Button>
         </form>
       </DialogContent>
