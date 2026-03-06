@@ -9,6 +9,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { FileText, Calendar, Truck, Save } from 'lucide-react';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -33,8 +34,8 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
   useEffect(() => {
     if (editFacture) {
       setFormData({
-        id: editFacture.id,
-        arrivalDate: editFacture.arrivalDate,
+        id: editFacture.id || '',
+        arrivalDate: editFacture.arrivalDate || new Date().toISOString().split('T')[0],
         supplierId: editFacture.supplierId || editFacture.supplier || '',
         freightCost: editFacture.freightCost || editFacture.freight || 0
       });
@@ -66,17 +67,17 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
     // PROPAGATION: If the arrival date has changed for an existing facture, update all linked articles
-    if (editFacture && formData.arrivalDate !== editFacture.arrivalDate && associatedArticles) {
+    if (editFacture && formData.arrivalDate !== editFacture.arrivalDate && associatedArticles && associatedArticles.length > 0) {
       associatedArticles.forEach((article: any) => {
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
         updateDocumentNonBlocking(articleRef, { arrivalDate: formData.arrivalDate });
       });
       toast({ 
-        title: "Facture et articles mis à jour !", 
-        description: `N° ${factureId} - Nouvelle date d'arrivée propagée à ${associatedArticles.length} articles.` 
+        title: "Dossier mis à jour", 
+        description: `N° ${factureId} - Date propagée à ${associatedArticles.length} articles.` 
       });
     } else {
-      toast({ title: "Facture enregistrée !", description: `N° ${factureId}` });
+      toast({ title: "Facture enregistrée", description: `Dossier ${factureId} activé.` });
     }
 
     onOpenChange(false);
@@ -84,65 +85,79 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md border-stone-200">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-stone-800">
-            {editFacture ? 'Modifier Facture' : 'Déclarer Facture'}
+          <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
+            <FileText className="w-5 h-5 text-stone-400" />
+            {editFacture?.isOrphaned ? 'Régulariser Facture' : (editFacture ? 'Modifier Dossier' : 'Déclaration d\'Arrivage')}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-1">
-            <Label className="font-bold text-stone-800">N° de Facture / Conteneur</Label>
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° de Facture / Conteneur</Label>
             <Input 
               value={formData.id}
               onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
               required 
-              disabled={!!editFacture}
-              className="uppercase font-bold" 
-              placeholder="Ex: INV-2026-001"
+              disabled={!!editFacture && !editFacture.isOrphaned}
+              className="uppercase font-black border-stone-200 h-11" 
+              placeholder="EX: INV-2026-001"
             />
-            {!editFacture && <p className="text-[10px] text-stone-500 mt-1">Saisir un N° existant pour modifier ses détails.</p>}
           </div>
 
-          <div className="space-y-1">
-            <Label>Fournisseur (Optionnel)</Label>
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Fournisseur</Label>
             <Input 
               value={formData.supplierId}
               onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value }))}
-              placeholder="Ex: MH"
+              placeholder="Ex: MH, JIMMY..."
+              className="font-bold border-stone-200 h-11"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-blue-700 font-bold">Date Arrivée</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> Arrivée
+              </Label>
               <Input 
                 type="date"
                 required
-                className="bg-blue-50 border-blue-200"
+                className="border-stone-200 h-11 font-bold"
                 value={formData.arrivalDate}
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
-              {editFacture && <p className="text-[10px] text-blue-600 font-medium">Ceci mettra à jour tous les articles associés.</p>}
             </div>
-            <div className="space-y-1">
-              <Label className="text-red-600 font-bold">Fret / Transport</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Truck className="w-3 h-3" /> Fret (€)
+              </Label>
               <Input 
                 type="number"
                 step="0.01"
-                className="bg-red-50 border-red-200"
+                className="border-stone-200 h-11 font-bold"
                 value={formData.freightCost}
                 onChange={e => setFormData((prev: any) => ({ ...prev, freightCost: parseFloat(e.target.value) || 0 }))}
-                placeholder="Ex: 1500"
+                placeholder="0.00"
               />
             </div>
           </div>
+          
+          {associatedArticles && associatedArticles.length > 0 && (
+            <div className="p-3 bg-stone-50 rounded-lg border border-stone-100">
+              <p className="text-[9px] font-bold text-stone-500 uppercase leading-tight">
+                Attention : Modifier la date mettra à jour {associatedArticles.length} articles déjà liés à ce numéro.
+              </p>
+            </div>
+          )}
         </form>
 
         <DialogFooter className="border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">Enregistrer</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[10px] font-black uppercase tracking-widest">Annuler</Button>
+          <Button onClick={handleSubmit} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest px-8 h-11 rounded-lg gap-2">
+            <Save className="w-4 h-4" /> Enregistrer le dossier
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
