@@ -4,28 +4,31 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, AreaChart, Area 
+  Cell, PieChart, Pie, Legend
 } from 'recharts';
 import { 
   Package, 
   FileText, 
   Factory, 
-  TrendingUp, 
   DollarSign,
   Box,
-  Truck
+  Truck,
+  AlertCircle
 } from 'lucide-react';
 
 interface DashboardViewProps {
   articles: any[];
   factures: any[];
-  onNavigate: (tab: any) => void;
+  onNavigate: (tab: string) => void;
 }
 
-const COLORS = ['#CC8626', '#BF3914', '#4B5563', '#1F2937', '#D1D5DB'];
+const COLORS = ['#d97706', '#059669', '#2563eb', '#7c3aed', '#db2777', '#4b5563'];
 
 export default function DashboardView({ articles = [], factures = [], onNavigate }: DashboardViewProps) {
-  
+  // Sécurisation de l'accès aux données avec une valeur par défaut
+  const safeArticles = articles || [];
+  const safeFactures = factures || [];
+
   const stats = useMemo(() => {
     const now = new Date();
     let totalVal = 0;
@@ -33,8 +36,8 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
     let inTransitCbm = 0;
     let inTransitVal = 0;
 
-    articles.forEach(art => {
-      const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
+    safeArticles.forEach(art => {
+      const val = (Number(art.quantity) * (Number(art.purchasePricePerUnit) || 0)) || 0;
       const cbm = Number(art.cubicMeasurement) || 0;
       
       if (art.status === 'SHIPPED') {
@@ -48,8 +51,7 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
       totalCbm += cbm;
     });
 
-    // Ajouter les frais de port des factures au total
-    factures.forEach(f => {
+    safeFactures.forEach(f => {
       totalVal += (Number(f.freightCost) || 0);
     });
 
@@ -58,42 +60,43 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
       totalCbm,
       inTransitCbm,
       inTransitVal,
-      totalFactures: factures.length,
-      pendingOrders: articles.filter(a => a.status === 'TO_ORDER').length
+      totalFactures: safeFactures.length,
+      pendingOrders: safeArticles.filter(a => a.status === 'TO_ORDER').length
     };
-  }, [articles, factures]);
+  }, [safeArticles, safeFactures]);
 
-  const chartData = useMemo(() => {
-    const categories: Record<string, number> = {};
-    articles.forEach(art => {
-      const cat = art.categoryId || 'Autre';
-      categories[cat] = (categories[cat] || 0) + (Number(art.quantity) * Number(art.purchasePricePerUnit));
+  const categoryData = useMemo(() => {
+    const data: Record<string, number> = {};
+    safeArticles.forEach(art => {
+      const cat = art.categoryId || 'Non classé';
+      data[cat] = (data[cat] || 0) + (Number(art.quantity) * (Number(art.purchasePricePerUnit) || 0));
     });
-    return Object.entries(categories)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [articles]);
+    return Object.entries(data).map(([name, value]) => ({ name, value }));
+  }, [safeArticles]);
 
-  const volumeData = useMemo(() => {
-    const units: Record<string, number> = {};
-    articles.forEach(art => {
-      const unit = art.unitOfMeasure || 'pcs';
-      units[unit] = (units[unit] || 0) + Number(art.quantity);
+  const unitData = useMemo(() => {
+    const data: Record<string, number> = {};
+    safeArticles.forEach(art => {
+      const unit = art.unitOfMeasure || 'PCS';
+      data[unit] = (data[unit] || 0) + Number(art.quantity);
     });
-    return Object.entries(units).map(([name, value]) => ({ name, value }));
-  }, [articles]);
+    return Object.entries(data).map(([name, value]) => ({ name, value }));
+  }, [safeArticles]);
 
   return (
-    <div className="space-y-6">
-      {/* KPI Cards */}
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl font-bold text-stone-800">Vue d'ensemble</h2>
+        <p className="text-stone-500 text-sm">Indicateurs clés de performance de votre inventaire.</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-none shadow-sm bg-white">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">Valeur Totale</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{Math.round(stats.totalVal).toLocaleString()} €</h3>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Valeur Totale Stock</p>
+                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalVal.toLocaleString()} €</h3>
               </div>
               <div className="p-3 bg-amber-50 rounded-full">
                 <DollarSign className="w-5 h-5 text-amber-600" />
@@ -106,7 +109,7 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">Volume Global</p>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Volume Total</p>
                 <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalCbm.toFixed(2)} m³</h3>
               </div>
               <div className="p-3 bg-orange-50 rounded-full">
@@ -120,7 +123,7 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">En Transit</p>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Stock en Transit</p>
                 <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.inTransitCbm.toFixed(2)} m³</h3>
               </div>
               <div className="p-3 bg-blue-50 rounded-full">
@@ -134,11 +137,11 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">Factures</p>
-                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.totalFactures}</h3>
+                <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Rappels en attente</p>
+                <h3 className="text-2xl font-bold text-stone-900 mt-1">{stats.pendingOrders}</h3>
               </div>
-              <div className="p-3 bg-purple-50 rounded-full">
-                <FileText className="w-5 h-5 text-purple-600" />
+              <div className="p-3 bg-red-50 rounded-full">
+                <AlertCircle className="w-5 h-5 text-red-600" />
               </div>
             </div>
           </CardContent>
@@ -146,48 +149,46 @@ export default function DashboardView({ articles = [], factures = [], onNavigate
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Charts */}
         <Card className="border-none shadow-sm bg-white">
           <CardHeader>
-            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-600">Valeur par Catégorie (€)</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Répartition de la valeur par catégorie</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={100} fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  cursor={{fill: '#f9f6f0'}}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Bar dataKey="value" fill="#CC8626" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend layout="vertical" align="right" verticalAlign="middle" />
+              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white">
           <CardHeader>
-            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-600">Volume Total par Unité</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-stone-500">Volume total par unité</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={volumeData}>
-                <defs>
-                  <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#BF3914" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#BF3914" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+              <BarChart data={unitData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Area type="monotone" dataKey="value" stroke="#BF3914" fillOpacity={1} fill="url(#colorVolume)" strokeWidth={2} />
-              </AreaChart>
+                <Tooltip cursor={{fill: '#f8fafc'}} />
+                <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} barSize={40} />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

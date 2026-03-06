@@ -7,32 +7,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Label } from '@/components/ui/label';
 import { 
   ChevronLeft, 
-  Plus, 
   Package, 
-  Ship, 
-  CheckCircle2,
-  Clock,
-  ArrowRight,
-  BarChart3,
-  Box,
   Layers,
-  Settings
+  ArrowRight,
+  TrendingUp,
+  Box,
+  ChevronRight
 } from 'lucide-react';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  ResponsiveContainer, 
+  LineChart, 
+  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
-  LineChart, 
-  Line 
+  ResponsiveContainer 
 } from 'recharts';
 
 interface CategoriesViewProps {
@@ -45,15 +38,6 @@ interface CategoriesViewProps {
   selectedGeneralCategoryId: string | null;
   onSelectGeneralCategory: (id: string) => void;
 }
-
-const CAT_COLORS = [
-  'border-t-amber-500',
-  'border-t-orange-600',
-  'border-t-red-700',
-  'border-t-stone-800',
-  'border-t-blue-600',
-  'border-t-emerald-600'
-];
 
 export default function CategoriesView({ 
   articles = [], 
@@ -69,333 +53,307 @@ export default function CategoriesView({
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [targetGenCatId, setTargetGenCatId] = useState(selectedGeneralCategoryId || '');
+  const now = new Date();
 
-  const now = useMemo(() => new Date(), []);
-
-  // 1. Logic for main category list
-  const mainCategoriesList = useMemo(() => {
+  // Liste des catégories principales
+  const displayMainCategories = useMemo(() => {
     return generalCategories.map(gc => {
-      const relatedArticles = articles.filter(a => a.generalCategoryId === gc.id);
-      const totalVal = relatedArticles.reduce((sum, a) => sum + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
-      const subCount = subCategories.filter(sc => sc.generalCategoryId === gc.id).length;
-      return { ...gc, totalVal, subCount };
+      const subs = subCategories.filter(sc => sc.generalCategoryId === gc.id);
+      const artCount = articles.filter(a => a.generalCategoryId === gc.id).length;
+      return { ...gc, subCount: subs.length, artCount };
     });
-  }, [generalCategories, articles, subCategories]);
+  }, [generalCategories, subCategories, articles]);
 
-  // 2. Logic for sub-categories of a selected main category
-  const subCategoriesList = useMemo(() => {
+  // Liste des sous-catégories du groupe sélectionné
+  const displaySubCategories = useMemo(() => {
     if (!selectedGeneralCategoryId) return [];
     return subCategories
       .filter(sc => sc.generalCategoryId === selectedGeneralCategoryId)
       .map(sc => {
-        const relatedArticles = articles.filter(a => a.categoryId === sc.name);
-        const totalVal = relatedArticles.reduce((sum, a) => sum + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
+        const catArticles = articles.filter(a => a.categoryId === sc.name);
         
-        // Group totals by unit
+        // Calcul des totaux par unité
         const totalsByUnit: Record<string, number> = {};
-        relatedArticles.forEach(a => {
-          const unit = a.unitOfMeasure || 'pcs';
-          totalsByUnit[unit] = (totalsByUnit[unit] || 0) + Number(a.quantity);
+        catArticles.forEach(a => {
+          const unit = a.unitOfMeasure || 'PCS';
+          totalsByUnit[unit] = (totalsByUnit[unit] || 0) + (Number(a.quantity) || 0);
         });
 
-        return { ...sc, totalVal, totalsByUnit };
+        return { ...sc, totalsByUnit };
       });
   }, [selectedGeneralCategoryId, subCategories, articles]);
 
-  // 3. Logic for detailed view of a specific sub-category
-  const detailData = useMemo(() => {
+  // Détails de la sous-catégorie sélectionnée
+  const categoryDetails = useMemo(() => {
     if (!selectedCategory) return null;
-    const catArticles = articles.filter(a => a.categoryId === selectedCategory);
+    const items = articles.filter(a => a.categoryId === selectedCategory);
     
-    const transit = catArticles.filter(a => {
+    const transit = items.filter(a => {
       const arrival = a.arrivalDate ? new Date(a.arrivalDate) : null;
       return a.status === 'SHIPPED' && arrival && arrival > now;
     });
 
-    const arrived = catArticles.filter(a => {
+    const arrived = items.filter(a => {
       const arrival = a.arrivalDate ? new Date(a.arrivalDate) : null;
       return a.status === 'SHIPPED' && arrival && arrival <= now;
     });
 
-    const pending = catArticles.filter(a => a.status !== 'SHIPPED');
+    const pending = items.filter(a => a.status === 'TO_ORDER' || a.status === 'PI');
 
-    // Totals by unit for summary
     const totals: Record<string, number> = {};
-    catArticles.forEach(a => {
-      const unit = a.unitOfMeasure || 'pcs';
-      totals[unit] = (totals[unit] || 0) + Number(a.quantity);
+    items.forEach(a => {
+      const unit = a.unitOfMeasure || 'PCS';
+      totals[unit] = (totals[unit] || 0) + (Number(a.quantity) || 0);
     });
 
-    return { transit, arrived, pending, totals };
+    return { items, transit, arrived, pending, totals };
   }, [selectedCategory, articles, now]);
 
-  const handleAddCategory = () => {
-    if (!user || !firestore || !newCatName.trim() || !targetGenCatId) return;
-    const id = crypto.randomUUID();
-    const docRef = doc(firestore, 'users', user.uid, 'categories', id);
-    setDocumentNonBlocking(docRef, { id, name: newCatName.trim().toUpperCase(), generalCategoryId: targetGenCatId }, { merge: true });
-    toast({ title: "Sous-catégorie créée" });
-    setIsModalOpen(false);
-    setNewCatName('');
-  };
-
-  // --- RENDERING ---
-
-  // 1. Detailed Sub-category View (Tables first)
-  if (selectedCategory && detailData) {
+  // Vue 3: Détails d'une sous-catégorie
+  if (selectedCategory && categoryDetails) {
     return (
-      <div className="space-y-6 fade-in">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => setSelectedCategory(null)} className="text-stone-500 gap-2">
-            <ChevronLeft className="w-4 h-4" /> Retour
-          </Button>
-          <h2 className="text-2xl font-black text-stone-900 uppercase">{selectedCategory}</h2>
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => setSelectedCategory(null)} className="rounded-full">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h2 className="text-2xl font-bold text-stone-800">{selectedCategory}</h2>
+              <p className="text-stone-500 text-sm">Vue détaillée des stocks et commandes</p>
+            </div>
+          </div>
           <div className="flex gap-4">
-            {Object.entries(detailData.totals).map(([unit, val]) => (
-              <div key={unit} className="text-right">
-                <p className="text-[10px] font-bold text-stone-400 uppercase">{unit}</p>
-                <p className="text-lg font-bold text-stone-900">{val.toLocaleString()}</p>
+            {Object.entries(categoryDetails.totals).map(([unit, val]) => (
+              <div key={unit} className="bg-white px-4 py-2 rounded-lg border shadow-sm">
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-tighter">TOTAL {unit}</p>
+                <p className="text-xl font-bold text-stone-800">{val.toLocaleString()}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-8">
-          {/* Table 1: In Transit */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 border-b pb-2">
-              <Ship className="w-5 h-5 text-blue-600" />
-              <h3 className="text-sm font-bold uppercase tracking-widest text-stone-700">En Transit</h3>
+        <div className="space-y-8">
+          {/* Section Transit */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-6 bg-blue-500 rounded-full" />
+              <h3 className="text-sm font-bold uppercase tracking-widest text-stone-700">Commandes en Transit</h3>
             </div>
-            <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
               <Table>
-                <TableHeader className="bg-stone-50">
+                <TableHeader className="bg-stone-50/50">
                   <TableRow>
-                    <TableHead>Article</TableHead>
+                    <TableHead>Désignation</TableHead>
                     <TableHead>Facture</TableHead>
-                    <TableHead>Arrivée Prévue</TableHead>
+                    <TableHead>Arrivée prévue</TableHead>
                     <TableHead className="text-right">Quantité</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailData.transit.length > 0 ? detailData.transit.map(a => (
+                  {categoryDetails.transit.length > 0 ? categoryDetails.transit.map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-medium">{a.name}</TableCell>
-                      <TableCell className="font-mono text-xs text-stone-500">{a.factureId}</TableCell>
+                      <TableCell className="text-stone-500 text-xs">{a.factureId}</TableCell>
                       <TableCell className="text-blue-600 font-medium">{a.arrivalDate}</TableCell>
                       <TableCell className="text-right font-bold">{a.quantity.toLocaleString()} {a.unitOfMeasure}</TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={4} className="text-center py-8 text-stone-400">Aucun article en transit</TableCell></TableRow>}
+                  )) : (
+                    <TableRow><TableCell colSpan={4} className="text-center py-6 text-stone-400">Aucune commande en transit</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
-          </section>
+          </div>
 
-          {/* Table 2: Arrived */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 border-b pb-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+          {/* Section Arrivées */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-6 bg-emerald-500 rounded-full" />
               <h3 className="text-sm font-bold uppercase tracking-widest text-stone-700">Stock Arrivé</h3>
             </div>
-            <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
               <Table>
-                <TableHeader className="bg-stone-50">
+                <TableHeader className="bg-stone-50/50">
                   <TableRow>
-                    <TableHead>Article</TableHead>
+                    <TableHead>Désignation</TableHead>
                     <TableHead>Facture</TableHead>
-                    <TableHead>Date d'Entrée</TableHead>
+                    <TableHead>Date d'entrée</TableHead>
                     <TableHead className="text-right">Quantité</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailData.arrived.length > 0 ? detailData.arrived.map(a => (
+                  {categoryDetails.arrived.length > 0 ? categoryDetails.arrived.map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-medium">{a.name}</TableCell>
-                      <TableCell className="font-mono text-xs text-stone-500">{a.factureId}</TableCell>
+                      <TableCell className="text-stone-500 text-xs">{a.factureId}</TableCell>
                       <TableCell className="text-stone-500">{a.arrivalDate}</TableCell>
-                      <TableCell className="text-right font-bold">{a.quantity.toLocaleString()} {a.unitOfMeasure}</TableCell>
+                      <TableCell className="text-right font-bold text-emerald-700">{a.quantity.toLocaleString()} {a.unitOfMeasure}</TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={4} className="text-center py-8 text-stone-400">Aucun stock disponible</TableCell></TableRow>}
+                  )) : (
+                    <TableRow><TableCell colSpan={4} className="text-center py-6 text-stone-400">Aucun stock disponible</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
-          </section>
+          </div>
 
-          {/* Table 3: Pending */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 border-b pb-2">
-              <Clock className="w-5 h-5 text-amber-600" />
-              <h3 className="text-sm font-bold uppercase tracking-widest text-stone-700">En Attente / Production</h3>
+          {/* Section Attente / Production */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-6 bg-amber-500 rounded-full" />
+              <h3 className="text-sm font-bold uppercase tracking-widest text-stone-700">En attente / Production</h3>
             </div>
-            <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
               <Table>
-                <TableHeader className="bg-stone-50">
+                <TableHeader className="bg-stone-50/50">
                   <TableRow>
-                    <TableHead>Article</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Date Commande</TableHead>
+                    <TableHead>Désignation</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date commande</TableHead>
                     <TableHead className="text-right">Quantité</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailData.pending.length > 0 ? detailData.pending.map(a => (
+                  {categoryDetails.pending.length > 0 ? categoryDetails.pending.map(a => (
                     <TableRow key={a.id}>
                       <TableCell className="font-medium">{a.name}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-amber-700 bg-amber-50">{a.status}</Badge></TableCell>
-                      <TableCell className="text-stone-500">{a.orderDate}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-200">
+                          {a.status === 'PI' ? 'PRODUCTION' : 'À COMMANDER'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-stone-500 text-xs">{a.orderDate}</TableCell>
                       <TableCell className="text-right font-bold">{a.quantity.toLocaleString()} {a.unitOfMeasure}</TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={4} className="text-center py-8 text-stone-400">Aucune commande en attente</TableCell></TableRow>}
+                  )) : (
+                    <TableRow><TableCell colSpan={4} className="text-center py-6 text-stone-400">Aucune commande en attente</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
-          </section>
+          </div>
+        </div>
+        
+        {/* Graphiques d'analyse en bas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-8 border-t">
+          <Card className="bg-stone-50 border-dashed">
+            <CardHeader>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-stone-500">Tendance des approvisionnements</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[200px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={[
+                  { name: 'Jan', val: 400 },
+                  { name: 'Fév', val: 300 },
+                  { name: 'Mar', val: 600 },
+                  { name: 'Avr', val: 800 },
+                  { name: 'Mai', val: 500 },
+                ]}>
+                  <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <RechartsTooltip />
+                  <Line type="monotone" dataKey="val" stroke="#d97706" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <div className="flex flex-col justify-center p-6 bg-white border rounded-xl shadow-sm italic text-stone-400 text-sm text-center">
+            Analyses et prévisions avancées à venir prochainement pour cette catégorie.
+          </div>
         </div>
       </div>
     );
   }
 
-  // 2. Sub-categories of a specific Main Category
+  // Vue 2: Liste des sous-catégories
   if (selectedGeneralCategoryId) {
+    const parent = generalCategories.find(g => g.id === selectedGeneralCategoryId);
     return (
-      <div className="space-y-6 fade-in">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => onSelectGeneralCategory('')} className="text-stone-500 gap-2">
-            <ChevronLeft className="w-4 h-4" /> Retour aux Groupes
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="flex items-center gap-4 border-b pb-4">
+          <Button variant="outline" size="icon" onClick={() => onSelectGeneralCategory('')} className="rounded-full">
+            <ChevronLeft className="w-4 h-4" />
           </Button>
-          <Button onClick={() => setIsModalOpen(true)} variant="outline" className="gap-2 text-xs font-bold uppercase border-stone-300">
-            <Plus className="w-4 h-4" /> Nouvelle Sous-Catégorie
-          </Button>
+          <div>
+            <h2 className="text-2xl font-bold text-stone-800">{parent?.name || "Sous-catégories"}</h2>
+            <p className="text-stone-500 text-sm">Sélectionnez un type de produit pour voir le stock</p>
+          </div>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subCategoriesList.map((sc, idx) => (
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {displaySubCategories.map(sc => (
             <Card 
               key={sc.id} 
-              className="border-none shadow-sm hover:ring-2 hover:ring-amber-500/20 cursor-pointer transition-all"
+              className="group cursor-pointer border-none shadow-sm hover:ring-2 hover:ring-amber-500/30 transition-all duration-200"
               onClick={() => setSelectedCategory(sc.name)}
             >
-              <CardContent className="p-5">
+              <CardContent className="p-5 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-bold text-stone-900">{sc.name}</h3>
-                  <Box className="w-5 h-5 text-amber-600" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-stone-500 uppercase font-medium">Valeur Totale</span>
-                    <span className="text-sm font-bold text-stone-900">{Math.round(sc.totalVal).toLocaleString()} €</span>
+                  <div className="p-2 bg-stone-100 rounded-lg group-hover:bg-amber-100 transition-colors">
+                    <Box className="w-5 h-5 text-stone-500 group-hover:text-amber-600" />
                   </div>
-                  <div className="border-t pt-2 mt-2">
-                    <p className="text-[10px] text-stone-400 uppercase font-bold mb-1">Stock Actuel</p>
-                    <div className="flex flex-wrap gap-2">
+                  <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-amber-400" />
+                </div>
+                <h3 className="font-bold text-stone-800 mb-3">{sc.name}</h3>
+                <div className="mt-auto pt-3 border-t border-stone-100">
+                  {Object.entries(sc.totalsByUnit).length > 0 ? (
+                    <div className="space-y-1">
                       {Object.entries(sc.totalsByUnit).map(([unit, val]) => (
-                        <span key={unit} className="text-xs font-bold px-2 py-0.5 bg-stone-100 rounded text-stone-700">
-                          {val.toLocaleString()} {unit}
-                        </span>
+                        <div key={unit} className="flex justify-between items-center text-xs">
+                          <span className="text-stone-500">Total {unit}</span>
+                          <span className="font-bold text-stone-700">{val.toLocaleString()}</span>
+                        </div>
                       ))}
                     </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-stone-400 italic">Aucun article enregistré</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-        
-        {/* Modal for adding sub-category */}
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>Nouvelle Sous-Catégorie</DialogTitle></DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Groupe Parent</Label>
-                <Select value={targetGenCatId} onValueChange={setTargetGenCatId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un groupe..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {generalCategories.map(gc => (
-                      <SelectItem key={gc.id} value={gc.id}>{gc.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Nom de la Sous-Catégorie</Label>
-                <Input 
-                  value={newCatName} 
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  placeholder="Ex: Fermetures"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleAddCategory} className="bg-amber-600">Enregistrer</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     );
   }
 
-  // 3. Main Groups List
+  // Vue 1: Liste des catégories principales
   return (
-    <div className="space-y-6 fade-in">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-black text-stone-900 uppercase">Groupes de Produits</h2>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-stone-900 text-white gap-2 font-bold uppercase text-xs">
-          <Plus className="w-4 h-4" /> Nouveau Groupe
-        </Button>
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-bold text-stone-800">Catégories de Produits</h2>
+        <p className="text-stone-500 text-sm">Explorez votre inventaire par groupe de produits</p>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mainCategoriesList.map((gc, idx) => (
+        {displayMainCategories.map((gc, idx) => (
           <Card 
             key={gc.id} 
-            className={`border-t-4 ${CAT_COLORS[idx % CAT_COLORS.length]} shadow-sm hover:shadow-md cursor-pointer transition-all`}
+            className="group cursor-pointer border-none shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden"
             onClick={() => onSelectGeneralCategory(gc.id)}
           >
+            <div className={`h-1.5 w-full bg-stone-200 group-hover:bg-amber-500 transition-colors`} />
             <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-bold text-stone-900">{gc.name}</h3>
-                <Layers className="w-5 h-5 text-stone-400" />
+              <div className="flex justify-between items-center mb-6">
+                <div className="p-3 bg-stone-100 rounded-xl group-hover:bg-amber-50 transition-colors">
+                  <Layers className="w-6 h-6 text-stone-500 group-hover:text-amber-600" />
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Articles</p>
+                  <p className="text-xl font-bold text-stone-800">{gc.artCount}</p>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 mt-6">
-                <div>
-                  <p className="text-[10px] text-stone-500 uppercase font-bold">Sous-catégories</p>
-                  <p className="text-lg font-bold text-stone-900">{gc.subCount}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-stone-500 uppercase font-bold">Valeur Globale</p>
-                  <p className="text-lg font-bold text-stone-900">{Math.round(gc.totalVal).toLocaleString()} €</p>
-                </div>
+              <h3 className="text-lg font-bold text-stone-800 mb-1">{gc.name}</h3>
+              <p className="text-sm text-stone-500">{gc.subCount} sous-catégories associées</p>
+              
+              <div className="mt-6 flex items-center text-xs font-bold text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                VOIR LES DÉTAILS <ArrowRight className="w-3 h-3 ml-1" />
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Nouveau Groupe de Produits</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Nom du Groupe</Label>
-              <Input 
-                value={newCatName} 
-                onChange={(e) => setNewCatName(e.target.value)}
-                placeholder="Ex: Textiles, Mercerie..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleAddGeneralCategory} className="bg-amber-600">Créer le groupe</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
