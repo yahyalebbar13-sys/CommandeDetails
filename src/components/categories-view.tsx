@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -64,9 +65,16 @@ export default function CategoriesView({
     const now = new Date();
 
     generalCategories.forEach(gc => {
-      const groupArticles = articles.filter(a => a.generalCategoryId === gc.id);
+      const subCatNames = subCategories
+        .filter(sc => sc.generalCategoryId === gc.id)
+        .map(sc => sc.name);
+
+      const groupArticles = articles.filter(a => 
+        a.generalCategoryId === gc.id || 
+        subCatNames.includes(a.categoryId)
+      );
+
       let totalValue = 0;
-      const units: Record<string, number> = {};
       
       const futureArrivals = groupArticles
         .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > now)
@@ -77,21 +85,18 @@ export default function CategoriesView({
         : '-';
 
       groupArticles.forEach(a => {
-        const unit = (a.unitOfMeasure || 'PCS').toUpperCase();
-        units[unit] = (units[unit] || 0) + (Number(a.quantity) || 0);
         totalValue += (Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0);
       });
 
       stats[gc.id] = { 
         name: gc.name, 
         count: groupArticles.length, 
-        units,
         totalValue,
         nextArrival
       };
     });
     return stats;
-  }, [generalCategories, articles]);
+  }, [generalCategories, articles, subCategories]);
 
   const subCategoryStats = useMemo(() => {
     if (!selectedGeneralCategoryId) return [];
@@ -101,7 +106,6 @@ export default function CategoriesView({
       .filter(sc => sc.generalCategoryId === selectedGeneralCategoryId)
       .map(sc => {
         const catArticles = articles.filter(a => a.categoryId === sc.name);
-        const units: Record<string, number> = {};
         let totalValue = 0;
         
         const futureArrivals = catArticles
@@ -113,14 +117,11 @@ export default function CategoriesView({
           : '-';
 
         catArticles.forEach(a => {
-          const unit = (a.unitOfMeasure || 'PCS').toUpperCase();
-          units[unit] = (units[unit] || 0) + (Number(a.quantity) || 0);
           totalValue += (Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0);
         });
 
         return { 
           ...sc, 
-          units, 
           count: catArticles.length, 
           nextArrival, 
           totalValue 
@@ -216,44 +217,44 @@ export default function CategoriesView({
 
   if (selectedCategory && groupedData && detailedAnalytics) {
     return (
-      <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <header className="bg-white rounded-[2.5rem] shadow-xl border border-stone-200 overflow-hidden">
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
           <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative">
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
             
-            <div className="flex items-center gap-6 relative z-10 lg:w-1/3">
+            <div className="flex items-center gap-5 relative z-10 lg:w-1/3">
               <Button 
                 variant="outline" 
                 size="icon" 
                 onClick={() => setSelectedCategory(null)} 
-                className="h-14 w-14 rounded-2xl bg-white/5 border-white/10 text-white hover:bg-white/10 transition-all shadow-xl"
+                className="h-12 w-12 rounded-2xl bg-white/5 border-white/10 text-white hover:bg-white/10 transition-all shadow-xl"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-5 h-5" />
               </Button>
               <div>
-                <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
-                <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
+                <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
+                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10 w-full xl:w-2/3">
               {headerStats && (
                 <>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Valeur Totale des CMD</p>
-                    <p className="text-xl font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} €</p>
+                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
+                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Valeur Totale CMD</p>
+                    <p className="text-lg font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} €</p>
                   </div>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Quantité Totale des CMD</p>
-                    <p className="text-xl font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
+                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
+                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Quantité Totale CMD</p>
+                    <p className="text-lg font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
                   </div>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Prochaine Arrivée</p>
-                    <p className="text-xl font-black text-blue-400 leading-none">{headerStats.nextArrival}</p>
+                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
+                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Prochaine Arrivée</p>
+                    <p className="text-lg font-black text-blue-400 leading-none">{headerStats.nextArrival}</p>
                   </div>
-                  <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Dernière Commande</p>
-                    <p className="text-xl font-black text-stone-200 leading-none">{headerStats.lastOrder}</p>
+                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
+                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Dernière Commande</p>
+                    <p className="text-lg font-black text-stone-200 leading-none">{headerStats.lastOrder}</p>
                   </div>
                 </>
               )}
@@ -277,7 +278,7 @@ export default function CategoriesView({
                 {groupedData.transit.length} LIGNES ACTIVES
               </Badge>
             </div>
-            <Card className="border-stone-200 shadow-xl rounded-3xl overflow-hidden">
+            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
@@ -327,7 +328,7 @@ export default function CategoriesView({
                 </div>
               </div>
             </div>
-            <Card className="border-stone-200 shadow-xl rounded-3xl overflow-hidden">
+            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
@@ -373,7 +374,7 @@ export default function CategoriesView({
                 </div>
               </div>
             </div>
-            <Card className="border-stone-200 shadow-xl rounded-3xl overflow-hidden">
+            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
@@ -473,24 +474,24 @@ export default function CategoriesView({
   if (selectedGeneralCategoryId) {
     const parent = generalCategories.find(g => g.id === selectedGeneralCategoryId);
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-[2rem] shadow-xl border border-stone-100">
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[1.5rem] shadow-xl border border-stone-100">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => onSelectGeneralCategory(null)} className="h-12 w-12 rounded-2xl border-stone-200 hover:border-stone-900 transition-all">
-              <ChevronLeft className="w-5 h-5" />
+            <Button variant="outline" size="icon" onClick={() => onSelectGeneralCategory(null)} className="h-10 w-10 rounded-xl border-stone-200 hover:border-stone-900 transition-all">
+              <ChevronLeft className="w-4 h-4" />
             </Button>
             <div>
-              <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Exploration du Pôle</p>
-              <h2 className="text-3xl font-black text-stone-900 uppercase tracking-tighter leading-none">{parent?.name}</h2>
+              <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.2em] mb-0.5">Exploration du Pôle</p>
+              <h2 className="text-xl font-black text-stone-900 uppercase tracking-tighter leading-none">{parent?.name}</h2>
             </div>
           </div>
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
             <Input 
-              placeholder="Rechercher une sous-catégorie..." 
+              placeholder="Chercher famille..." 
               value={searchTerm} 
               onChange={e => setSearchTerm(e.target.value)}
-              className="pl-11 h-12 text-xs font-bold border-stone-200 bg-stone-50 rounded-2xl focus:ring-stone-900 transition-all"
+              className="pl-9 h-10 text-[10px] font-bold border-stone-200 bg-stone-50 rounded-xl focus:ring-stone-900 transition-all"
             />
           </div>
         </div>
@@ -499,35 +500,35 @@ export default function CategoriesView({
           {subCategoryStats.map((sc, idx) => (
             <Card 
               key={sc.id} 
-              className="cursor-pointer border-stone-100 hover:border-amber-400 hover:bg-amber-50/20 transition-all shadow-lg hover:shadow-amber-500/10 group rounded-[1.5rem] overflow-hidden bg-white active:scale-95"
+              className="cursor-pointer border-stone-100 hover:border-amber-400 hover:bg-amber-50/20 transition-all shadow-lg hover:shadow-amber-500/10 group rounded-[1.2rem] overflow-hidden bg-white active:scale-95"
               onClick={() => setSelectedCategory(sc.name)}
             >
               <CardContent className="p-0">
-                <div className={`h-1.5 w-full ${UI_COLORS[idx % UI_COLORS.length]}`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 bg-stone-50 rounded-xl group-hover:bg-white transition-colors">
-                      <Package className="w-4 h-4 text-stone-300 group-hover:text-stone-900" />
+                <div className={`h-1 w-full ${UI_COLORS[idx % UI_COLORS.length]}`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="p-2 bg-stone-50 rounded-lg group-hover:bg-white transition-colors">
+                      <Package className="w-3.5 h-3.5 text-stone-300 group-hover:text-stone-900" />
                     </div>
-                    <Badge className="bg-stone-900 text-white text-[9px] font-black uppercase px-2">{sc.count}</Badge>
+                    <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
                   </div>
-                  <h3 className="font-black text-xs text-stone-800 uppercase leading-tight mb-4 line-clamp-2 min-h-[2.5rem] group-hover:text-stone-900">{sc.name}</h3>
+                  <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-4 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
                   
-                  <div className="space-y-3 pt-4 border-t border-stone-50">
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
-                        <Truck className="w-2.5 h-2.5" /> Prochaine
+                  <div className="space-y-2 pt-3 border-t border-stone-50">
+                    <div className="flex justify-between items-center text-[8px]">
+                      <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                        <Truck className="w-2.5 h-2.5" /> PROCHAINE
                       </span>
                       <span className={`font-black ${sc.nextArrival !== '-' ? 'text-blue-600' : 'text-stone-300'}`}>
                         {sc.nextArrival}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
-                        <DollarSign className="w-2.5 h-2.5" /> Valeur Totale
+                    <div className="flex justify-between items-center text-[8px]">
+                      <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                        <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                       </span>
                       <span className="font-black text-stone-900">
-                        {sc.totalValue.toLocaleString()} €
+                        {Math.round(sc.totalValue).toLocaleString()} €
                       </span>
                     </div>
                   </div>
@@ -542,55 +543,55 @@ export default function CategoriesView({
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
-      <header className="bg-stone-900 p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+      <header className="bg-stone-900 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-[100px]" />
         <div className="relative z-10">
           <Badge className="bg-amber-500 text-white border-none px-4 py-1 text-[9px] font-black uppercase tracking-widest rounded-full mb-4">Architecture de Données</Badge>
-          <h2 className="text-5xl font-black text-white uppercase tracking-tighter leading-tight">Répertoire <br /><span className="text-amber-500">Logistique</span></h2>
-          <p className="text-stone-400 text-sm font-medium mt-4 max-w-md leading-relaxed">Accédez aux pôles d'activité pour une analyse granulaire des stocks et des flux logistiques mondiaux.</p>
+          <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-tight">Répertoire <br /><span className="text-amber-500">Logistique</span></h2>
+          <p className="text-stone-400 text-xs font-medium mt-3 max-w-sm leading-relaxed">Exploration granulaire des stocks et flux financiers par pôle d'activité.</p>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {Object.entries(groupStats).map(([id, stat], idx) => (
           <Card 
             key={id} 
-            className="group cursor-pointer border-none bg-white shadow-xl hover:shadow-2xl transition-all rounded-[2rem] overflow-hidden active:scale-95 status-glow-amber"
+            className="group cursor-pointer border-none bg-white shadow-xl hover:shadow-2xl transition-all rounded-[1.5rem] overflow-hidden active:scale-95 status-glow-amber"
             onClick={() => onSelectGeneralCategory(id)}
           >
-            <div className={`h-2 w-full`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
-            <CardContent className="p-8">
-              <div className="flex justify-between items-center mb-8">
-                <div className="p-4 bg-stone-50 rounded-2xl text-stone-200 group-hover:bg-stone-900 group-hover:text-white transition-all">
-                  <LayoutGrid className="w-7 h-7" />
+            <div className={`h-1.5 w-full`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
+            <CardContent className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <div className="p-3 bg-stone-50 rounded-xl text-stone-200 group-hover:bg-stone-900 group-hover:text-white transition-all">
+                  <LayoutGrid className="w-6 h-6" />
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-black text-stone-900 leading-none">{stat.count}</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1">Articles</p>
+                  <p className="text-xl font-black text-stone-900">{stat.count}</p>
+                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Articles</p>
                 </div>
               </div>
-              <h3 className="text-xl font-black text-stone-800 uppercase leading-none mb-8 group-hover:text-stone-900 tracking-tighter">{stat.name}</h3>
-              <div className="space-y-3 pt-6 border-t border-stone-50">
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
-                    <Truck className="w-3 h-3" /> Prochaine
+              <h3 className="text-sm font-black text-stone-800 uppercase leading-none mb-6 group-hover:text-stone-900 tracking-tighter">{stat.name}</h3>
+              <div className="space-y-2 pt-5 border-t border-stone-50">
+                <div className="flex justify-between items-center text-[9px]">
+                  <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                    <Truck className="w-2.5 h-2.5" /> PROCHAINE
                   </span>
                   <span className={`font-black ${stat.nextArrival !== '-' ? 'text-blue-600' : 'text-stone-300'}`}>
                     {stat.nextArrival}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
-                    <DollarSign className="w-3 h-3" /> Valeur Totale
+                <div className="flex justify-between items-center text-[9px]">
+                  <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                    <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                   </span>
                   <span className="font-black text-stone-800">
                     {Math.round(stat.totalValue).toLocaleString()} €
                   </span>
                 </div>
               </div>
-              <div className="mt-8 flex justify-end">
-                <div className="p-2 bg-stone-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                  <ArrowUpRight className="w-4 h-4 text-stone-900" />
+              <div className="mt-6 flex justify-end">
+                <div className="p-1.5 bg-stone-50 rounded opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                  <ArrowUpRight className="w-3.5 h-3.5 text-stone-900" />
                 </div>
               </div>
             </CardContent>
