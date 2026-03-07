@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -59,11 +58,20 @@ export default function CategoriesView({
   onSelectGeneralCategory
 }: CategoriesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [todayStr, setTodayStr] = useState('');
 
-  // Get today's date string for comparison YYYY-MM-DD
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Use useEffect to set today's date on the client only to avoid hydration mismatch
+  useEffect(() => {
+    const today = new Date();
+    // Format YYYY-MM-DD in local time
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    setTodayStr(`${year}-${month}-${day}`);
+  }, []);
 
   const groupStats = useMemo(() => {
+    if (!todayStr) return {};
     const stats: Record<string, any> = {};
 
     generalCategories.forEach(gc => {
@@ -79,7 +87,7 @@ export default function CategoriesView({
       let totalValue = 0;
       
       const futureArrivals = groupArticles
-        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate >= todayStr)
+        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr)
         .map(a => a.arrivalDate as string);
       
       const nextArrival = futureArrivals.length > 0 
@@ -101,7 +109,7 @@ export default function CategoriesView({
   }, [generalCategories, articles, subCategories, todayStr]);
 
   const subCategoryStats = useMemo(() => {
-    if (!selectedGeneralCategoryId) return [];
+    if (!selectedGeneralCategoryId || !todayStr) return [];
     
     return subCategories
       .filter(sc => sc.generalCategoryId === selectedGeneralCategoryId)
@@ -110,7 +118,7 @@ export default function CategoriesView({
         let totalValue = 0;
         
         const futureArrivals = catArticles
-          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate >= todayStr)
+          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr)
           .map(a => a.arrivalDate as string);
         
         const nextArrival = futureArrivals.length > 0 
@@ -137,7 +145,7 @@ export default function CategoriesView({
   }, [selectedCategory, articles]);
 
   const groupedData = useMemo(() => {
-    if (!selectedCategory) return null;
+    if (!selectedCategory || !todayStr) return null;
     
     return {
       transit: currentArticles.filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr),
@@ -149,13 +157,13 @@ export default function CategoriesView({
   }, [currentArticles, selectedCategory, todayStr]);
 
   const headerStats = useMemo(() => {
-    if (!currentArticles.length) return null;
+    if (!currentArticles.length || !todayStr) return null;
     
     const totalVal = currentArticles.reduce((s, a) => s + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)), 0);
     const totalQty = currentArticles.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
 
     const futureArrivals = currentArticles
-      .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate >= todayStr)
+      .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr)
       .map(a => a.arrivalDate as string);
     
     const nextArrival = futureArrivals.length > 0 
