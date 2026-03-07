@@ -283,6 +283,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
@@ -295,6 +296,7 @@ export default function CategoriesView({
                   {groupedData.transit.length > 0 ? groupedData.transit.map(a => (
                     <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
                       <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                       <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
@@ -309,7 +311,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -333,6 +335,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
@@ -344,6 +347,7 @@ export default function CategoriesView({
                   {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => (
                     <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                       <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
                       <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
@@ -355,7 +359,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -379,6 +383,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Identification</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité Estimée</TableHead>
@@ -389,6 +394,7 @@ export default function CategoriesView({
                   {groupedData.pending.length > 0 ? groupedData.pending.map(a => (
                     <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">
                         {a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : '-')}
                       </TableCell>
@@ -405,7 +411,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={5} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -428,7 +434,7 @@ export default function CategoriesView({
                     {detailedAnalytics.supplierData.map((entry, index) => <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -445,10 +451,10 @@ export default function CategoriesView({
               <ResponsiveContainer width="100%" height="100%">
                 <RechartsLineChart data={detailedAnalytics.priceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase' }} />
                   <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
                   <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
                   {detailedAnalytics.uniqueColors.map((color, idx) => (
                     <Line 
                       key={color} 
