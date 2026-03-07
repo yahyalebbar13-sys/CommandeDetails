@@ -60,16 +60,11 @@ export default function CategoriesView({
 }: CategoriesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Normalize date to midnight for robust comparisons
-  const getNormalizedNow = () => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
+  // Get today's date string for comparison YYYY-MM-DD
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const groupStats = useMemo(() => {
     const stats: Record<string, any> = {};
-    const today = getNormalizedNow();
 
     generalCategories.forEach(gc => {
       const subCatNames = subCategories
@@ -84,11 +79,11 @@ export default function CategoriesView({
       let totalValue = 0;
       
       const futureArrivals = groupArticles
-        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) >= today)
-        .map(a => new Date(a.arrivalDate as string).getTime());
+        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate >= todayStr)
+        .map(a => a.arrivalDate as string);
       
       const nextArrival = futureArrivals.length > 0 
-        ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0]
+        ? futureArrivals.sort()[0]
         : '-';
 
       groupArticles.forEach(a => {
@@ -103,11 +98,10 @@ export default function CategoriesView({
       };
     });
     return stats;
-  }, [generalCategories, articles, subCategories]);
+  }, [generalCategories, articles, subCategories, todayStr]);
 
   const subCategoryStats = useMemo(() => {
     if (!selectedGeneralCategoryId) return [];
-    const today = getNormalizedNow();
     
     return subCategories
       .filter(sc => sc.generalCategoryId === selectedGeneralCategoryId)
@@ -116,11 +110,11 @@ export default function CategoriesView({
         let totalValue = 0;
         
         const futureArrivals = catArticles
-          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) >= today)
-          .map(a => new Date(a.arrivalDate as string).getTime());
+          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate >= todayStr)
+          .map(a => a.arrivalDate as string);
         
         const nextArrival = futureArrivals.length > 0 
-          ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0]
+          ? futureArrivals.sort()[0]
           : '-';
 
         catArticles.forEach(a => {
@@ -135,7 +129,7 @@ export default function CategoriesView({
         };
       })
       .filter(sc => sc.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [selectedGeneralCategoryId, subCategories, articles, searchTerm]);
+  }, [selectedGeneralCategoryId, subCategories, articles, searchTerm, todayStr]);
 
   const currentArticles = useMemo(() => {
     if (!selectedCategory) return [];
@@ -144,17 +138,15 @@ export default function CategoriesView({
 
   const groupedData = useMemo(() => {
     if (!selectedCategory) return null;
-    const today = getNormalizedNow();
     
     return {
-      transit: currentArticles.filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > today),
+      transit: currentArticles.filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr),
       arrived: currentArticles.filter(a => 
-        a.status === 'ARRIVED' || 
-        (a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) <= today)
+        a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate <= todayStr
       ),
       pending: currentArticles.filter(a => a.status === 'TO_ORDER' || a.status === 'PI')
     };
-  }, [currentArticles, selectedCategory]);
+  }, [currentArticles, selectedCategory, todayStr]);
 
   const headerStats = useMemo(() => {
     if (!currentArticles.length) return null;
@@ -162,23 +154,20 @@ export default function CategoriesView({
     const totalVal = currentArticles.reduce((s, a) => s + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)), 0);
     const totalQty = currentArticles.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
 
-    const today = getNormalizedNow();
     const futureArrivals = currentArticles
-      .filter(a => a.status === 'SHIPPED' && a.arrivalDate)
-      .map(a => new Date(a.arrivalDate as string))
-      .filter(d => d >= today);
+      .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate >= todayStr)
+      .map(a => a.arrivalDate as string);
     
     const nextArrival = futureArrivals.length > 0 
-      ? new Date(Math.min(...futureArrivals.map(d => d.getTime()))).toISOString().split('T')[0]
+      ? futureArrivals.sort()[0]
       : '-';
 
     const allOrderDates = currentArticles
       .map(a => a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null))
-      .filter(Boolean)
-      .map(d => new Date(d as string));
+      .filter(Boolean) as string[];
     
     const lastOrder = allOrderDates.length > 0
-      ? new Date(Math.max(...allOrderDates.map(d => d.getTime()))).toISOString().split('T')[0]
+      ? allOrderDates.sort((a, b) => b.localeCompare(a))[0]
       : '-';
 
     return {
@@ -187,7 +176,7 @@ export default function CategoriesView({
       nextArrival,
       lastOrder
     };
-  }, [currentArticles]);
+  }, [currentArticles, todayStr]);
 
   const detailedAnalytics = useMemo(() => {
     if (!selectedCategory || !groupedData) return null;
@@ -221,7 +210,7 @@ export default function CategoriesView({
       dateGroups[date][(a.color || 'DIVERS').toUpperCase()] = Number(a.purchasePricePerUnit) || 0;
     });
 
-    const priceData = Object.values(dateGroups).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
 
     return { statusValue, supplierData, priceData, uniqueColors };
   }, [selectedCategory, currentArticles, groupedData]);
@@ -340,6 +329,9 @@ export default function CategoriesView({
                   <p className="text-[10px] text-stone-400 font-bold uppercase">Stock physique certifié disponible</p>
                 </div>
               </div>
+              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[10px]">
+                {groupedData.arrived.length} LIGNES EN STOCK
+              </Badge>
             </div>
             <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
               <Table>
