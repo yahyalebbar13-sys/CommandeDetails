@@ -23,12 +23,16 @@ import {
   ClipboardList,
   Activity,
   DollarSign,
-  CalendarDays
+  CalendarDays,
+  Trash2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie, Legend, LineChart as RechartsLineChart, Line, CartesianGrid
+  Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
 } from 'recharts';
+import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface CategoriesViewProps {
   articles: any[];
@@ -57,18 +61,29 @@ export default function CategoriesView({
   selectedGeneralCategoryId,
   onSelectGeneralCategory
 }: CategoriesViewProps) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [todayStr, setTodayStr] = useState('');
 
-  // Use useEffect to set today's date on the client only to avoid hydration mismatch
   useEffect(() => {
     const today = new Date();
-    // Format YYYY-MM-DD in local time
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     setTodayStr(`${year}-${month}-${day}`);
   }, []);
+
+  const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
+    if (!user || !firestore) return;
+    if (window.confirm(`Supprimer définitivement la famille "${name}" ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'categories', id);
+      deleteDocumentNonBlocking(docRef);
+      toast({ title: "Famille supprimée", description: name });
+    }
+  };
 
   const groupStats = useMemo(() => {
     if (!todayStr) return {};
@@ -363,7 +378,7 @@ export default function CategoriesView({
                       <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
                       <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
                         {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
@@ -415,7 +430,7 @@ export default function CategoriesView({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-xs py-5 px-6">
                         {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
@@ -460,7 +475,7 @@ export default function CategoriesView({
             </CardHeader>
             <CardContent className="h-[300px] p-6">
               <ResponsiveContainer width="100%" height="100%">
-                <RechartsLineChart data={detailedAnalytics.priceData}>
+                <LineChart data={detailedAnalytics.priceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase' }} />
                   <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
@@ -479,7 +494,7 @@ export default function CategoriesView({
                       connectNulls={true}
                     />
                   ))}
-                </RechartsLineChart>
+                </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -527,7 +542,17 @@ export default function CategoriesView({
                     <div className="p-2 bg-stone-50 rounded-lg group-hover:bg-white transition-colors">
                       <Package className="w-3.5 h-3.5 text-stone-300 group-hover:text-stone-900" />
                     </div>
-                    <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-stone-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        onClick={(e) => handleDeleteSubCategory(e, sc.id, sc.name)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                      <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
+                    </div>
                   </div>
                   <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-4 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
                   
