@@ -312,6 +312,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -329,12 +330,15 @@ export default function CategoriesView({
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                        {Number(a.purchasePricePerUnit).toFixed(4)} €
+                      </TableCell>
                       <TableCell className="text-right font-black text-blue-700 text-xs py-5 px-6">
                         {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -366,6 +370,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Stock Réel</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -380,12 +385,15 @@ export default function CategoriesView({
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                        {Number(a.purchasePricePerUnit).toFixed(4)} €
+                      </TableCell>
                       <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
                         {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -413,6 +421,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Identification</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité Estimée</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -432,12 +441,15 @@ export default function CategoriesView({
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                        {Number(a.purchasePricePerUnit).toFixed(4)} €
+                      </TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-xs py-5 px-6">
                         {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

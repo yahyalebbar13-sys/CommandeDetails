@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -73,15 +72,16 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                   <TableHead className="bg-stone-200/50">Facture</TableHead>
                   <TableHead className="bg-blue-50/50">Date Arrivée</TableHead>
                   <TableHead className="text-right">Qté</TableHead>
+                  <TableHead className="text-right">P.A. Unit.</TableHead>
                   <TableHead className="text-right">CBM</TableHead>
-                  <TableHead className="text-right bg-orange-50">Valeur</TableHead>
+                  <TableHead className="text-right bg-orange-50">Valeur Tot.</TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-stone-400">Aucun résultat trouvé</TableCell>
+                    <TableCell colSpan={10} className="text-center py-12 text-stone-400">Aucun résultat trouvé</TableCell>
                   </TableRow>
                 ) : (
                   filteredArticles.map((o, i) => (
@@ -92,6 +92,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                       <TableCell className="font-bold text-xs bg-stone-100">{o.factureId || 'PI'}</TableCell>
                       <TableCell className="font-bold text-blue-600 bg-blue-50/30 text-xs">{o.arrivalDate || '-'}</TableCell>
                       <TableCell className="text-right font-bold text-xs">{o.quantity.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-bold text-xs text-amber-600">{Number(o.purchasePricePerUnit).toFixed(4)}</TableCell>
                       <TableCell className="text-right text-emerald-700 font-bold text-xs">{o.cubicMeasurement?.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
                       <TableCell>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -146,6 +145,7 @@ export default function FacturesView({
                   <TableHead className="text-[10px] font-black uppercase py-5">Spécifications</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Quantité</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Volume CBM</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-5">P.A. Unitaire</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5 pr-8">Valeur March.</TableHead>
                 </TableRow>
               </TableHeader>
@@ -166,6 +166,7 @@ export default function FacturesView({
                       {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
                     </TableCell>
                     <TableCell className="text-right text-emerald-600 font-bold text-xs">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
+                    <TableCell className="text-right font-black text-amber-700 text-[10px]">{Number(o.purchasePricePerUnit).toFixed(4)} €</TableCell>
                     <TableCell className="text-right font-black text-stone-900 text-xs pr-8">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
                   </TableRow>
                 ))}
