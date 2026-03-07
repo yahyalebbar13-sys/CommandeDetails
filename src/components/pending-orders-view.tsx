@@ -93,7 +93,9 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                     <TableCell className="font-bold text-stone-700">{o.supplierId}</TableCell>
                     <TableCell>
                       <div className="font-bold text-stone-900">{o.name}</div>
-                      <div className="text-[10px] text-stone-500 uppercase">{o.categoryId} • {o.color || 'DIVERS'}</div>
+                      <div className="text-[10px] text-stone-500 uppercase">
+                        {o.categoryId} • {o.specs || 'SANS SPECS'} • {o.color || 'DIVERS'}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-stone-600 text-sm">

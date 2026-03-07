@@ -114,7 +114,9 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                   <TableRow key={o.id} className="hover:bg-blue-50/30 transition-colors group">
                     <TableCell>
                       <div className="font-bold text-stone-900">{o.name}</div>
-                      <div className="text-[10px] text-stone-500 uppercase">{o.categoryId} • {o.color || 'DIVERS'}</div>
+                      <div className="text-[10px] text-stone-500 uppercase">
+                        {o.categoryId} • {o.specs || 'SANS SPECS'} • {o.color || 'DIVERS'}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-mono text-[10px] bg-stone-100">{o.factureId}</Badge>
