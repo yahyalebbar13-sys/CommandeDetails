@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Layers, Plus, Trash2, ArrowRight, FolderSearch, Tag, MoreVertical, PlusCircle } from 'lucide-react';
+import { Layers, Plus, Trash2, ArrowRight, FolderSearch, PlusCircle } from 'lucide-react';
 import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -106,7 +106,7 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
             <Card 
               key={gc.id} 
               onClick={() => onSelectGeneralCategory(gc.id)}
-              className="group cursor-pointer border-none bg-white shadow-xl hover:shadow-2xl transition-all rounded-[2rem] overflow-hidden active:scale-95 status-glow-amber relative"
+              className="group cursor-pointer border-none bg-white shadow-xl hover:shadow-2xl transition-all rounded-[2rem] overflow-hidden active:scale-95 relative"
             >
               <div className={`h-2 w-full ${color}`} />
               <CardContent className="p-8">
@@ -126,11 +126,11 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-10 w-10 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-colors"
+                      className="h-10 w-10 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-colors"
                       onClick={(e) => openSubModal(e, gc.id)}
                       title="Ajouter une sous-catégorie"
                     >
-                      <PlusCircle className="w-6 h-6" />
+                      <PlusCircle className="w-7 h-7" />
                     </Button>
                   </div>
                 </div>
@@ -173,11 +173,6 @@ export default function GeneralCategoriesView({ generalCategories, subCategories
                 className="h-14 uppercase font-black border-stone-200 rounded-xl focus:ring-stone-900 text-lg"
                 autoFocus
               />
-            </div>
-            <div className="p-4 bg-stone-50 rounded-xl border border-dashed border-stone-200">
-              <p className="text-[9px] font-bold text-stone-400 uppercase leading-relaxed italic text-center">
-                Ce groupe servira de conteneur principal pour vos familles de produits.
-              </p>
             </div>
           </div>
           <DialogFooter className="p-8 bg-stone-50 gap-4">
