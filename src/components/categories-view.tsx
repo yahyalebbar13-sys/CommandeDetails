@@ -60,9 +60,16 @@ export default function CategoriesView({
 }: CategoriesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Normalize date to midnight for robust comparisons
+  const getNormalizedNow = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
   const groupStats = useMemo(() => {
     const stats: Record<string, any> = {};
-    const now = new Date();
+    const today = getNormalizedNow();
 
     generalCategories.forEach(gc => {
       const subCatNames = subCategories
@@ -77,7 +84,7 @@ export default function CategoriesView({
       let totalValue = 0;
       
       const futureArrivals = groupArticles
-        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > now)
+        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) >= today)
         .map(a => new Date(a.arrivalDate as string).getTime());
       
       const nextArrival = futureArrivals.length > 0 
@@ -100,7 +107,7 @@ export default function CategoriesView({
 
   const subCategoryStats = useMemo(() => {
     if (!selectedGeneralCategoryId) return [];
-    const now = new Date();
+    const today = getNormalizedNow();
     
     return subCategories
       .filter(sc => sc.generalCategoryId === selectedGeneralCategoryId)
@@ -109,7 +116,7 @@ export default function CategoriesView({
         let totalValue = 0;
         
         const futureArrivals = catArticles
-          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > now)
+          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) >= today)
           .map(a => new Date(a.arrivalDate as string).getTime());
         
         const nextArrival = futureArrivals.length > 0 
@@ -137,10 +144,14 @@ export default function CategoriesView({
 
   const groupedData = useMemo(() => {
     if (!selectedCategory) return null;
-    const now = new Date();
+    const today = getNormalizedNow();
+    
     return {
-      transit: currentArticles.filter(a => a.status === 'SHIPPED' && (!a.arrivalDate || new Date(a.arrivalDate) > now)),
-      arrived: currentArticles.filter(a => a.status === 'ARRIVED' || (a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) <= now)),
+      transit: currentArticles.filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > today),
+      arrived: currentArticles.filter(a => 
+        a.status === 'ARRIVED' || 
+        (a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) <= today)
+      ),
       pending: currentArticles.filter(a => a.status === 'TO_ORDER' || a.status === 'PI')
     };
   }, [currentArticles, selectedCategory]);
@@ -151,14 +162,14 @@ export default function CategoriesView({
     const totalVal = currentArticles.reduce((s, a) => s + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)), 0);
     const totalQty = currentArticles.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
 
-    const now = new Date();
-    const transitDates = currentArticles
+    const today = getNormalizedNow();
+    const futureArrivals = currentArticles
       .filter(a => a.status === 'SHIPPED' && a.arrivalDate)
       .map(a => new Date(a.arrivalDate as string))
-      .filter(d => d > now);
+      .filter(d => d >= today);
     
-    const nextArrival = transitDates.length > 0 
-      ? new Date(Math.min(...transitDates.map(d => d.getTime()))).toISOString().split('T')[0]
+    const nextArrival = futureArrivals.length > 0 
+      ? new Date(Math.min(...futureArrivals.map(d => d.getTime()))).toISOString().split('T')[0]
       : '-';
 
     const allOrderDates = currentArticles
