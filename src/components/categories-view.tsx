@@ -61,14 +61,34 @@ export default function CategoriesView({
 
   const groupStats = useMemo(() => {
     const stats: Record<string, any> = {};
+    const now = new Date();
+
     generalCategories.forEach(gc => {
       const groupArticles = articles.filter(a => a.generalCategoryId === gc.id);
+      let totalValue = 0;
       const units: Record<string, number> = {};
+      
+      const futureArrivals = groupArticles
+        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && new Date(a.arrivalDate) > now)
+        .map(a => new Date(a.arrivalDate as string).getTime());
+      
+      const nextArrival = futureArrivals.length > 0 
+        ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0]
+        : '-';
+
       groupArticles.forEach(a => {
         const unit = (a.unitOfMeasure || 'PCS').toUpperCase();
         units[unit] = (units[unit] || 0) + (Number(a.quantity) || 0);
+        totalValue += (Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0);
       });
-      stats[gc.id] = { name: gc.name, count: groupArticles.length, units };
+
+      stats[gc.id] = { 
+        name: gc.name, 
+        count: groupArticles.length, 
+        units,
+        totalValue,
+        nextArrival
+      };
     });
     return stats;
   }, [generalCategories, articles]);
@@ -177,7 +197,6 @@ export default function CategoriesView({
     });
     const supplierData = Object.entries(supplierMap).map(([name, value]) => ({ name, value }));
 
-    // Price evolution by color
     const colorsSet = new Set<string>();
     currentArticles.forEach(a => colorsSet.add((a.color || 'DIVERS').toUpperCase()));
     const uniqueColors = Array.from(colorsSet);
@@ -214,9 +233,6 @@ export default function CategoriesView({
               <div>
                 <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
-                <div className="flex gap-2 mt-4">
-                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-black uppercase tracking-widest px-3 py-1">Audit Actif</Badge>
-                </div>
               </div>
             </div>
 
@@ -224,20 +240,20 @@ export default function CategoriesView({
               {headerStats && (
                 <>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Valeur Totale</p>
-                    <p className="text-2xl font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} €</p>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Valeur Totale des CMD</p>
+                    <p className="text-xl font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} €</p>
                   </div>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
-                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Quantité Totale</p>
-                    <p className="text-2xl font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Quantité Totale des CMD</p>
+                    <p className="text-xl font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
                   </div>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
                     <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Prochaine Arrivée</p>
-                    <p className="text-2xl font-black text-blue-400 leading-none">{headerStats.nextArrival}</p>
+                    <p className="text-xl font-black text-blue-400 leading-none">{headerStats.nextArrival}</p>
                   </div>
                   <div className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
                     <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Dernière Commande</p>
-                    <p className="text-2xl font-black text-stone-200 leading-none">{headerStats.lastOrder}</p>
+                    <p className="text-xl font-black text-stone-200 leading-none">{headerStats.lastOrder}</p>
                   </div>
                 </>
               )}
@@ -365,7 +381,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Identification</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité Estimée</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Estimée</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -514,14 +530,6 @@ export default function CategoriesView({
                         {sc.totalValue.toLocaleString()} €
                       </span>
                     </div>
-                    <div className="pt-2 border-t border-stone-50/50">
-                      {Object.entries(sc.units).slice(0, 1).map(([unit, total]) => (
-                        <div key={unit} className="flex justify-between items-center text-[9px]">
-                          <span className="text-stone-300 font-bold uppercase tracking-tighter">Volume {unit}</span>
-                          <span className="font-bold text-stone-400">{(total as number).toLocaleString()}</span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -543,7 +551,7 @@ export default function CategoriesView({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
         {Object.entries(groupStats).map(([id, stat], idx) => (
           <Card 
             key={id} 
@@ -558,17 +566,27 @@ export default function CategoriesView({
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-black text-stone-900 leading-none">{stat.count}</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1">Éléments</p>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1">Articles</p>
                 </div>
               </div>
               <h3 className="text-xl font-black text-stone-800 uppercase leading-none mb-8 group-hover:text-stone-900 tracking-tighter">{stat.name}</h3>
               <div className="space-y-3 pt-6 border-t border-stone-50">
-                {Object.entries(stat.units).slice(0, 3).map(([unit, total]) => (
-                  <div key={unit} className="flex justify-between items-center text-[11px]">
-                    <span className="text-stone-400 font-black uppercase tracking-tighter">{unit}</span>
-                    <span className="font-black text-stone-800">{(total as number).toLocaleString()}</span>
-                  </div>
-                ))}
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
+                    <Truck className="w-3 h-3" /> Prochaine
+                  </span>
+                  <span className={`font-black ${stat.nextArrival !== '-' ? 'text-blue-600' : 'text-stone-300'}`}>
+                    {stat.nextArrival}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" /> Valeur Totale
+                  </span>
+                  <span className="font-black text-stone-800">
+                    {Math.round(stat.totalValue).toLocaleString()} €
+                  </span>
+                </div>
               </div>
               <div className="mt-8 flex justify-end">
                 <div className="p-2 bg-stone-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">

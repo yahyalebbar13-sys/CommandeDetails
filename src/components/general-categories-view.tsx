@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -181,7 +180,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   </div>
                   <div className="flex justify-between items-center text-[9px]">
                     <span className="text-stone-400 font-black uppercase tracking-tighter flex items-center gap-1">
-                      <DollarSign className="w-2.5 h-2.5" /> Valeur
+                      <DollarSign className="w-2.5 h-2.5" /> Valeur Totale
                     </span>
                     <span className="font-black text-stone-900">
                       {Math.round(stats.totalValue).toLocaleString()} €
