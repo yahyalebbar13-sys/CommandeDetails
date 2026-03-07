@@ -18,19 +18,21 @@ import {
   Users,
   ShieldAlert,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Layers
 } from 'lucide-react';
-import { ViewType } from '@/lib/types';
+import { ViewType, GeneralCategory } from '@/lib/types';
 
 interface DashboardViewProps {
   articles: any[];
   factures: any[];
+  generalCategories: GeneralCategory[];
   onNavigate: (view: ViewType) => void;
 }
 
 const COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
 
-const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], onNavigate }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], generalCategories = [], onNavigate }) => {
   const safeArticles = articles || [];
   const safeFactures = factures || [];
 
@@ -71,32 +73,35 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
   }, [safeArticles, safeFactures]);
 
   const analyticsData = useMemo(() => {
-    const catMap: Record<string, number> = {};
+    const groupMap: Record<string, number> = {};
     const supMap: Record<string, number> = {};
     const depMap: Record<string, Record<string, number>> = {};
 
     safeArticles.forEach(art => {
-      const cat = art.categoryId || 'Non classé';
+      const gId = art.generalCategoryId || 'Non classé';
       const sup = art.supplierId || 'Inconnu';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
+      const catName = art.categoryId || 'Non classé';
 
-      catMap[cat] = (catMap[cat] || 0) + val;
+      // Map to General Category Names
+      const gName = generalCategories.find(gc => gc.id === gId)?.name || gId;
+
+      groupMap[gName] = (groupMap[gName] || 0) + val;
       supMap[sup] = (supMap[sup] || 0) + val;
 
-      if (!depMap[cat]) depMap[cat] = {};
-      depMap[cat][sup] = (depMap[cat][sup] || 0) + val;
+      if (!depMap[catName]) depMap[catName] = {};
+      depMap[catName][sup] = (depMap[catName][sup] || 0) + val;
     });
 
-    const categoryData = Object.entries(catMap)
+    const groupValueData = Object.entries(groupMap)
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
+      .sort((a, b) => b.value - a.value);
 
     const supplierValueData = Object.entries(supMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Dependency Analysis: Qualitative (Low/Medium/Strong)
+    // Dependency Analysis: Qualitative
     const dependencyData = Object.entries(depMap)
       .map(([category, sups]) => {
         const entries = Object.entries(sups);
@@ -136,11 +141,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .sort((a, b) => b.concentration - a.concentration);
 
     return { 
-      categoryData, 
+      groupValueData, 
       supplierValueData, 
       dependencyData
     };
-  }, [safeArticles]);
+  }, [safeArticles, generalCategories]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -235,47 +240,26 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <TrendingUp className="w-4 h-4 text-amber-500" /> Capital par Catégorie (€)
+              <Layers className="w-4 h-4 text-amber-500" /> Capital par Pôle Logistique (Groupes)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analyticsData.categoryData} layout="vertical" margin={{ left: 40 }}>
+                <BarChart data={analyticsData.groupValueData} layout="vertical" margin={{ left: 100 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={120} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={150} style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', fill: '#1E293B' }} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                    {analyticsData.categoryData.map((entry, index) => (
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
+                    {analyticsData.groupValueData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white">
-          <CardHeader className="py-6 border-b border-stone-50">
-            <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <Users className="w-4 h-4 text-blue-500" /> Valeur Totale par Fournisseur (€)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-8">
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analyticsData.supplierValueData} layout="vertical" margin={{ left: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={120} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', fill: '#64748b' }} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Bar dataKey="value" fill="#1E293B" radius={[0, 4, 4, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
