@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, Legend, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 import { 
   DollarSign,
@@ -17,11 +17,13 @@ import {
   TrendingUp,
   Users,
   ShieldAlert,
-  Activity,
   AlertTriangle,
-  Layers
+  Layers,
+  Truck,
+  CalendarDays
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
 
 interface DashboardViewProps {
   articles: any[];
@@ -72,9 +74,34 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     };
   }, [safeArticles, safeFactures]);
 
+  const nextArrivingFacture = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
+    const futureFactures = [...safeFactures]
+      .filter(f => f.arrivalDate && new Date(f.arrivalDate) >= now)
+      .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
+    
+    if (futureFactures.length === 0) return null;
+    
+    const facture = futureFactures[0];
+    const items = safeArticles.filter(a => a.factureId === facture.id);
+    
+    const summary: Record<string, { qty: number, unit: string }> = {};
+    items.forEach(item => {
+      const cat = item.categoryId || 'DIVERS';
+      if (!summary[cat]) summary[cat] = { qty: 0, unit: item.unitOfMeasure || '' };
+      summary[cat].qty += Number(item.quantity) || 0;
+    });
+    
+    return {
+      ...facture,
+      categorySummary: Object.entries(summary).map(([name, data]) => ({ name, ...data }))
+    };
+  }, [safeFactures, safeArticles]);
+
   const analyticsData = useMemo(() => {
     const groupMap: Record<string, number> = {};
-    const supMap: Record<string, number> = {};
     const depMap: Record<string, Record<string, number>> = {};
 
     safeArticles.forEach(art => {
@@ -83,11 +110,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       const catName = art.categoryId || 'Non classé';
 
-      // Map to General Category Names
       const gName = generalCategories.find(gc => gc.id === gId)?.name || gId;
 
       groupMap[gName] = (groupMap[gName] || 0) + val;
-      supMap[sup] = (supMap[sup] || 0) + val;
 
       if (!depMap[catName]) depMap[catName] = {};
       depMap[catName][sup] = (depMap[catName][sup] || 0) + val;
@@ -97,11 +122,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    const supplierValueData = Object.entries(supMap)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    // Dependency Analysis: Qualitative
     const dependencyData = Object.entries(depMap)
       .map(([category, sups]) => {
         const entries = Object.entries(sups);
@@ -120,14 +140,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         
         let level = 'Faible';
         let color = 'text-emerald-600';
-        if (concentration > 70) {
-          level = 'Forte';
-          color = 'text-red-600';
-        }
-        else if (concentration > 40) {
-          level = 'Moyenne';
-          color = 'text-amber-600';
-        }
+        if (concentration > 70) { level = 'Forte'; color = 'text-red-600'; }
+        else if (concentration > 40) { level = 'Moyenne'; color = 'text-amber-600'; }
 
         return { 
           category, 
@@ -142,14 +156,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
     return { 
       groupValueData, 
-      supplierValueData, 
       dependencyData
     };
   }, [safeArticles, generalCategories]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Quick Nav Indicators */}
       <div className="flex flex-wrap gap-4">
         <button 
           onClick={() => onNavigate('to-order')}
@@ -182,7 +194,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </button>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-none shadow-sm bg-white overflow-hidden group">
           <div className="h-1 w-full bg-stone-900" />
@@ -240,6 +251,66 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
+      {nextArrivingFacture && (
+        <Card className="border-none shadow-xl bg-stone-900 text-white rounded-[2rem] overflow-hidden relative group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-amber-500/20 transition-all duration-700" />
+          <CardHeader className="pb-4 border-b border-white/5">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-[11px] font-black uppercase text-amber-500 flex items-center gap-3 tracking-[0.2em]">
+                <Truck className="w-5 h-5" /> Prochain Arrivage Imminent
+              </CardTitle>
+              <Badge className="bg-blue-500 text-white border-none animate-pulse font-black text-[10px] px-3 py-1">FLUX ENTRANT</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="flex flex-col lg:flex-row gap-12 items-center">
+              <div className="flex-1 space-y-6 w-full">
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1.5">N° Facture / Dossier</p>
+                    <p className="text-3xl font-black tracking-tighter uppercase">{nextArrivingFacture.id}</p>
+                  </div>
+                  <div className="h-10 w-px bg-white/10 hidden md:block" />
+                  <div>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Date d'Arrivée Port</p>
+                    <p className="text-3xl font-black tracking-tighter text-blue-400 flex items-center gap-2">
+                      <CalendarDays className="w-6 h-6" /> {nextArrivingFacture.arrivalDate}
+                    </p>
+                  </div>
+                  <div className="h-10 w-px bg-white/10 hidden md:block" />
+                  <div>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Fournisseur</p>
+                    <p className="text-2xl font-black text-stone-300 uppercase">{nextArrivingFacture.supplierId || nextArrivingFacture.supplier}</p>
+                  </div>
+                </div>
+
+                <div className="pt-8 border-t border-white/5">
+                  <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.2em] mb-4">Contenu du Manifeste (Résumé)</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {nextArrivingFacture.categorySummary.map((item, idx) => (
+                      <div key={idx} className="bg-white/5 border border-white/10 p-3 rounded-xl hover:bg-white/10 transition-colors">
+                        <p className="text-[8px] font-black text-stone-400 uppercase truncate mb-1">{item.name}</p>
+                        <p className="text-sm font-black text-white">{item.qty.toLocaleString()} <span className="text-[9px] text-stone-500 font-bold">{item.unit}</span></p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full lg:w-48 flex justify-center lg:justify-end">
+                <Button 
+                  onClick={() => onNavigate('factures')}
+                  variant="outline" 
+                  className="h-16 w-16 rounded-2xl border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/30 text-white transition-all group/btn"
+                >
+                  <ArrowRight className="w-8 h-8 group-hover/btn:translate-x-1 transition-transform" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-8">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
@@ -267,7 +338,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       </div>
 
-      {/* Dependency Radar Chart */}
       <Card className="border-none shadow-sm bg-white">
         <CardHeader className="py-6 border-b border-stone-50">
           <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
