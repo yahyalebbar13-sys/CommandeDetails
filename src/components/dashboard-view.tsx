@@ -31,11 +31,12 @@ interface DashboardViewProps {
   factures: any[];
   generalCategories: GeneralCategory[];
   onNavigate: (view: ViewType) => void;
+  onNavigateToFacture?: (factureId: string) => void;
 }
 
 const COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
 
-const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], generalCategories = [], onNavigate }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], generalCategories = [], onNavigate, onNavigateToFacture }) => {
   const safeArticles = articles || [];
   const safeFactures = factures || [];
 
@@ -300,7 +301,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
               <div className="w-full lg:w-48 flex justify-center lg:justify-end">
                 <Button 
-                  onClick={() => onNavigate('factures')}
+                  onClick={() => onNavigateToFacture ? onNavigateToFacture(nextArrivingFacture.id) : onNavigate('factures')}
                   variant="outline" 
                   className="h-16 w-16 rounded-2xl border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/30 text-white transition-all group/btn"
                 >

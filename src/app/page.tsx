@@ -184,7 +184,7 @@ export default function StockVueApp() {
           </div>
         ) : (
           <div className="fade-in">
-            {activeTab === 'dashboard' && <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} onNavigate={setActiveTab} />}
+            {activeTab === 'dashboard' && <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} onNavigate={setActiveTab} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'to-order' && <ToOrderView articles={articles} onEdit={handleEditArticle} />}
             {activeTab === 'pending' && <PendingOrdersView articles={articles} factures={factures} onEdit={handleEditArticle} />}
             {activeTab === 'transit' && <TransitOrdersView articles={articles} onEdit={handleEditArticle} />}
