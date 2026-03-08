@@ -17,16 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
 
-const CATEGORIES_WITH_SIZE = [
-  "slider for nylon zipper",
-  "slider for metal zipper",
-  "slider for plastic zipper",
-  "metal zipper",
-  "nylon zipper",
-  "plastic zipper",
-  "ALIMINIUM ZIPPER"
-];
-
 interface EditOrderModalProps {
   article: any | null;
   onOpenChange: (open: boolean) => void;
@@ -72,11 +62,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (!selectedGenCatId || !subCategories) return [];
     return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
-
-  const showSizeField = useMemo(() => {
-    if (!formData?.categoryId) return false;
-    return CATEGORIES_WITH_SIZE.some(cat => formData.categoryId.toLowerCase().includes(cat.toLowerCase()));
-  }, [formData?.categoryId]);
 
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
@@ -171,19 +156,17 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </Select>
             </div>
             
-            {showSizeField && (
-              <div className="space-y-1.5 md:col-span-2 animate-in slide-in-from-top-2">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                  <Maximize className="w-3 h-3" /> Taille
-                </Label>
-                <Input 
-                  value={formData.size || ''} 
-                  onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))} 
-                  className="h-11 border-stone-200 font-bold"
-                  placeholder="Ex: No.5, No.3..."
-                />
-              </div>
-            )}
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Maximize className="w-3 h-3" /> Taille / Dimension
+              </Label>
+              <Input 
+                value={formData.size || ''} 
+                onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))} 
+                className="h-11 border-stone-200 font-bold"
+                placeholder="Ex: No.5, 20cm, 120D/2..."
+              />
+            </div>
 
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
@@ -194,7 +177,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   value={formData.specs || ''} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))} 
                   className="h-11 border-stone-200 font-bold"
-                  placeholder="Ex: 20cm, 50m/roll..."
+                  placeholder="Ex: Semi-Auto, 50m/roll..."
                 />
                 <Button 
                   type="button" 

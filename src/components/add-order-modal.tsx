@@ -16,16 +16,6 @@ import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize } from '
 const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
 
-const CATEGORIES_WITH_SIZE = [
-  "slider for nylon zipper",
-  "slider for metal zipper",
-  "slider for plastic zipper",
-  "metal zipper",
-  "nylon zipper",
-  "plastic zipper",
-  "ALIMINIUM ZIPPER"
-];
-
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -52,11 +42,6 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     if (!selectedGenCatId) return [];
     return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
-
-  const showSizeField = useMemo(() => {
-    if (!formData.categoryId) return false;
-    return CATEGORIES_WITH_SIZE.some(cat => formData.categoryId.toLowerCase().includes(cat.toLowerCase()));
-  }, [formData.categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,26 +125,24 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             </div>
           </div>
 
-          {showSizeField && (
-            <div className="space-y-1.5 animate-in slide-in-from-top-2">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Maximize className="w-3 h-3" /> Taille
-              </Label>
-              <Input 
-                placeholder="Ex: No.5, No.3, No.8..." 
-                className="h-12 border-stone-200 font-bold rounded-xl"
-                value={formData.size}
-                onChange={e => setFormData((p: any) => ({...p, size: e.target.value}))}
-              />
-            </div>
-          )}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+              <Maximize className="w-3 h-3" /> Taille / Dimension
+            </Label>
+            <Input 
+              placeholder="Ex: No.5, 20cm, 120D/2..." 
+              className="h-12 border-stone-200 font-bold rounded-xl"
+              value={formData.size}
+              onChange={e => setFormData((p: any) => ({...p, size: e.target.value}))}
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
               <ClipboardList className="w-3 h-3" /> Détails Techniques / Specs
             </Label>
             <Input 
-              placeholder="Ex: 20cm, 50m/roll, 120D/2..." 
+              placeholder="Ex: Semi-Auto, 50m/roll..." 
               className="h-12 border-stone-200 font-bold rounded-xl"
               value={formData.specs}
               onChange={e => setFormData((p: any) => ({...p, specs: e.target.value}))}
