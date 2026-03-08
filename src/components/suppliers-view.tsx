@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -62,7 +61,7 @@ export default function SuppliersView({ articles, factures, onNavigateToFacture 
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-black text-amber-700 mb-4">{Math.round(stat.val).toLocaleString()} €</div>
+              <div className="text-2xl font-black text-amber-700 mb-4">{Math.round(stat.val).toLocaleString()} $</div>
               <div className="space-y-1 text-sm text-stone-500">
                 <div className="flex justify-between">
                   <span>Articles commandés:</span>
@@ -93,7 +92,6 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
   const nextArrivalDate = futureArrivals.length ? new Date(Math.min(...futureArrivals)).toISOString().split('T')[0] : 'Aucune';
 
   const supplierFactures = useMemo(() => {
-    // Collect unique facture IDs from articles belonging to this supplier
     const ids = Array.from(new Set(supArticles.map(a => a.factureId).filter(Boolean)));
     
     return ids.map(id => {
@@ -126,7 +124,7 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
         </div>
         <div className="text-right bg-stone-50 p-3 rounded-lg border border-stone-200">
           <div className="text-[10px] text-stone-500 uppercase tracking-wide font-bold">Volume Financier</div>
-          <div className="text-2xl font-black text-amber-700">{Math.round(totalVal).toLocaleString()} €</div>
+          <div className="text-2xl font-black text-amber-700">{Math.round(totalVal).toLocaleString()} $</div>
         </div>
       </div>
 
@@ -174,8 +172,8 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
                     <TableCell className="font-black text-stone-800">{f.id}</TableCell>
                     <TableCell className={`font-bold ${f.isArrived ? 'text-green-600' : 'text-blue-600'}`}>{f.arrivalDate}</TableCell>
                     <TableCell className="text-right text-emerald-700 font-bold">{f.cbm.toFixed(2)} m³</TableCell>
-                    <TableCell className="text-right font-medium">{Math.round(f.itemsVal).toLocaleString()} €</TableCell>
-                    <TableCell className="text-right font-black text-amber-700">{Math.round(f.total).toLocaleString()} €</TableCell>
+                    <TableCell className="text-right font-medium">{Math.round(f.itemsVal).toLocaleString()} $</TableCell>
+                    <TableCell className="text-right font-black text-amber-700">{Math.round(f.total).toLocaleString()} $</TableCell>
                     <TableCell className="text-right">
                       <Button 
                         size="sm" 

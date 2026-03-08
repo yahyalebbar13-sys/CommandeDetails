@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  Cell, LineChart, Line, PieChart, Pie, Legend
 } from 'recharts';
 import { 
   DollarSign,
@@ -104,61 +104,40 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
   const analyticsData = useMemo(() => {
     const groupMap: Record<string, number> = {};
-    const depMap: Record<string, Record<string, number>> = {};
+    const supplierMap: Record<string, number> = {};
+    const evolutionMap: Record<string, number> = {};
 
     safeArticles.forEach(art => {
       const gId = art.generalCategoryId || 'Non classé';
       const sup = art.supplierId || 'Inconnu';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
-      const catName = art.categoryId || 'Non classé';
+      const date = art.arrivalDate || art.orderDate || (art.createdAt ? new Date(art.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
 
       const gName = generalCategories.find(gc => gc.id === gId)?.name || gId;
 
       groupMap[gName] = (groupMap[gName] || 0) + val;
-
-      if (!depMap[catName]) depMap[catName] = {};
-      depMap[catName][sup] = (depMap[catName][sup] || 0) + val;
+      supplierMap[sup] = (supplierMap[sup] || 0) + val;
+      if (date) {
+        evolutionMap[date] = (evolutionMap[date] || 0) + val;
+      }
     });
 
     const groupValueData = Object.entries(groupMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    const dependencyData = Object.entries(depMap)
-      .map(([category, sups]) => {
-        const entries = Object.entries(sups);
-        const total = entries.reduce((s, [_, v]) => s + v, 0);
-        
-        let maxVal = 0;
-        let dominantSupplier = 'N/A';
-        entries.forEach(([sup, val]) => {
-          if (val > maxVal) {
-            maxVal = val;
-            dominantSupplier = sup;
-          }
-        });
+    const supplierData = Object.entries(supplierMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
 
-        const concentration = total > 0 ? (maxVal / total) * 100 : 0;
-        
-        let level = 'Faible';
-        let color = 'text-emerald-600';
-        if (concentration > 70) { level = 'Forte'; color = 'text-red-600'; }
-        else if (concentration > 40) { level = 'Moyenne'; color = 'text-amber-600'; }
-
-        return { 
-          category, 
-          concentration: Number(concentration.toFixed(1)),
-          dominantSupplier,
-          level,
-          color,
-          fullMark: 100 
-        };
-      })
-      .sort((a, b) => b.concentration - a.concentration);
+    const evolutionData = Object.entries(evolutionMap)
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     return { 
       groupValueData, 
-      dependencyData
+      supplierData,
+      evolutionData
     };
   }, [safeArticles, generalCategories]);
 
@@ -313,27 +292,54 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <Layers className="w-4 h-4 text-amber-500" /> Capital par Pôle Logistique (Groupes)
+              <TrendingUp className="w-4 h-4 text-amber-500" /> Évolution des Importations ($)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="h-[400px] w-full">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analyticsData.groupValueData} layout="vertical" margin={{ left: 100 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={150} style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', fill: '#1E293B' }} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} $`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
-                    {analyticsData.groupValueData.map((entry, index) => (
+                <LineChart data={analyticsData.evolutionData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <Line type="monotone" dataKey="value" stroke="#CC8626" strokeWidth={3} dot={{ r: 4, fill: '#CC8626' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white">
+          <CardHeader className="py-6 border-b border-stone-50">
+            <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
+              <Users className="w-4 h-4 text-blue-500" /> Répartition par Fournisseur (%)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={analyticsData.supplierData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {analyticsData.supplierData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
-                  </Bar>
-                </BarChart>
+                  </Pie>
+                  <Tooltip formatter={(val: number) => [`${val.toLocaleString()} $`]} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -343,63 +349,24 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       <Card className="border-none shadow-sm bg-white">
         <CardHeader className="py-6 border-b border-stone-50">
           <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-            <ShieldAlert className="w-4 h-4 text-emerald-500" /> Radar de Dépendance Logistique (Risque %)
+            <Layers className="w-4 h-4 text-stone-900" /> Capital par Pôle Logistique ($)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
-          <div className="h-auto w-full flex flex-col xl:flex-row items-center gap-12">
-            <div className="flex-1 h-[450px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={analyticsData.dependencyData.slice(0, 12)}>
-                  <PolarGrid stroke="#e2e8f0" />
-                  <PolarAngleAxis dataKey="category" tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
-                  <Radar
-                    name="Niveau de Dépendance"
-                    dataKey="concentration"
-                    stroke="#CC8626"
-                    fill="#CC8626"
-                    fillOpacity={0.5}
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
-                    formatter={(val: number, name: string, props: any) => [
-                      `${val}% (${props.payload.dominantSupplier})`, 
-                      'Concentration'
-                    ]}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div className="w-full xl:w-96 space-y-6">
-              <div className="p-6 bg-stone-50 rounded-[2rem] border border-stone-100">
-                <p className="text-[10px] font-black text-stone-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-500" /> Alertes de Concentration
-                </p>
-                <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                  {analyticsData.dependencyData.filter(d => d.concentration > 40).map((d) => (
-                    <div key={d.category} className="flex flex-col border-b border-stone-200/50 pb-3 last:border-0">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-[9px] font-black text-stone-900 uppercase tracking-tighter truncate w-2/3">{d.category}</span>
-                        <span className={`text-[10px] font-black ${d.color}`}>{d.concentration}%</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[8px] font-bold text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                          <Users className="w-2 h-2" /> {d.dominantSupplier}
-                        </span>
-                        <span className={`text-[8px] font-black uppercase tracking-widest bg-white px-2 py-0.5 rounded border border-stone-100 shadow-sm`}>
-                          Risque {d.level}
-                        </span>
-                      </div>
-                    </div>
+          <div className="h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analyticsData.groupValueData} layout="vertical" margin={{ left: 100 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={150} style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', fill: '#1E293B' }} />
+                <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} $`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
+                  {analyticsData.groupValueData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
-                </div>
-              </div>
-              <p className="text-[9px] text-stone-400 font-bold uppercase leading-relaxed italic px-2">
-                * Le risque est calculé sur la part de valeur détenue par le fournisseur principal au sein de la catégorie.
-              </p>
-            </div>
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>

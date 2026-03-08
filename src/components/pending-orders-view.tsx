@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -106,7 +105,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                       {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
                     </TableCell>
                     <TableCell className="text-right font-black text-amber-700">
-                      {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €
+                      {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-1">

@@ -214,12 +214,16 @@ export default function CategoriesView({
     groupedData.arrived.forEach(a => statusValue[1].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
     groupedData.pending.forEach(a => statusValue[2].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
 
-    const supplierMap: Record<string, number> = {};
+    const quantityEvolution: Record<string, number> = {};
     currentArticles.forEach(a => {
-      const s = a.supplierId || 'Inconnu';
-      supplierMap[s] = (supplierMap[s] || 0) + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0));
+      const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
+      if (date) {
+        quantityEvolution[date] = (quantityEvolution[date] || 0) + (Number(a.quantity) || 0);
+      }
     });
-    const supplierData = Object.entries(supplierMap).map(([name, value]) => ({ name, value }));
+    const quantityData = Object.entries(quantityEvolution)
+      .map(([date, value]) => ({ date, value }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     const colorsSet = new Set<string>();
     currentArticles.forEach(a => colorsSet.add((a.color || 'DIVERS').toUpperCase()));
@@ -235,7 +239,7 @@ export default function CategoriesView({
 
     const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
 
-    return { statusValue, supplierData, priceData, uniqueColors };
+    return { statusValue, quantityData, priceData, uniqueColors };
   }, [selectedCategory, currentArticles, groupedData]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
@@ -399,62 +403,6 @@ export default function CategoriesView({
               </Table>
             </Card>
           </section>
-
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-500/10 rounded-xl">
-                  <Clock className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-black text-stone-900 uppercase text-xs tracking-[0.2em]">Prévisions & Besoins</h3>
-                  <p className="text-[10px] text-stone-400 font-bold uppercase">Planification de production en attente</p>
-                </div>
-              </div>
-            </div>
-            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
-              <Table>
-                <TableHeader className="bg-stone-50/80">
-                  <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Identification</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">État Production</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité Estimée</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedData.pending.length > 0 ? groupedData.pending.map(a => (
-                    <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
-                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
-                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">
-                        {a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : '-')}
-                      </TableCell>
-                      <TableCell className="py-5">
-                        <Badge variant="outline" className="text-[9px] font-black uppercase h-6 px-3 border-stone-200">
-                          {a.status === 'PI' ? 'COMMANDE LANCÉE' : 'BESOIN IDENTIFIÉ'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} $
-                      </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
-                      </TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune prévision identifiée</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </Card>
-          </section>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-10 border-t border-stone-200">
@@ -462,18 +410,18 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-stone-900" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <Factory className="w-3 h-3 text-amber-500" /> Répartition par Fournisseur (%)
+                <Box className="w-3 h-3 text-amber-500" /> Évolution des Quantités Commandées
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] p-4">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={detailedAnalytics.supplierData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
-                    {detailedAnalytics.supplierData.map((entry, index) => <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} $`]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
-                </PieChart>
+                <BarChart data={detailedAnalytics.quantityData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <Bar dataKey="value" fill="#CC8626" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>

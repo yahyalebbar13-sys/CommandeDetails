@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo } from 'react';
@@ -71,7 +70,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
           </div>
           <div className="bg-amber-50 px-4 py-2 rounded-lg border border-amber-200">
             <div className="text-[10px] text-amber-600 font-bold uppercase">Valeur Engagée</div>
-            <div className="text-xl font-black text-amber-700">{Math.round(stats.val).toLocaleString()} €</div>
+            <div className="text-xl font-black text-amber-700">{Math.round(stats.val).toLocaleString()} $</div>
           </div>
         </div>
       </div>
@@ -133,7 +132,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                     <TableCell className="text-right text-emerald-700 font-bold">{o.cubicMeasurement?.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-stone-400 font-mono text-xs">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
                     <TableCell className="text-right font-black text-amber-700 bg-amber-50/20">
-                      {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} €
+                      {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
