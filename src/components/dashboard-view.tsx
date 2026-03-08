@@ -109,7 +109,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       const gId = art.generalCategoryId || 'Non classé';
       const sup = art.supplierId || 'Inconnu';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
-      const date = art.arrivalDate || art.orderDate || (art.createdAt ? new Date(art.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
+      
+      // Use orderDate as primary date for monthly evolution charts
+      const date = art.orderDate || (art.createdAt ? new Date(art.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
 
       const gName = generalCategories.find(gc => gc.id === gId)?.name || gId;
 
@@ -296,7 +298,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <TrendingUp className="w-4 h-4 text-amber-500" /> Évolution Mensuelle des Importations ($)
+              <TrendingUp className="w-4 h-4 text-amber-500" /> Évolution Mensuelle des Commandes ($)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">

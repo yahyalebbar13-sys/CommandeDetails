@@ -64,6 +64,7 @@ export default function CategoriesView({
   const [todayStr, setTodayStr] = useState('');
 
   useEffect(() => {
+    // Correct hydration-safe date handling
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -161,7 +162,7 @@ export default function CategoriesView({
     return {
       transit: currentArticles.filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr),
       arrived: currentArticles.filter(a => 
-        a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate <= todayStr
+        (a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate <= todayStr)
       ),
       pending: currentArticles.filter(a => a.status === 'TO_ORDER' || a.status === 'PI')
     };
@@ -214,6 +215,7 @@ export default function CategoriesView({
     const supplierMap: Record<string, number> = {};
 
     currentArticles.forEach(a => {
+      // Use orderDate as primary date for monthly quantity evolution
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (date) {
         // Group by Month (YYYY-MM)
@@ -242,7 +244,6 @@ export default function CategoriesView({
     currentArticles.forEach(a => {
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
-      // Keep price by date for better granularity, or could be monthly avg
       if (!dateGroups[date]) dateGroups[date] = { date };
       dateGroups[date][(a.color || 'DIVERS').toUpperCase()] = Number(a.purchasePricePerUnit) || 0;
     });
