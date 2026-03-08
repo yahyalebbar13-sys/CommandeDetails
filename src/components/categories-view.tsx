@@ -265,7 +265,7 @@ export default function CategoriesView({
                 <>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Valeur Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} €</p>
+                    <p className="text-lg font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} $</p>
                   </div>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Quantité Totale CMD</p>
@@ -331,10 +331,10 @@ export default function CategoriesView({
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} €
+                        {Number(a.purchasePricePerUnit).toFixed(4)} $
                       </TableCell>
                       <TableCell className="text-right font-black text-blue-700 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                       </TableCell>
                     </TableRow>
                   )) : (
@@ -386,10 +386,10 @@ export default function CategoriesView({
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} €
+                        {Number(a.purchasePricePerUnit).toFixed(4)} $
                       </TableCell>
                       <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                       </TableCell>
                     </TableRow>
                   )) : (
@@ -442,10 +442,10 @@ export default function CategoriesView({
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} €
+                        {Number(a.purchasePricePerUnit).toFixed(4)} $
                       </TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} €
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                       </TableCell>
                     </TableRow>
                   )) : (
@@ -471,7 +471,7 @@ export default function CategoriesView({
                   <Pie data={detailedAnalytics.supplierData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
                     {detailedAnalytics.supplierData.map((entry, index) => <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />)}
                   </Pie>
-                  <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} $`]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingTop: '20px' }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -482,7 +482,7 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Couleur (€)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Couleur ($)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] p-6">
@@ -582,7 +582,7 @@ export default function CategoriesView({
                         <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                       </span>
                       <span className="font-black text-stone-900">
-                        {Math.round(sc.totalValue).toLocaleString()} €
+                        {Math.round(sc.totalValue).toLocaleString()} $
                       </span>
                     </div>
                   </div>
@@ -639,7 +639,7 @@ export default function CategoriesView({
                     <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                   </span>
                   <span className="font-black text-stone-800">
-                    {Math.round(stat.totalValue).toLocaleString()} €
+                    {Math.round(stat.totalValue).toLocaleString()} $
                   </span>
                 </div>
               </div>

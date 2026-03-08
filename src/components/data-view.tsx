@@ -94,7 +94,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                       <TableCell className="text-right font-bold text-xs">{o.quantity.toLocaleString()}</TableCell>
                       <TableCell className="text-right font-bold text-xs text-amber-600">{Number(o.purchasePricePerUnit).toFixed(4)}</TableCell>
                       <TableCell className="text-right text-emerald-700 font-bold text-xs">{o.cubicMeasurement?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                      <TableCell className="text-right font-black text-amber-700 bg-orange-50/50 text-xs">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button 

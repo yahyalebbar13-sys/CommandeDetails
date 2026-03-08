@@ -42,13 +42,12 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   }, [selectedGenCatId, subCategories]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    onOpenChange(false);
     if (!user || !firestore || !formData.categoryId || !selectedGenCatId) return;
     
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'articles', id);
     
-    // Le nom de l'article est synchronisé avec la sous-catégorie
     setDocumentNonBlocking(docRef, { 
       ...formData, 
       id, 
@@ -59,7 +58,6 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     }, { merge: true });
 
     toast({ title: "Besoins enregistrés", description: "L'article a été ajouté à la liste des rappels." });
-    onOpenChange(false);
     
     setFormData({
       categoryId: '',
@@ -170,7 +168,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({...p, quantity: parseFloat(e.target.value) || 0}))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation Prix Unitaire (€)</Label>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation Prix Unitaire ($)</Label>
               <Input type="number" step="0.0001" className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({...p, purchasePricePerUnit: parseFloat(e.target.value) || 0}))} />
             </div>
           </div>

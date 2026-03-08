@@ -78,7 +78,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    onOpenChange(false);
     if (!user || !firestore || !article || !formData) return;
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
@@ -102,7 +102,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     updateDocumentNonBlocking(docRef, finalData);
 
     toast({ title: "Modifié !", description: `L'article a été mis à jour.` });
-    onOpenChange(false);
   };
 
   if (!formData) return null;
@@ -217,7 +216,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
               
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire (€)</Label>
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire ($)</Label>
                 <Input 
                   type="number" 
                   step="0.0001" 

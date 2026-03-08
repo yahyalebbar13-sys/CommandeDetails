@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -187,7 +186,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                       <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                     </span>
                     <span className="font-black text-stone-900">
-                      {Math.round(stats.totalValue).toLocaleString()} €
+                      {Math.round(stats.totalValue).toLocaleString()} $
                     </span>
                   </div>
                 </div>

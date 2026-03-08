@@ -126,12 +126,12 @@ export default function FacturesView({
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto relative z-10">
-              <SummaryBlock label="Efficience Fret" value={selectedFacture.efficiency.toFixed(2)} sub="€ / m³" color="text-amber-500" />
+              <SummaryBlock label="Efficience Fret" value={selectedFacture.efficiency.toFixed(2)} sub="$ / m³" color="text-amber-500" />
               <SummaryBlock label="Volume Total" value={selectedFacture.cbm.toFixed(2)} sub="m³" color="text-blue-400" />
               <SummaryBlock label="Arrivée" value={selectedFacture.arrivalDate} icon={<CalendarDays className="w-3 h-3" />} color="text-white" />
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
                 <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Totale</p>
-                <div className="text-xl font-black">{(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} €</div>
+                <div className="text-xl font-black">{(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} $</div>
               </div>
             </div>
           </div>
@@ -166,8 +166,8 @@ export default function FacturesView({
                       {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
                     </TableCell>
                     <TableCell className="text-right text-emerald-600 font-bold text-xs">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
-                    <TableCell className="text-right font-black text-amber-700 text-[10px]">{Number(o.purchasePricePerUnit).toFixed(4)} €</TableCell>
-                    <TableCell className="text-right font-black text-stone-900 text-xs pr-8">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} €</TableCell>
+                    <TableCell className="text-right font-black text-amber-700 text-[10px]">{Number(o.purchasePricePerUnit).toFixed(4)} $</TableCell>
+                    <TableCell className="text-right font-black text-stone-900 text-xs pr-8">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -222,7 +222,7 @@ export default function FacturesView({
           <div className="flex gap-4">
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Efficience Moyenne</p>
-              <p className="text-xl font-black text-white">42.50 €/m³</p>
+              <p className="text-xl font-black text-white">42.50 $/m³</p>
             </div>
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Factures</p>
@@ -284,7 +284,7 @@ export default function FacturesView({
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Efficience</p>
                   <p className="text-base font-black text-stone-900">{f.efficiency.toFixed(2)}</p>
-                  <p className="text-[7px] font-bold text-stone-300">€ / m³</p>
+                  <p className="text-[7px] font-bold text-stone-300">$ / m³</p>
                 </div>
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Volume</p>
@@ -296,7 +296,7 @@ export default function FacturesView({
               <div className="pt-6 border-t border-stone-100 flex justify-between items-end">
                 <div>
                   <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Dossier</p>
-                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{(f.itemsVal + f.freight).toLocaleString()} €</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{(f.itemsVal + f.freight).toLocaleString()} $</p>
                 </div>
                 <div className="p-3 bg-stone-50 rounded-xl group-hover:bg-stone-900 group-hover:text-white transition-all">
                   <ArrowUpRight className="w-4 h-4" />

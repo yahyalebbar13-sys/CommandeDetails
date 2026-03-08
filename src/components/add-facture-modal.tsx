@@ -50,7 +50,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
   }, [editFacture, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    onOpenChange(false);
     if (!user || !firestore || !formData.id) return;
 
     const factureId = formData.id.toUpperCase().trim();
@@ -63,10 +63,8 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       updatedAt: serverTimestamp()
     };
 
-    // Save the main facture doc
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
-    // PROPAGATION: If arrival date changed and we have linked articles, update them
     if (editFacture && formData.arrivalDate !== editFacture.arrivalDate && associatedArticles && associatedArticles.length > 0) {
       associatedArticles.forEach((article: any) => {
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
@@ -82,8 +80,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         description: `Référence ${factureId} activée.` 
       });
     }
-
-    onOpenChange(false);
   };
 
   return (
@@ -139,7 +135,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Truck className="w-3 h-3" /> FRAIS DE FRET (€)
+                <Truck className="w-3 h-3" /> FRAIS DE FRET ($)
               </Label>
               <Input 
                 type="number"

@@ -203,7 +203,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Valeur Portefeuille</p>
-                <h3 className="text-2xl font-black text-stone-900">{stats.totalVal.toLocaleString()} €</h3>
+                <h3 className="text-2xl font-black text-stone-900">{stats.totalVal.toLocaleString()} $</h3>
               </div>
               <DollarSign className="w-5 h-5 text-stone-200 group-hover:text-stone-900 transition-colors" />
             </div>
@@ -229,7 +229,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Efficacité Fret</p>
-                <h3 className="text-2xl font-black text-stone-900">{stats.avgEfficiency.toFixed(2)} <span className="text-xs text-stone-400">€/m³</span></h3>
+                <h3 className="text-2xl font-black text-stone-900">{stats.avgEfficiency.toFixed(2)} <span className="text-xs text-stone-400">$/m³</span></h3>
               </div>
               <Anchor className="w-5 h-5 text-stone-200 group-hover:text-blue-500 transition-colors" />
             </div>
@@ -327,7 +327,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={150} style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', fill: '#1E293B' }} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} €`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} $`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
                     {analyticsData.groupValueData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
