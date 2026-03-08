@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -10,10 +11,20 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, ClipboardList } from 'lucide-react';
+import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize } from 'lucide-react';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
+
+const CATEGORIES_WITH_SIZE = [
+  "slider for nylon zipper",
+  "slider for metal zipper",
+  "slider for plastic zipper",
+  "metal zipper",
+  "nylon zipper",
+  "plastic zipper",
+  "ALIMINIUM ZIPPER"
+];
 
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { user } = useUser();
@@ -33,6 +44,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     quantity: 0,
     unitOfMeasure: 'pièces',
     color: 'white',
+    size: '',
     purchasePricePerUnit: 0,
   });
 
@@ -40,6 +52,11 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     if (!selectedGenCatId) return [];
     return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
+
+  const showSizeField = useMemo(() => {
+    if (!formData.categoryId) return false;
+    return CATEGORIES_WITH_SIZE.some(cat => formData.categoryId.toLowerCase().includes(cat.toLowerCase()));
+  }, [formData.categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     onOpenChange(false);
@@ -65,6 +82,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       quantity: 0,
       unitOfMeasure: 'pièces',
       color: 'white',
+      size: '',
       purchasePricePerUnit: 0,
     });
     setSelectedGenCatId('');
@@ -120,6 +138,20 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               </Select>
             </div>
           </div>
+
+          {showSizeField && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Maximize className="w-3 h-3" /> Taille
+              </Label>
+              <Input 
+                placeholder="Ex: No.5, No.3, No.8..." 
+                className="h-12 border-stone-200 font-bold rounded-xl"
+                value={formData.size}
+                onChange={e => setFormData((p: any) => ({...p, size: e.target.value}))}
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">

@@ -19,6 +19,7 @@ export type Order = {
   name: string;
   specs?: string;
   color?: string;
+  size?: string;
   supplierId: string;
   factureId?: string;
   orderDate: string;

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -141,6 +142,7 @@ export default function FacturesView({
               <TableHeader className="bg-stone-50/50">
                 <TableRow>
                   <TableHead className="text-[10px] font-black uppercase py-5 px-8">Catégorie</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5">Taille</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5">Couleur</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5">Spécifications</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Quantité</TableHead>
@@ -160,6 +162,7 @@ export default function FacturesView({
                         {o.categoryId} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
                     </TableCell>
+                    <TableCell className="text-[11px] font-black text-amber-600">{o.size || '-'}</TableCell>
                     <TableCell className="text-[11px] font-black text-stone-400 uppercase">{o.color || 'DIVERS'}</TableCell>
                     <TableCell className="text-[11px] font-bold text-stone-500">{o.specs || '-'}</TableCell>
                     <TableCell className="text-right font-black text-stone-900 text-xs">

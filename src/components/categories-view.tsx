@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -64,7 +65,6 @@ export default function CategoriesView({
   const [todayStr, setTodayStr] = useState('');
 
   useEffect(() => {
-    // Correct hydration-safe date handling
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -215,10 +215,8 @@ export default function CategoriesView({
     const supplierMap: Record<string, number> = {};
 
     currentArticles.forEach(a => {
-      // Use orderDate as primary date for monthly quantity evolution
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (date) {
-        // Group by Month (YYYY-MM)
         const month = date.substring(0, 7);
         quantityEvolution[month] = (quantityEvolution[month] || 0) + (Number(a.quantity) || 0);
       }
@@ -236,21 +234,31 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    const colorsSet = new Set<string>();
-    currentArticles.forEach(a => colorsSet.add((a.color || 'DIVERS').toUpperCase()));
-    const uniqueColors = Array.from(colorsSet);
+    // Grouping by Color AND Size
+    const productsSet = new Set<string>();
+    currentArticles.forEach(a => {
+      const colorPart = (a.color || 'DIVERS').toUpperCase();
+      const sizePart = a.size ? ` (${a.size})` : '';
+      productsSet.add(`${colorPart}${sizePart}`);
+    });
+    const uniqueProducts = Array.from(productsSet);
 
     const dateGroups: Record<string, any> = {};
     currentArticles.forEach(a => {
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
       if (!dateGroups[date]) dateGroups[date] = { date };
-      dateGroups[date][(a.color || 'DIVERS').toUpperCase()] = Number(a.purchasePricePerUnit) || 0;
+      
+      const colorPart = (a.color || 'DIVERS').toUpperCase();
+      const sizePart = a.size ? ` (${a.size})` : '';
+      const productKey = `${colorPart}${sizePart}`;
+      
+      dateGroups[date][productKey] = Number(a.purchasePricePerUnit) || 0;
     });
 
     const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
 
-    return { statusValue, quantityData, priceData, uniqueColors, supplierDistribution };
+    return { statusValue, quantityData, priceData, uniqueProducts, supplierDistribution };
   }, [selectedCategory, currentArticles, groupedData]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
@@ -321,6 +329,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
@@ -335,6 +344,7 @@ export default function CategoriesView({
                   {groupedData.transit.length > 0 ? groupedData.transit.map(a => (
                     <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-[10px] font-black text-amber-600">{a.size || '-'}</TableCell>
                       <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
                       <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
@@ -353,7 +363,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={10} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -380,6 +390,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
@@ -393,6 +404,7 @@ export default function CategoriesView({
                   {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => (
                     <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
                       <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-[10px] font-black text-amber-600">{a.size || '-'}</TableCell>
                       <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                       <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
@@ -408,7 +420,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -441,7 +453,7 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Couleur ($)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Couleur & Taille ($)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] p-6">
@@ -452,12 +464,12 @@ export default function CategoriesView({
                   <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
                   <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
                   <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
-                  {detailedAnalytics.uniqueColors.map((color, idx) => (
+                  {detailedAnalytics.uniqueProducts.map((product, idx) => (
                     <Line 
-                      key={color} 
+                      key={product} 
                       type="monotone" 
-                      dataKey={color} 
-                      name={color}
+                      dataKey={product} 
+                      name={product}
                       stroke={UI_COLORS[idx % UI_COLORS.length]} 
                       strokeWidth={3} 
                       dot={{ r: 4, fill: UI_COLORS[idx % UI_COLORS.length], strokeWidth: 0 }} 

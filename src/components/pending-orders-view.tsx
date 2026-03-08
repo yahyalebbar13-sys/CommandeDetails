@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -93,7 +94,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                     <TableCell>
                       <div className="font-bold text-stone-900">{o.name}</div>
                       <div className="text-[10px] text-stone-500 uppercase">
-                        {o.categoryId} • {o.specs || 'SANS SPECS'} • {o.color || 'DIVERS'}
+                        {o.categoryId} • {o.size ? `TAILLE: ${o.size} • ` : ''} {o.specs || 'SANS SPECS'} • {o.color || 'DIVERS'}
                       </div>
                     </TableCell>
                     <TableCell>

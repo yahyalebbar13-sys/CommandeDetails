@@ -72,6 +72,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
               <TableRow>
                 <TableHead>Catégorie / Article</TableHead>
                 <TableHead>Spécifications</TableHead>
+                <TableHead>Taille</TableHead>
                 <TableHead>Couleur</TableHead>
                 <TableHead className="text-right">Qté Prévue</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -80,7 +81,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
             <TableBody>
               {toOrderArticles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-20 text-stone-400 italic">
+                  <TableCell colSpan={6} className="text-center py-20 text-stone-400 italic">
                     Aucun article dans vos rappels "À Commander".
                   </TableCell>
                 </TableRow>
@@ -92,7 +93,8 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                       <div className="text-[10px] text-stone-500 uppercase">{o.categoryId}</div>
                     </TableCell>
                     <TableCell className="text-xs text-stone-600">{o.specs || '-'}</TableCell>
-                    <TableCell className="text-xs">{o.color || '-'}</TableCell>
+                    <TableCell className="text-xs font-black text-amber-700">{o.size || '-'}</TableCell>
+                    <TableCell className="text-xs uppercase">{o.color || '-'}</TableCell>
                     <TableCell className="text-right font-bold">
                       {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
                     </TableCell>

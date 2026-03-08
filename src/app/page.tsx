@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -85,12 +86,12 @@ export default function StockVueApp() {
   };
 
   const handleExport = () => {
-    const headers = ['Statut', 'Groupe', 'Sous-Cat', 'Article', 'Specs', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
+    const headers = ['Statut', 'Groupe', 'Sous-Cat', 'Article', 'Taille', 'Specs', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
     const rows = (articles || []).map(d => {
       const total = ((d.quantity || 0) * (d.purchasePricePerUnit || 0)).toFixed(2);
       const statusLabel = d.status === 'TO_ORDER' ? 'À COMMANDER' : (d.status === 'PI' ? 'EN PRODUCTION' : 'EXPÉDIÉ');
       const genCat = (generalCategories || []).find(gc => gc.id === d.generalCategoryId)?.name || '-';
-      return [statusLabel, genCat, d.categoryId, d.name, d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
+      return [statusLabel, genCat, d.categoryId, d.name, d.size || '-', d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
         .map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(',');
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
@@ -148,13 +149,6 @@ export default function StockVueApp() {
       <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex justify-between items-center">
           <div className="flex items-center gap-6">
-            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden text-stone-600"><Menu /></Button></SheetTrigger>
-              <SheetContent side="left" className="w-80 p-0 border-r-stone-200">
-                <SheetHeader className="p-8 border-b border-stone-100 bg-stone-50"><SheetTitle className="text-xl font-black tracking-tighter uppercase">STOCK<span className="text-amber-500">VUE</span></SheetTitle></SheetHeader>
-                <div className="flex flex-col p-4 space-y-2"><NavButtons isMobile /></div>
-              </SheetContent>
-            </Sheet>
             <button 
               onClick={resetToHome}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
@@ -210,7 +204,7 @@ export default function StockVueApp() {
         </div>
       </footer>
       
-      <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} factures={factures} />
+      <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} />
       <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
     </div>
   );

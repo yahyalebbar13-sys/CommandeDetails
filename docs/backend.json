@@ -60,6 +60,7 @@
         "name": { "type": "string" },
         "specs": { "type": "string" },
         "color": { "type": "string" },
+        "size": { "type": "string" },
         "quantity": { "type": "number" },
         "unitOfMeasure": { "type": "string" },
         "purchasePricePerUnit": { "type": "number" },
