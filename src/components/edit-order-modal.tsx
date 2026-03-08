@@ -95,7 +95,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   };
 
   const handleSubmit = (e: React.FormEvent) => {
-    onOpenChange(false);
+    e.preventDefault();
     if (!user || !firestore || !article || !formData) return;
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
@@ -119,6 +119,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     updateDocumentNonBlocking(docRef, finalData);
 
     toast({ title: "Modifié !", description: `L'article a été mis à jour.` });
+    onOpenChange(false);
   };
 
   if (!formData) return null;
@@ -171,7 +172,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             </div>
             
             {showSizeField && (
-              <div className="space-y-1.5 md:col-span-2">
+              <div className="space-y-1.5 md:col-span-2 animate-in slide-in-from-top-2">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Maximize className="w-3 h-3" /> Taille
                 </Label>
@@ -308,14 +309,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
           </div>
-        </form>
-
-        <DialogFooter className="border-t pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[10px] font-black uppercase tracking-widest">Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest px-8 h-11 rounded-lg gap-2">
-            <Save className="w-4 h-4" /> Sauvegarder
+          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-12 rounded-xl gap-2 shadow-lg shadow-stone-200">
+            <Save className="w-4 h-4" /> Sauvegarder les modifications
           </Button>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

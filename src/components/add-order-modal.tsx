@@ -59,7 +59,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   }, [formData.categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    onOpenChange(false);
+    e.preventDefault();
     if (!user || !firestore || !formData.categoryId || !selectedGenCatId) return;
     
     const id = crypto.randomUUID();
@@ -86,6 +86,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       purchasePricePerUnit: 0,
     });
     setSelectedGenCatId('');
+    onOpenChange(false);
   };
 
   return (
@@ -140,7 +141,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           </div>
 
           {showSizeField && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 animate-in slide-in-from-top-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Maximize className="w-3 h-3" /> Taille
               </Label>
@@ -200,7 +201,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({...p, quantity: parseFloat(e.target.value) || 0}))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation Prix Unitaire ($)</Label>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation PA ($)</Label>
               <Input type="number" step="0.0001" className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({...p, purchasePricePerUnit: parseFloat(e.target.value) || 0}))} />
             </div>
           </div>

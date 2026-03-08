@@ -259,7 +259,7 @@ export default function CategoriesView({
     const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
 
     return { statusValue, quantityData, priceData, uniqueProducts, supplierDistribution };
-  }, [selectedCategory, currentArticles, groupedData]);
+  }, [selectedCategory, currentArticles, groupedData, todayStr]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
     return (

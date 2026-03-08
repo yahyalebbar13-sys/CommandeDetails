@@ -16,8 +16,7 @@ import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, Database, LogOut, Loader2, Menu, Layers, FileText, Factory, Truck, ClipboardList, LayoutDashboard, Boxes, UserCheck, Anchor } from 'lucide-react';
+import { LogOut, Loader2, Layers, Package, Plus, Database, LayoutDashboard, ClipboardList, Factory, Truck, Anchor, Boxes, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
@@ -32,7 +31,6 @@ export default function StockVueApp() {
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
   const facturesRef = useMemoFirebase(() => {
@@ -85,25 +83,6 @@ export default function StockVueApp() {
     setSelectedCategoryName(null);
   };
 
-  const handleExport = () => {
-    const headers = ['Statut', 'Groupe', 'Sous-Cat', 'Article', 'Taille', 'Specs', 'Couleur', 'Fournisseur', 'Facture', 'Date Cmd', 'Date Arrivée', 'Quantité', 'Unité', 'CBM', 'PA', 'Valeur Totale'];
-    const rows = (articles || []).map(d => {
-      const total = ((d.quantity || 0) * (d.purchasePricePerUnit || 0)).toFixed(2);
-      const statusLabel = d.status === 'TO_ORDER' ? 'À COMMANDER' : (d.status === 'PI' ? 'EN PRODUCTION' : 'EXPÉDIÉ');
-      const genCat = (generalCategories || []).find(gc => gc.id === d.generalCategoryId)?.name || '-';
-      return [statusLabel, genCat, d.categoryId, d.name, d.size || '-', d.specs || '-', d.color || '-', d.supplierId, d.factureId || '-', d.orderDate, d.arrivalDate || '-', d.quantity, d.unitOfMeasure, d.cubicMeasurement || 0, d.purchasePricePerUnit, total]
-        .map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(',');
-    });
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
-    const link = document.createElement("a");
-    link.href = encodeURI(csvContent);
-    link.download = `Export_StockVue_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Export CSV généré" });
-  };
-
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'to-order', label: 'Besoins', icon: ClipboardList },
@@ -116,23 +95,22 @@ export default function StockVueApp() {
     { id: 'data', label: 'Data Lab', icon: Database },
   ] as const;
 
-  const NavButtons = ({ isMobile = false }: { isMobile?: boolean }) => (
+  const NavButtons = () => (
     <>
       {navItems.map(({ id, label, icon: Icon }) => (
         <Button
           key={id}
           variant={activeTab === id ? "secondary" : "ghost"}
-          className={`flex items-center gap-3 justify-start rounded-xl transition-all ${isMobile ? 'w-full text-base py-6' : 'px-4 py-2 h-10'} ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-lg shadow-amber-500/20' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}`}
+          className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}`}
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
             if (id === 'general-categories') setSelectedGeneralCategoryId(null);
             if (id === 'categories') setSelectedCategoryName(null);
-            if (isMobile) setIsMobileMenuOpen(false);
           }}
         >
-          <Icon className={isMobile ? "w-5 h-5" : "w-4 h-4"} />
-          <span className="truncate text-[11px] font-black uppercase tracking-widest">{label}</span>
+          <Icon className="w-3.5 h-3.5" />
+          <span className="truncate text-[10px] font-black uppercase tracking-wider">{label}</span>
         </Button>
       ))}
     </>
@@ -147,30 +125,32 @@ export default function StockVueApp() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
       <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-6 h-20 flex justify-between items-center">
-          <div className="flex items-center gap-6">
+        <div className="max-w-[1600px] mx-auto px-6 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-4">
             <button 
               onClick={resetToHome}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              <span className="text-2xl font-black tracking-tighter text-stone-900 uppercase">STOCK<span className="text-amber-500">VUE</span></span>
+              <span className="text-xl font-black tracking-tighter text-stone-900 uppercase">STOCK<span className="text-amber-500">VUE</span></span>
             </button>
-            <div className="h-6 w-px bg-stone-200 hidden lg:block"></div>
-            <div className="hidden lg:flex items-center space-x-1"><NavButtons /></div>
+            <div className="h-6 w-px bg-stone-200 hidden xl:block"></div>
+            <div className="hidden xl:flex items-center space-x-1">
+              <NavButtons />
+            </div>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-6 py-2 h-11 rounded-xl shadow-xl shadow-stone-900/10 flex items-center gap-2 text-[10px] uppercase font-black tracking-widest">
+          <div className="flex items-center space-x-3">
+            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-4 py-2 h-9 rounded-xl shadow-lg shadow-stone-900/5 flex items-center gap-2 text-[10px] uppercase font-black tracking-widest">
               <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nouveau Produit</span>
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 h-11 w-11 rounded-xl hover:bg-red-50 transition-colors">
-              <LogOut className="w-5 h-5" />
+            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors">
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </nav>
 
-      <main className="flex-grow max-w-[1600px] mx-auto px-6 py-10 w-full">
+      <main className="flex-grow max-w-[1600px] mx-auto px-6 py-8 w-full">
         {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <Loader2 className="animate-spin text-amber-500 w-12 h-12" />
@@ -191,14 +171,10 @@ export default function StockVueApp() {
         )}
       </main>
 
-      <footer className="border-t border-stone-200 bg-white py-10">
-        <div className="max-w-[1600px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-stone-400 text-[10px] font-black uppercase tracking-[0.2em] gap-8">
-          <p>© 2024 STOCKVUE LOGISTICS ENGINE • MISSION CRITICAL PLATFORM</p>
-          <div className="flex gap-8 items-center">
-            <button onClick={handleExport} className="hover:text-amber-600 transition-colors flex items-center gap-2">
-              <Database className="w-4 h-4" /> EXPORT ANALYTIQUE (CSV)
-            </button>
-            <div className="h-4 w-px bg-stone-100"></div>
+      <footer className="border-t border-stone-200 bg-white py-6">
+        <div className="max-w-[1600px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
+          <p>© 2024 STOCKVUE LOGISTICS ENGINE</p>
+          <div className="flex gap-6 items-center">
             <span className="text-stone-300">CORE VERSION 2.8.5</span>
           </div>
         </div>
