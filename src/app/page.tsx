@@ -149,9 +149,11 @@ export default function StockVueApp() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 bg-white p-0 border-r border-stone-100">
-                <div className="bg-stone-900 p-6 flex items-center gap-3">
-                   <span className="text-xl font-black tracking-tighter text-white uppercase">STOCK<span className="text-amber-500">VUE</span></span>
-                </div>
+                <SheetHeader className="bg-stone-900 p-6 text-left">
+                   <SheetTitle className="text-xl font-black tracking-tighter text-white uppercase flex items-center gap-3">
+                    STOCK<span className="text-amber-500">VUE</span>
+                   </SheetTitle>
+                </SheetHeader>
                 <div className="p-4">
                   <NavButtons vertical />
                 </div>
