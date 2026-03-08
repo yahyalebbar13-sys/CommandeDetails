@@ -16,11 +16,22 @@ import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
-import { LogOut, Loader2, Layers, Package, Plus, Database, LayoutDashboard, ClipboardList, Factory, Truck, Anchor, Boxes, UserCheck } from 'lucide-react';
+import { 
+  LogOut, Loader2, Layers, Package, Plus, Database, 
+  LayoutDashboard, ClipboardList, Factory, Truck, 
+  Anchor, Boxes, UserCheck, Menu, X 
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
+} from '@/components/ui/sheet';
 
 export default function StockVueApp() {
   const { user, isUserLoading } = useUser();
@@ -31,6 +42,7 @@ export default function StockVueApp() {
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
   const facturesRef = useMemoFirebase(() => {
@@ -61,6 +73,7 @@ export default function StockVueApp() {
   const handleNavigateToFacture = (factureId: string) => {
     setSelectedFactureId(factureId);
     setActiveTab('factures');
+    setIsMobileMenuOpen(false);
   };
 
   const handleEditArticle = (article: any) => {
@@ -81,6 +94,7 @@ export default function StockVueApp() {
     setSelectedFactureId(null);
     setSelectedGeneralCategoryId(null);
     setSelectedCategoryName(null);
+    setIsMobileMenuOpen(false);
   };
 
   const navItems = [
@@ -95,25 +109,26 @@ export default function StockVueApp() {
     { id: 'data', label: 'Data Lab', icon: Database },
   ] as const;
 
-  const NavButtons = () => (
-    <>
+  const NavButtons = ({ vertical = false }: { vertical?: boolean }) => (
+    <div className={`flex ${vertical ? 'flex-col space-y-2' : 'flex-row space-x-1'}`}>
       {navItems.map(({ id, label, icon: Icon }) => (
         <Button
           key={id}
           variant={activeTab === id ? "secondary" : "ghost"}
-          className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}`}
+          className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'} ${vertical ? 'w-full h-12' : ''}`}
           onClick={() => {
             setActiveTab(id);
             if (id === 'factures') setSelectedFactureId(null);
             if (id === 'general-categories') setSelectedGeneralCategoryId(null);
             if (id === 'categories') setSelectedCategoryName(null);
+            setIsMobileMenuOpen(false);
           }}
         >
-          <Icon className="w-3.5 h-3.5" />
-          <span className="truncate text-[10px] font-black uppercase tracking-wider">{label}</span>
+          <Icon className={`${vertical ? 'w-5 h-5' : 'w-3.5 h-3.5'}`} />
+          <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{label}</span>
         </Button>
       ))}
-    </>
+    </div>
   );
 
   if (isUserLoading) {
@@ -127,6 +142,22 @@ export default function StockVueApp() {
       <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-[1600px] mx-auto px-6 h-16 flex justify-between items-center">
           <div className="flex items-center gap-4">
+            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="xl:hidden -ml-2 text-stone-900">
+                  <Menu className="w-6 h-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-72 bg-white p-0 border-r border-stone-100">
+                <div className="bg-stone-900 p-6 flex items-center gap-3">
+                   <span className="text-xl font-black tracking-tighter text-white uppercase">STOCK<span className="text-amber-500">VUE</span></span>
+                </div>
+                <div className="p-4">
+                  <NavButtons vertical />
+                </div>
+              </SheetContent>
+            </Sheet>
+
             <button 
               onClick={resetToHome}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
