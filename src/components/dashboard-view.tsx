@@ -17,8 +17,6 @@ import {
   ArrowRight,
   TrendingUp,
   Users,
-  ShieldAlert,
-  AlertTriangle,
   Layers,
   Truck,
   CalendarDays
@@ -118,7 +116,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       groupMap[gName] = (groupMap[gName] || 0) + val;
       supplierMap[sup] = (supplierMap[sup] || 0) + val;
       if (date) {
-        evolutionMap[date] = (evolutionMap[date] || 0) + val;
+        // Group by Month (YYYY-MM)
+        const month = date.substring(0, 7);
+        evolutionMap[month] = (evolutionMap[month] || 0) + val;
       }
     });
 
@@ -296,7 +296,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="py-6 border-b border-stone-50">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <TrendingUp className="w-4 h-4 text-amber-500" /> Évolution des Importations ($)
+              <TrendingUp className="w-4 h-4 text-amber-500" /> Évolution Mensuelle des Importations ($)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">

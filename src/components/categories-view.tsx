@@ -12,19 +12,15 @@ import {
   ChevronLeft, 
   Truck, 
   CheckCircle2,
-  Clock,
   LayoutGrid,
   Package,
   ArrowUpRight,
   Search,
   TrendingUp,
   Box,
-  Factory,
-  ClipboardList,
-  Activity,
   DollarSign,
-  CalendarDays,
-  Trash2
+  Trash2,
+  Users
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -215,15 +211,28 @@ export default function CategoriesView({
     groupedData.pending.forEach(a => statusValue[2].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
 
     const quantityEvolution: Record<string, number> = {};
+    const supplierMap: Record<string, number> = {};
+
     currentArticles.forEach(a => {
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (date) {
-        quantityEvolution[date] = (quantityEvolution[date] || 0) + (Number(a.quantity) || 0);
+        // Group by Month (YYYY-MM)
+        const month = date.substring(0, 7);
+        quantityEvolution[month] = (quantityEvolution[month] || 0) + (Number(a.quantity) || 0);
       }
+
+      const sup = a.supplierId || 'Inconnu';
+      const val = (Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0);
+      supplierMap[sup] = (supplierMap[sup] || 0) + val;
     });
+
     const quantityData = Object.entries(quantityEvolution)
       .map(([date, value]) => ({ date, value }))
       .sort((a, b) => a.date.localeCompare(b.date));
+
+    const supplierDistribution = Object.entries(supplierMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
 
     const colorsSet = new Set<string>();
     currentArticles.forEach(a => colorsSet.add((a.color || 'DIVERS').toUpperCase()));
@@ -233,13 +242,14 @@ export default function CategoriesView({
     currentArticles.forEach(a => {
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
+      // Keep price by date for better granularity, or could be monthly avg
       if (!dateGroups[date]) dateGroups[date] = { date };
       dateGroups[date][(a.color || 'DIVERS').toUpperCase()] = Number(a.purchasePricePerUnit) || 0;
     });
 
     const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
 
-    return { statusValue, quantityData, priceData, uniqueColors };
+    return { statusValue, quantityData, priceData, uniqueColors, supplierDistribution };
   }, [selectedCategory, currentArticles, groupedData]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
@@ -405,12 +415,12 @@ export default function CategoriesView({
           </section>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-10 border-t border-stone-200">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-10 border-t border-stone-200">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
             <div className="h-1.5 w-full bg-stone-900" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <Box className="w-3 h-3 text-amber-500" /> Évolution des Quantités Commandées
+                <Box className="w-3 h-3 text-amber-500" /> Volumes Mensuels Commandés
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] p-4">
@@ -455,6 +465,36 @@ export default function CategoriesView({
                     />
                   ))}
                 </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
+            <div className="h-1.5 w-full bg-emerald-500" />
+            <CardHeader className="py-4 border-b border-stone-50">
+              <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                <Users className="w-3 h-3 text-emerald-500" /> Répartition par Fournisseur (%)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px] p-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={detailedAnalytics.supplierDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {detailedAnalytics.supplierDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} $`]} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
