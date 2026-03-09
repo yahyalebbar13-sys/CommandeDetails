@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -13,8 +12,8 @@ import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize } from 'lucide-react';
 
-const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
-const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
+const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag"];
+const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white"];
 
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { user } = useUser();

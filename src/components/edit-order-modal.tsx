@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -14,8 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const UNITS = ["pièces", "doz", "m", "rolls", "kg"];
-const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white"];
+const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag"];
+const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white"];
 
 interface EditOrderModalProps {
   article: any | null;
