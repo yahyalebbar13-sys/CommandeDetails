@@ -21,7 +21,8 @@ import {
   Box,
   DollarSign,
   Trash2,
-  Users
+  Users,
+  Factory
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -164,7 +165,8 @@ export default function CategoriesView({
       arrived: currentArticles.filter(a => 
         (a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate <= todayStr)
       ),
-      pending: currentArticles.filter(a => a.status === 'TO_ORDER' || a.status === 'PI')
+      production: currentArticles.filter(a => a.status === 'PI'),
+      pending: currentArticles.filter(a => a.status === 'TO_ORDER')
     };
   }, [currentArticles, selectedCategory, todayStr]);
 
@@ -204,12 +206,12 @@ export default function CategoriesView({
     const statusValue = [
       { name: 'En Transit', value: 0, color: STATUS_COLORS.TRANSIT },
       { name: 'Réceptionné', value: 0, color: STATUS_COLORS.ARRIVED },
-      { name: 'En Attente', value: 0, color: STATUS_COLORS.PENDING },
+      { name: 'En Production', value: 0, color: STATUS_COLORS.PENDING },
     ];
     
     groupedData.transit.forEach(a => statusValue[0].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
     groupedData.arrived.forEach(a => statusValue[1].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
-    groupedData.pending.forEach(a => statusValue[2].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
+    groupedData.production.forEach(a => statusValue[2].value += ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)));
 
     const quantityEvolution: Record<string, number> = {};
     const supplierMap: Record<string, number> = {};
@@ -309,6 +311,63 @@ export default function CategoriesView({
         </header>
 
         <div className="grid grid-cols-1 gap-10">
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-xl">
+                  <Factory className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-black text-stone-900 uppercase text-xs tracking-[0.2em]">Manifeste de Production (PI)</h3>
+                  <p className="text-[10px] text-stone-400 font-bold uppercase">Commandes lancées en cours de fabrication</p>
+                </div>
+              </div>
+              <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-100 font-black text-[10px]">
+                {groupedData.production.length} LIGNES EN PRODUCTION
+              </Badge>
+            </div>
+            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
+              <Table>
+                <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
+                  <TableRow>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Est.</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupedData.production.length > 0 ? groupedData.production.map(a => (
+                    <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
+                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
+                      <TableCell className="text-[10px] font-black text-amber-600">{a.size || '-'}</TableCell>
+                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
+                      <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
+                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
+                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
+                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                        {Number(a.purchasePricePerUnit).toFixed(4)} $
+                      </TableCell>
+                      <TableCell className="text-right font-black text-amber-600 text-xs py-5 px-6">
+                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </section>
+
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-3">
