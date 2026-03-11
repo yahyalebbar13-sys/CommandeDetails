@@ -138,7 +138,6 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
         <StatCard label="Nombre Factures" value={supplierFactures.length} icon={<FileText className="w-4 h-4 text-stone-400" />} />
       </div>
 
-      {/* Factures et Arrivages en premier comme demandé */}
       <Card className="overflow-hidden shadow-sm border-stone-200">
         <CardHeader className="bg-stone-50 py-4 px-6 border-b">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -196,7 +195,6 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
         </CardContent>
       </Card>
 
-      {/* Commandes en Production en second */}
       {piOrders.length > 0 && (
         <Card className="overflow-hidden shadow-sm border-amber-200 border-l-4">
           <CardHeader className="bg-amber-50/50 py-4 px-6 border-b border-amber-100">
