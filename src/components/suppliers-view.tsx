@@ -138,48 +138,7 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
         <StatCard label="Nombre Factures" value={supplierFactures.length} icon={<FileText className="w-4 h-4 text-stone-400" />} />
       </div>
 
-      {piOrders.length > 0 && (
-        <Card className="overflow-hidden shadow-sm border-amber-200 border-l-4">
-          <CardHeader className="bg-amber-50/50 py-4 px-6 border-b border-amber-100">
-            <CardTitle className="text-lg font-bold flex items-center gap-2 text-amber-900">
-              <Factory className="w-5 h-5 text-amber-600" />
-              Commandes en Production (PI) de {supplierName}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-amber-50/30">
-                  <TableRow>
-                    <TableHead className="text-amber-800 text-[10px] uppercase font-black">Article</TableHead>
-                    <TableHead className="text-amber-800 text-[10px] uppercase font-black">Date Cmd</TableHead>
-                    <TableHead className="text-amber-800 text-[10px] uppercase font-black text-right">Qté</TableHead>
-                    <TableHead className="text-amber-800 text-[10px] uppercase font-black text-right">P.A. Unit.</TableHead>
-                    <TableHead className="text-amber-800 text-[10px] uppercase font-black text-right">Valeur Est.</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {piOrders.map((o, i) => (
-                    <TableRow key={i} className="hover:bg-amber-50/20 transition-colors">
-                      <TableCell>
-                        <div className="font-bold text-stone-900">{o.name}</div>
-                        <div className="text-[10px] text-stone-500 uppercase">{o.categoryId} • {o.size || '-'} • {o.color || '-'}</div>
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-stone-600">{o.orderDate}</TableCell>
-                      <TableCell className="text-right font-black text-stone-800">
-                        {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase">{o.unitOfMeasure}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-amber-700 text-xs">{o.purchasePricePerUnit.toFixed(4)} $</TableCell>
-                      <TableCell className="text-right font-black text-amber-800">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Factures et Arrivages en premier comme demandé */}
       <Card className="overflow-hidden shadow-sm border-stone-200">
         <CardHeader className="bg-stone-50 py-4 px-6 border-b">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -236,6 +195,49 @@ function SupplierDetailView({ supplierName, articles, factures, onBack, onNaviga
           </div>
         </CardContent>
       </Card>
+
+      {/* Commandes en Production en second */}
+      {piOrders.length > 0 && (
+        <Card className="overflow-hidden shadow-sm border-amber-200 border-l-4">
+          <CardHeader className="bg-amber-50/50 py-4 px-6 border-b border-amber-100">
+            <CardTitle className="text-lg font-bold flex items-center gap-2 text-amber-900">
+              <Factory className="w-5 h-5 text-amber-600" />
+              Commandes en Production (PI) de {supplierName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-amber-50/30">
+                  <TableRow>
+                    <TableHead className="text-amber-800 text-[10px] uppercase font-black">Article</TableHead>
+                    <TableHead className="text-amber-800 text-[10px] uppercase font-black">Date Cmd</TableHead>
+                    <TableHead className="text-amber-800 text-[10px] uppercase font-black text-right">Qté</TableHead>
+                    <TableHead className="text-amber-800 text-[10px] uppercase font-black text-right">P.A. Unit.</TableHead>
+                    <TableHead className="text-amber-800 text-[10px] uppercase font-black text-right">Valeur Est.</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {piOrders.map((o, i) => (
+                    <TableRow key={i} className="hover:bg-amber-50/20 transition-colors">
+                      <TableCell>
+                        <div className="font-bold text-stone-900">{o.name}</div>
+                        <div className="text-[10px] text-stone-500 uppercase">{o.categoryId} • {o.size || '-'} • {o.color || '-'}</div>
+                      </TableCell>
+                      <TableCell className="text-xs font-bold text-stone-600">{o.orderDate}</TableCell>
+                      <TableCell className="text-right font-black text-stone-800">
+                        {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase">{o.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-amber-700 text-xs">{o.purchasePricePerUnit.toFixed(4)} $</TableCell>
+                      <TableCell className="text-right font-black text-amber-800">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
