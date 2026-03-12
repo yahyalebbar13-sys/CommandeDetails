@@ -361,12 +361,14 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation / Taille / Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications Techniques</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Specs</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unit.</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Est.</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -375,38 +377,40 @@ export default function CategoriesView({
                     const isSpecial = isSpecialZipperCategory(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                        <TableCell className="py-5 px-6">
-                          <div className="font-black text-xs text-stone-900 uppercase">{a.name}</div>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            {a.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</Badge>}
-                            {a.color && <span className="text-[10px] text-stone-900 font-black uppercase">{a.color}</span>}
-                          </div>
+                        <TableCell className="py-3 px-6">
+                          <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
-                        <TableCell className="text-[10px] py-5">
+                        <TableCell className="py-3">
+                          {a.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {a.size}</Badge>}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
+                        </TableCell>
+                        <TableCell className="text-[10px] py-3">
                           {isSpecial ? (
-                            <div className="flex flex-col gap-1">
-                              <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
                             <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                          {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                        <TableCell className="text-stone-400 font-black text-[10px] py-3 uppercase">{a.supplierId}</TableCell>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
+                          {a.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">
                           {Number(a.purchasePricePerUnit).toFixed(4)} $
                         </TableCell>
-                        <TableCell className="text-right font-black text-amber-600 text-xs py-5 px-6">
+                        <TableCell className="text-right font-black text-amber-600 text-[11px] py-3 px-6">
                           {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                         </TableCell>
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -432,13 +436,14 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation / Taille / Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications Techniques</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Specs</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -447,41 +452,40 @@ export default function CategoriesView({
                     const isSpecial = isSpecialZipperCategory(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
-                        <TableCell className="py-5 px-6">
-                          <div className="font-black text-xs text-stone-900 uppercase">{a.name}</div>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            {a.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</Badge>}
-                            {a.color && <span className="text-[10px] text-stone-900 font-black uppercase">{a.color}</span>}
-                          </div>
+                        <TableCell className="py-3 px-6">
+                          <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
-                        <TableCell className="text-[10px] py-5">
+                        <TableCell className="py-3">
+                          {a.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {a.size}</Badge>}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
+                        </TableCell>
+                        <TableCell className="text-[10px] py-3">
                           {isSpecial ? (
-                            <div className="flex flex-col gap-1">
-                              <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
                             <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
-                        <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
-                        <TableCell className="py-5">
+                        <TableCell className="text-stone-400 font-black text-[10px] py-3 uppercase">{a.supplierId}</TableCell>
+                        <TableCell className="text-blue-600 font-black text-[10px] py-3">{a.arrivalDate || '-'}</TableCell>
+                        <TableCell className="py-3">
                           <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                          {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                        <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
+                          {a.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                          {Number(a.purchasePricePerUnit).toFixed(4)} $
-                        </TableCell>
-                        <TableCell className="text-right font-black text-blue-700 text-xs py-5 px-6">
+                        <TableCell className="text-right font-black text-blue-700 text-[11px] py-3 px-6">
                           {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                         </TableCell>
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -507,13 +511,14 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation / Taille / Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications Techniques</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Stock Réel</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique / Specs</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Cmd</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Réceptionné le</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -521,38 +526,37 @@ export default function CategoriesView({
                     const isSpecial = isSpecialZipperCategory(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
-                        <TableCell className="py-5 px-6">
-                          <div className="font-black text-xs text-stone-900 uppercase">{a.name}</div>
-                          <div className="flex items-center gap-3 mt-1.5">
-                            {a.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</Badge>}
-                            {a.color && <span className="text-[10px] text-stone-900 font-black uppercase">{a.color}</span>}
-                          </div>
+                        <TableCell className="py-3 px-6">
+                          <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
-                        <TableCell className="text-[10px] py-5">
+                        <TableCell className="py-3">
+                          {a.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {a.size}</Badge>}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
+                        </TableCell>
+                        <TableCell className="text-[10px] py-3">
                           {isSpecial ? (
-                            <div className="flex flex-col gap-1">
-                              <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
                             <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
-                        <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                          {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.arrivalDate}</TableCell>
+                        <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
+                          {a.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                          {Number(a.purchasePricePerUnit).toFixed(4)} $
-                        </TableCell>
-                        <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
+                        <TableCell className="text-right font-black text-emerald-700 text-[11px] py-3 px-6">
                           {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                         </TableCell>
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

@@ -76,8 +76,10 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
             <TableHeader className="bg-stone-50/80">
               <TableRow>
                 <TableHead className="text-[10px] font-black uppercase py-4">Fournisseur</TableHead>
-                <TableHead className="text-[10px] font-black uppercase py-4">Article / Taille / Couleur</TableHead>
-                <TableHead className="text-[10px] font-black uppercase py-4">Spécifications Techniques</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Désignation</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Taille</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Couleur</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Technique / Specs</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Date Commande</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Qté</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Valeur Est.</TableHead>
@@ -87,7 +89,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
             <TableBody>
               {pendingOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-20 text-stone-400 italic font-bold">
+                  <TableCell colSpan={9} className="text-center py-20 text-stone-400 italic font-bold">
                     Aucune commande en production détectée.
                   </TableCell>
                 </TableRow>
@@ -96,36 +98,38 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                   const isZipper = isZipperCategory(o.categoryId);
                   return (
                     <TableRow key={o.id} className="hover:bg-amber-50/20 transition-colors border-stone-50">
-                      <TableCell className="font-black text-stone-900 uppercase text-xs">{o.supplierId}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-black text-stone-900 uppercase text-xs py-3">{o.supplierId}</TableCell>
+                      <TableCell className="py-3">
                         <div className="font-black text-stone-900 text-xs uppercase">{o.name}</div>
-                        <div className="flex items-center gap-3 mt-1.5">
-                          {o.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</Badge>}
-                          {o.color && <span className="text-[10px] text-stone-900 font-black uppercase">{o.color}</span>}
-                        </div>
                       </TableCell>
-                      <TableCell className="text-[10px]">
+                      <TableCell className="py-3">
+                        {o.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {o.size}</Badge>}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <span className="text-[10px] text-stone-900 font-black uppercase">{o.color || '-'}</span>
+                      </TableCell>
+                      <TableCell className="text-[10px] py-3">
                         {isZipper ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {o.zipperType || '-'}</span>
-                            <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {o.slider || '-'} ({o.sliderType || '-'})</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {o.zipperType || '-'}</span>
+                            <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
                         ) : (
                           <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <div className="flex items-center gap-1 text-stone-600 font-bold text-xs">
                           <Clock className="w-3 h-3 text-stone-400" /> {o.orderDate}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-black text-xs">
-                        {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-bold ml-1">{o.unitOfMeasure}</span>
+                      <TableCell className="text-right font-black text-xs py-3">
+                        {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-bold ml-1 uppercase">{o.unitOfMeasure}</span>
                       </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-xs">
+                      <TableCell className="text-right font-black text-amber-700 text-xs py-3">
                         {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right py-3">
                         <div className="flex justify-end items-center gap-1">
                           <Button 
                             variant="ghost" 

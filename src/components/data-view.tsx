@@ -92,8 +92,10 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
             <Table>
               <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                 <TableRow className="hover:bg-transparent border-stone-100">
-                  <TableHead className="text-[9px] font-black uppercase py-4 px-6 text-stone-500 tracking-widest">Désignation / Variante</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Technique / Spécifications</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 px-6 text-stone-500 tracking-widest">Désignation</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Taille</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Couleur</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Technique / Specs</TableHead>
                   <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Fournisseur</TableHead>
                   <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest text-center">Dossier</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Quantité</TableHead>
@@ -105,7 +107,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
               <TableBody>
                 {filteredArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-20 text-stone-300 font-black uppercase text-[10px] tracking-widest bg-stone-50/10">
+                    <TableCell colSpan={10} className="text-center py-20 text-stone-300 font-black uppercase text-[10px] tracking-widest bg-stone-50/10">
                       Aucun article répertorié
                     </TableCell>
                   </TableRow>
@@ -116,24 +118,24 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                       <TableRow key={o.id} className="hover:bg-amber-50/10 transition-colors border-stone-50 group">
                         <TableCell className="py-3 px-6">
                           <div className="font-black text-[11px] text-stone-900 uppercase tracking-tight leading-tight">{o.name}</div>
-                          <div className="flex flex-wrap items-center gap-2 mt-1">
-                            {o.size && (
-                              <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5 shadow-sm shadow-amber-500/10">
-                                <Box className="w-2 h-2" /> {o.size}
-                              </Badge>
-                            )}
-                            {o.color && (
-                              <span className="text-[9px] text-stone-900 font-black uppercase tracking-wider bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">
-                                {o.color}
-                              </span>
-                            )}
-                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          {o.size && (
+                            <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5 shadow-sm shadow-amber-500/10">
+                              <Box className="w-2 h-2" /> {o.size}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className="text-[9px] text-stone-900 font-black uppercase tracking-wider">
+                            {o.color || '-'}
+                          </span>
                         </TableCell>
                         <TableCell className="py-3">
                           {isZipper ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase">
-                                <Settings2 className="w-2.5 h-2.5" /> {o.zipperType || '-'}
+                                <Settings2 className="w-2.5 h-2.5" /> TYPE: {o.zipperType || '-'}
                               </span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase">
                                 <MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})
