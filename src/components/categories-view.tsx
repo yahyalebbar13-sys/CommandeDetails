@@ -381,7 +381,7 @@ export default function CategoriesView({
                           <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          {a.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {a.size}</Badge>}
+                          {a.size && <Badge variant="outline" className="text-stone-600 border-stone-200 text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2 text-stone-400" /> {a.size}</Badge>}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
@@ -456,7 +456,7 @@ export default function CategoriesView({
                           <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          {a.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {a.size}</Badge>}
+                          {a.size && <Badge variant="outline" className="text-stone-600 border-stone-200 text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2 text-stone-400" /> {a.size}</Badge>}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
@@ -530,7 +530,7 @@ export default function CategoriesView({
                           <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          {a.size && <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2" /> {a.size}</Badge>}
+                          {a.size && <Badge variant="outline" className="text-stone-600 border-stone-200 text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2 text-stone-400" /> {a.size}</Badge>}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>

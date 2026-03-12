@@ -121,8 +121,8 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                         </TableCell>
                         <TableCell className="py-3">
                           {o.size && (
-                            <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5 shadow-sm shadow-amber-500/10">
-                              <Box className="w-2 h-2" /> {o.size}
+                            <Badge variant="outline" className="text-stone-600 border-stone-200 text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5">
+                              <Box className="w-2 h-2 text-stone-400" /> {o.size}
                             </Badge>
                           )}
                         </TableCell>
