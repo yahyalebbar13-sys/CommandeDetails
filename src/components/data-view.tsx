@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Search, Trash2, Pencil, Box, Settings2, MousePointer2, Database, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
@@ -60,53 +60,53 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
 
   return (
     <div className="fade-in space-y-6">
-      <header className="bg-white p-8 rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden relative">
+      <header className="bg-white p-6 rounded-[1.5rem] shadow-lg border border-stone-200 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
-          <div className="flex items-center gap-5">
-            <div className="p-4 bg-stone-900 rounded-2xl shadow-lg">
-              <Database className="w-8 h-8 text-amber-500" />
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-stone-900 rounded-xl shadow-md">
+              <Database className="w-6 h-6 text-amber-500" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-stone-900 uppercase tracking-tighter leading-none">Base de Données Globale</h1>
-              <p className="text-[10px] text-stone-400 font-bold uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
-                <Info className="w-3 h-3" /> Audit exhaustif du patrimoine logistique et financier
+              <h1 className="text-2xl font-black text-stone-900 uppercase tracking-tighter leading-none">Data Lab Global</h1>
+              <p className="text-[9px] text-stone-400 font-bold uppercase tracking-[0.2em] mt-1.5 flex items-center gap-2">
+                <Info className="w-3 h-3" /> Audit du patrimoine logistique
               </p>
             </div>
           </div>
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
             <Input 
-              placeholder="Chercher par article, taille, couleur, fournisseur..." 
+              placeholder="Rechercher un article..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-11 bg-stone-50 border-stone-200 rounded-2xl h-14 text-sm font-bold focus:ring-amber-500 focus:border-amber-500 transition-all shadow-inner"
+              className="pl-10 bg-stone-50 border-stone-200 rounded-xl h-11 text-xs font-bold focus:ring-amber-500 transition-all shadow-inner"
             />
           </div>
         </div>
       </header>
 
-      <Card className="border-none shadow-2xl rounded-[2rem] overflow-hidden bg-white">
+      <Card className="border-none shadow-xl rounded-[1.5rem] overflow-hidden bg-white">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                 <TableRow className="hover:bg-transparent border-stone-100">
-                  <TableHead className="text-[10px] font-black uppercase py-6 px-8 text-stone-500 tracking-widest">Désignation / Variante</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-6 text-stone-500 tracking-widest">Spécifications / Technique</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-6 text-stone-500 tracking-widest">Fournisseur</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-6 text-stone-500 tracking-widest text-center">Dossier</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-6 text-stone-500 tracking-widest">Quantité</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-6 text-stone-500 tracking-widest">Prix Unit.</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-6 px-8 text-stone-500 tracking-widest bg-amber-50/30">Total ($)</TableHead>
-                  <TableHead className="w-[100px]"></TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 px-6 text-stone-500 tracking-widest">Désignation / Variante</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Technique / Spécifications</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Fournisseur</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest text-center">Dossier</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Quantité</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Prix Unit.</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase py-4 px-6 text-stone-500 tracking-widest bg-amber-50/30">Total ($)</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-32 text-stone-300 font-black uppercase text-xs tracking-widest bg-stone-50/30">
-                      Aucune donnée correspondant à votre recherche
+                    <TableCell colSpan={8} className="text-center py-20 text-stone-300 font-black uppercase text-[10px] tracking-widest bg-stone-50/10">
+                      Aucun article répertorié
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -114,76 +114,73 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                     const isZipper = isTechnicalZipper(o.categoryId);
                     return (
                       <TableRow key={o.id} className="hover:bg-amber-50/10 transition-colors border-stone-50 group">
-                        <TableCell className="py-6 px-8">
-                          <div className="font-black text-[13px] text-stone-900 uppercase tracking-tight">{o.name}</div>
-                          <div className="flex flex-wrap items-center gap-2 mt-2">
-                            <Badge variant="outline" className="text-[8px] font-black uppercase px-2 h-5 border-stone-200 text-stone-400 bg-stone-50">
-                              {o.categoryId}
-                            </Badge>
+                        <TableCell className="py-3 px-6">
+                          <div className="font-black text-[11px] text-stone-900 uppercase tracking-tight leading-tight">{o.name}</div>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             {o.size && (
-                              <Badge className="bg-amber-500 text-white border-none text-[9px] font-black uppercase flex items-center gap-1 h-5 px-2 shadow-sm shadow-amber-500/20">
-                                <Box className="w-2.5 h-2.5" /> {o.size}
+                              <Badge className="bg-amber-500 text-white border-none text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5 shadow-sm shadow-amber-500/10">
+                                <Box className="w-2 h-2" /> {o.size}
                               </Badge>
                             )}
                             {o.color && (
-                              <span className="text-[10px] text-stone-900 font-black uppercase tracking-wider bg-white border border-stone-100 px-2 py-0.5 rounded shadow-sm">
+                              <span className="text-[9px] text-stone-900 font-black uppercase tracking-wider bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">
                                 {o.color}
                               </span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="py-6">
+                        <TableCell className="py-3">
                           {isZipper ? (
-                            <div className="flex flex-col gap-1.5">
-                              <span className="text-amber-600 font-black text-[9px] flex items-center gap-2 bg-amber-50 px-2 py-0.5 rounded-full w-fit uppercase">
-                                <Settings2 className="w-3 h-3" /> Type: {o.zipperType || '-'}
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase">
+                                <Settings2 className="w-2.5 h-2.5" /> {o.zipperType || '-'}
                               </span>
-                              <span className="text-blue-600 font-black text-[9px] flex items-center gap-2 bg-blue-50 px-2 py-0.5 rounded-full w-fit uppercase">
-                                <MousePointer2 className="w-3 h-3" /> {o.slider || '-'} ({o.sliderType || '-'})
+                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase">
+                                <MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})
                               </span>
                             </div>
                           ) : (
-                            <div className="text-[10px] text-stone-500 font-bold uppercase leading-relaxed max-w-[200px]">
-                              {o.specs || <span className="text-stone-300 italic">Aucun détail</span>}
+                            <div className="text-[9px] text-stone-500 font-bold uppercase leading-tight truncate max-w-[150px]">
+                              {o.specs || '-'}
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="py-6">
-                          <span className="text-[10px] uppercase text-stone-400 font-black tracking-widest bg-stone-100/50 px-3 py-1 rounded-lg border border-stone-100">
+                        <TableCell className="py-3">
+                          <span className="text-[9px] uppercase text-stone-400 font-black tracking-widest">
                             {o.supplierId || '---'}
                           </span>
                         </TableCell>
-                        <TableCell className="py-6 text-center">
-                          <span className={`font-black text-[9px] px-3 py-1 rounded-full border uppercase ${o.factureId ? 'text-blue-700 bg-blue-50 border-blue-100' : 'text-stone-400 bg-stone-50 border-stone-100'}`}>
-                            {o.factureId || 'PI LNC'}
+                        <TableCell className="py-3 text-center">
+                          <span className={`font-black text-[8px] px-2 py-0.5 rounded-full border uppercase ${o.factureId ? 'text-blue-700 bg-blue-50 border-blue-100' : 'text-stone-400 bg-stone-50 border-stone-100'}`}>
+                            {o.factureId || 'EN PI'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right py-6 font-black text-[13px] text-stone-900">
-                          {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1 uppercase">{o.unitOfMeasure}</span>
+                        <TableCell className="text-right py-3 font-black text-[11px] text-stone-900">
+                          {o.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-0.5 uppercase">{o.unitOfMeasure}</span>
                         </TableCell>
-                        <TableCell className="text-right py-6 font-black text-[11px] text-amber-700">
-                          {Number(o.purchasePricePerUnit).toFixed(4)} $
+                        <TableCell className="text-right py-3 font-black text-[9px] text-amber-700">
+                          {Number(o.purchasePricePerUnit).toFixed(4)}
                         </TableCell>
-                        <TableCell className="text-right py-6 font-black text-[13px] text-amber-600 bg-amber-50/20 px-8">
-                          {(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
+                        <TableCell className="text-right py-3 font-black text-[11px] text-amber-600 bg-amber-50/20 px-6">
+                          {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()}
                         </TableCell>
-                        <TableCell className="py-6 pr-8">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <TableCell className="py-3 pr-6">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-9 w-9 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
+                              className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
                               onClick={() => onEdit(o)}
                             >
-                              <Pencil className="w-4 h-4" />
+                              <Pencil className="w-3.5 h-3.5" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-9 w-9 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg"
                               onClick={() => handleDelete(o.id, o.name)}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -196,8 +193,8 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
           </div>
         </CardContent>
       </Card>
-      <footer className="text-center py-4">
-        <p className="text-[10px] text-stone-300 font-black uppercase tracking-[0.3em]">Fin du catalogue de données • Total {filteredArticles.length} articles répertoriés</p>
+      <footer className="text-center py-2">
+        <p className="text-[8px] text-stone-300 font-black uppercase tracking-[0.3em]">Catalogue de données • {filteredArticles.length} articles</p>
       </footer>
     </div>
   );
