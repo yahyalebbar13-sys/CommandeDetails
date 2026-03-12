@@ -24,7 +24,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
   const transitOrders = useMemo(() => {
     return (articles || [])
       .filter(o => o.status === 'SHIPPED' && o.arrivalDate && new Date(o.arrivalDate) > now)
-      .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
+      .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
   }, [articles, now]);
 
   const stats = useMemo(() => {
@@ -126,10 +126,10 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                         <div className="font-black text-stone-900 text-xs uppercase">{o.name}</div>
                       </TableCell>
                       <TableCell className="py-3">
-                        <span className="text-[10px] text-stone-600 font-bold uppercase">{o.size || '-'}</span>
+                        <span className="text-[10px] text-stone-600 uppercase">{o.size || '-'}</span>
                       </TableCell>
                       <TableCell className="py-3">
-                        <span className="text-[10px] text-stone-900 font-black uppercase">{o.color || '-'}</span>
+                        <span className="text-[10px] text-stone-900 uppercase">{o.color || '-'}</span>
                       </TableCell>
                       <TableCell className="py-3">
                         <Badge variant="secondary" className="font-black text-[10px] bg-stone-100 text-stone-600 border-stone-200 rounded px-2">#{o.factureId}</Badge>

@@ -165,10 +165,10 @@ export default function FacturesView({
                         </button>
                       </TableCell>
                       <TableCell className="py-3">
-                        <span className="text-[10px] text-stone-600 font-bold uppercase">{o.size || '-'}</span>
+                        <span className="text-[10px] text-stone-600 uppercase">{o.size || '-'}</span>
                       </TableCell>
                       <TableCell className="py-3">
-                        <span className="text-[10px] text-stone-900 font-black uppercase">{o.color || '-'}</span>
+                        <span className="text-[10px] text-stone-900 uppercase">{o.color || '-'}</span>
                       </TableCell>
                       <TableCell className="text-[11px] py-3">
                         {isZipper ? (

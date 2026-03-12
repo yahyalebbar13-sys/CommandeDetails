@@ -119,10 +119,10 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                           <div className="font-black text-[11px] text-stone-900 uppercase tracking-tight leading-tight">{o.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 font-bold uppercase">{o.size || '-'}</span>
+                          <span className="text-[10px] text-stone-600 uppercase">{o.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[9px] text-stone-900 font-black uppercase tracking-wider">
+                          <span className="text-[9px] text-stone-900 uppercase tracking-wider">
                             {o.color || '-'}
                           </span>
                         </TableCell>

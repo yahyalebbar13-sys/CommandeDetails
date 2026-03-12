@@ -380,10 +380,10 @@ export default function CategoriesView({
                           <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 font-bold uppercase">{a.size || '-'}</span>
+                          <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
+                          <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
                           {isSpecial ? (
@@ -455,10 +455,10 @@ export default function CategoriesView({
                           <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 font-bold uppercase">{a.size || '-'}</span>
+                          <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
+                          <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
                           {isSpecial ? (
@@ -529,10 +529,10 @@ export default function CategoriesView({
                           <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 font-bold uppercase">{a.size || '-'}</span>
+                          <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-900 font-black uppercase">{a.color || '-'}</span>
+                          <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
                           {isSpecial ? (
