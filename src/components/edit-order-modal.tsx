@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -50,7 +50,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       setFormData({ 
         ...article,
         factureId: article.factureId || 'NONE',
-        size: article.size || ''
+        size: article.size || '',
+        zipperType: article.zipperType || '',
+        slider: article.slider || '',
+        sliderType: article.sliderType || ''
       });
       setSelectedGenCatId(article.generalCategoryId || '');
     } else {
@@ -62,6 +65,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (!selectedGenCatId || !subCategories) return [];
     return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
+
+  const isZipper = useMemo(() => {
+    return formData?.categoryId?.toUpperCase().includes('ZIPPER');
+  }, [formData?.categoryId]);
 
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
@@ -156,7 +163,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </Select>
             </div>
             
-            <div className="space-y-1.5 md:col-span-2">
+            <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Maximize className="w-3 h-3" /> Taille / Dimension
               </Label>
@@ -164,9 +171,50 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 value={formData.size || ''} 
                 onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))} 
                 className="h-11 border-stone-200 font-bold"
-                placeholder="Ex: No.5, 20cm, 120D/2..."
+                placeholder="Ex: No.5, 20cm..."
               />
             </div>
+
+            {isZipper && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Settings2 className="w-3 h-3" /> Type Zipper
+                </Label>
+                <Input 
+                  value={formData.zipperType || ''} 
+                  onChange={e => setFormData((prev: any) => ({ ...prev, zipperType: e.target.value }))} 
+                  className="h-11 border-stone-200 font-bold"
+                  placeholder="Ex: C/E, O/E..."
+                />
+              </div>
+            )}
+
+            {isZipper && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <MousePointer2 className="w-3 h-3" /> Curseur
+                  </Label>
+                  <Input 
+                    value={formData.slider || ''} 
+                    onChange={e => setFormData((prev: any) => ({ ...prev, slider: e.target.value }))} 
+                    className="h-11 border-stone-200 font-bold"
+                    placeholder="Ex: Auto-lock..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Scissors className="w-3 h-3" /> Type Curseur
+                  </Label>
+                  <Input 
+                    value={formData.sliderType || ''} 
+                    onChange={e => setFormData((prev: any) => ({ ...prev, sliderType: e.target.value }))} 
+                    className="h-11 border-stone-200 font-bold"
+                    placeholder="Ex: Standard..."
+                  />
+                </div>
+              </>
+            )}
 
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">

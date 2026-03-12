@@ -236,12 +236,17 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Grouping by Color AND Size
+    // Grouping by Size, Type, Color, Slider
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
-      const colorPart = (a.color || 'DIVERS').toUpperCase();
-      const sizePart = a.size ? ` (${a.size})` : '';
-      productsSet.add(`${colorPart}${sizePart}`);
+      const parts = [];
+      if (a.size) parts.push(a.size);
+      if (a.zipperType) parts.push(a.zipperType);
+      if (a.color) parts.push(a.color.toUpperCase());
+      if (a.slider) parts.push(a.slider);
+      
+      const key = parts.length > 0 ? parts.join(' - ') : 'DIVERS';
+      productsSet.add(key);
     });
     const uniqueProducts = Array.from(productsSet);
 
@@ -251,9 +256,13 @@ export default function CategoriesView({
       if (!date) return;
       if (!dateGroups[date]) dateGroups[date] = { date };
       
-      const colorPart = (a.color || 'DIVERS').toUpperCase();
-      const sizePart = a.size ? ` (${a.size})` : '';
-      const productKey = `${colorPart}${sizePart}`;
+      const parts = [];
+      if (a.size) parts.push(a.size);
+      if (a.zipperType) parts.push(a.zipperType);
+      if (a.color) parts.push(a.color.toUpperCase());
+      if (a.slider) parts.push(a.slider);
+      
+      const productKey = parts.length > 0 ? parts.join(' - ') : 'DIVERS';
       
       dateGroups[date][productKey] = Number(a.purchasePricePerUnit) || 0;
     });
@@ -331,11 +340,9 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Specs / Détails</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Est.</TableHead>
@@ -344,12 +351,20 @@ export default function CategoriesView({
                 <TableBody>
                   {groupedData.production.length > 0 ? groupedData.production.map(a => (
                     <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
-                      <TableCell className="text-[10px] font-black text-amber-600">{a.size || '-'}</TableCell>
-                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
+                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
+                        {a.name}
+                        {(a.size || a.zipperType || a.color || a.slider) && (
+                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-2">
+                            {a.size && <span>TAILLE: {a.size}</span>}
+                            {a.zipperType && <span>TYPE: {a.zipperType}</span>}
+                            {a.color && <span>COULEUR: {a.color}</span>}
+                            {a.slider && <span>CURSEUR: {a.slider}</span>}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
-                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
@@ -361,7 +376,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -388,8 +403,7 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Détails</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
@@ -402,9 +416,18 @@ export default function CategoriesView({
                 <TableBody>
                   {groupedData.transit.length > 0 ? groupedData.transit.map(a => (
                     <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
-                      <TableCell className="text-[10px] font-black text-amber-600">{a.size || '-'}</TableCell>
-                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
+                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
+                        {a.name}
+                        {(a.size || a.zipperType || a.color || a.slider) && (
+                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-2">
+                            {a.size && <span>TAILLE: {a.size}</span>}
+                            {a.zipperType && <span>TYPE: {a.zipperType}</span>}
+                            {a.color && <span>COULEUR: {a.color}</span>}
+                            {a.slider && <span>CURSEUR: {a.slider}</span>}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                       <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
@@ -422,7 +445,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={10} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -449,11 +472,9 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Détails</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Stock Réel</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">P.A. Unitaire</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
@@ -462,12 +483,20 @@ export default function CategoriesView({
                 <TableBody>
                   {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => (
                     <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">{a.name}</TableCell>
-                      <TableCell className="text-[10px] font-black text-amber-600">{a.size || '-'}</TableCell>
-                      <TableCell className="text-[10px] font-black text-stone-400 uppercase py-5">{a.color || 'DIVERS'}</TableCell>
+                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
+                        {a.name}
+                        {(a.size || a.zipperType || a.color || a.slider) && (
+                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-2">
+                            {a.size && <span>TAILLE: {a.size}</span>}
+                            {a.zipperType && <span>TYPE: {a.zipperType}</span>}
+                            {a.color && <span>COULEUR: {a.color}</span>}
+                            {a.slider && <span>CURSEUR: {a.slider}</span>}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                       <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
-                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
                       <TableCell className="text-right font-black text-stone-900 text-xs py-5">
                         {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                       </TableCell>
@@ -479,7 +508,7 @@ export default function CategoriesView({
                       </TableCell>
                     </TableRow>
                   )) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -512,7 +541,7 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Couleur & Taille ($)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Variante ($)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] p-6">
@@ -522,7 +551,7 @@ export default function CategoriesView({
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase' }} />
                   <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
                   <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '8px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
                   {detailedAnalytics.uniqueProducts.map((product, idx) => (
                     <Line 
                       key={product} 

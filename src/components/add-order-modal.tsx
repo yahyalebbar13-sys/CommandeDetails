@@ -11,7 +11,7 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize } from 'lucide-react';
+import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, Scissors, MousePointer2 } from 'lucide-react';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "transparent"];
@@ -35,6 +35,9 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     unitOfMeasure: 'pièces',
     color: 'white',
     size: '',
+    zipperType: '',
+    slider: '',
+    sliderType: '',
     purchasePricePerUnit: 0,
   });
 
@@ -42,6 +45,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     if (!selectedGenCatId) return [];
     return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
   }, [selectedGenCatId, subCategories]);
+
+  const isZipper = useMemo(() => {
+    return formData.categoryId?.toUpperCase().includes('ZIPPER');
+  }, [formData.categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +75,9 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       unitOfMeasure: 'pièces',
       color: 'white',
       size: '',
+      zipperType: '',
+      slider: '',
+      sliderType: '',
       purchasePricePerUnit: 0,
     });
     setSelectedGenCatId('');
@@ -125,17 +135,59 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-              <Maximize className="w-3 h-3" /> Taille / Dimension
-            </Label>
-            <Input 
-              placeholder="Ex: No.5, 20cm, 120D/2..." 
-              className="h-12 border-stone-200 font-bold rounded-xl"
-              value={formData.size}
-              onChange={e => setFormData((p: any) => ({...p, size: e.target.value}))}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Maximize className="w-3 h-3" /> Taille / Dimension
+              </Label>
+              <Input 
+                placeholder="Ex: No.5, 20cm..." 
+                className="h-12 border-stone-200 font-bold rounded-xl"
+                value={formData.size}
+                onChange={e => setFormData((p: any) => ({...p, size: e.target.value}))}
+              />
+            </div>
+            {isZipper && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Settings2 className="w-3 h-3" /> Type Zipper
+                </Label>
+                <Input 
+                  placeholder="Ex: C/E, O/E..." 
+                  className="h-12 border-stone-200 font-bold rounded-xl"
+                  value={formData.zipperType}
+                  onChange={e => setFormData((p: any) => ({...p, zipperType: e.target.value}))}
+                />
+              </div>
+            )}
           </div>
+
+          {isZipper && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <MousePointer2 className="w-3 h-3" /> Curseur
+                </Label>
+                <Input 
+                  placeholder="Ex: Auto-lock..." 
+                  className="h-12 border-stone-200 font-bold rounded-xl"
+                  value={formData.slider}
+                  onChange={e => setFormData((p: any) => ({...p, slider: e.target.value}))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Scissors className="w-3 h-3" /> Type Curseur
+                </Label>
+                <Input 
+                  placeholder="Ex: Standard..." 
+                  className="h-12 border-stone-200 font-bold rounded-xl"
+                  value={formData.sliderType}
+                  onChange={e => setFormData((p: any) => ({...p, sliderType: e.target.value}))}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">

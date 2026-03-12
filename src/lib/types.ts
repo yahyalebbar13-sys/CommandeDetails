@@ -20,6 +20,9 @@ export type Order = {
   specs?: string;
   color?: string;
   size?: string;
+  zipperType?: string;
+  slider?: string;
+  sliderType?: string;
   supplierId: string;
   factureId?: string;
   orderDate: string;
