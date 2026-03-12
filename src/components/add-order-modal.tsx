@@ -50,10 +50,8 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
 
   const isZipper = useMemo(() => {
     const upper = formData.categoryId?.toUpperCase() || "";
-    return upper.includes('NYLON ZIPPER') || 
-           upper.includes('PLASTIC ZIPPER') || 
-           upper.includes('METAL ZIPPER') || 
-           upper.includes('ALUMINIUM ZIPPER');
+    // On inclut les Zippers mais on exclut explicitement Long Chain et Slider
+    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
   }, [formData.categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {

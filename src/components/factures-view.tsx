@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -82,10 +83,9 @@ export default function FacturesView({
 
   const isZipperCategory = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    return c.includes("NYLON ZIPPER") || 
-           c.includes("PLASTIC ZIPPER") || 
-           c.includes("METAL ZIPPER") || 
-           c.includes("ALUMINIUM ZIPPER");
+    const isZipper = c.includes("ZIPPER");
+    const isExcluded = c.includes("LONG CHAIN") || c.includes("SLIDER");
+    return isZipper && !isExcluded;
   };
 
   if (selectedFactureId && selectedFacture) {
@@ -144,7 +144,7 @@ export default function FacturesView({
                   <TableHead className="text-[10px] font-black uppercase py-5 px-8">Article</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5">Taille</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5">Couleur</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Technique / Specs</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5">Technique / Spécifications</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Quantité</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Volume CBM</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">P.A. Unitaire</TableHead>

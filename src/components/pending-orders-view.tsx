@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -45,10 +46,9 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
 
   const isZipperCategory = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    return c.includes("NYLON ZIPPER") || 
-           c.includes("PLASTIC ZIPPER") || 
-           c.includes("METAL ZIPPER") || 
-           c.includes("ALUMINIUM ZIPPER");
+    const isZipper = c.includes("ZIPPER");
+    const isExcluded = c.includes("LONG CHAIN") || c.includes("SLIDER");
+    return isZipper && !isExcluded;
   };
 
   return (
@@ -78,7 +78,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                 <TableHead className="text-[10px] font-black uppercase py-4">Désignation</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Taille</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Couleur</TableHead>
-                <TableHead className="text-[10px] font-black uppercase py-4">Technique / Specs</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Technique / Spécifications</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Date Commande</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Qté</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Valeur Est.</TableHead>

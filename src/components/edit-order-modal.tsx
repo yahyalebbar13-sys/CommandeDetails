@@ -70,10 +70,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   const isZipper = useMemo(() => {
     const upper = formData?.categoryId?.toUpperCase() || "";
-    return upper.includes('NYLON ZIPPER') || 
-           upper.includes('PLASTIC ZIPPER') || 
-           upper.includes('METAL ZIPPER') || 
-           upper.includes('ALUMINIUM ZIPPER');
+    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
   }, [formData?.categoryId]);
 
   const handleSuggestSpecs = async () => {

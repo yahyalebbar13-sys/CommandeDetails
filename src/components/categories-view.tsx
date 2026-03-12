@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -77,10 +78,9 @@ export default function CategoriesView({
   const isSpecialZipperCategory = (catName: string | undefined) => {
     if (!catName) return false;
     const upper = catName.toUpperCase();
-    return upper.includes('NYLON ZIPPER') || 
-           upper.includes('PLASTIC ZIPPER') || 
-           upper.includes('METAL ZIPPER') || 
-           upper.includes('ALUMINIUM ZIPPER');
+    const isZipper = upper.includes('ZIPPER');
+    const isExcluded = upper.includes('LONG CHAIN') || upper.includes('SLIDER');
+    return isZipper && !isExcluded;
   };
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
@@ -363,7 +363,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Specs</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Spécifications</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
@@ -438,7 +438,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Specs</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Spécifications</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
@@ -513,7 +513,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique / Specs</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique / Spécifications</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>

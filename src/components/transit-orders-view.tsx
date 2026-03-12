@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from 'react';
@@ -44,10 +45,9 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
 
   const isZipperCategory = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    return c.includes("NYLON ZIPPER") || 
-           c.includes("PLASTIC ZIPPER") || 
-           c.includes("METAL ZIPPER") || 
-           c.includes("ALUMINIUM ZIPPER");
+    const isZipper = c.includes("ZIPPER");
+    const isExcluded = c.includes("LONG CHAIN") || c.includes("SLIDER");
+    return isZipper && !isExcluded;
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -102,7 +102,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                 <TableHead className="text-[10px] font-black uppercase py-4">Taille</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Couleur</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Dossier</TableHead>
-                <TableHead className="text-[10px] font-black uppercase py-4">Technique / Specs</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Technique / Spécifications</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Arrivée</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Qté</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Volume</TableHead>

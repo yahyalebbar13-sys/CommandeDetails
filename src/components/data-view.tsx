@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -51,10 +52,9 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
 
   const isTechnicalZipper = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    return c.includes("NYLON ZIPPER") || 
-           c.includes("PLASTIC ZIPPER") || 
-           c.includes("METAL ZIPPER") || 
-           c.includes("ALUMINIUM ZIPPER");
+    const isZipper = c.includes("ZIPPER");
+    const isExcluded = c.includes("LONG CHAIN") || c.includes("SLIDER");
+    return isZipper && !isExcluded;
   };
 
   return (
@@ -94,7 +94,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                   <TableHead className="text-[9px] font-black uppercase py-4 px-6 text-stone-500 tracking-widest">Désignation</TableHead>
                   <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Taille</TableHead>
                   <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Couleur</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Technique / Specs</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Technique / Spécifications</TableHead>
                   <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Fournisseur</TableHead>
                   <TableHead className="text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest text-center">Dossier</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase py-4 text-stone-500 tracking-widest">Quantité</TableHead>
