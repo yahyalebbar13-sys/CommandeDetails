@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, Factory, Ship, ArrowRight, Loader2, Trash2, Pencil } from 'lucide-react';
+import { Clock, Factory, Ship, ArrowRight, Loader2, Trash2, Pencil, Box } from 'lucide-react';
 import ValidateOrderModal from './validate-order-modal';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -31,11 +31,6 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [articles]);
 
-  const handleValidate = (order: any) => {
-    setSelectedOrder(order);
-    setIsValidating(true);
-  };
-
   const handleActionDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
     
@@ -47,6 +42,11 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
         description: name 
       });
     }
+  };
+
+  const isZipperCategory = (cat: string) => {
+    const c = cat?.toUpperCase() || "";
+    return c.includes("ZIPPER") || c.includes("SLIDER");
   };
 
   return (
@@ -73,7 +73,8 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
             <TableHeader className="bg-stone-50">
               <TableRow>
                 <TableHead>Fournisseur</TableHead>
-                <TableHead>Catégorie / Article</TableHead>
+                <TableHead>Article / Catégorie</TableHead>
+                <TableHead>Spécifications Techniques</TableHead>
                 <TableHead>Date Commande</TableHead>
                 <TableHead className="text-right">Qté</TableHead>
                 <TableHead className="text-right">Valeur Est.</TableHead>
@@ -83,62 +84,77 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
             <TableBody>
               {pendingOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-20 text-stone-400 italic">
+                  <TableCell colSpan={7} className="text-center py-20 text-stone-400 italic">
                     Aucune commande en attente de validation.
                   </TableCell>
                 </TableRow>
               ) : (
-                pendingOrders.map((o) => (
-                  <TableRow key={o.id} className="hover:bg-amber-50/30 transition-colors">
-                    <TableCell className="font-bold text-stone-700">{o.supplierId}</TableCell>
-                    <TableCell>
-                      <div className="font-bold text-stone-900">{o.name}</div>
-                      <div className="text-[10px] text-stone-500 uppercase">
-                        {o.categoryId} • {o.size ? `TAILLE: ${o.size} • ` : ''} {o.specs || 'SANS SPECS'} • {o.color || 'DIVERS'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-stone-600 text-sm">
-                        <Clock className="w-3 h-3" /> {o.orderDate}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-bold">
-                      {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
-                    </TableCell>
-                    <TableCell className="text-right font-black text-amber-700">
-                      {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-stone-400 hover:text-amber-600"
-                          onClick={() => onEdit(o)}
-                          title="Modifier"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-stone-400 hover:text-red-500"
-                          onClick={() => handleActionDelete(o.id, o.name)}
-                          title="Supprimer cette commande PI"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleValidate(o)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1"
-                        >
-                          Valider Expédition <ArrowRight className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                pendingOrders.map((o) => {
+                  const isZipper = isZipperCategory(o.categoryId);
+                  return (
+                    <TableRow key={o.id} className="hover:bg-amber-50/30 transition-colors">
+                      <TableCell className="font-bold text-stone-700">{o.supplierId}</TableCell>
+                      <TableCell>
+                        <div className="font-bold text-stone-900">{o.name}</div>
+                        <div className="text-[10px] text-stone-500 uppercase flex flex-wrap gap-2 items-center mt-1">
+                          <Badge variant="outline" className="text-[9px] px-1.5 h-4 border-stone-200">{o.categoryId}</Badge>
+                          {o.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</span>}
+                          {o.color && <span className="text-stone-400">• {o.color.toUpperCase()}</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-[10px]">
+                        {isZipper ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-amber-600 font-black">TYPE: {o.zipperType || '-'}</span>
+                            <span className="text-blue-600 font-black">SLIDER: {o.slider || '-'} ({o.sliderType || '-'})</span>
+                          </div>
+                        ) : (
+                          <span className="text-stone-500 font-bold">{o.specs || '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-stone-600 text-sm">
+                          <Clock className="w-3 h-3" /> {o.orderDate}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-bold">
+                        {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-amber-700">
+                        {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-stone-400 hover:text-amber-600"
+                            onClick={() => onEdit(o)}
+                            title="Modifier"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-stone-400 hover:text-red-500"
+                            onClick={() => handleActionDelete(o.id, o.name)}
+                            title="Supprimer cette commande PI"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={() => setSelectedOrder(o) || setIsValidating(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1"
+                          >
+                            Valider Expédition <ArrowRight className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

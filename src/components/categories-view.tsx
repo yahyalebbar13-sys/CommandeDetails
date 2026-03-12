@@ -79,7 +79,7 @@ export default function CategoriesView({
   const isSpecialZipperCategory = (catName: string | undefined) => {
     if (!catName) return false;
     const upper = catName.toUpperCase();
-    return upper === 'NYLON ZIPPER' || upper === 'PLASTIC ZIPPER' || upper === 'METAL ZIPPER' || upper === 'ALUMINIUM ZIPPER';
+    return upper.includes('ZIPPER') || upper.includes('SLIDER');
   };
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
@@ -293,6 +293,8 @@ export default function CategoriesView({
   }, [selectedCategory, currentArticles, groupedData, todayStr]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
+    const isSpecialCategory = isSpecialZipperCategory(selectedCategory);
+
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
@@ -360,7 +362,9 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Specs / Détails</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">
+                      {isSpecialCategory ? "Spécifications Techniques" : "Specs / Détails"}
+                    </TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
@@ -377,13 +381,18 @@ export default function CategoriesView({
                           {a.name}
                           <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
                             {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600 font-black"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType}</span>}
                             {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
-                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600 font-black"><MousePointer2 className="w-2.5 h-2.5" /> CURSEUR: {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-[10px] text-stone-500 font-bold py-5">
-                          {isSpecial ? '-' : (a.specs || '-')}
+                        <TableCell className="text-[10px] py-5">
+                          {isSpecial ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black">TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black">SLIDER: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            </div>
+                          ) : (
+                            <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
                         <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
@@ -426,9 +435,10 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Détails</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">
+                      {isSpecialCategory ? "Spécifications Techniques" : "Détails"}
+                    </TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
@@ -445,16 +455,20 @@ export default function CategoriesView({
                           {a.name}
                           <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
                             {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600 font-black"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType}</span>}
                             {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
-                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600 font-black"><MousePointer2 className="w-2.5 h-2.5" /> CURSEUR: {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-[10px] text-stone-500 font-bold py-5">
-                          {isSpecial ? '-' : (a.specs || '-')}
+                        <TableCell className="text-[10px] py-5">
+                          {isSpecial ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black">TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black">SLIDER: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            </div>
+                          ) : (
+                            <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
                         <TableCell className="py-5">
                           <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
@@ -471,7 +485,7 @@ export default function CategoriesView({
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -498,7 +512,9 @@ export default function CategoriesView({
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Détails</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">
+                      {isSpecialCategory ? "Spécifications Techniques" : "Détails"}
+                    </TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Stock Réel</TableHead>
@@ -515,13 +531,18 @@ export default function CategoriesView({
                           {a.name}
                           <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
                             {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600 font-black"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType}</span>}
                             {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
-                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600 font-black"><MousePointer2 className="w-2.5 h-2.5" /> CURSEUR: {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-[10px] text-stone-500 font-bold py-5">
-                          {isSpecial ? '-' : (a.specs || '-')}
+                        <TableCell className="text-[10px] py-5">
+                          {isSpecial ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-amber-600 font-black">TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black">SLIDER: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            </div>
+                          ) : (
+                            <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>

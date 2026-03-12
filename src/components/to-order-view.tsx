@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil } from 'lucide-react';
+import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil, Box } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -42,9 +42,9 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
     }
   };
 
-  const handleLaunch = (article: any) => {
-    setSelectedArticle(article);
-    setIsLaunchModalOpen(true);
+  const isZipperCategory = (cat: string) => {
+    const c = cat?.toUpperCase() || "";
+    return c.includes("ZIPPER") || c.includes("SLIDER");
   };
 
   return (
@@ -70,8 +70,8 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
           <Table>
             <TableHeader className="bg-stone-50">
               <TableRow>
-                <TableHead>Catégorie / Article</TableHead>
-                <TableHead>Spécifications</TableHead>
+                <TableHead>Article / Catégorie</TableHead>
+                <TableHead>Spécifications Techniques</TableHead>
                 <TableHead>Taille</TableHead>
                 <TableHead>Couleur</TableHead>
                 <TableHead className="text-right">Qté Prévue</TableHead>
@@ -86,49 +86,63 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                toOrderArticles.map((o) => (
-                  <TableRow key={o.id} className="hover:bg-stone-50 transition-colors">
-                    <TableCell>
-                      <div className="font-bold text-stone-900">{o.name}</div>
-                      <div className="text-[10px] text-stone-500 uppercase">{o.categoryId}</div>
-                    </TableCell>
-                    <TableCell className="text-xs text-stone-600">{o.specs || '-'}</TableCell>
-                    <TableCell className="text-xs font-black text-amber-700">{o.size || '-'}</TableCell>
-                    <TableCell className="text-xs uppercase">{o.color || '-'}</TableCell>
-                    <TableCell className="text-right font-bold">
-                      {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end items-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-stone-400 hover:text-amber-600"
-                          onClick={() => onEdit(o)}
-                          title="Modifier"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-stone-400 hover:text-red-500"
-                          onClick={() => handleActionDelete(o.id, o.name)}
-                          title="Supprimer ce rappel"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleLaunch(o)}
-                          className="bg-stone-800 hover:bg-black text-white font-bold gap-1"
-                        >
-                          Lancer Commande <ArrowRight className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                toOrderArticles.map((o) => {
+                  const isZipper = isZipperCategory(o.categoryId);
+                  return (
+                    <TableRow key={o.id} className="hover:bg-stone-50 transition-colors">
+                      <TableCell>
+                        <div className="font-bold text-stone-900">{o.name}</div>
+                        <div className="text-[10px] text-stone-500 uppercase">{o.categoryId}</div>
+                      </TableCell>
+                      <TableCell className="text-[10px]">
+                        {isZipper ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-amber-600 font-black">TYPE: {o.zipperType || '-'}</span>
+                            <span className="text-blue-600 font-black">SLIDER: {o.slider || '-'} ({o.sliderType || '-'})</span>
+                          </div>
+                        ) : (
+                          <span className="text-stone-500 font-bold">{o.specs || '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs font-black text-amber-700">
+                        {o.size ? <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</span> : '-'}
+                      </TableCell>
+                      <TableCell className="text-xs uppercase">{o.color || '-'}</TableCell>
+                      <TableCell className="text-right font-bold">
+                        {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-stone-400 hover:text-amber-600"
+                            onClick={() => onEdit(o)}
+                            title="Modifier"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-stone-400 hover:text-red-500"
+                            onClick={() => handleActionDelete(o.id, o.name)}
+                            title="Supprimer ce rappel"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            onClick={() => setSelectedArticle(o) || setIsLaunchModalOpen(true)}
+                            className="bg-stone-800 hover:bg-black text-white font-bold gap-1"
+                          >
+                            Lancer Commande <ArrowRight className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
