@@ -110,7 +110,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       const sup = art.supplierId || 'Inconnu';
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       
-      // Use orderDate as primary date for monthly evolution charts
       const date = art.orderDate || (art.createdAt ? new Date(art.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
 
       const gName = generalCategories.find(gc => gc.id === gId)?.name || gId;
@@ -118,7 +117,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       groupMap[gName] = (groupMap[gName] || 0) + val;
       supplierMap[sup] = (supplierMap[sup] || 0) + val;
       if (date) {
-        // Group by Month (YYYY-MM)
         const month = date.substring(0, 7);
         evolutionMap[month] = (evolutionMap[month] || 0) + val;
       }
@@ -156,7 +154,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           <div className="text-left">
             <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">Besoins Identifiés</p>
             <p className="text-xl font-black text-stone-900 leading-none mt-1">{stats.toOrderCount} <span className="text-[10px] text-stone-400 font-bold">RAPPELS</span></p>
-            <p className="text-[10px] text-amber-600 font-black mt-1">VOL: {stats.totalToOrderQty.toLocaleString()}</p>
+            <p className="text-[10px] text-amber-600 font-black mt-1">VOL: {Math.round(stats.totalToOrderQty).toLocaleString()}</p>
           </div>
           <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-auto" />
         </button>
@@ -171,7 +169,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           <div className="text-left">
             <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">En Production</p>
             <p className="text-xl font-black text-stone-900 leading-none mt-1">{stats.piCount} <span className="text-[10px] text-stone-400 font-bold">PI LNC</span></p>
-            <p className="text-[10px] text-amber-600 font-black mt-1">VOL: {stats.totalPiQty.toLocaleString()}</p>
+            <p className="text-[10px] text-amber-600 font-black mt-1">VOL: {Math.round(stats.totalPiQty).toLocaleString()}</p>
           </div>
           <ArrowRight className="w-4 h-4 text-stone-200 group-hover:text-amber-500 ml-auto" />
         </button>
@@ -184,7 +182,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Valeur Portefeuille</p>
-                <h3 className="text-2xl font-black text-stone-900">{stats.totalVal.toLocaleString()} $</h3>
+                <h3 className="text-2xl font-black text-stone-900">{Math.round(stats.totalVal).toLocaleString()} $</h3>
               </div>
               <DollarSign className="w-5 h-5 text-stone-200 group-hover:text-stone-900 transition-colors" />
             </div>
@@ -197,7 +195,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Volume Importé</p>
-                <h3 className="text-2xl font-black text-stone-900">{stats.totalCbm.toFixed(2)} m³</h3>
+                <h3 className="text-2xl font-black text-stone-900">{Math.round(stats.totalCbm).toLocaleString()} m³</h3>
               </div>
               <Box className="w-5 h-5 text-stone-200 group-hover:text-amber-500 transition-colors" />
             </div>
@@ -210,7 +208,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Efficacité Fret</p>
-                <h3 className="text-2xl font-black text-stone-900">{stats.avgEfficiency.toFixed(2)} <span className="text-xs text-stone-400">$/m³</span></h3>
+                <h3 className="text-2xl font-black text-stone-900">{Math.round(stats.avgEfficiency).toLocaleString()} <span className="text-xs text-stone-400">$/m³</span></h3>
               </div>
               <Anchor className="w-5 h-5 text-stone-200 group-hover:text-blue-500 transition-colors" />
             </div>
@@ -273,7 +271,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                     {nextArrivingFacture.categorySummary.map((item, idx) => (
                       <div key={idx} className="bg-white/5 border border-white/10 p-3 rounded-xl hover:bg-white/10 transition-colors">
                         <p className="text-[8px] font-black text-stone-400 uppercase truncate mb-1">{item.name}</p>
-                        <p className="text-sm font-black text-white">{item.qty.toLocaleString()} <span className="text-[9px] text-stone-500 font-bold">{item.unit}</span></p>
+                        <p className="text-sm font-black text-white">{Math.round(item.qty).toLocaleString()} <span className="text-[9px] text-stone-500 font-bold">{item.unit}</span></p>
                       </div>
                     ))}
                   </div>
@@ -307,8 +305,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                 <LineChart data={analyticsData.evolutionData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Math.round(v).toLocaleString()} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <Tooltip 
+                    formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                  />
                   <Line type="monotone" dataKey="value" stroke="#CC8626" strokeWidth={3} dot={{ r: 4, fill: '#CC8626' }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -339,7 +340,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(val: number) => [`${val.toLocaleString()} $`]} />
+                  <Tooltip formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -361,7 +362,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f1f1" />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={150} style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', fill: '#1E293B' }} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val.toLocaleString()} $`]} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }} 
+                  formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]} 
+                  contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
                   {analyticsData.groupValueData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -75,7 +74,7 @@ export default function CategoriesView({
     setTodayStr(`${year}-${month}-${day}`);
   }, []);
 
-  const isSpecialZipperCategory = (catName: string | undefined) => {
+  const isTechnicalZipper = (catName: string | undefined) => {
     if (!catName) return false;
     const upper = catName.toUpperCase();
     const isZipper = upper.includes('ZIPPER');
@@ -246,20 +245,18 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Specific logic for price variants: filter for NO5 NYLON ZIPPER if specified
     const isTargetCategory = selectedCategory.toUpperCase().includes('NO5') && selectedCategory.toUpperCase().includes('NYLON') && selectedCategory.toUpperCase().includes('ZIPPER');
     
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
-      // Filter by size if target category
       if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
 
       const parts = [];
-      const isSpecial = isSpecialZipperCategory(a.categoryId);
+      const isTechnical = isTechnicalZipper(a.categoryId);
       
       if (a.size) parts.push(a.size);
       
-      if (isSpecial) {
+      if (isTechnical) {
         if (a.zipperType) parts.push(a.zipperType);
         if (a.slider) parts.push(a.slider);
       }
@@ -276,17 +273,16 @@ export default function CategoriesView({
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
 
-      // Filter by size if target category for the price evolution data points
       if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
 
       if (!dateGroups[date]) dateGroups[date] = { date };
       
       const parts = [];
-      const isSpecial = isSpecialZipperCategory(a.categoryId);
+      const isTechnical = isTechnicalZipper(a.categoryId);
       
       if (a.size) parts.push(a.size);
       
-      if (isSpecial) {
+      if (isTechnical) {
         if (a.zipperType) parts.push(a.zipperType);
         if (a.slider) parts.push(a.slider);
       }
@@ -330,11 +326,11 @@ export default function CategoriesView({
                 <>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Valeur Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{headerStats.totalVal.toLocaleString()} $</p>
+                    <p className="text-lg font-black text-white leading-none">{Math.round(headerStats.totalVal).toLocaleString()} $</p>
                   </div>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Quantité Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{headerStats.totalQty.toLocaleString()}</p>
+                    <p className="text-lg font-black text-white leading-none">{Math.round(headerStats.totalQty).toLocaleString()}</p>
                   </div>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Prochaine Arrivée</p>
@@ -383,7 +379,7 @@ export default function CategoriesView({
                 </TableHeader>
                 <TableBody>
                   {groupedData.production.length > 0 ? groupedData.production.map(a => {
-                    const isSpecial = isSpecialZipperCategory(a.categoryId);
+                    const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
                         <TableCell className="py-3 px-6">
@@ -396,7 +392,7 @@ export default function CategoriesView({
                           <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
-                          {isSpecial ? (
+                          {isTechnical ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
@@ -408,13 +404,13 @@ export default function CategoriesView({
                         <TableCell className="text-stone-400 font-black text-[10px] py-3 uppercase">{a.supplierId}</TableCell>
                         <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          {a.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                         </TableCell>
                         <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">
                           {Number(a.purchasePricePerUnit).toFixed(4)} $
                         </TableCell>
                         <TableCell className="text-right font-black text-amber-600 text-[11px] py-3 px-6">
-                          {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                          {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                         </TableCell>
                       </TableRow>
                     );
@@ -458,7 +454,7 @@ export default function CategoriesView({
                 </TableHeader>
                 <TableBody>
                   {groupedData.transit.length > 0 ? groupedData.transit.map(a => {
-                    const isSpecial = isSpecialZipperCategory(a.categoryId);
+                    const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
                         <TableCell className="py-3 px-6">
@@ -471,7 +467,7 @@ export default function CategoriesView({
                           <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
-                          {isSpecial ? (
+                          {isTechnical ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
@@ -486,10 +482,10 @@ export default function CategoriesView({
                           <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
                         </TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          {a.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                         </TableCell>
                         <TableCell className="text-right font-black text-blue-700 text-[11px] py-3 px-6">
-                          {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                          {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                         </TableCell>
                       </TableRow>
                     );
@@ -532,7 +528,7 @@ export default function CategoriesView({
                 </TableHeader>
                 <TableBody>
                   {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => {
-                    const isSpecial = isSpecialZipperCategory(a.categoryId);
+                    const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
                         <TableCell className="py-3 px-6">
@@ -545,7 +541,7 @@ export default function CategoriesView({
                           <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
-                          {isSpecial ? (
+                          {isTechnical ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
@@ -557,10 +553,10 @@ export default function CategoriesView({
                         <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.arrivalDate}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          {a.quantity.toLocaleString()} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
+                          {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                         </TableCell>
                         <TableCell className="text-right font-black text-emerald-700 text-[11px] py-3 px-6">
-                          {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                          {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
                         </TableCell>
                       </TableRow>
                     );
@@ -586,8 +582,11 @@ export default function CategoriesView({
                 <BarChart data={detailedAnalytics.quantityData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Math.round(v).toLocaleString()} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <RechartsTooltip 
+                    formatter={(val: number) => [Math.round(val).toLocaleString()]}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                  />
                   <Bar dataKey="value" fill="#CC8626" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -606,8 +605,11 @@ export default function CategoriesView({
                 <LineChart data={detailedAnalytics.priceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase' }} />
-                  <YAxis axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Math.round(v).toLocaleString()} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <RechartsTooltip 
+                    formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                  />
                   <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '8px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
                   {detailedAnalytics.uniqueProducts.map((product, idx) => (
                     <Line 
@@ -650,7 +652,7 @@ export default function CategoriesView({
                       <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />
                     ))}
                   </Pie>
-                  <RechartsTooltip formatter={(val: number) => [`${val.toLocaleString()} $`]} />
+                  <RechartsTooltip formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                 </PieChart>
               </ResponsiveContainer>
