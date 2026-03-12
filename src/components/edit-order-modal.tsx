@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "transparent"];
+const ZIPPER_TYPES = ["O/E", "C/E"];
+const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
 
 interface EditOrderModalProps {
   article: any | null;
@@ -67,7 +68,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
-    return formData?.categoryId?.toUpperCase().includes('ZIPPER');
+    const catName = formData?.categoryId?.toUpperCase() || "";
+    return catName.includes('ZIPPER');
   }, [formData?.categoryId]);
 
   const handleSuggestSpecs = async () => {
@@ -118,21 +120,25 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   return (
     <Dialog open={!!article} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-stone-200">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
-            <Package className="w-5 h-5 text-stone-400" /> Paramétrage Article
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-stone-200 rounded-2xl p-0">
+        <div className="bg-stone-900 p-6 flex items-center gap-3 text-white">
+          <div className="p-2 bg-white/10 rounded-lg">
+            <Package className="w-6 h-6" />
+          </div>
+          <div>
+            <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none">Paramétrage Article</DialogTitle>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Mise à jour des données logistiques</p>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Layers className="w-3 h-3" /> Pôle Logistique
               </Label>
               <Select value={selectedGenCatId} onValueChange={setSelectedGenCatId}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -152,7 +158,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 value={formData.categoryId} 
                 onValueChange={(v) => setFormData((p: any) => ({...p, categoryId: v}))}
               >
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -170,7 +176,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               <Input 
                 value={formData.size || ''} 
                 onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))} 
-                className="h-11 border-stone-200 font-bold"
+                className="h-12 border-stone-200 font-bold rounded-xl"
                 placeholder="Ex: No.5, 20cm..."
               />
             </div>
@@ -180,12 +186,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Settings2 className="w-3 h-3" /> Type Zipper
                 </Label>
-                <Input 
-                  value={formData.zipperType || ''} 
-                  onChange={e => setFormData((prev: any) => ({ ...prev, zipperType: e.target.value }))} 
-                  className="h-11 border-stone-200 font-bold"
-                  placeholder="Ex: C/E, O/E..."
-                />
+                <Select value={formData.zipperType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, zipperType: v }))}>
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue placeholder="Type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ZIPPER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -198,7 +206,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <Input 
                     value={formData.slider || ''} 
                     onChange={e => setFormData((prev: any) => ({ ...prev, slider: e.target.value }))} 
-                    className="h-11 border-stone-200 font-bold"
+                    className="h-12 border-stone-200 font-bold rounded-xl"
                     placeholder="Ex: Auto-lock..."
                   />
                 </div>
@@ -206,12 +214,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                     <Scissors className="w-3 h-3" /> Type Curseur
                   </Label>
-                  <Input 
-                    value={formData.sliderType || ''} 
-                    onChange={e => setFormData((prev: any) => ({ ...prev, sliderType: e.target.value }))} 
-                    className="h-11 border-stone-200 font-bold"
-                    placeholder="Ex: Standard..."
-                  />
+                  <Select value={formData.sliderType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, sliderType: v }))}>
+                    <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                      <SelectValue placeholder="Type Curseur..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}
@@ -224,13 +234,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <Input 
                   value={formData.specs || ''} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))} 
-                  className="h-11 border-stone-200 font-bold"
+                  className="h-12 border-stone-200 font-bold rounded-xl"
                   placeholder="Ex: Semi-Auto, 50m/roll..."
                 />
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="h-11 w-11 border-stone-200"
+                  className="h-12 w-12 border-stone-200 rounded-xl"
                   onClick={handleSuggestSpecs} 
                   disabled={isSuggesting || !formData.categoryId}
                 >
@@ -244,7 +254,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <Palette className="w-3 h-3" /> Couleur
               </Label>
               <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({...p, color: v}))}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -257,7 +267,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <Ruler className="w-3 h-3" /> Unité
               </Label>
               <Select value={formData.unitOfMeasure} onValueChange={v => setFormData((p: any) => ({...p, unitOfMeasure: v}))}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,7 +284,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   required 
                   value={formData.quantity || 0} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} 
-                  className="h-11 border-stone-200 font-bold"
+                  className="h-12 border-stone-200 font-bold rounded-xl"
                 />
               </div>
               
@@ -286,16 +296,16 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   required 
                   value={formData.purchasePricePerUnit || 0} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} 
-                  className="h-11 border-stone-200 font-bold text-amber-700"
+                  className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl"
                 />
               </div>
             </div>
 
-            <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200 md:col-span-2">
+            <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({...p, status: v}))}>
-                  <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -307,7 +317,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
                 {formData.status !== 'TO_ORDER' && (
                   <Select value={formData.factureId || 'NONE'} onValueChange={v => setFormData((p: any) => ({...p, factureId: v}))}>
-                    <SelectTrigger className="h-11 border-stone-200 bg-white font-bold">
+                    <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                       <SelectValue placeholder="Facture..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -325,7 +335,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       placeholder="Fournisseur" 
                       value={formData.supplierId || ''} 
                       onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
-                      className="h-11 border-stone-200 font-bold uppercase"
+                      className="h-12 border-stone-200 font-bold uppercase rounded-xl"
                     />
                     <Input 
                       type="number" 
@@ -333,14 +343,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       placeholder="Volume (CBM)"
                       value={formData.cubicMeasurement || 0} 
                       onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
-                      className="h-11 border-stone-200 font-bold"
+                      className="h-12 border-stone-200 font-bold rounded-xl"
                     />
                   </>
                 )}
               </div>
             </div>
           </div>
-          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-12 rounded-xl gap-2 shadow-lg shadow-stone-200">
+          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 shadow-lg shadow-stone-200">
             <Save className="w-4 h-4" /> Sauvegarder les modifications
           </Button>
         </form>

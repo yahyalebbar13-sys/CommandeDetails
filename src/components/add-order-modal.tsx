@@ -15,6 +15,8 @@ import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Setting
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "transparent"];
+const ZIPPER_TYPES = ["O/E", "C/E"];
+const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
 
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { user } = useUser();
@@ -152,12 +154,14 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Settings2 className="w-3 h-3" /> Type Zipper
                 </Label>
-                <Input 
-                  placeholder="Ex: C/E, O/E..." 
-                  className="h-12 border-stone-200 font-bold rounded-xl"
-                  value={formData.zipperType}
-                  onChange={e => setFormData((p: any) => ({...p, zipperType: e.target.value}))}
-                />
+                <Select value={formData.zipperType} onValueChange={v => setFormData((p: any) => ({...p, zipperType: v}))}>
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue placeholder="Type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ZIPPER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
@@ -179,12 +183,14 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Scissors className="w-3 h-3" /> Type Curseur
                 </Label>
-                <Input 
-                  placeholder="Ex: Standard..." 
-                  className="h-12 border-stone-200 font-bold rounded-xl"
-                  value={formData.sliderType}
-                  onChange={e => setFormData((p: any) => ({...p, sliderType: e.target.value}))}
-                />
+                <Select value={formData.sliderType} onValueChange={v => setFormData((p: any) => ({...p, sliderType: v}))}>
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue placeholder="Type Curseur..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
