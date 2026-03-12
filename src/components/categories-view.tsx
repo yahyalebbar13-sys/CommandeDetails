@@ -79,7 +79,7 @@ export default function CategoriesView({
   const isSpecialZipperCategory = (catName: string | undefined) => {
     if (!catName) return false;
     const upper = catName.toUpperCase();
-    return upper === 'NYLON ZIPPER' || upper === 'PLASTIC ZIPPER' || upper === 'METAL ZIPPER';
+    return upper === 'NYLON ZIPPER' || upper === 'PLASTIC ZIPPER' || upper === 'METAL ZIPPER' || upper === 'ALUMINIUM ZIPPER';
   };
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
@@ -245,7 +245,6 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Grouping by Size, Type, Color, Slider for specific zipper categories
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
       const parts = [];
@@ -378,9 +377,9 @@ export default function CategoriesView({
                           {a.name}
                           <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
                             {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType}</span>}
+                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600 font-black"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType}</span>}
                             {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
-                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
+                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600 font-black"><MousePointer2 className="w-2.5 h-2.5" /> CURSEUR: {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-[10px] text-stone-500 font-bold py-5">
@@ -446,9 +445,9 @@ export default function CategoriesView({
                           {a.name}
                           <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
                             {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType}</span>}
+                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600 font-black"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType}</span>}
                             {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
-                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
+                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600 font-black"><MousePointer2 className="w-2.5 h-2.5" /> CURSEUR: {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-[10px] text-stone-500 font-bold py-5">
@@ -516,9 +515,9 @@ export default function CategoriesView({
                           {a.name}
                           <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
                             {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType}</span>}
+                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600 font-black"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType}</span>}
                             {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
-                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
+                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600 font-black"><MousePointer2 className="w-2.5 h-2.5" /> CURSEUR: {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-[10px] text-stone-500 font-bold py-5">
@@ -721,7 +720,7 @@ export default function CategoriesView({
         <div className="relative z-10">
           <Badge className="bg-amber-500 text-white border-none px-4 py-1 text-[9px] font-black uppercase tracking-widest rounded-full mb-4">Architecture de Données</Badge>
           <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-tight">Répertoire <br /><span className="text-amber-500">Logistique</span></h2>
-          <p className="text-stone-400 text-xs font-medium mt-3 max-w-sm leading-relaxed">Exploration granulaire des stocks et flux financiers par pôle d'activité.</p>
+          <p className="text-stone-400 text-xs font-medium mt-3 max-sm leading-relaxed">Exploration granulaire des stocks et flux financiers par pôle d'activité.</p>
         </div>
       </header>
 
