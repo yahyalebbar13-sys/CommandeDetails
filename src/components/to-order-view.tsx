@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -97,7 +96,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                         <div className="font-black text-stone-900 text-xs uppercase">{o.name}</div>
                       </TableCell>
                       <TableCell className="py-3">
-                        {o.size && <Badge variant="outline" className="text-stone-600 border-stone-200 text-[8px] font-black uppercase flex items-center gap-1 h-4 px-1.5"><Box className="w-2 h-2 text-stone-400" /> {o.size}</Badge>}
+                        <span className="text-[10px] text-stone-600 font-bold uppercase">{o.size || '-'}</span>
                       </TableCell>
                       <TableCell className="py-3">
                         <span className="text-[10px] text-stone-900 font-black uppercase">{o.color || '-'}</span>
