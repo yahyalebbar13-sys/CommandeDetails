@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil, Box } from 'lucide-react';
+import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil, Box, Badge, Settings2, MousePointer2 } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -56,87 +56,82 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
             Articles À Commander
           </h2>
           <p className="text-stone-600 mt-1">
-            Liste des articles dont vous avez besoin. Complétez les informations pour lancer la commande réelle (PI).
+            Liste des besoins identifiés en attente de commande officielle.
           </p>
         </div>
         <div className="bg-stone-50 px-4 py-2 rounded-lg border border-stone-200">
-          <div className="text-[10px] text-stone-500 font-bold uppercase">En attente</div>
-          <div className="text-2xl font-black text-stone-800">{toOrderArticles.length} Rappels</div>
+          <div className="text-[10px] text-stone-500 font-black uppercase">Rappels en cours</div>
+          <div className="text-2xl font-black text-stone-800">{toOrderArticles.length} Besoins</div>
         </div>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
         <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-stone-50">
+            <TableHeader className="bg-stone-50/80">
               <TableRow>
-                <TableHead>Article / Catégorie</TableHead>
-                <TableHead>Spécifications Techniques</TableHead>
-                <TableHead>Taille</TableHead>
-                <TableHead>Couleur</TableHead>
-                <TableHead className="text-right">Qté Prévue</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Article / Taille / Couleur</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Spécifications Techniques</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase py-4">Quantité Prévue</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase py-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {toOrderArticles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-20 text-stone-400 italic">
-                    Aucun article dans vos rappels "À Commander".
+                  <TableCell colSpan={4} className="text-center py-20 text-stone-400 italic font-bold">
+                    Aucun besoin identifié pour le moment.
                   </TableCell>
                 </TableRow>
               ) : (
                 toOrderArticles.map((o) => {
                   const isZipper = isZipperCategory(o.categoryId);
                   return (
-                    <TableRow key={o.id} className="hover:bg-stone-50 transition-colors">
-                      <TableCell>
-                        <div className="font-bold text-stone-900">{o.name}</div>
-                        <div className="text-[10px] text-stone-500 uppercase">{o.categoryId}</div>
+                    <TableRow key={o.id} className="hover:bg-stone-50 transition-colors border-stone-50">
+                      <TableCell className="py-5">
+                        <div className="font-black text-stone-900 text-xs uppercase">{o.name}</div>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          {o.size && <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</span>}
+                          {o.color && <span className="text-[10px] text-stone-900 font-black uppercase">{o.color}</span>}
+                        </div>
                       </TableCell>
                       <TableCell className="text-[10px]">
                         {isZipper ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-amber-600 font-black">TYPE: {o.zipperType || '-'}</span>
-                            <span className="text-blue-600 font-black">SLIDER: {o.slider || '-'} ({o.sliderType || '-'})</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {o.zipperType || '-'}</span>
+                            <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
                         ) : (
                           <span className="text-stone-500 font-bold">{o.specs || '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs font-black text-amber-700">
-                        {o.size ? <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</span> : '-'}
-                      </TableCell>
-                      <TableCell className="text-xs uppercase">{o.color || '-'}</TableCell>
-                      <TableCell className="text-right font-bold">
-                        {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                      <TableCell className="text-right font-black text-xs">
+                        {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{o.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end items-center gap-1">
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="text-stone-400 hover:text-amber-600"
+                            className="h-8 w-8 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-xl"
                             onClick={() => onEdit(o)}
-                            title="Modifier"
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="text-stone-400 hover:text-red-500"
+                            className="h-8 w-8 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-xl"
                             onClick={() => handleActionDelete(o.id, o.name)}
-                            title="Supprimer ce rappel"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                           <Button 
                             size="sm" 
                             onClick={() => setSelectedArticle(o) || setIsLaunchModalOpen(true)}
-                            className="bg-stone-800 hover:bg-black text-white font-bold gap-1"
+                            className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[9px] tracking-widest px-4 h-8 rounded-lg ml-2"
                           >
-                            Lancer Commande <ArrowRight className="w-3 h-3" />
+                            Commander <ArrowRight className="w-3 h-3 ml-1" />
                           </Button>
                         </div>
                       </TableCell>

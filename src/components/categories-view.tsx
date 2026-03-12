@@ -361,10 +361,8 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">
-                      {isSpecialCategory ? "Spécifications Techniques" : "Specs / Détails"}
-                    </TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation / Taille / Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications Techniques</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
@@ -377,18 +375,18 @@ export default function CategoriesView({
                     const isSpecial = isSpecialZipperCategory(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                        <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
-                          {a.name}
-                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
-                            {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
+                        <TableCell className="py-5 px-6">
+                          <div className="font-black text-xs text-stone-900 uppercase">{a.name}</div>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {a.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</Badge>}
+                            {a.color && <span className="text-[10px] text-stone-900 font-black uppercase">{a.color}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-[10px] py-5">
                           {isSpecial ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black">TYPE: {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black">SLIDER: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
                             <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
@@ -434,10 +432,8 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">
-                      {isSpecialCategory ? "Spécifications Techniques" : "Détails"}
-                    </TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation / Taille / Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications Techniques</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
@@ -451,18 +447,18 @@ export default function CategoriesView({
                     const isSpecial = isSpecialZipperCategory(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
-                        <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
-                          {a.name}
-                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
-                            {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
+                        <TableCell className="py-5 px-6">
+                          <div className="font-black text-xs text-stone-900 uppercase">{a.name}</div>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {a.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</Badge>}
+                            {a.color && <span className="text-[10px] text-stone-900 font-black uppercase">{a.color}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-[10px] py-5">
                           {isSpecial ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black">TYPE: {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black">SLIDER: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
                             <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
@@ -511,10 +507,8 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">
-                      {isSpecialCategory ? "Spécifications Techniques" : "Détails"}
-                    </TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation / Taille / Couleur</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Spécifications Techniques</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Réceptionné le</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Stock Réel</TableHead>
@@ -527,18 +521,18 @@ export default function CategoriesView({
                     const isSpecial = isSpecialZipperCategory(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
-                        <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
-                          {a.name}
-                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
-                            {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
-                            {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
+                        <TableCell className="py-5 px-6">
+                          <div className="font-black text-xs text-stone-900 uppercase">{a.name}</div>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {a.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</Badge>}
+                            {a.color && <span className="text-[10px] text-stone-900 font-black uppercase">{a.color}</span>}
                           </div>
                         </TableCell>
                         <TableCell className="text-[10px] py-5">
                           {isSpecial ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black">TYPE: {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black">SLIDER: {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
                             <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
@@ -567,6 +561,7 @@ export default function CategoriesView({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-10 border-t border-stone-200">
+          {/* Charts remain the same */}
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
             <div className="h-1.5 w-full bg-stone-900" />
             <CardHeader className="py-4 border-b border-stone-50">
@@ -736,6 +731,7 @@ export default function CategoriesView({
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
+      {/* Root view remains the same */}
       <header className="bg-stone-900 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-[100px]" />
         <div className="relative z-10">

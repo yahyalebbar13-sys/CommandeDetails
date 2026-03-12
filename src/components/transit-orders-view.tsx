@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Ship, Clock, Pencil, Trash2, Box } from 'lucide-react';
+import { Ship, Clock, Pencil, Trash2, Box, Settings2, MousePointer2 } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -81,12 +81,12 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
         </div>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
         <CardHeader className="bg-stone-50 border-b flex flex-row items-center justify-between py-4">
-          <CardTitle className="text-sm font-bold">Détail du Transit</CardTitle>
+          <CardTitle className="text-xs font-black uppercase text-stone-500 tracking-widest">Détail du Transit</CardTitle>
           <div className="flex gap-2">
             {Object.entries(stats.qtyByUnit).map(([unit, qty]) => (
-              <Badge key={unit} variant="outline" className="text-[10px] border-stone-300">
+              <Badge key={unit} className="text-[10px] bg-white text-stone-900 border-stone-200 font-black uppercase">
                 {qty.toLocaleString()} {unit}
               </Badge>
             ))}
@@ -94,23 +94,22 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-stone-50">
+            <TableHeader className="bg-stone-50/50">
               <TableRow>
-                <TableHead>Article / Taille</TableHead>
-                <TableHead>Facture</TableHead>
-                <TableHead>Spécifications</TableHead>
-                <TableHead>Arrivée</TableHead>
-                <TableHead className="text-right">Qté</TableHead>
-                <TableHead className="text-right">CBM</TableHead>
-                <TableHead className="text-right">PA</TableHead>
-                <TableHead className="text-right bg-amber-50/50">Total</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Article / Taille / Couleur</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Dossier</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Spécifications</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Arrivée</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase py-4">Qté</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase py-4">Volume</TableHead>
+                <TableHead className="text-right text-[10px] font-black uppercase py-4 bg-amber-50/30">Total</TableHead>
+                <TableHead className="w-[100px] text-[10px] font-black uppercase py-4"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {transitOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-20 text-stone-400 italic">
+                  <TableCell colSpan={8} className="text-center py-20 text-stone-400 italic font-bold">
                     Aucune commande n'est actuellement en transit.
                   </TableCell>
                 </TableRow>
@@ -118,39 +117,37 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                 transitOrders.map((o) => {
                   const isZipper = isZipperCategory(o.categoryId);
                   return (
-                    <TableRow key={o.id} className="hover:bg-blue-50/30 transition-colors group">
-                      <TableCell>
-                        <div className="font-bold text-stone-900">{o.name}</div>
-                        <div className="text-[10px] text-stone-500 uppercase flex items-center gap-2 mt-1">
-                          {o.size ? <span className="flex items-center gap-1 font-black text-amber-700"><Box className="w-2.5 h-2.5" /> {o.size}</span> : '-'}
-                          <span className="text-stone-300">|</span>
-                          <span>{o.color || 'DIVERS'}</span>
+                    <TableRow key={o.id} className="hover:bg-blue-50/10 transition-colors group border-stone-50">
+                      <TableCell className="py-5">
+                        <div className="font-black text-stone-900 text-xs uppercase">{o.name}</div>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          {o.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</Badge>}
+                          {o.color && <span className="text-[10px] text-stone-900 font-black uppercase">{o.color}</span>}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="font-mono text-[10px] bg-stone-100">{o.factureId}</Badge>
+                        <Badge variant="secondary" className="font-black text-[10px] bg-stone-100 text-stone-600 border-stone-200 rounded px-2">#{o.factureId}</Badge>
                       </TableCell>
                       <TableCell className="text-[10px]">
                         {isZipper ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-amber-600 font-black">TYPE: {o.zipperType || '-'}</span>
-                            <span className="text-blue-600 font-black">SLIDER: {o.slider || '-'}</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {o.zipperType || '-'}</span>
+                            <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
                         ) : (
                           <span className="text-stone-500 font-bold">{o.specs || '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="font-bold text-blue-600 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {o.arrivalDate}
+                      <TableCell className="font-black text-blue-600 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-blue-400" /> {o.arrivalDate}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-normal">{o.unitOfMeasure}</span>
+                      <TableCell className="text-right font-black text-xs">
+                        {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{o.unitOfMeasure}</span>
                       </TableCell>
-                      <TableCell className="text-right text-emerald-700 font-bold">{o.cubicMeasurement?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right text-stone-400 font-mono text-xs">{o.purchasePricePerUnit.toFixed(4)}</TableCell>
-                      <TableCell className="text-right font-black text-amber-700 bg-amber-50/20">
+                      <TableCell className="text-right text-emerald-700 font-black text-xs">{o.cubicMeasurement?.toFixed(2)} <span className="text-[9px] font-bold text-stone-300 ml-0.5">m³</span></TableCell>
+                      <TableCell className="text-right font-black text-amber-700 bg-amber-50/10 text-xs">
                         {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
                       </TableCell>
                       <TableCell>
@@ -158,7 +155,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 text-stone-400 hover:text-amber-600"
+                            className="h-8 w-8 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-xl"
                             onClick={() => onEdit(o)}
                           >
                             <Pencil className="w-4 h-4" />
@@ -166,7 +163,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 text-stone-400 hover:text-red-500"
+                            className="h-8 w-8 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-xl"
                             onClick={() => handleDelete(o.id, o.name)}
                           >
                             <Trash2 className="w-4 h-4" />
