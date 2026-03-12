@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -68,8 +69,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
-    const catName = formData?.categoryId?.toUpperCase() || "";
-    return catName.includes('ZIPPER');
+    const upper = formData?.categoryId?.toUpperCase() || "";
+    return upper.includes('NYLON ZIPPER') || 
+           upper.includes('PLASTIC ZIPPER') || 
+           upper.includes('METAL ZIPPER') || 
+           upper.includes('ALUMINIUM ZIPPER');
   }, [formData?.categoryId]);
 
   const handleSuggestSpecs = async () => {
@@ -228,24 +232,26 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> Détails Techniques / Spécifications
+                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Détails Techniques / Spécifications'}
               </Label>
               <div className="flex gap-2">
                 <Input 
                   value={formData.specs || ''} 
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))} 
                   className="h-12 border-stone-200 font-bold rounded-xl"
-                  placeholder="Ex: Semi-Auto, 50m/roll..."
+                  placeholder={isZipper ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
                 />
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="h-12 w-12 border-stone-200 rounded-xl"
-                  onClick={handleSuggestSpecs} 
-                  disabled={isSuggesting || !formData.categoryId}
-                >
-                  {isSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-500" />}
-                </Button>
+                {!isZipper && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="h-12 w-12 border-stone-200 rounded-xl"
+                    onClick={handleSuggestSpecs} 
+                    disabled={isSuggesting || !formData.categoryId}
+                  >
+                    {isSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-500" />}
+                  </Button>
+                )}
               </div>
             </div>
 

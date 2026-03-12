@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
-  AlertCircle, CheckCircle2, FileText, Box, Euro, 
-  ShieldCheck, Info, ArrowUpRight, Anchor
+  AlertCircle, CheckCircle2, FileText, Box, 
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
@@ -81,11 +81,12 @@ export default function FacturesView({
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteItem = (articleId: string, name: string) => {
-    if (!user || !firestore || !window.confirm(`Supprimer cet article "${name}" ?`)) return;
-    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-    deleteDocumentNonBlocking(docRef);
-    toast({ title: "Article supprimé", description: name });
+  const isZipperCategory = (cat: string) => {
+    const c = cat?.toUpperCase() || "";
+    return c.includes("NYLON ZIPPER") || 
+           c.includes("PLASTIC ZIPPER") || 
+           c.includes("METAL ZIPPER") || 
+           c.includes("ALUMINIUM ZIPPER");
   };
 
   if (selectedFactureId && selectedFacture) {
@@ -141,10 +142,8 @@ export default function FacturesView({
             <Table>
               <TableHeader className="bg-stone-50/50">
                 <TableRow>
-                  <TableHead className="text-[10px] font-black uppercase py-5 px-8">Catégorie</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Taille</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Couleur</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Spécifications</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5 px-8">Article / Taille / Couleur</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5">Spécifications Techniques</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Quantité</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">Volume CBM</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase py-5">P.A. Unitaire</TableHead>
@@ -152,27 +151,43 @@ export default function FacturesView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {selectedFactureArticles.map((o) => (
-                  <TableRow key={o.id} className="hover:bg-stone-50/50 transition-colors border-stone-100 group">
-                    <TableCell className="py-5 px-8">
-                      <button 
-                        onClick={() => onNavigateToCategory(o.categoryId)}
-                        className="text-[11px] font-black text-stone-900 group-hover:text-amber-600 uppercase flex items-center gap-2 transition-colors"
-                      >
-                        {o.categoryId} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-[11px] font-black text-amber-600">{o.size || '-'}</TableCell>
-                    <TableCell className="text-[11px] font-black text-stone-400 uppercase">{o.color || 'DIVERS'}</TableCell>
-                    <TableCell className="text-[11px] font-bold text-stone-500">{o.specs || '-'}</TableCell>
-                    <TableCell className="text-right font-black text-stone-900 text-xs">
-                      {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
-                    </TableCell>
-                    <TableCell className="text-right text-emerald-600 font-bold text-xs">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
-                    <TableCell className="text-right font-black text-amber-700 text-[10px]">{Number(o.purchasePricePerUnit).toFixed(4)} $</TableCell>
-                    <TableCell className="text-right font-black text-stone-900 text-xs pr-8">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
-                  </TableRow>
-                ))}
+                {selectedFactureArticles.map((o) => {
+                  const isZipper = isZipperCategory(o.categoryId);
+                  return (
+                    <TableRow key={o.id} className="hover:bg-stone-50/50 transition-colors border-stone-100 group">
+                      <TableCell className="py-5 px-8">
+                        <div className="flex flex-col">
+                          <button 
+                            onClick={() => onNavigateToCategory(o.categoryId)}
+                            className="text-[11px] font-black text-stone-900 group-hover:text-amber-600 uppercase flex items-center gap-2 transition-colors text-left"
+                          >
+                            {o.categoryId} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {o.size && <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[9px] font-black uppercase flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {o.size}</Badge>}
+                            {o.color && <span className="text-[10px] text-stone-900 font-black uppercase">{o.color}</span>}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-[11px] py-5">
+                        {isZipper ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-amber-600 font-black flex items-center gap-1.5"><Settings2 className="w-3 h-3" /> TYPE: {o.zipperType || '-'}</span>
+                            <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {o.slider || '-'} ({o.sliderType || '-'})</span>
+                          </div>
+                        ) : (
+                          <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
+                        {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
+                      </TableCell>
+                      <TableCell className="text-right text-emerald-600 font-bold text-xs py-5">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">{Number(o.purchasePricePerUnit).toFixed(4)} $</TableCell>
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-5 pr-8">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

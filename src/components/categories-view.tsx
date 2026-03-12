@@ -24,8 +24,7 @@ import {
   Users,
   Factory,
   Settings2,
-  MousePointer2,
-  Scissors
+  MousePointer2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -79,7 +78,10 @@ export default function CategoriesView({
   const isSpecialZipperCategory = (catName: string | undefined) => {
     if (!catName) return false;
     const upper = catName.toUpperCase();
-    return upper.includes('ZIPPER') || upper.includes('SLIDER');
+    return upper.includes('NYLON ZIPPER') || 
+           upper.includes('PLASTIC ZIPPER') || 
+           upper.includes('METAL ZIPPER') || 
+           upper.includes('ALUMINIUM ZIPPER');
   };
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
@@ -293,8 +295,6 @@ export default function CategoriesView({
   }, [selectedCategory, currentArticles, groupedData, todayStr]);
 
   if (selectedCategory && groupedData && detailedAnalytics) {
-    const isSpecialCategory = isSpecialZipperCategory(selectedCategory);
-
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
@@ -389,7 +389,7 @@ export default function CategoriesView({
                               <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
-                            <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
+                            <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
@@ -461,7 +461,7 @@ export default function CategoriesView({
                               <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
-                            <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
+                            <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
@@ -535,7 +535,7 @@ export default function CategoriesView({
                               <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
                           ) : (
-                            <span className="text-stone-500 font-bold">{a.specs || '-'}</span>
+                            <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
@@ -561,7 +561,6 @@ export default function CategoriesView({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-10 border-t border-stone-200">
-          {/* Charts remain the same */}
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
             <div className="h-1.5 w-full bg-stone-900" />
             <CardHeader className="py-4 border-b border-stone-50">
@@ -731,7 +730,6 @@ export default function CategoriesView({
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
-      {/* Root view remains the same */}
       <header className="bg-stone-900 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-[100px]" />
         <div className="relative z-10">

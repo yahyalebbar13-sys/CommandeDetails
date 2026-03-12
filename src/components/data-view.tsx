@@ -51,7 +51,10 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
 
   const isZipperCategory = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    return c.includes("ZIPPER") || c.includes("SLIDER");
+    return c.includes("NYLON ZIPPER") || 
+           c.includes("PLASTIC ZIPPER") || 
+           c.includes("METAL ZIPPER") || 
+           c.includes("ALUMINIUM ZIPPER");
   };
 
   return (
@@ -78,7 +81,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
               <TableHeader className="bg-stone-50 sticky top-0 z-10">
                 <TableRow>
                   <TableHead className="text-[10px] font-black uppercase py-4">Désignation / Taille / Couleur</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-4">Technique</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-4">Technique / Spécifications</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-4">Fournisseur</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-4 bg-stone-100/50">Dossier</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-4">Arrivée</TableHead>
@@ -113,7 +116,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                               <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> {o.slider || '-'}</span>
                             </div>
                           ) : (
-                            <span className="text-stone-500 font-bold">{o.specs || '-'}</span>
+                            <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-[10px] uppercase text-stone-400 font-black">{o.supplierId}</TableCell>

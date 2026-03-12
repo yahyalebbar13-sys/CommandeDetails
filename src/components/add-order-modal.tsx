@@ -11,7 +11,7 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, Scissors, MousePointer2 } from 'lucide-react';
+import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors } from 'lucide-react';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "transparent"];
@@ -49,7 +49,11 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
-    return formData.categoryId?.toUpperCase().includes('ZIPPER');
+    const upper = formData.categoryId?.toUpperCase() || "";
+    return upper.includes('NYLON ZIPPER') || 
+           upper.includes('PLASTIC ZIPPER') || 
+           upper.includes('METAL ZIPPER') || 
+           upper.includes('ALUMINIUM ZIPPER');
   }, [formData.categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -197,10 +201,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
 
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-              <ClipboardList className="w-3 h-3" /> Détails Techniques / Specs
+              <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Détails Techniques / Specs'}
             </Label>
             <Input 
-              placeholder="Ex: Semi-Auto, 50m/roll..." 
+              placeholder={isZipper ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."} 
               className="h-12 border-stone-200 font-bold rounded-xl"
               value={formData.specs}
               onChange={e => setFormData((p: any) => ({...p, specs: e.target.value}))}

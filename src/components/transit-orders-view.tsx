@@ -45,7 +45,10 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
 
   const isZipperCategory = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    return c.includes("ZIPPER") || c.includes("SLIDER");
+    return c.includes("NYLON ZIPPER") || 
+           c.includes("PLASTIC ZIPPER") || 
+           c.includes("METAL ZIPPER") || 
+           c.includes("ALUMINIUM ZIPPER");
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -135,7 +138,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                             <span className="text-blue-600 font-black flex items-center gap-1.5"><MousePointer2 className="w-3 h-3" /> CURSEUR: {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
                         ) : (
-                          <span className="text-stone-500 font-bold">{o.specs || '-'}</span>
+                          <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
                         )}
                       </TableCell>
                       <TableCell className="font-black text-blue-600 text-[11px]">
