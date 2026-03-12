@@ -246,8 +246,14 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
+    // Specific logic for price variants: filter for NO5 NYLON ZIPPER if specified
+    const isTargetCategory = selectedCategory.toUpperCase().includes('NO5') && selectedCategory.toUpperCase().includes('NYLON') && selectedCategory.toUpperCase().includes('ZIPPER');
+    
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
+      // Filter by size if target category
+      if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
+
       const parts = [];
       const isSpecial = isSpecialZipperCategory(a.categoryId);
       
@@ -269,6 +275,10 @@ export default function CategoriesView({
     currentArticles.forEach(a => {
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
+
+      // Filter by size if target category for the price evolution data points
+      if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
+
       if (!dateGroups[date]) dateGroups[date] = { date };
       
       const parts = [];
