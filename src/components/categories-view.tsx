@@ -22,7 +22,10 @@ import {
   DollarSign,
   Trash2,
   Users,
-  Factory
+  Factory,
+  Settings2,
+  MousePointer2,
+  Scissors
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -72,6 +75,12 @@ export default function CategoriesView({
     const day = String(today.getDate()).padStart(2, '0');
     setTodayStr(`${year}-${month}-${day}`);
   }, []);
+
+  const isSpecialZipperCategory = (catName: string | undefined) => {
+    if (!catName) return false;
+    const upper = catName.toUpperCase();
+    return upper === 'NYLON ZIPPER' || upper === 'PLASTIC ZIPPER' || upper === 'METAL ZIPPER';
+  };
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
@@ -236,14 +245,20 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Grouping by Size, Type, Color, Slider
+    // Grouping by Size, Type, Color, Slider for specific zipper categories
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
       const parts = [];
+      const isSpecial = isSpecialZipperCategory(a.categoryId);
+      
       if (a.size) parts.push(a.size);
-      if (a.zipperType) parts.push(a.zipperType);
+      
+      if (isSpecial) {
+        if (a.zipperType) parts.push(a.zipperType);
+        if (a.slider) parts.push(a.slider);
+      }
+      
       if (a.color) parts.push(a.color.toUpperCase());
-      if (a.slider) parts.push(a.slider);
       
       const key = parts.length > 0 ? parts.join(' - ') : 'DIVERS';
       productsSet.add(key);
@@ -257,10 +272,16 @@ export default function CategoriesView({
       if (!dateGroups[date]) dateGroups[date] = { date };
       
       const parts = [];
+      const isSpecial = isSpecialZipperCategory(a.categoryId);
+      
       if (a.size) parts.push(a.size);
-      if (a.zipperType) parts.push(a.zipperType);
+      
+      if (isSpecial) {
+        if (a.zipperType) parts.push(a.zipperType);
+        if (a.slider) parts.push(a.slider);
+      }
+      
       if (a.color) parts.push(a.color.toUpperCase());
-      if (a.slider) parts.push(a.slider);
       
       const productKey = parts.length > 0 ? parts.join(' - ') : 'DIVERS';
       
@@ -349,33 +370,36 @@ export default function CategoriesView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedData.production.length > 0 ? groupedData.production.map(a => (
-                    <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
-                        {a.name}
-                        {(a.size || a.zipperType || a.color || a.slider) && (
-                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-2">
-                            {a.size && <span>TAILLE: {a.size}</span>}
-                            {a.zipperType && <span>TYPE: {a.zipperType}</span>}
-                            {a.color && <span>COULEUR: {a.color}</span>}
-                            {a.slider && <span>CURSEUR: {a.slider}</span>}
+                  {groupedData.production.length > 0 ? groupedData.production.map(a => {
+                    const isSpecial = isSpecialZipperCategory(a.categoryId);
+                    return (
+                      <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
+                        <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
+                          {a.name}
+                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
+                            {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
+                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType}</span>}
+                            {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
+                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
-                      <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
-                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} $
-                      </TableCell>
-                      <TableCell className="text-right font-black text-amber-600 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
-                      </TableCell>
-                    </TableRow>
-                  )) : (
+                        </TableCell>
+                        <TableCell className="text-[10px] text-stone-500 font-bold py-5">
+                          {isSpecial ? '-' : (a.specs || '-')}
+                        </TableCell>
+                        <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="text-right font-black text-stone-900 text-xs py-5">
+                          {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                          {Number(a.purchasePricePerUnit).toFixed(4)} $
+                        </TableCell>
+                        <TableCell className="text-right font-black text-amber-600 text-xs py-5 px-6">
+                          {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }) : (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
                   )}
                 </TableBody>
@@ -414,37 +438,40 @@ export default function CategoriesView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedData.transit.length > 0 ? groupedData.transit.map(a => (
-                    <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
-                        {a.name}
-                        {(a.size || a.zipperType || a.color || a.slider) && (
-                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-2">
-                            {a.size && <span>TAILLE: {a.size}</span>}
-                            {a.zipperType && <span>TYPE: {a.zipperType}</span>}
-                            {a.color && <span>COULEUR: {a.color}</span>}
-                            {a.slider && <span>CURSEUR: {a.slider}</span>}
+                  {groupedData.transit.length > 0 ? groupedData.transit.map(a => {
+                    const isSpecial = isSpecialZipperCategory(a.categoryId);
+                    return (
+                      <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
+                        <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
+                          {a.name}
+                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
+                            {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
+                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType}</span>}
+                            {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
+                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
-                      <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
-                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
-                      <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
-                      <TableCell className="py-5">
-                        <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} $
-                      </TableCell>
-                      <TableCell className="text-right font-black text-blue-700 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
-                      </TableCell>
-                    </TableRow>
-                  )) : (
+                        </TableCell>
+                        <TableCell className="text-[10px] text-stone-500 font-bold py-5">
+                          {isSpecial ? '-' : (a.specs || '-')}
+                        </TableCell>
+                        <TableCell className="text-stone-400 font-black text-[10px] py-5 uppercase">{a.supplierId}</TableCell>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="text-blue-600 font-black text-[10px] py-5">{a.arrivalDate || '-'}</TableCell>
+                        <TableCell className="py-5">
+                          <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-stone-900 text-xs py-5">
+                          {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1">{a.unitOfMeasure}</span>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                          {Number(a.purchasePricePerUnit).toFixed(4)} $
+                        </TableCell>
+                        <TableCell className="text-right font-black text-blue-700 text-xs py-5 px-6">
+                          {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }) : (
                     <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
                   )}
                 </TableBody>
@@ -481,33 +508,36 @@ export default function CategoriesView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => (
-                    <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
-                      <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
-                        {a.name}
-                        {(a.size || a.zipperType || a.color || a.slider) && (
-                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-2">
-                            {a.size && <span>TAILLE: {a.size}</span>}
-                            {a.zipperType && <span>TYPE: {a.zipperType}</span>}
-                            {a.color && <span>COULEUR: {a.color}</span>}
-                            {a.slider && <span>CURSEUR: {a.slider}</span>}
+                  {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => {
+                    const isSpecial = isSpecialZipperCategory(a.categoryId);
+                    return (
+                      <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
+                        <TableCell className="font-black text-xs py-5 px-6 text-stone-900">
+                          {a.name}
+                          <div className="text-[9px] text-stone-400 font-bold mt-1 uppercase flex flex-wrap gap-x-3 items-center">
+                            {a.size && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.size}</span>}
+                            {isSpecial && a.zipperType && <span className="flex items-center gap-1 text-amber-600"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType}</span>}
+                            {a.color && <span className="flex items-center gap-1"><Box className="w-2.5 h-2.5" /> {a.color}</span>}
+                            {isSpecial && a.slider && <span className="flex items-center gap-1 text-blue-600"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider} {a.sliderType ? `(${a.sliderType})` : ''}</span>}
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-[10px] text-stone-500 font-bold py-5">{a.specs || '-'}</TableCell>
-                      <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
-                      <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-5">
-                        {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
-                        {Number(a.purchasePricePerUnit).toFixed(4)} $
-                      </TableCell>
-                      <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
-                        {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
-                      </TableCell>
-                    </TableRow>
-                  )) : (
+                        </TableCell>
+                        <TableCell className="text-[10px] text-stone-500 font-bold py-5">
+                          {isSpecial ? '-' : (a.specs || '-')}
+                        </TableCell>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-5">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="text-emerald-700 font-black text-[10px] py-5 uppercase">{a.arrivalDate}</TableCell>
+                        <TableCell className="text-right font-black text-stone-900 text-xs py-5">
+                          {a.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-5">
+                          {Number(a.purchasePricePerUnit).toFixed(4)} $
+                        </TableCell>
+                        <TableCell className="text-right font-black text-emerald-700 text-xs py-5 px-6">
+                          {(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }) : (
                     <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
