@@ -245,10 +245,12 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
+    // Filter specifically for NO5 NYLON ZIPPER
     const isTargetCategory = selectedCategory.toUpperCase().includes('NO5') && selectedCategory.toUpperCase().includes('NYLON') && selectedCategory.toUpperCase().includes('ZIPPER');
     
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
+      // Apply size filter for target category
       if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
 
       const parts = [];
@@ -605,9 +607,14 @@ export default function CategoriesView({
                 <LineChart data={detailedAnalytics.priceData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase' }} />
-                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Math.round(v).toLocaleString()} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tickFormatter={(v) => v.toFixed(3)} 
+                    style={{ fontSize: '9px', fontWeight: '900' }} 
+                  />
                   <RechartsTooltip 
-                    formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]}
+                    formatter={(val: number) => [`${val.toFixed(4)} $`]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
                   />
                   <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '8px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
