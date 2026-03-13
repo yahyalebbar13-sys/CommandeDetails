@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -6,11 +5,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign } from 'lucide-react';
+import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2 } from 'lucide-react';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -19,6 +19,8 @@ interface AddFactureModalProps {
   editFacture?: any | null;
   associatedArticles?: any[];
 }
+
+const COMPANIES = ["New fournitures", "Lebtex", "Robe in box"];
 
 export default function AddFactureModal({ open, onOpenChange, editFacture, associatedArticles }: AddFactureModalProps) {
   const { user } = useUser();
@@ -32,6 +34,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     shippingDate: '',
     shippingLine: '',
     supplierId: '',
+    declaringCompany: '',
     freightCost: 0,
     declaredValue: 0
   });
@@ -45,6 +48,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         shippingDate: editFacture.shippingDate || '',
         shippingLine: editFacture.shippingLine || '',
         supplierId: editFacture.supplierId || editFacture.supplier || '',
+        declaringCompany: editFacture.declaringCompany || '',
         freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0,
         declaredValue: Number(editFacture.declaredValue) || 0
       });
@@ -56,6 +60,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         shippingDate: '',
         shippingLine: '',
         supplierId: '',
+        declaringCompany: '',
         freightCost: 0,
         declaredValue: 0
       });
@@ -151,6 +156,27 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Building2 className="w-3 h-3" /> SOCIÉTÉ DÉCLARANTE
+              </Label>
+              <Select 
+                value={formData.declaringCompany} 
+                onValueChange={v => setFormData((prev: any) => ({ ...prev, declaringCompany: v }))}
+              >
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                  <SelectValue placeholder="Choisir la société..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {COMPANIES.map(company => (
+                    <SelectItem key={company} value={company} className="font-bold">{company}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Ship className="w-3 h-3" /> COMPAGNIE MARITIME
               </Label>
               <Input 
@@ -160,9 +186,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 className="font-bold border-stone-200 h-11 rounded-xl uppercase"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Calendar className="w-3 h-3" /> DATE D'EXPÉDITION (ETD)
@@ -174,6 +197,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 onChange={e => setFormData((prev: any) => ({ ...prev, shippingDate: e.target.value }))}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Calendar className="w-3 h-3" /> DATE D'ARRIVÉE (ETA)
@@ -186,9 +212,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Truck className="w-3 h-3" /> FRAIS DE FRET ($)
@@ -202,19 +225,20 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 placeholder="0.00"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <DollarSign className="w-3 h-3" /> VRAIE VALEUR DÉCLARÉE ($)
-              </Label>
-              <Input 
-                type="number"
-                step="0.01"
-                className="border-stone-200 h-11 font-black text-amber-600 rounded-xl"
-                value={formData.declaredValue}
-                onChange={e => setFormData((prev: any) => ({ ...prev, declaredValue: parseFloat(e.target.value) || 0 }))}
-                placeholder="0.00"
-              />
-            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+              <DollarSign className="w-3 h-3" /> VRAIE VALEUR DÉCLARÉE EN DOUANE ($)
+            </Label>
+            <Input 
+              type="number"
+              step="0.01"
+              className="border-stone-200 h-11 font-black text-amber-600 rounded-xl"
+              value={formData.declaredValue}
+              onChange={e => setFormData((prev: any) => ({ ...prev, declaredValue: parseFloat(e.target.value) || 0 }))}
+              placeholder="0.00"
+            />
           </div>
           
           {associatedArticles && associatedArticles.length > 0 && (

@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, 
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
@@ -119,6 +119,11 @@ export default function FacturesView({
                   <Badge className="bg-white/10 text-white border-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
                     <CheckCircle2 className="w-3 h-3 mr-2 text-emerald-400" /> Dossier Certifié
                   </Badge>
+                  {selectedFacture.declaringCompany && (
+                    <Badge className="bg-blue-600 text-white border-none px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
+                      <Building2 className="w-3 h-3 mr-2" /> {selectedFacture.declaringCompany}
+                    </Badge>
+                  )}
                   {selectedFacture.noBL && (
                     <Badge variant="outline" className="text-blue-400 border-blue-500/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
                       <Hash className="w-3 h-3 mr-2" /> BL: {selectedFacture.noBL}
@@ -330,7 +335,12 @@ export default function FacturesView({
                 <p className="text-[10px] text-stone-400 font-black uppercase tracking-[0.15em]">{f.supplierId || f.supplier}</p>
                 {f.shippingLine && <span className="text-[8px] text-stone-300 font-bold uppercase">• {f.shippingLine}</span>}
               </div>
-              <h3 className="text-2xl font-black text-stone-900 tracking-tighter uppercase mb-6 line-clamp-1">{f.id}</h3>
+              <h3 className="text-2xl font-black text-stone-900 tracking-tighter uppercase mb-2 line-clamp-1">{f.id}</h3>
+              {f.declaringCompany && (
+                <p className="text-[10px] font-black text-blue-600 uppercase mb-6 flex items-center gap-1.5">
+                  <Building2 className="w-3 h-3" /> {f.declaringCompany}
+                </p>
+              )}
               
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">

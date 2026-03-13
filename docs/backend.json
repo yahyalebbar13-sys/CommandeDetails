@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "GeneralCategory": {
@@ -44,6 +43,7 @@
         "id": { "type": "string" },
         "noBL": { "type": "string" },
         "supplierId": { "type": "string" },
+        "declaringCompany": { "type": "string", "enum": ["New fournitures", "Lebtex", "Robe in box"] },
         "arrivalDate": { "type": "string", "format": "date" },
         "shippingDate": { "type": "string", "format": "date" },
         "shippingLine": { "type": "string" },

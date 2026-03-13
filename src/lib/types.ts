@@ -1,4 +1,3 @@
-
 export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
 
 export type GeneralCategory = {
@@ -42,6 +41,7 @@ export type Facture = {
   shippingDate?: string;
   shippingLine?: string;
   supplierId: string;
+  declaringCompany?: "New fournitures" | "Lebtex" | "Robe in box";
   freightCost: number;
   declaredValue?: number;
 };
