@@ -10,7 +10,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { FileText, Calendar, Truck, Save, AlertTriangle, ShieldCheck, Hash } from 'lucide-react';
+import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign } from 'lucide-react';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -29,8 +29,11 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     id: '',
     noBL: '',
     arrivalDate: '',
+    shippingDate: '',
+    shippingLine: '',
     supplierId: '',
-    freightCost: 0
+    freightCost: 0,
+    declaredValue: 0
   });
 
   useEffect(() => {
@@ -39,16 +42,22 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         id: editFacture.id || '',
         noBL: editFacture.noBL || '',
         arrivalDate: editFacture.arrivalDate || new Date().toISOString().split('T')[0],
+        shippingDate: editFacture.shippingDate || '',
+        shippingLine: editFacture.shippingLine || '',
         supplierId: editFacture.supplierId || editFacture.supplier || '',
-        freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0
+        freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0,
+        declaredValue: Number(editFacture.declaredValue) || 0
       });
     } else {
       setFormData({
         id: '',
         noBL: '',
         arrivalDate: new Date().toISOString().split('T')[0],
+        shippingDate: '',
+        shippingLine: '',
         supplierId: '',
-        freightCost: 0
+        freightCost: 0,
+        declaredValue: 0
       });
     }
   }, [editFacture, open]);
@@ -66,6 +75,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       ...formData,
       id: factureId,
       noBL: formData.noBL.toUpperCase().trim(),
+      shippingLine: formData.shippingLine.toUpperCase().trim(),
       updatedAt: serverTimestamp()
     };
 
@@ -90,7 +100,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-stone-200 overflow-hidden p-0 rounded-2xl">
+      <DialogContent className="max-w-xl border-stone-200 overflow-hidden p-0 rounded-2xl">
         <div className="bg-stone-900 p-6 flex items-center gap-3 text-white">
           <div className="p-2 bg-white/10 rounded-lg">
             <FileText className="w-6 h-6" />
@@ -99,7 +109,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
             <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none">
               {editFacture?.isOrphaned ? 'Régulariser Arrivage' : (editFacture ? 'Modifier Dossier' : 'Nouveau Dossier')}
             </DialogTitle>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Paramétrage logistique et fret</p>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Configuration transport et douane</p>
           </div>
         </div>
 
@@ -129,20 +139,44 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">FOURNISSEUR</Label>
-            <Input 
-              value={formData.supplierId}
-              onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
-              placeholder="EX: MH, JIMMY..."
-              className="font-bold border-stone-200 h-11 rounded-xl uppercase"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">FOURNISSEUR</Label>
+              <Input 
+                value={formData.supplierId}
+                onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
+                placeholder="EX: MH, JIMMY..."
+                className="font-bold border-stone-200 h-11 rounded-xl uppercase"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Ship className="w-3 h-3" /> COMPAGNIE MARITIME
+              </Label>
+              <Input 
+                value={formData.shippingLine}
+                onChange={e => setFormData((prev: any) => ({ ...prev, shippingLine: e.target.value }))}
+                placeholder="EX: MSC, MAERSK..."
+                className="font-bold border-stone-200 h-11 rounded-xl uppercase"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Calendar className="w-3 h-3" /> DATE D'ARRIVÉE
+                <Calendar className="w-3 h-3" /> DATE D'EXPÉDITION (ETD)
+              </Label>
+              <Input 
+                type="date"
+                className="border-stone-200 h-11 font-bold rounded-xl"
+                value={formData.shippingDate}
+                onChange={e => setFormData((prev: any) => ({ ...prev, shippingDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> DATE D'ARRIVÉE (ETA)
               </Label>
               <Input 
                 type="date"
@@ -152,6 +186,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Truck className="w-3 h-3" /> FRAIS DE FRET ($)
@@ -165,6 +202,19 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 placeholder="0.00"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> VRAIE VALEUR DÉCLARÉE ($)
+              </Label>
+              <Input 
+                type="number"
+                step="0.01"
+                className="border-stone-200 h-11 font-black text-amber-600 rounded-xl"
+                value={formData.declaredValue}
+                onChange={e => setFormData((prev: any) => ({ ...prev, declaredValue: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00"
+              />
+            </div>
           </div>
           
           {associatedArticles && associatedArticles.length > 0 && (
@@ -173,7 +223,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <div>
                 <p className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Propagation Automatique</p>
                 <p className="text-[9px] font-bold text-amber-600 uppercase leading-tight mt-0.5">
-                  La modification de la date impactera {associatedArticles.length} articles déjà liés.
+                  La modification de la date d'arrivée impactera {associatedArticles.length} articles déjà liés.
                 </p>
               </div>
             </div>
@@ -183,7 +233,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         <DialogFooter className="p-6 bg-stone-50 border-t border-stone-100 flex flex-row gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 text-[10px] font-black uppercase tracking-widest h-11">Annuler</Button>
           <Button onClick={handleSubmit} className="flex-[2] bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-stone-200">
-            <Save className="w-4 h-4" /> Enregistrer
+            <Save className="w-4 h-4" /> Enregistrer le dossier
           </Button>
         </DialogFooter>
       </DialogContent>

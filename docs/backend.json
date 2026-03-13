@@ -45,7 +45,10 @@
         "noBL": { "type": "string" },
         "supplierId": { "type": "string" },
         "arrivalDate": { "type": "string", "format": "date" },
-        "freightCost": { "type": "number" }
+        "shippingDate": { "type": "string", "format": "date" },
+        "shippingLine": { "type": "string" },
+        "freightCost": { "type": "number" },
+        "declaredValue": { "type": "number" }
       },
       "required": ["id", "supplierId", "arrivalDate", "freightCost"]
     },

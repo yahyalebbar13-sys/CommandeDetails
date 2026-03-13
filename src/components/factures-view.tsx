@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, 
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
@@ -124,6 +124,11 @@ export default function FacturesView({
                       <Hash className="w-3 h-3 mr-2" /> BL: {selectedFacture.noBL}
                     </Badge>
                   )}
+                  {selectedFacture.shippingLine && (
+                    <Badge variant="outline" className="text-stone-400 border-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
+                      <Ship className="w-3 h-3 mr-2" /> {selectedFacture.shippingLine}
+                    </Badge>
+                  )}
                   <span className="text-stone-400 text-[10px] font-bold uppercase tracking-widest">
                     Partenaire : <span className="text-white ml-1">{selectedFacture.supplierId || selectedFacture.supplier}</span>
                   </span>
@@ -132,12 +137,25 @@ export default function FacturesView({
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto relative z-10">
-              <SummaryBlock label="Efficience Fret" value={selectedFacture.efficiency.toFixed(2)} sub="$ / m³" color="text-amber-500" />
-              <SummaryBlock label="Volume Total" value={selectedFacture.cbm.toFixed(2)} sub="m³" color="text-blue-400" />
-              <SummaryBlock label="Arrivée" value={selectedFacture.arrivalDate} icon={<CalendarDays className="w-3 h-3" />} color="text-white" />
+              <SummaryBlock label="Efficience Fret" value={Math.round(selectedFacture.efficiency).toString()} sub="$ / m³" color="text-amber-500" />
+              <SummaryBlock label="Volume Total" value={Math.round(selectedFacture.cbm).toString()} sub="m³" color="text-blue-400" />
+              <SummaryBlock label="Date ETA" value={selectedFacture.arrivalDate} icon={<CalendarDays className="w-3 h-3" />} color="text-white" />
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
-                <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Totale</p>
-                <div className="text-xl font-black">{Math.round(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} $</div>
+                <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Déclarée</p>
+                <div className="text-xl font-black">{Math.round(selectedFacture.declaredValue || (selectedFacture.itemsVal + selectedFacture.freight)).toLocaleString()} $</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-8 py-4 bg-stone-50 border-b border-stone-100 flex items-center justify-between">
+            <div className="flex gap-8">
+              <div>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Date d'Expédition (ETD)</p>
+                <p className="text-[11px] font-bold text-stone-600">{selectedFacture.shippingDate || 'Non spécifiée'}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Valeur Réelle Facture (Calculée)</p>
+                <p className="text-[11px] font-bold text-stone-600">{Math.round(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} $</p>
               </div>
             </div>
           </div>
@@ -146,14 +164,14 @@ export default function FacturesView({
             <Table>
               <TableHeader className="bg-stone-50/50">
                 <TableRow>
-                  <TableHead className="text-[10px] font-black uppercase py-5 px-8">Article</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Taille</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Couleur</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-5">Technique / Spécifications</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-5">Quantité</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-5">Volume CBM</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-5">P.A. Unitaire</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase py-5 pr-8">Valeur March.</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5 px-8 text-stone-500">Article</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Taille</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Couleur</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Technique / Spécifications</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-5 text-stone-500">Quantité</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-5 text-stone-500">Volume CBM</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-5 text-stone-500">P.A. Unitaire</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase py-5 pr-8 text-stone-500">Valeur March.</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -169,8 +187,8 @@ export default function FacturesView({
                           {o.name} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
                       </TableCell>
-                      <TableCell className="py-3 text-[10px] uppercase">{o.size || '-'}</TableCell>
-                      <TableCell className="py-3 text-[10px] uppercase">{o.color || '-'}</TableCell>
+                      <TableCell className="py-3 text-[10px]">{o.size || '-'}</TableCell>
+                      <TableCell className="py-3 text-[10px]">{o.color || '-'}</TableCell>
                       <TableCell className="text-[11px] py-3">
                         {isZipper ? (
                           <div className="flex flex-col gap-0.5">
@@ -178,7 +196,7 @@ export default function FacturesView({
                             <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
                         ) : (
-                          <span className="text-stone-500 font-bold uppercase text-[9px]">{o.specs || '-'}</span>
+                          <span className="text-stone-500 uppercase text-[9px]">{o.specs || '-'}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-black text-stone-900 text-xs py-3">
@@ -297,7 +315,10 @@ export default function FacturesView({
             </div>
 
             <div>
-              <p className="text-[10px] text-stone-400 font-black uppercase tracking-[0.15em] mb-1">{f.supplierId || f.supplier}</p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-[10px] text-stone-400 font-black uppercase tracking-[0.15em]">{f.supplierId || f.supplier}</p>
+                {f.shippingLine && <span className="text-[8px] text-stone-300 font-bold uppercase">• {f.shippingLine}</span>}
+              </div>
               <h3 className="text-2xl font-black text-stone-900 tracking-tighter uppercase mb-6 line-clamp-1">{f.id}</h3>
               
               <div className="grid grid-cols-2 gap-4 mb-8">
@@ -315,8 +336,8 @@ export default function FacturesView({
 
               <div className="pt-6 border-t border-stone-100 flex justify-between items-end">
                 <div>
-                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Dossier</p>
-                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Math.round(f.itemsVal + f.freight).toLocaleString()} $</p>
+                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Déclarée</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Math.round(f.declaredValue || (f.itemsVal + f.freight)).toLocaleString()} $</p>
                 </div>
                 <div className="p-3 bg-stone-50 rounded-xl group-hover:bg-stone-900 group-hover:text-white transition-all">
                   <ArrowUpRight className="w-4 h-4" />

@@ -39,8 +39,11 @@ export type Facture = {
   id: string;
   noBL?: string;
   arrivalDate: string;
+  shippingDate?: string;
+  shippingLine?: string;
   supplierId: string;
   freightCost: number;
+  declaredValue?: number;
 };
 
 export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline';
