@@ -18,6 +18,7 @@ service cloud.firestore {
       match /suppliers/{id} { allow read, write: if isOwner(userId); }
       match /articles/{id} { allow read, write: if isOwner(userId); }
       match /factures/{id} { allow read, write: if isOwner(userId); }
+      match /supplierPayments/{id} { allow read, write: if isOwner(userId); }
     }
   }
 }
