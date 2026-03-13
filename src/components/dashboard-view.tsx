@@ -40,7 +40,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
   const safeFactures = factures || [];
 
   const stats = useMemo(() => {
-    let totalVal = 0;
+    let totalItemsVal = 0;
     let totalCbm = 0;
     let totalFreight = 0;
 
@@ -53,7 +53,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     safeArticles.forEach(art => {
       const val = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
       const cbm = Number(art.cubicMeasurement) || 0;
-      totalVal += val;
+      totalItemsVal += val;
       totalCbm += cbm;
     });
 
@@ -61,10 +61,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       totalFreight += (Number(f.freightCost) || Number(f.freight) || 0);
     });
 
+    const totalRealPortfolioVal = totalItemsVal + totalFreight;
     const avgEfficiency = totalCbm > 0 ? totalFreight / totalCbm : 0;
 
     return {
-      totalVal,
+      totalVal: totalRealPortfolioVal,
       totalCbm,
       totalFactures: safeFactures.length,
       toOrderCount: toOrderArticles.length,
@@ -134,6 +135,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         freightByMonth[month].total += cost;
         freightByMonth[month].count += 1;
       }
+      
+      // Also add freight to supplier distribution for total real value representation
+      const sup = f.supplierId || 'Inconnu';
+      const cost = Number(f.freightCost) || Number(f.freight) || 0;
+      supplierMap[sup] = (supplierMap[sup] || 0) + cost;
     });
 
     const groupValueData = Object.entries(groupMap)
@@ -200,7 +206,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Valeur Portefeuille</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Valeur Portefeuille (Réelle)</p>
                 <h3 className="text-2xl font-black text-stone-900">{Math.round(stats.totalVal).toLocaleString()} $</h3>
               </div>
               <DollarSign className="w-5 h-5 text-stone-200 group-hover:text-stone-900 transition-colors" />
