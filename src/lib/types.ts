@@ -46,4 +46,12 @@ export type Facture = {
   declaredValue?: number;
 };
 
+export type SupplierPayment = {
+  id: string;
+  supplierId: string;
+  amount: number;
+  date: string;
+  notes?: string;
+};
+
 export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline';

@@ -66,10 +66,16 @@ export default function StockVueApp() {
     return collection(firestore, 'users', user.uid, 'categories');
   }, [firestore, user]);
 
+  const paymentsRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'supplierPayments');
+  }, [firestore, user]);
+
   const { data: factures = [], isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: articles = [], isLoading: isArticlesLoading } = useCollection(articlesRef);
   const { data: generalCategories = [], isLoading: isGenCatsLoading } = useCollection(genCatsRef);
   const { data: subCategories = [], isLoading: isSubCatsLoading } = useCollection(subCatsRef);
+  const { data: payments = [], isLoading: isPaymentsLoading } = useCollection(paymentsRef);
 
   const handleNavigateToFacture = (factureId: string) => {
     setSelectedFactureId(factureId);
@@ -186,7 +192,7 @@ export default function StockVueApp() {
       </nav>
 
       <main className="flex-grow max-w-[1600px] mx-auto px-6 py-8 w-full">
-        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
+        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading || isPaymentsLoading) ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <Loader2 className="animate-spin text-amber-500 w-12 h-12" />
             <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Synchronisation flux logistique...</p>
@@ -201,7 +207,7 @@ export default function StockVueApp() {
             {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
             {activeTab === 'general-categories' && <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={handleSelectGeneralCategory} />}
             {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={handleSelectGeneralCategory} />}
-            {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} onNavigateToFacture={handleNavigateToFacture} />}
+            {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'data' && <DataView articles={articles} onEdit={handleEditArticle} />}
           </div>
         )}

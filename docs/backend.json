@@ -79,6 +79,20 @@
         "status": { "type": "string", "enum": ["TO_ORDER", "PI", "SHIPPED"] }
       },
       "required": ["id", "categoryId", "name", "quantity", "status"]
+    },
+    "SupplierPayment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SupplierPayment",
+      "type": "object",
+      "description": "Represents a payment made to a supplier for the real/declared difference.",
+      "properties": {
+        "id": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "supplierId", "amount", "date"]
     }
   },
   "auth": {
@@ -124,6 +138,14 @@
           "entityName": "Facture",
           "schema": { "$ref": "#/backend/entities/Facture" },
           "description": "Invoices."
+        }
+      },
+      {
+        "path": "/users/{userId}/supplierPayments/{id}",
+        "definition": {
+          "entityName": "SupplierPayment",
+          "schema": { "$ref": "#/backend/entities/SupplierPayment" },
+          "description": "Difference payments tracking."
         }
       }
     ]
