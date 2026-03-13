@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, 
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Trash2, Landmark, CheckCircle2, History 
+  Trash2, Landmark, CheckCircle2, History, Building2, Layers
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 interface SuppliersViewProps {
   articles: any[];
@@ -26,8 +27,11 @@ interface SuppliersViewProps {
   onNavigateToFacture: (factureId: string) => void;
 }
 
+const COMPANIES_LIST = ["New fournitures", "Lebtex", "Robe in box"];
+
 export default function SuppliersView({ articles, factures, payments, onNavigateToFacture }: SuppliersViewProps) {
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
 
   const supplierStats = useMemo(() => {
     const stats: Record<string, { val: number; orders: number; categories: Set<string> }> = {};
@@ -40,6 +44,28 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
     });
     return Object.entries(stats).sort((a, b) => b[1].val - a[1].val);
   }, [articles]);
+
+  const companyStats = useMemo(() => {
+    return COMPANIES_LIST.map(name => {
+      const companyFactures = factures.filter(f => f.declaringCompany === name);
+      const companyArticles = articles.filter(a => companyFactures.some(f => f.id === a.factureId));
+      
+      let val = 0;
+      companyFactures.forEach(f => {
+        const fArticles = articles.filter(a => a.factureId === f.id);
+        const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
+        const freight = Number(f.freightCost) || Number(f.freight) || 0;
+        val += (itemsVal + freight);
+      });
+
+      return {
+        name,
+        val,
+        dossiers: companyFactures.length,
+        articles: companyArticles.length
+      };
+    }).sort((a, b) => b.val - a.val);
+  }, [articles, factures]);
 
   if (selectedSupplier) {
     return (
@@ -54,48 +80,111 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
     );
   }
 
+  if (selectedCompany) {
+    return (
+      <CompanyDetailView 
+        companyName={selectedCompany} 
+        articles={articles} 
+        factures={factures}
+        onBack={() => setSelectedCompany(null)}
+        onNavigateToFacture={onNavigateToFacture}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-8 fade-in">
+    <div className="space-y-12 fade-in">
       <header className="bg-stone-900 p-8 rounded-[2rem] shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="relative z-10">
-          <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Analyse des <br /><span className="text-amber-500">Partenaires</span></h2>
-          <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-3">Gestion de la performance financière par fournisseur</p>
+          <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Analyse des <br /><span className="text-amber-500">Flux Partenaires</span></h2>
+          <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-3">Gestion de la performance financière globale</p>
         </div>
       </header>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {supplierStats.map(([name, stat]) => (
-          <Card 
-            key={name} 
-            onClick={() => setSelectedSupplier(name)}
-            className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-amber"
-          >
-            <div className="h-1 w-full bg-stone-900 group-hover:bg-amber-500 transition-colors" />
-            <CardHeader className="pb-4">
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-amber-600 transition-colors">{name}</CardTitle>
-                <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-amber-500 transition-colors">
-                  <Users className="w-4 h-4" />
+      <section className="space-y-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-amber-500/10 rounded-lg">
+            <Users className="w-5 h-5 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Fournisseurs</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {supplierStats.map(([name, stat]) => (
+            <Card 
+              key={name} 
+              onClick={() => setSelectedSupplier(name)}
+              className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-amber"
+            >
+              <div className="h-1 w-full bg-stone-900 group-hover:bg-amber-500 transition-colors" />
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-amber-600 transition-colors">{name}</CardTitle>
+                  <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-amber-500 transition-colors">
+                    <Factory className="w-4 h-4" />
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-black text-stone-900 mb-6">{Math.round(stat.val).toLocaleString()} $</div>
-              <div className="space-y-2 pt-4 border-t border-stone-50">
-                <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                  <span>Articles</span>
-                  <span className="text-stone-900">{stat.orders}</span>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-black text-stone-900 mb-6">{Math.round(stat.val).toLocaleString()} $</div>
+                <div className="space-y-2 pt-4 border-t border-stone-50">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                    <span>Articles</span>
+                    <span className="text-stone-900">{stat.orders}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                    <span>Familles</span>
+                    <span className="text-stone-900">{stat.categories.size}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                  <span>Familles</span>
-                  <span className="text-stone-900">{stat.categories.size}</span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <Separator className="bg-stone-200" />
+
+      <section className="space-y-6 pb-10">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-blue-500/10 rounded-lg">
+            <Building2 className="w-5 h-5 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse de nos Entités</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {companyStats.map((stat) => (
+            <Card 
+              key={stat.name} 
+              onClick={() => setSelectedCompany(stat.name)}
+              className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-blue"
+            >
+              <div className="h-1 w-full bg-stone-900 group-hover:bg-blue-500 transition-colors" />
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{stat.name}</CardTitle>
+                  <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-blue-500 transition-colors">
+                    <Building2 className="w-4 h-4" />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-black text-stone-900 mb-6">{Math.round(stat.val).toLocaleString()} $</div>
+                <div className="space-y-2 pt-4 border-t border-stone-50">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                    <span>Dossiers</span>
+                    <span className="text-stone-900">{stat.dossiers}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                    <span>Articles</span>
+                    <span className="text-stone-900">{stat.articles}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -124,9 +213,6 @@ function SupplierDetailView({
   const supPayments = useMemo(() => (payments || []).filter(p => p.supplierId === supplierName).sort((a, b) => b.date.localeCompare(a.date)), [payments, supplierName]);
   
   const now = new Date();
-  
-  // Total Réel (Articles + Fret)
-  const totalItemsVal = supArticles.reduce((s, o) => s + (o.quantity * o.purchasePricePerUnit), 0);
   
   const supplierFactures = useMemo(() => {
     const ids = Array.from(new Set(supArticles.map(a => a.factureId).filter(Boolean)));
@@ -176,7 +262,7 @@ function SupplierDetailView({
           onClick={onBack} 
           className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
         >
-          <ChevronLeft className="w-4 h-4" /> Tous les Fournisseurs
+          <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
         </Button>
       </div>
 
@@ -341,6 +427,131 @@ function SupplierDetailView({
         onOpenChange={setIsPaymentModalOpen} 
         supplierId={supplierName} 
       />
+    </div>
+  );
+}
+
+function CompanyDetailView({ 
+  companyName, 
+  articles, 
+  factures, 
+  onBack, 
+  onNavigateToFacture 
+}: { 
+  companyName: string, 
+  articles: any[], 
+  factures: any[], 
+  onBack: () => void, 
+  onNavigateToFacture: (id: string) => void 
+}) {
+  const companyFactures = useMemo(() => {
+    const now = new Date();
+    return factures.filter(f => f.declaringCompany === companyName).map(f => {
+      const fArticles = articles.filter(a => a.factureId === f.id);
+      const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
+      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      return {
+        ...f,
+        totalReal: itemsVal + freight,
+        isArrived: f.arrivalDate ? new Date(f.arrivalDate) <= now : false
+      };
+    }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+  }, [companyName, factures, articles]);
+
+  const totalRealVal = companyFactures.reduce((s, f) => s + f.totalReal, 0);
+  const totalDeclaredVal = companyFactures.reduce((s, f) => s + (Number(f.declaredValue) || f.totalReal), 0);
+  const currentGap = totalRealVal - totalDeclaredVal;
+
+  return (
+    <div className="space-y-8 fade-in">
+      <div className="flex items-center gap-3">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onBack} 
+          className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
+        >
+          <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+      </div>
+
+      <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
+        <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
+          
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="p-4 bg-stone-800 rounded-2xl shadow-lg border border-white/5">
+              <Building2 className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-1">Audit Entité Juridique</p>
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{companyName}</h2>
+              <div className="flex gap-4 mt-4">
+                <Badge className="bg-white/10 text-white border-white/10 px-3 py-1 text-[10px] font-bold uppercase">
+                  {companyFactures.length} Dossiers Déclarés
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full xl:w-auto relative z-10">
+            <SummaryBlock label="Valeur Réelle Cumulée" value={Math.round(totalRealVal).toLocaleString()} sub="$" color="text-white" />
+            <SummaryBlock label="Valeur Douane Cumulée" value={Math.round(totalDeclaredVal).toLocaleString()} sub="$" color="text-amber-500" />
+            <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg border border-white/5">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Différence à Régulariser</p>
+              <div className="text-xl font-black text-blue-400">{Math.round(currentGap).toLocaleString()} $</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section className="space-y-4">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-stone-100 rounded-lg">
+            <Layers className="w-4 h-4 text-stone-500" />
+          </div>
+          <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Manifeste des Opérations de {companyName}</h3>
+        </div>
+        <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
+          <Table>
+            <TableHeader className="bg-stone-50/80">
+              <TableRow>
+                <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Fournisseur</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">N° Dossier</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Arrivée</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4">Valeur Réelle</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4 text-amber-600">Valeur Déclarée</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {companyFactures.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucune opération enregistrée pour cette société</TableCell></TableRow>
+              ) : companyFactures.map((f) => (
+                <TableRow key={f.id} className="hover:bg-stone-50/50 transition-colors group">
+                  <TableCell className="py-3">
+                    {f.isArrived ? 
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] font-black uppercase">Réceptionné</Badge> : 
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] font-black uppercase">Transit</Badge>
+                    }
+                  </TableCell>
+                  <TableCell className="py-3 font-bold text-stone-500 uppercase text-[10px]">{f.supplierId}</TableCell>
+                  <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
+                  <TableCell className={`py-3 text-[10px] font-bold ${f.isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{f.arrivalDate}</TableCell>
+                  <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Math.round(f.totalReal).toLocaleString()} $</TableCell>
+                  <TableCell className="py-3 text-right font-black text-amber-600 text-[11px] bg-amber-50/30">{Math.round(Number(f.declaredValue) || f.totalReal).toLocaleString()} $</TableCell>
+                  <TableCell className="py-3">
+                    <Button variant="ghost" size="icon" onClick={() => onNavigateToFacture(f.id)} className="h-7 w-7 text-stone-300 hover:text-stone-900 opacity-0 group-hover:opacity-100">
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </section>
     </div>
   );
 }
