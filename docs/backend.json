@@ -42,6 +42,7 @@
       "description": "Represents an invoice or container shipment.",
       "properties": {
         "id": { "type": "string" },
+        "noBL": { "type": "string" },
         "supplierId": { "type": "string" },
         "arrivalDate": { "type": "string", "format": "date" },
         "freightCost": { "type": "number" }

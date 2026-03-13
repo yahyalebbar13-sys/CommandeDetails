@@ -37,6 +37,7 @@ export type Order = {
 
 export type Facture = {
   id: string;
+  noBL?: string;
   arrivalDate: string;
   supplierId: string;
   freightCost: number;

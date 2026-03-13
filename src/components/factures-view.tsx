@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, 
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
@@ -115,10 +115,15 @@ export default function FacturesView({
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">
                   {selectedFacture.id}
                 </h2>
-                <div className="flex items-center gap-4 mt-3">
+                <div className="flex flex-wrap items-center gap-4 mt-3">
                   <Badge className="bg-white/10 text-white border-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
                     <CheckCircle2 className="w-3 h-3 mr-2 text-emerald-400" /> Dossier Certifié
                   </Badge>
+                  {selectedFacture.noBL && (
+                    <Badge variant="outline" className="text-blue-400 border-blue-500/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
+                      <Hash className="w-3 h-3 mr-2" /> BL: {selectedFacture.noBL}
+                    </Badge>
+                  )}
                   <span className="text-stone-400 text-[10px] font-bold uppercase tracking-widest">
                     Partenaire : <span className="text-white ml-1">{selectedFacture.supplierId || selectedFacture.supplier}</span>
                   </span>
@@ -132,7 +137,7 @@ export default function FacturesView({
               <SummaryBlock label="Arrivée" value={selectedFacture.arrivalDate} icon={<CalendarDays className="w-3 h-3" />} color="text-white" />
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
                 <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Totale</p>
-                <div className="text-xl font-black">{(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} $</div>
+                <div className="text-xl font-black">{Math.round(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} $</div>
               </div>
             </div>
           </div>
@@ -164,12 +169,8 @@ export default function FacturesView({
                           {o.name} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
                       </TableCell>
-                      <TableCell className="py-3">
-                        <span className="text-[10px] text-stone-600 uppercase">{o.size || '-'}</span>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <span className="text-[10px] text-stone-900 uppercase">{o.color || '-'}</span>
-                      </TableCell>
+                      <TableCell className="py-3 text-[10px] uppercase">{o.size || '-'}</TableCell>
+                      <TableCell className="py-3 text-[10px] uppercase">{o.color || '-'}</TableCell>
                       <TableCell className="text-[11px] py-3">
                         {isZipper ? (
                           <div className="flex flex-col gap-0.5">
@@ -177,15 +178,15 @@ export default function FacturesView({
                             <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
                         ) : (
-                          <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
+                          <span className="text-stone-500 font-bold uppercase text-[9px]">{o.specs || '-'}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-black text-stone-900 text-xs py-3">
-                        {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
+                        {Math.round(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right text-emerald-600 font-bold text-xs py-3">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
                       <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">{Number(o.purchasePricePerUnit).toFixed(4)} $</TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-3 pr-8">{(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-3 pr-8">{Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
                     </TableRow>
                   );
                 })}
@@ -241,7 +242,7 @@ export default function FacturesView({
           <div className="flex gap-4">
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Efficience Moyenne</p>
-              <p className="text-xl font-black text-white">42.50 $/m³</p>
+              <p className="text-xl font-black text-white">42 $/m³</p>
             </div>
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Factures</p>
@@ -297,17 +298,17 @@ export default function FacturesView({
 
             <div>
               <p className="text-[10px] text-stone-400 font-black uppercase tracking-[0.15em] mb-1">{f.supplierId || f.supplier}</p>
-              <h3 className="text-2xl font-black text-stone-900 tracking-tighter uppercase mb-6">{f.id}</h3>
+              <h3 className="text-2xl font-black text-stone-900 tracking-tighter uppercase mb-6 line-clamp-1">{f.id}</h3>
               
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Efficience</p>
-                  <p className="text-base font-black text-stone-900">{f.efficiency.toFixed(2)}</p>
+                  <p className="text-base font-black text-stone-900">{Math.round(f.efficiency)}</p>
                   <p className="text-[7px] font-bold text-stone-300">$ / m³</p>
                 </div>
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Volume</p>
-                  <p className="text-base font-black text-stone-900">{f.cbm.toFixed(2)}</p>
+                  <p className="text-base font-black text-stone-900">{Math.round(f.cbm)}</p>
                   <p className="text-[7px] font-bold text-stone-300">m³</p>
                 </div>
               </div>
@@ -315,7 +316,7 @@ export default function FacturesView({
               <div className="pt-6 border-t border-stone-100 flex justify-between items-end">
                 <div>
                   <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Dossier</p>
-                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{(f.itemsVal + f.freight).toLocaleString()} $</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Math.round(f.itemsVal + f.freight).toLocaleString()} $</p>
                 </div>
                 <div className="p-3 bg-stone-50 rounded-xl group-hover:bg-stone-900 group-hover:text-white transition-all">
                   <ArrowUpRight className="w-4 h-4" />

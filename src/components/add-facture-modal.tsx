@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { FileText, Calendar, Truck, Save, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { FileText, Calendar, Truck, Save, AlertTriangle, ShieldCheck, Hash } from 'lucide-react';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -26,6 +27,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
   const [formData, setFormData] = useState<any>({
     id: '',
+    noBL: '',
     arrivalDate: '',
     supplierId: '',
     freightCost: 0
@@ -35,6 +37,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     if (editFacture) {
       setFormData({
         id: editFacture.id || '',
+        noBL: editFacture.noBL || '',
         arrivalDate: editFacture.arrivalDate || new Date().toISOString().split('T')[0],
         supplierId: editFacture.supplierId || editFacture.supplier || '',
         freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0
@@ -42,6 +45,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     } else {
       setFormData({
         id: '',
+        noBL: '',
         arrivalDate: new Date().toISOString().split('T')[0],
         supplierId: '',
         freightCost: 0
@@ -50,6 +54,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
   }, [editFacture, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     onOpenChange(false);
     if (!user || !firestore || !formData.id) return;
 
@@ -60,6 +65,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     const factureData = {
       ...formData,
       id: factureId,
+      noBL: formData.noBL.toUpperCase().trim(),
       updatedAt: serverTimestamp()
     };
 
@@ -97,17 +103,30 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° FACTURE / CONTENEUR</Label>
-            <Input 
-              value={formData.id}
-              onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
-              required 
-              disabled={!!editFacture && !editFacture.isOrphaned}
-              className="uppercase font-black border-stone-200 h-12 rounded-xl focus:ring-stone-900" 
-              placeholder="EX: 26HD1004"
-            />
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° FACTURE / CONTENEUR</Label>
+              <Input 
+                value={formData.id}
+                onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
+                required 
+                disabled={!!editFacture && !editFacture.isOrphaned}
+                className="uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900" 
+                placeholder="EX: 26HD1004"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Hash className="w-3 h-3" /> N° BL
+              </Label>
+              <Input 
+                value={formData.noBL}
+                onChange={e => setFormData((prev: any) => ({ ...prev, noBL: e.target.value }))}
+                className="uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900" 
+                placeholder="EX: COSU63..."
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -116,7 +135,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               value={formData.supplierId}
               onChange={e => setFormData((prev: any) => ({ ...prev, supplierId: e.target.value.toUpperCase() }))}
               placeholder="EX: MH, JIMMY..."
-              className="font-bold border-stone-200 h-12 rounded-xl uppercase"
+              className="font-bold border-stone-200 h-11 rounded-xl uppercase"
             />
           </div>
 
@@ -128,7 +147,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <Input 
                 type="date"
                 required
-                className="border-stone-200 h-12 font-bold rounded-xl"
+                className="border-stone-200 h-11 font-bold rounded-xl"
                 value={formData.arrivalDate}
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
@@ -140,7 +159,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <Input 
                 type="number"
                 step="0.01"
-                className="border-stone-200 h-12 font-black text-stone-900 rounded-xl"
+                className="border-stone-200 h-11 font-black text-stone-900 rounded-xl"
                 value={formData.freightCost}
                 onChange={e => setFormData((prev: any) => ({ ...prev, freightCost: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00"
@@ -149,24 +168,12 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           </div>
           
           {associatedArticles && associatedArticles.length > 0 && (
-            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <div>
                 <p className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Propagation Automatique</p>
                 <p className="text-[9px] font-bold text-amber-600 uppercase leading-tight mt-0.5">
-                  La modification de la date impactera {associatedArticles.length} articles déjà liés à ce numéro.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {!editFacture?.isOrphaned && !editFacture && (
-            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex gap-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
-              <div>
-                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-tight">Dossier Certifié</p>
-                <p className="text-[9px] font-bold text-emerald-600 uppercase leading-tight mt-0.5">
-                  Ce numéro pourra être sélectionné dans les fiches articles.
+                  La modification de la date impactera {associatedArticles.length} articles déjà liés.
                 </p>
               </div>
             </div>
@@ -176,7 +183,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         <DialogFooter className="p-6 bg-stone-50 border-t border-stone-100 flex flex-row gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 text-[10px] font-black uppercase tracking-widest h-11">Annuler</Button>
           <Button onClick={handleSubmit} className="flex-[2] bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-stone-200">
-            <Save className="w-4 h-4" /> Enregistrer Dossier
+            <Save className="w-4 h-4" /> Enregistrer
           </Button>
         </DialogFooter>
       </DialogContent>
