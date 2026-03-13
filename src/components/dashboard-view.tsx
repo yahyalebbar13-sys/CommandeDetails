@@ -20,7 +20,8 @@ import {
   Layers,
   Truck,
   CalendarDays,
-  Ship
+  Ship,
+  ShieldCheck
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     let totalItemsVal = 0;
     let totalCbm = 0;
     let totalFreight = 0;
+    let totalDeclaredVal = 0;
 
     const toOrderArticles = safeArticles.filter(a => a.status === 'TO_ORDER');
     const piArticles = safeArticles.filter(a => a.status === 'PI');
@@ -59,10 +61,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
 
     safeFactures.forEach(f => {
       totalFreight += (Number(f.freightCost) || Number(f.freight) || 0);
+      
+      const fArticles = safeArticles.filter(a => a.factureId === f.id);
+      const fItemsVal = fArticles.reduce((sum, o) => sum + ((Number(o.quantity) || 0) * (Number(o.purchasePricePerUnit) || 0)), 0);
+      const fFreight = Number(f.freightCost) || Number(f.freight) || 0;
+      const fRealVal = fItemsVal + fFreight;
+      
+      totalDeclaredVal += (Number(f.declaredValue) || fRealVal);
     });
 
     const totalRealPortfolioVal = totalItemsVal + totalFreight;
-    const avgEfficiency = totalCbm > 0 ? totalFreight / totalCbm : 0;
 
     return {
       totalVal: totalRealPortfolioVal,
@@ -72,7 +80,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       totalToOrderQty,
       piCount: piArticles.length,
       totalPiQty,
-      avgEfficiency
+      totalDeclaredVal
     };
   }, [safeArticles, safeFactures]);
 
@@ -232,10 +240,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Efficacité Fret</p>
-                <h3 className="text-2xl font-black text-stone-900">{Math.round(stats.avgEfficiency).toLocaleString()} <span className="text-xs text-stone-400">$/m³</span></h3>
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Valeur Totale Déclarée</p>
+                <h3 className="text-2xl font-black text-stone-900">{Math.round(stats.totalDeclaredVal).toLocaleString()} $</h3>
               </div>
-              <Anchor className="w-5 h-5 text-stone-200 group-hover:text-blue-500 transition-colors" />
+              <ShieldCheck className="w-5 h-5 text-stone-200 group-hover:text-blue-500 transition-colors" />
             </div>
           </CardContent>
         </Card>
