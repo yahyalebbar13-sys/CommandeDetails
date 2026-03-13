@@ -19,7 +19,8 @@ import {
   Users,
   Layers,
   Truck,
-  CalendarDays
+  CalendarDays,
+  Ship
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
@@ -104,6 +105,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     const groupMap: Record<string, number> = {};
     const supplierMap: Record<string, number> = {};
     const evolutionMap: Record<string, number> = {};
+    
+    // Freight analysis based on shippingDate
+    const freightByMonth: Record<string, { total: number, count: number }> = {};
 
     safeArticles.forEach(art => {
       const gId = art.generalCategoryId || 'Non classé';
@@ -122,6 +126,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       }
     });
 
+    safeFactures.forEach(f => {
+      if (f.shippingDate) {
+        const month = f.shippingDate.substring(0, 7);
+        const cost = Number(f.freightCost) || Number(f.freight) || 0;
+        if (!freightByMonth[month]) freightByMonth[month] = { total: 0, count: 0 };
+        freightByMonth[month].total += cost;
+        freightByMonth[month].count += 1;
+      }
+    });
+
     const groupValueData = Object.entries(groupMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -134,12 +148,17 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .map(([date, value]) => ({ date, value }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    const freightEvolutionData = Object.entries(freightByMonth)
+      .map(([date, data]) => ({ date, value: Math.round(data.total / data.count) }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     return { 
       groupValueData, 
       supplierData,
-      evolutionData
+      evolutionData,
+      freightEvolutionData
     };
-  }, [safeArticles, generalCategories]);
+  }, [safeArticles, safeFactures, generalCategories]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -374,6 +393,52 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
+        <CardHeader className="py-6 bg-stone-50 border-b border-stone-100">
+          <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-3 tracking-[0.2em]">
+            <Ship className="w-5 h-5 text-blue-500" /> Analyse de Performance Fret
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <TrendingUp className="w-3.5 h-3.5" /> Évolution du Coût Moyen du Fret ($)
+              </p>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={analyticsData.freightEvolutionData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                    <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Math.round(v).toLocaleString()} style={{ fontSize: '9px', fontWeight: '900' }} />
+                    <Tooltip 
+                      formatter={(val: number) => [`${val.toLocaleString()} $ / MOIS`]}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                    />
+                    <Line type="stepAfter" dataKey="value" stroke="#3B82F6" strokeWidth={4} dot={{ r: 5, fill: '#3B82F6' }} activeDot={{ r: 8 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="bg-stone-50 p-6 rounded-2xl flex flex-col justify-center border border-stone-100">
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em] mb-4">Note Analytique</p>
+              <p className="text-xs font-bold text-stone-600 leading-relaxed italic">
+                "Cette courbe représente la variation des coûts logistiques maritimes basés sur la date d'expédition (ETD). Une augmentation peut indiquer une hausse des tarifs mondiaux ou une modification du volume moyen par dossier."
+              </p>
+              <div className="mt-8 pt-6 border-t border-stone-200">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-stone-500 uppercase">Moyenne Globale</span>
+                  <span className="text-xl font-black text-stone-900">{Math.round(safeFactures.reduce((s,f) => s + (Number(f.freightCost) || 0), 0) / (safeFactures.length || 1)).toLocaleString()} $</span>
+                </div>
+                <div className="w-full bg-stone-200 h-1 rounded-full overflow-hidden">
+                  <div className="bg-blue-500 h-full w-[65%]" />
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

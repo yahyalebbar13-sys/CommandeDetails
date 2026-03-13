@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -50,7 +49,8 @@ export default function FacturesView({
       const cbm = fArticles.reduce((sum, o) => sum + (Number(o.cubicMeasurement) || 0), 0);
       const freight = Number(f.freightCost) || Number(f.freight) || 0;
       const efficiency = cbm > 0 ? (freight / cbm) : 0;
-      return { ...f, itemsCount, itemsVal, cbm, freight, efficiency };
+      const realFactureValue = itemsVal + freight;
+      return { ...f, itemsCount, itemsVal, cbm, freight, efficiency, realFactureValue };
     }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
@@ -139,10 +139,13 @@ export default function FacturesView({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto relative z-10">
               <SummaryBlock label="Efficience Fret" value={Math.round(selectedFacture.efficiency).toString()} sub="$ / m³" color="text-amber-500" />
               <SummaryBlock label="Volume Total" value={Math.round(selectedFacture.cbm).toString()} sub="m³" color="text-blue-400" />
-              <SummaryBlock label="Date ETA" value={selectedFacture.arrivalDate} icon={<CalendarDays className="w-3 h-3" />} color="text-white" />
+              <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg">
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Facture Réelle</p>
+                <div className="text-xl font-black">{Math.round(selectedFacture.realFactureValue).toLocaleString()} $</div>
+              </div>
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
-                <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Déclarée</p>
-                <div className="text-xl font-black">{Math.round(selectedFacture.declaredValue || (selectedFacture.itemsVal + selectedFacture.freight)).toLocaleString()} $</div>
+                <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Déclarée (Douane)</p>
+                <div className="text-xl font-black">{Math.round(selectedFacture.declaredValue || selectedFacture.realFactureValue).toLocaleString()} $</div>
               </div>
             </div>
           </div>
@@ -154,8 +157,16 @@ export default function FacturesView({
                 <p className="text-[11px] font-bold text-stone-600">{selectedFacture.shippingDate || 'Non spécifiée'}</p>
               </div>
               <div>
-                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Valeur Réelle Facture (Calculée)</p>
-                <p className="text-[11px] font-bold text-stone-600">{Math.round(selectedFacture.itemsVal + selectedFacture.freight).toLocaleString()} $</p>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Date d'Arrivée (ETA)</p>
+                <p className="text-[11px] font-bold text-stone-600">{selectedFacture.arrivalDate}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Valeur Marchandise Seule</p>
+                <p className="text-[11px] font-bold text-stone-600">{Math.round(selectedFacture.itemsVal).toLocaleString()} $</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Frais de Fret Appliqués</p>
+                <p className="text-[11px] font-bold text-blue-600">{Math.round(selectedFacture.freight).toLocaleString()} $</p>
               </div>
             </div>
           </div>
@@ -199,7 +210,7 @@ export default function FacturesView({
                           <span className="text-stone-500 uppercase text-[9px]">{o.specs || '-'}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-3">
+                      <TableCell className="text-right font-black text-xs py-3">
                         {Math.round(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right text-emerald-600 font-bold text-xs py-3">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
@@ -314,7 +325,7 @@ export default function FacturesView({
               </Badge>
             </div>
 
-            <div>
+            <div className="flex-grow">
               <div className="flex items-center gap-2 mb-1">
                 <p className="text-[10px] text-stone-400 font-black uppercase tracking-[0.15em]">{f.supplierId || f.supplier}</p>
                 {f.shippingLine && <span className="text-[8px] text-stone-300 font-bold uppercase">• {f.shippingLine}</span>}
@@ -323,21 +334,21 @@ export default function FacturesView({
               
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
-                  <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Efficience</p>
-                  <p className="text-base font-black text-stone-900">{Math.round(f.efficiency)}</p>
-                  <p className="text-[7px] font-bold text-stone-300">$ / m³</p>
+                  <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Valeur Facture</p>
+                  <p className="text-base font-black text-stone-900">{Math.round(f.realFactureValue).toLocaleString()}</p>
+                  <p className="text-[7px] font-bold text-stone-300">TOTAL RÉEL $</p>
                 </div>
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Volume</p>
-                  <p className="text-base font-black text-stone-900">{Math.round(f.cbm)}</p>
+                  <p className="text-base font-black text-stone-900">{Math.round(f.cbm).toLocaleString()}</p>
                   <p className="text-[7px] font-bold text-stone-300">m³</p>
                 </div>
               </div>
 
               <div className="pt-6 border-t border-stone-100 flex justify-between items-end">
                 <div>
-                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Déclarée</p>
-                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Math.round(f.declaredValue || (f.itemsVal + f.freight)).toLocaleString()} $</p>
+                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Déclarée (Douane)</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Math.round(f.declaredValue || f.realFactureValue).toLocaleString()} $</p>
                 </div>
                 <div className="p-3 bg-stone-50 rounded-xl group-hover:bg-stone-900 group-hover:text-white transition-all">
                   <ArrowUpRight className="w-4 h-4" />
