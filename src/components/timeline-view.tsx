@@ -46,11 +46,14 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
       const itemsCount = fArticles.length;
       const itemsVal = fArticles.reduce((sum, o) => sum + ((Number(o.quantity) || 0) * (Number(o.purchasePricePerUnit) || 0)), 0);
       const cbm = fArticles.reduce((sum, o) => sum + (Number(o.cubicMeasurement) || 0), 0);
+      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      const totalRealValue = itemsVal + freight;
       
       dateGroups[dateKey].factures.push({
         ...f,
         itemsCount,
         itemsVal,
+        totalRealValue,
         cbm,
         summary: fArticles.reduce((acc: any, curr) => {
           const cat = curr.categoryId || 'DIVERS';
@@ -60,7 +63,7 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
       });
 
       dateGroups[dateKey].totalCbm += cbm;
-      dateGroups[dateKey].totalValue += (itemsVal + (Number(f.freightCost) || 0));
+      dateGroups[dateKey].totalValue += totalRealValue;
     });
 
     // Tri par date la plus proche d'aujourd'hui
@@ -171,7 +174,7 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
 
                         <div className="pt-3 border-t border-stone-50 flex justify-between items-center text-[9px] font-black">
                           <span className="text-stone-400">VOL: {f.cbm.toFixed(2)} m³</span>
-                          <span className={group.isPast ? 'text-emerald-600' : 'text-blue-600'}>VAL: {Math.round(f.itemsVal).toLocaleString()} $</span>
+                          <span className={group.isPast ? 'text-emerald-600' : 'text-blue-600'}>VAL RÉELLE: {Math.round(f.totalRealValue).toLocaleString()} $</span>
                         </div>
                       </div>
                     </CardContent>
