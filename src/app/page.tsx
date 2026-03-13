@@ -12,6 +12,7 @@ import DataView from '@/components/data-view';
 import PendingOrdersView from '@/components/pending-orders-view';
 import ToOrderView from '@/components/to-order-view';
 import TransitOrdersView from '@/components/transit-orders-view';
+import TimelineView from '@/components/timeline-view';
 import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
 import AuthView from '@/components/auth-view';
@@ -19,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { 
   LogOut, Loader2, Layers, Package, Plus, Database, 
   LayoutDashboard, ClipboardList, Factory, Truck, 
-  Anchor, Boxes, UserCheck, Menu, X 
+  Anchor, Boxes, UserCheck, Menu, X, Timer 
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -102,6 +103,7 @@ export default function StockVueApp() {
     { id: 'to-order', label: 'Besoins', icon: ClipboardList },
     { id: 'pending', label: 'Production', icon: Factory },
     { id: 'transit', label: 'Transit', icon: Truck },
+    { id: 'timeline', label: 'Timeline', icon: Timer },
     { id: 'factures', label: 'Arrivages', icon: Anchor },
     { id: 'general-categories', label: 'Groupes', icon: Layers },
     { id: 'categories', label: 'Inventaire', icon: Boxes },
@@ -195,6 +197,7 @@ export default function StockVueApp() {
             {activeTab === 'to-order' && <ToOrderView articles={articles} onEdit={handleEditArticle} />}
             {activeTab === 'pending' && <PendingOrdersView articles={articles} factures={factures} onEdit={handleEditArticle} />}
             {activeTab === 'transit' && <TransitOrdersView articles={articles} onEdit={handleEditArticle} />}
+            {activeTab === 'timeline' && <TimelineView articles={articles} factures={factures} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
             {activeTab === 'general-categories' && <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={handleSelectGeneralCategory} />}
             {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={handleSelectGeneralCategory} />}
