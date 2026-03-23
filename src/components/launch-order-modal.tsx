@@ -9,7 +9,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { ShoppingCart, Calendar, Factory, Banknote, Cuboid } from 'lucide-react';
+import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale } from 'lucide-react';
 
 interface LaunchOrderModalProps {
   open: boolean;
@@ -26,6 +26,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
     supplierId: '',
     orderDate: new Date().toISOString().split('T')[0],
     cubicMeasurement: 0,
+    netWeight: 0,
     purchasePricePerUnit: 0
   });
 
@@ -35,6 +36,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
         supplierId: '',
         orderDate: new Date().toISOString().split('T')[0],
         cubicMeasurement: 0,
+        netWeight: 0,
         purchasePricePerUnit: 0
       });
     }
@@ -106,7 +108,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-1">
               <Label className="font-bold flex items-center gap-1">
                 <Cuboid className="w-4 h-4 text-emerald-500" /> Volume (CBM)
@@ -118,6 +120,18 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
                 className="bg-emerald-50 border-emerald-200"
                 value={formData.cubicMeasurement}
                 onChange={e => setFormData(p => ({ ...p, cubicMeasurement: parseFloat(e.target.value) || 0 }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-bold flex items-center gap-1">
+                <Scale className="w-4 h-4 text-blue-500" /> N.W (kg)
+              </Label>
+              <Input 
+                type="number"
+                step="0.01"
+                className="bg-blue-50 border-blue-200"
+                value={formData.netWeight}
+                onChange={e => setFormData(p => ({ ...p, netWeight: parseFloat(e.target.value) || 0 }))}
               />
             </div>
             <div className="space-y-1">

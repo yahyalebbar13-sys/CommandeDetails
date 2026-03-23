@@ -348,6 +348,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       onChange={e => setFormData((prev: any) => ({ ...prev, cubicMeasurement: parseFloat(e.target.value) || 0 }))} 
                       className="h-12 border-stone-200 font-bold rounded-xl"
                     />
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="N.W (kg)"
+                      value={formData.netWeight || ''} 
+                      onChange={e => setFormData((prev: any) => ({ ...prev, netWeight: parseFloat(e.target.value) || 0 }))} 
+                      className="h-12 border-stone-200 font-bold rounded-xl"
+                    />
                   </>
                 )}
               </div>
