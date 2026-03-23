@@ -406,7 +406,14 @@ export default function CategoriesView({
                         <TableCell className="text-stone-400 font-black text-[10px] py-3 uppercase">{a.supplierId}</TableCell>
                         <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          <div>
+                            {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          </div>
+                          {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
+                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
+                              {(Number(a.netWeight) / Number(a.quantity)).toFixed(4)} kg/{a.unitOfMeasure || 'U'}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">
                           {Number(a.purchasePricePerUnit).toFixed(4)} $
@@ -484,7 +491,14 @@ export default function CategoriesView({
                           <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
                         </TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          <div>
+                            {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          </div>
+                          {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
+                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
+                              {(Number(a.netWeight) / Number(a.quantity)).toFixed(4)} kg/{a.unitOfMeasure || 'U'}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-black text-blue-700 text-[11px] py-3 px-6">
                           {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
@@ -555,7 +569,14 @@ export default function CategoriesView({
                         <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.arrivalDate}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
+                          <div>
+                            {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
+                          </div>
+                          {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
+                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
+                              {(Number(a.netWeight) / Number(a.quantity)).toFixed(4)} kg/{a.unitOfMeasure || 'U'}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-black text-emerald-700 text-[11px] py-3 px-6">
                           {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $

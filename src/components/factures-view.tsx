@@ -47,10 +47,11 @@ export default function FacturesView({
       const itemsCount = fArticles.length;
       const itemsVal = fArticles.reduce((sum, o) => sum + ((Number(o.quantity) || 0) * (Number(o.purchasePricePerUnit) || 0)), 0);
       const cbm = fArticles.reduce((sum, o) => sum + (Number(o.cubicMeasurement) || 0), 0);
+      const netWeight = fArticles.reduce((sum, o) => sum + (Number(o.netWeight) || 0), 0);
       const freight = Number(f.freightCost) || Number(f.freight) || 0;
       const efficiency = cbm > 0 ? (freight / cbm) : 0;
       const realFactureValue = itemsVal + freight;
-      return { ...f, itemsCount, itemsVal, cbm, freight, efficiency, realFactureValue };
+      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue };
     }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
@@ -171,7 +172,14 @@ export default function FacturesView({
               </div>
               <div>
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Frais de Fret Appliqués</p>
-                <p className="text-[11px] font-bold text-blue-600">{Math.round(selectedFacture.freight).toLocaleString()} $</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-bold text-blue-600">{Math.round(selectedFacture.freight).toLocaleString()} $</p>
+                  {Number(selectedFacture.netWeight) > 0 && (
+                    <span className="text-[9px] font-bold text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded uppercase">
+                      NW: {selectedFacture.netWeight.toLocaleString()} kg
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
