@@ -301,6 +301,52 @@ export default function CategoriesView({
     return { statusValue, quantityData, priceData, uniqueProducts, supplierDistribution };
   }, [selectedCategory, currentArticles, groupedData, todayStr]);
 
+  const organizedCategories = useMemo(() => {
+    const structure = [
+      {
+        title: "Fabric",
+        keywords: ["non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"],
+      },
+      {
+        title: "Slider et puller",
+        keywords: ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"],
+      },
+      {
+        title: "Zipper",
+        keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain"],
+      },
+      {
+        title: "Bouton",
+        keywords: ["covered mould button", "snap button", "button"],
+      },
+      {
+        title: "Reste",
+        keywords: ["ruban", "tape", "rope", "thread", "elastic thread", "tack pin", "hook and loop", "divers", "opp bag"],
+        isFallback: true
+      }
+    ];
+
+    const result = structure.map(g => ({ ...g, items: [] as {id: string, stat: any}[] }));
+
+    Object.entries(groupStats).forEach(([id, stat]) => {
+      const catName = (stat.name || '').toLowerCase().trim();
+      let matched = false;
+      for (const group of result) {
+        if (group.keywords.includes(catName)) {
+          group.items.push({ id, stat });
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        const fallback = result.find(g => g.isFallback);
+        if (fallback) fallback.items.push({ id, stat });
+      }
+    });
+
+    return result.filter(g => g.items.length > 0);
+  }, [groupStats]);
+
   if (selectedCategory && groupedData && detailedAnalytics) {
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -782,50 +828,60 @@ export default function CategoriesView({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {Object.entries(groupStats).map(([id, stat], idx) => (
-          <Card 
-            key={id} 
-            className="group cursor-pointer border-none bg-white shadow-xl hover:shadow-2xl transition-all rounded-[1.5rem] overflow-hidden active:scale-95 status-glow-amber"
-            onClick={() => onSelectGeneralCategory(id)}
-          >
-            <div className={`h-1.5 w-full`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
-            <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <div className="p-3 bg-stone-50 rounded-xl text-stone-200 group-hover:bg-stone-900 group-hover:text-white transition-all">
-                  <LayoutGrid className="w-6 h-6" />
-                </div>
-                <div className="text-right">
-                  <p className="text-xl font-black text-stone-900">{stat.count}</p>
-                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Articles</p>
-                </div>
-              </div>
-              <h3 className="text-sm font-black text-stone-800 uppercase leading-none mb-6 group-hover:text-stone-900 tracking-tighter">{stat.name}</h3>
-              <div className="space-y-2 pt-5 border-t border-stone-50">
-                <div className="flex justify-between items-center text-[9px]">
-                  <span className="text-stone-400 font-black uppercase flex items-center gap-1">
-                    <Truck className="w-2.5 h-2.5" /> PROCHAINE
-                  </span>
-                  <span className={`font-black ${stat.nextArrival !== '-' ? 'text-blue-600' : 'text-stone-300'}`}>
-                    {stat.nextArrival}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-[9px]">
-                  <span className="text-stone-400 font-black uppercase flex items-center gap-1">
-                    <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
-                  </span>
-                  <span className="font-black text-stone-800">
-                    {Math.round(stat.totalValue).toLocaleString()} $
-                  </span>
-                </div>
-              </div>
-              <div className="mt-6 flex justify-end">
-                <div className="p-1.5 bg-stone-50 rounded opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                  <ArrowUpRight className="w-3.5 h-3.5 text-stone-900" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="space-y-12">
+        {organizedCategories.map((group, groupIdx) => (
+          <div key={groupIdx} className="space-y-5">
+            <h3 className="text-xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
+              <div className="w-2 h-6 bg-amber-500 rounded-full" />
+              {group.title}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {group.items.map(({ id, stat }, idx) => (
+                <Card 
+                  key={id} 
+                  className="group cursor-pointer border-none bg-white shadow-xl hover:shadow-2xl transition-all rounded-[1.5rem] overflow-hidden active:scale-95 status-glow-amber"
+                  onClick={() => onSelectGeneralCategory(id)}
+                >
+                  <div className={`h-1.5 w-full`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-center mb-6">
+                      <div className="p-3 bg-stone-50 rounded-xl text-stone-200 group-hover:bg-stone-900 group-hover:text-white transition-all">
+                        <LayoutGrid className="w-6 h-6" />
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-black text-stone-900">{stat.count}</p>
+                        <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Articles</p>
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-black text-stone-800 uppercase leading-none mb-6 group-hover:text-stone-900 tracking-tighter">{stat.name}</h3>
+                    <div className="space-y-2 pt-5 border-t border-stone-50">
+                      <div className="flex justify-between items-center text-[9px]">
+                        <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                          <Truck className="w-2.5 h-2.5" /> PROCHAINE
+                        </span>
+                        <span className={`font-black ${stat.nextArrival !== '-' ? 'text-blue-600' : 'text-stone-300'}`}>
+                          {stat.nextArrival}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px]">
+                        <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                          <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
+                        </span>
+                        <span className="font-black text-stone-800">
+                          {Math.round(stat.totalValue).toLocaleString()} $
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                      <div className="p-1.5 bg-stone-50 rounded opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                        <ArrowUpRight className="w-3.5 h-3.5 text-stone-900" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
