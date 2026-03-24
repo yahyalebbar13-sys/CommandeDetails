@@ -64,7 +64,9 @@ export default function FacturesView({
 
   const selectedFactureArticles = useMemo(() => {
     if (!selectedFactureId) return [];
-    return articles.filter(o => o.factureId === selectedFactureId);
+    return articles
+      .filter(o => o.factureId === selectedFactureId)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [articles, selectedFactureId]);
 
   const handleAddFacture = (initialId?: string) => {

@@ -72,6 +72,36 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     return stats;
   }, [generalCategories, articles, subCategories]);
 
+  const organizedCategories = useMemo(() => {
+    const structure = [
+      { title: "Fabric", keywords: ["non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"] },
+      { title: "Slider et puller", keywords: ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"] },
+      { title: "Zipper", keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain"] },
+      { title: "Bouton", keywords: ["covered mould button", "snap button", "button"] },
+      { title: "Reste", keywords: ["ruban", "tape", "rope", "thread", "elastic thread", "tack pin", "hook and loop", "divers", "opp bag"], isFallback: true }
+    ];
+
+    const result = structure.map(g => ({ ...g, items: [] as { gc: GeneralCategory, stats: any }[] }));
+
+    generalCategories.forEach(gc => {
+      const catName = (gc.name || '').toLowerCase().trim();
+      let matched = false;
+      for (const group of result) {
+        if (group.keywords.includes(catName)) {
+          group.items.push({ gc, stats: groupStats[gc.id] });
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        const fallback = result.find(g => g.isFallback);
+        if (fallback) fallback.items.push({ gc, stats: groupStats[gc.id] });
+      }
+    });
+
+    return result.filter(g => g.items.length > 0);
+  }, [generalCategories, groupStats]);
+
   const handleAddGeneralCategory = () => {
     if (!user || !firestore || !newCatName.trim()) return;
     const id = crypto.randomUUID();
@@ -126,22 +156,28 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="space-y-12">
         {generalCategories.length === 0 ? (
-          <div className="col-span-full py-20 text-center border-2 border-dashed border-stone-100 rounded-[2rem] bg-white/50">
+          <div className="py-20 text-center border-2 border-dashed border-stone-100 rounded-[2rem] bg-white/50">
             <FolderSearch className="w-10 h-10 text-stone-200 mx-auto mb-3" />
             <p className="text-stone-300 font-black uppercase tracking-[0.2em] text-[9px]">Aucun pôle configuré</p>
           </div>
-        ) : generalCategories.map((gc, index) => {
-          const color = UI_COLORS[index % UI_COLORS.length];
-          const stats = groupStats[gc.id];
-          
-          return (
-            <Card 
-              key={gc.id} 
-              onClick={() => onSelectGeneralCategory(gc.id)}
-              className="group cursor-pointer border-none bg-white shadow-md hover:shadow-xl transition-all rounded-[1.2rem] overflow-hidden active:scale-95 relative"
-            >
+        ) : organizedCategories.map((group, groupIdx) => (
+          <div key={groupIdx} className="space-y-5">
+            <h3 className="text-xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
+              <div className="w-2 h-6 bg-amber-500 rounded-full" />
+              {group.title}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {group.items.map(({ gc, stats }, index) => {
+                const color = UI_COLORS[(groupIdx + index) % UI_COLORS.length];
+                
+                return (
+                  <Card 
+                    key={gc.id} 
+                    onClick={() => onSelectGeneralCategory(gc.id)}
+                    className="group cursor-pointer border-none bg-white shadow-md hover:shadow-xl transition-all rounded-[1.2rem] overflow-hidden active:scale-95 relative"
+                  >
               <div className="h-1 w-full" style={{ backgroundColor: color }} />
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
@@ -202,7 +238,10 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               </CardContent>
             </Card>
           );
-        })}
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
