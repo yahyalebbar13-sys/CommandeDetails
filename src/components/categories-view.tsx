@@ -121,7 +121,8 @@ export default function CategoriesView({
       });
 
       stats[gc.id] = { 
-        name: gc.name, 
+        name: gc.name,
+        line: (gc as any).line,
         count: groupArticles.length, 
         totalValue,
         nextArrival
@@ -313,7 +314,7 @@ export default function CategoriesView({
       },
       {
         title: "Zipper",
-        keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain"],
+        keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"],
       },
       {
         title: "Bouton",
@@ -330,12 +331,24 @@ export default function CategoriesView({
 
     Object.entries(groupStats).forEach(([id, stat]) => {
       const catName = (stat.name || '').toLowerCase().trim();
+      const explicitLine = stat.line;
       let matched = false;
-      for (const group of result) {
-        if (group.keywords.includes(catName)) {
+
+      if (explicitLine) {
+        const group = result.find(g => g.title === explicitLine);
+        if (group) {
           group.items.push({ id, stat });
           matched = true;
-          break;
+        }
+      }
+
+      if (!matched) {
+        for (const group of result) {
+          if (group.keywords.includes(catName)) {
+            group.items.push({ id, stat });
+            matched = true;
+            break;
+          }
         }
       }
       if (!matched) {

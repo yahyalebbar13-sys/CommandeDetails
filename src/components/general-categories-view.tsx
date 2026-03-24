@@ -29,6 +29,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
   
   const [newCatName, setNewCatName] = useState('');
+  const [newCatLine, setNewCatLine] = useState('');
   const [newSubName, setNewSubName] = useState('');
   const [targetGenCatId, setTargetGenCatId] = useState<string | null>(null);
 
@@ -76,7 +77,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const structure = [
       { title: "Fabric", keywords: ["non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"] },
       { title: "Slider et puller", keywords: ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"] },
-      { title: "Zipper", keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain"] },
+      { title: "Zipper", keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"] },
       { title: "Bouton", keywords: ["covered mould button", "snap button", "button"] },
       { title: "Reste", keywords: ["ruban", "tape", "rope", "thread", "elastic thread", "tack pin", "hook and loop", "divers", "opp bag"], isFallback: true }
     ];
@@ -85,12 +86,24 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
     generalCategories.forEach(gc => {
       const catName = (gc.name || '').toLowerCase().trim();
+      const explicitLine = (gc as any).line;
       let matched = false;
-      for (const group of result) {
-        if (group.keywords.includes(catName)) {
+
+      if (explicitLine) {
+        const group = result.find(g => g.title === explicitLine);
+        if (group) {
           group.items.push({ gc, stats: groupStats[gc.id] });
           matched = true;
-          break;
+        }
+      }
+
+      if (!matched) {
+        for (const group of result) {
+          if (group.keywords.includes(catName)) {
+            group.items.push({ gc, stats: groupStats[gc.id] });
+            matched = true;
+            break;
+          }
         }
       }
       if (!matched) {
@@ -106,9 +119,13 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     if (!user || !firestore || !newCatName.trim()) return;
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
-    setDocumentNonBlocking(docRef, { id, name: newCatName.trim().toUpperCase() }, { merge: true });
+    const data: any = { id, name: newCatName.trim().toUpperCase() };
+    if (newCatLine) data.line = newCatLine;
+    
+    setDocumentNonBlocking(docRef, data, { merge: true });
     toast({ title: "Pôle logistique créé" });
     setNewCatName('');
+    setNewCatLine('');
     setIsModalOpen(false);
   };
 
@@ -260,6 +277,21 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-stone-900 text-base"
                 autoFocus
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Intégration dans la ligne</label>
+              <select 
+                value={newCatLine}
+                onChange={e => setNewCatLine(e.target.value)}
+                className="flex h-12 w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-black uppercase text-stone-700 outline-none focus:ring-2 focus:ring-stone-900 focus:ring-offset-2 transition-all cursor-pointer"
+              >
+                <option value="">Automatique (selon mots-clés)</option>
+                <option value="Fabric">Fabric</option>
+                <option value="Slider et puller">Slider et puller</option>
+                <option value="Zipper">Zipper</option>
+                <option value="Bouton">Bouton</option>
+                <option value="Reste">Reste</option>
+              </select>
             </div>
           </div>
           <DialogFooter className="p-6 bg-stone-50 gap-3">
