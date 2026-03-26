@@ -48,12 +48,12 @@ export const initialOrders: Order[] = [
   { category: "Zipper No5", article: "NO.5 Nylon Zipper O/E", specs: "HT SLIDER", color: "COLOR", supplier: "AD", facture: "AD12505JG26901A", orderDate: "2025-11-21", arrivalDate: "2026-01-05", qty: 12710, unit: "bag", pa: 4.1, cbm: 42.50 },
   
   // ================== ZIPPER LONG CHAIN ==================
-  { category: "Zipper Long Chain", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "A1001white", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.46, cbm: 0.80 },
-  { category: "Zipper Long Chain", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "501white", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.57, cbm: 0.80 },
-  { category: "Zipper Long Chain", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "BEIGE", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.57, cbm: 0.80 },
-  { category: "Zipper Long Chain", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "DYED black", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.46, cbm: 0.80 },
-  { category: "Zipper Long Chain", article: "NO.5 Nylon Zipper Long Chain", specs: "13g/m", color: "BEIGE 308", supplier: "MH", facture: "26A00038", orderDate: "2026-01-08", arrivalDate: "2026-02-20", qty: 2500, unit: "roll", pa: 4.345, cbm: 15.00 },
-  { category: "Zipper Long Chain", article: "NO.5 Nylon Zipper Long Chain", specs: "13g/m", color: "WHITE", supplier: "MH", facture: "26A00038", orderDate: "2026-01-08", arrivalDate: "2026-02-20", qty: 300, unit: "roll", pa: 3.96, cbm: 1.80 },
+  { category: "Zipper", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "A1001white", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.46, cbm: 0.80 },
+  { category: "Zipper", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "501white", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.57, cbm: 0.80 },
+  { category: "Zipper", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "BEIGE", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.57, cbm: 0.80 },
+  { category: "Zipper", article: "NO.5 Nylon Zipper Long Chain", specs: "20.5g/m", color: "DYED black", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 100, unit: "roll", pa: 7.46, cbm: 0.80 },
+  { category: "Zipper", article: "NO.5 Nylon Zipper Long Chain", specs: "13g/m", color: "BEIGE 308", supplier: "MH", facture: "26A00038", orderDate: "2026-01-08", arrivalDate: "2026-02-20", qty: 2500, unit: "roll", pa: 4.345, cbm: 15.00 },
+  { category: "Zipper", article: "NO.5 Nylon Zipper Long Chain", specs: "13g/m", color: "WHITE", supplier: "MH", facture: "26A00038", orderDate: "2026-01-08", arrivalDate: "2026-02-20", qty: 300, unit: "roll", pa: 3.96, cbm: 1.80 },
 
   // ================== SLIDERS & PULLERS ==================
   { category: "Slider No3", article: "No.3 N/L Slider", specs: "1g/pc", color: "NICKEL", supplier: "MH", facture: "25MH114285", orderDate: "2025-11-05", arrivalDate: "2025-12-20", qty: 60000, unit: "pcs", pa: 0.0045, cbm: 0.20 },
@@ -83,11 +83,11 @@ export const initialOrders: Order[] = [
   { category: "Ribbon", article: "Polyester Satin Ribbon 25mm", specs: "20M/bobbin", color: "A1391", supplier: "MH", facture: "25A07645", orderDate: "2025-12-19", arrivalDate: "2026-02-05", qty: 4000, unit: "rolls", pa: 0.142, cbm: 3.20 },
 
   // ================== INTERLINING ==================
-  { category: "Woven Interlining", article: "WOVEN INTERLINING 225gsm", specs: "100m/roll", color: "WHITE", supplier: "JACKSON", facture: "AP260102", orderDate: "2026-01-03", arrivalDate: "2026-02-15", qty: 50, unit: "roll", pa: 82.0, cbm: 4.50 },
-  { category: "Woven Interlining", article: "WOVEN INTERLINING 245gsm", specs: "100m/roll", color: "WHITE", supplier: "JACKSON", facture: "AP260102", orderDate: "2026-01-03", arrivalDate: "2026-02-15", qty: 100, unit: "roll", pa: 85.0, cbm: 9.50 },
-  { category: "Woven Interlining", article: "WOVEN INTERLINING 245gsm", specs: "100m/roll", color: "WHITE", supplier: "JACKSON", facture: "AP260113", orderDate: "2026-01-13", arrivalDate: "2026-02-25", qty: 100, unit: "roll", pa: 85.0, cbm: 9.50 },
-  { category: "Woven Interlining", article: "WOVEN INTERLINING 45gsm", specs: "100m/roll", color: "WHITE", supplier: "JIMMY", facture: "26HD1004", orderDate: "2025-12-20", arrivalDate: "2026-02-05", qty: 28, unit: "roll", pa: 25.5, cbm: 2.10 },
-  { category: "Woven Interlining", article: "WOVEN INTERLINING 45gsm PA GLUE", specs: "100m/roll", color: "BLACK", supplier: "JIMMY", facture: "25HD1045", orderDate: "2025-11-20", arrivalDate: "2026-01-05", qty: 300, unit: "roll", pa: 25.5, cbm: 24.50 },
+  { category: "Fabric", article: "WOVEN INTERLINING 225gsm", specs: "100m/roll", color: "WHITE", supplier: "JACKSON", facture: "AP260102", orderDate: "2026-01-03", arrivalDate: "2026-02-15", qty: 50, unit: "roll", pa: 82.0, cbm: 4.50 },
+  { category: "Fabric", article: "WOVEN INTERLINING 245gsm", specs: "100m/roll", color: "WHITE", supplier: "JACKSON", facture: "AP260102", orderDate: "2026-01-03", arrivalDate: "2026-02-15", qty: 100, unit: "roll", pa: 85.0, cbm: 9.50 },
+  { category: "Fabric", article: "WOVEN INTERLINING 245gsm", specs: "100m/roll", color: "WHITE", supplier: "JACKSON", facture: "AP260113", orderDate: "2026-01-13", arrivalDate: "2026-02-25", qty: 100, unit: "roll", pa: 85.0, cbm: 9.50 },
+  { category: "Fabric", article: "WOVEN INTERLINING 45gsm", specs: "100m/roll", color: "WHITE", supplier: "JIMMY", facture: "26HD1004", orderDate: "2025-12-20", arrivalDate: "2026-02-05", qty: 28, unit: "roll", pa: 25.5, cbm: 2.10 },
+  { category: "Fabric", article: "WOVEN INTERLINING 45gsm PA GLUE", specs: "100m/roll", color: "BLACK", supplier: "JIMMY", facture: "25HD1045", orderDate: "2025-11-20", arrivalDate: "2026-01-05", qty: 300, unit: "roll", pa: 25.5, cbm: 24.50 },
   { category: "Non Woven Interlining", article: "NON WOVEN INTERLINING 1050HF", specs: "100Y/ROLL", color: "WHITE", supplier: "MH", facture: "25MH114285", orderDate: "2025-12-12", arrivalDate: "2026-01-25", qty: 300, unit: "rlx", pa: 8.81, cbm: 18.00 },
   { category: "Non Woven Interlining", article: "NON WOVEN INTERLINING 1080HF", specs: "100Y/ROLL", color: "WHITE", supplier: "MH", facture: "25MH114285", orderDate: "2025-12-12", arrivalDate: "2026-01-25", qty: 100, unit: "rlx", pa: 12.65, cbm: 6.50 },
   { category: "Non Woven Interlining", article: "NON WOVEN INTERLINING 1030EF", specs: "90Y/roll", color: "WHITE", supplier: "MH", facture: "25A07618", orderDate: "2025-12-18", arrivalDate: "2026-02-02", qty: 3780, unit: "rlx", pa: 4.98, cbm: 68.00 },

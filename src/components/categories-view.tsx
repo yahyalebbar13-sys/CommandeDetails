@@ -306,7 +306,7 @@ export default function CategoriesView({
     const structure = [
       {
         title: "Fabric",
-        keywords: ["non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"],
+        keywords: ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"],
       },
       {
         title: "Slider et puller",
@@ -314,7 +314,7 @@ export default function CategoriesView({
       },
       {
         title: "Zipper",
-        keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"],
+        keywords: ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"],
       },
       {
         title: "Bouton",

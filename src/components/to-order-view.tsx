@@ -24,20 +24,28 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
 
   const toOrderArticles = useMemo(() => {
-    return articles
+    const priorityOrder = { 'urgent': 0, 'important': 1, 'todo': 2 };
+
+    return [...articles]
       .filter(o => o.status === 'TO_ORDER')
-      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      .sort((a, b) => {
+        const pA = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
+        const pB = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
+
+        if (pA !== pB) return pA - pB;
+        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      });
   }, [articles]);
 
   const handleActionDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
-    
+
     if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
       const docRef = doc(firestore, 'users', user.uid, 'articles', id);
       deleteDocumentNonBlocking(docRef);
-      toast({ 
-        title: "Rappel supprimé", 
-        description: name 
+      toast({
+        title: "Rappel supprimé",
+        description: name
       });
     }
   };
@@ -76,6 +84,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                 <TableHead className="text-[10px] font-black uppercase py-4">Taille</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Couleur</TableHead>
                 <TableHead className="text-[10px] font-black uppercase py-4">Technique / Spécifications</TableHead>
+                <TableHead className="text-[10px] font-black uppercase py-4">Importance</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Quantité Prévue</TableHead>
                 <TableHead className="text-right text-[10px] font-black uppercase py-4">Actions</TableHead>
               </TableRow>
@@ -111,30 +120,35 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                           <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
                         )}
                       </TableCell>
+                      <TableCell className="py-3">
+                        {o.priority === 'urgent' && <Badge className="bg-red-100 text-red-700 border-red-200 font-black text-[9px] uppercase">Urgent</Badge>}
+                        {o.priority === 'important' && <Badge className="bg-amber-100 text-amber-700 border-amber-200 font-black text-[9px] uppercase">Important</Badge>}
+                        {(o.priority === 'todo' || !o.priority) && <Badge className="bg-stone-100 text-stone-600 border-stone-200 font-black text-[9px] uppercase">À faire</Badge>}
+                      </TableCell>
                       <TableCell className="text-right font-black text-xs py-3">
                         {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1 uppercase">{o.unitOfMeasure}</span>
                       </TableCell>
                       <TableCell className="text-right py-3">
                         <div className="flex justify-end items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-xl"
                             onClick={() => onEdit(o)}
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-xl"
                             onClick={() => handleActionDelete(o.id, o.name)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
-                          <Button 
-                            size="sm" 
-                            onClick={() => setSelectedArticle(o) || setIsLaunchModalOpen(true)}
+                          <Button
+                            size="sm"
+                            onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }}
                             className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[9px] tracking-widest px-4 h-8 rounded-lg ml-2"
                           >
                             Commander <ArrowRight className="w-3 h-3 ml-1" />
@@ -150,7 +164,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
         </CardContent>
       </Card>
 
-      <LaunchOrderModal 
+      <LaunchOrderModal
         open={isLaunchModalOpen}
         onOpenChange={setIsLaunchModalOpen}
         article={selectedArticle}

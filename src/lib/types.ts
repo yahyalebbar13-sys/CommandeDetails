@@ -30,6 +30,8 @@ export type Order = {
   unitOfMeasure: string;
   purchasePricePerUnit: number;
   cubicMeasurement?: number;
+  netWeight?: number;
+  priority?: 'urgent' | 'important' | 'todo';
   status: OrderStatus;
   createdAt?: any;
 };

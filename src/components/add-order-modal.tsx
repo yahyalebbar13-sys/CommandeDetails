@@ -22,10 +22,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  
+
   const genCatsRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'generalCategories') : null, [firestore, user]);
   const subCatsRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'categories') : null, [firestore, user]);
-  
+
   const { data: generalCategories = [] } = useCollection(genCatsRef);
   const { data: subCategories = [] } = useCollection(subCatsRef);
 
@@ -41,6 +41,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     slider: '',
     sliderType: '',
     purchasePricePerUnit: 0,
+    priority: 'todo',
   });
 
   const filteredSubCategories = useMemo(() => {
@@ -57,21 +58,21 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !formData.categoryId || !selectedGenCatId) return;
-    
+
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'articles', id);
-    
-    setDocumentNonBlocking(docRef, { 
-      ...formData, 
-      id, 
+
+    setDocumentNonBlocking(docRef, {
+      ...formData,
+      id,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       status: 'TO_ORDER',
-      createdAt: serverTimestamp() 
+      createdAt: serverTimestamp()
     }, { merge: true });
 
     toast({ title: "Besoins enregistrés", description: "L'article a été ajouté à la liste des rappels." });
-    
+
     setFormData({
       categoryId: '',
       specs: '',
@@ -83,6 +84,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       slider: '',
       sliderType: '',
       purchasePricePerUnit: 0,
+      priority: 'todo',
     });
     setSelectedGenCatId('');
     onOpenChange(false);
@@ -123,9 +125,9 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Package className="w-3 h-3" /> Type de Produit
               </Label>
-              <Select 
-                disabled={!selectedGenCatId} 
-                onValueChange={v => setFormData((p: any) => ({...p, categoryId: v}))}
+              <Select
+                disabled={!selectedGenCatId}
+                onValueChange={v => setFormData((p: any) => ({ ...p, categoryId: v }))}
               >
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue placeholder="Choisir..." />
@@ -144,11 +146,11 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Maximize className="w-3 h-3" /> Taille / Dimension
               </Label>
-              <Input 
-                placeholder="Ex: No.5, 20cm..." 
+              <Input
+                placeholder="Ex: No.5, 20cm..."
                 className="h-12 border-stone-200 font-bold rounded-xl"
                 value={formData.size}
-                onChange={e => setFormData((p: any) => ({...p, size: e.target.value}))}
+                onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
               />
             </div>
             {isZipper && (
@@ -156,7 +158,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Settings2 className="w-3 h-3" /> Type Zipper
                 </Label>
-                <Select value={formData.zipperType} onValueChange={v => setFormData((p: any) => ({...p, zipperType: v}))}>
+                <Select value={formData.zipperType} onValueChange={v => setFormData((p: any) => ({ ...p, zipperType: v }))}>
                   <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                     <SelectValue placeholder="Type..." />
                   </SelectTrigger>
@@ -174,18 +176,18 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <MousePointer2 className="w-3 h-3" /> Curseur
                 </Label>
-                <Input 
-                  placeholder="Ex: Auto-lock..." 
+                <Input
+                  placeholder="Ex: Auto-lock..."
                   className="h-12 border-stone-200 font-bold rounded-xl"
                   value={formData.slider}
-                  onChange={e => setFormData((p: any) => ({...p, slider: e.target.value}))}
+                  onChange={e => setFormData((p: any) => ({ ...p, slider: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Scissors className="w-3 h-3" /> Type Curseur
                 </Label>
-                <Select value={formData.sliderType} onValueChange={v => setFormData((p: any) => ({...p, sliderType: v}))}>
+                <Select value={formData.sliderType} onValueChange={v => setFormData((p: any) => ({ ...p, sliderType: v }))}>
                   <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                     <SelectValue placeholder="Type Curseur..." />
                   </SelectTrigger>
@@ -201,11 +203,11 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
               <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Détails Techniques / Specs'}
             </Label>
-            <Input 
-              placeholder={isZipper ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."} 
+            <Input
+              placeholder={isZipper ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
               className="h-12 border-stone-200 font-bold rounded-xl"
               value={formData.specs}
-              onChange={e => setFormData((p: any) => ({...p, specs: e.target.value}))}
+              onChange={e => setFormData((p: any) => ({ ...p, specs: e.target.value }))}
             />
           </div>
 
@@ -214,7 +216,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Ruler className="w-3 h-3" /> Unité
               </Label>
-              <Select value={formData.unitOfMeasure} onValueChange={v => setFormData((p: any) => ({...p, unitOfMeasure: v}))}>
+              <Select value={formData.unitOfMeasure} onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}>
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
@@ -227,7 +229,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Palette className="w-3 h-3" /> Couleur
               </Label>
-              <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({...p, color: v}))}>
+              <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
@@ -241,11 +243,26 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
-              <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({...p, quantity: parseFloat(e.target.value) || 0}))} />
+              <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({ ...p, quantity: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <ClipboardList className="w-3 h-3" /> Importance
+              </Label>
+              <Select value={formData.priority} onValueChange={v => setFormData((p: any) => ({ ...p, priority: v }))}>
+                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent" className="font-bold text-red-600 uppercase">Urgent</SelectItem>
+                  <SelectItem value="important" className="font-bold text-amber-600 uppercase">Important</SelectItem>
+                  <SelectItem value="todo" className="font-bold text-stone-600 uppercase">À faire</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation PA ($)</Label>
-              <Input type="number" step="0.0001" className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({...p, purchasePricePerUnit: parseFloat(e.target.value) || 0}))} />
+              <Input type="number" step="0.0001" className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({ ...p, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} />
             </div>
           </div>
 

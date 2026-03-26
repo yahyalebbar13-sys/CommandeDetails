@@ -31,34 +31,34 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
   });
 
   useEffect(() => {
-    if (open) {
+    if (open && article) {
       setFormData({
         supplierId: '',
         orderDate: new Date().toISOString().split('T')[0],
-        cubicMeasurement: 0,
-        netWeight: 0,
-        purchasePricePerUnit: 0
+        cubicMeasurement: article.cubicMeasurement || 0,
+        netWeight: article.netWeight || 0,
+        purchasePricePerUnit: article.purchasePricePerUnit || 0
       });
     }
-  }, [open]);
+  }, [open, article]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !article || !formData.supplierId || !formData.orderDate) return;
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
-    
+
     updateDocumentNonBlocking(docRef, {
       ...formData,
       status: 'PI', // Move to Production
       launchedAt: serverTimestamp()
     });
 
-    toast({ 
-      title: "Commande Lancée !", 
-      description: `L'article ${article.name} est maintenant en production (PI).` 
+    toast({
+      title: "Commande Lancée !",
+      description: `L'article ${article.name} est maintenant en production (PI).`
     });
-    
+
     onOpenChange(false);
   };
 
@@ -87,8 +87,8 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
             <Label className="font-bold flex items-center gap-1">
               <Factory className="w-4 h-4 text-stone-400" /> Fournisseur
             </Label>
-            <Input 
-              required 
+            <Input
+              required
               value={formData.supplierId}
               onChange={e => setFormData(p => ({ ...p, supplierId: e.target.value }))}
               placeholder="Ex: MH"
@@ -100,7 +100,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
             <Label className="font-bold flex items-center gap-1">
               <Calendar className="w-4 h-4 text-stone-400" /> Date de Commande
             </Label>
-            <Input 
+            <Input
               type="date"
               required
               value={formData.orderDate}
@@ -113,7 +113,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
               <Label className="font-bold flex items-center gap-1">
                 <Cuboid className="w-4 h-4 text-emerald-500" /> Volume (CBM)
               </Label>
-              <Input 
+              <Input
                 type="number"
                 step="0.001"
                 required
@@ -126,7 +126,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
               <Label className="font-bold flex items-center gap-1">
                 <Scale className="w-4 h-4 text-blue-500" /> N.W (kg)
               </Label>
-              <Input 
+              <Input
                 type="number"
                 step="0.01"
                 className="bg-blue-50 border-blue-200"
@@ -138,7 +138,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
               <Label className="font-bold flex items-center gap-1">
                 <Banknote className="w-4 h-4 text-amber-500" /> Prix (PA)
               </Label>
-              <Input 
+              <Input
                 type="number"
                 step="0.0001"
                 required

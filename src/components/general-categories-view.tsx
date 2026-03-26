@@ -75,9 +75,9 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
   const organizedCategories = useMemo(() => {
     const structure = [
-      { title: "Fabric", keywords: ["non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"] },
+      { title: "Fabric", keywords: ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"] },
       { title: "Slider et puller", keywords: ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"] },
-      { title: "Zipper", keywords: ["plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"] },
+      { title: "Zipper", keywords: ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"] },
       { title: "Bouton", keywords: ["covered mould button", "snap button", "button"] },
       { title: "Reste", keywords: ["ruban", "tape", "rope", "thread", "elastic thread", "tack pin", "hook and loop", "divers", "opp bag"], isFallback: true }
     ];
@@ -116,7 +116,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   }, [generalCategories, groupStats]);
 
   const handleAddGeneralCategory = () => {
-    if (!user || !firestore || !newCatName.trim()) return;
+    if (!user || !firestore || !newCatName.trim() || !newCatLine) return;
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
     const data: any = { id, name: newCatName.trim().toUpperCase() };
@@ -285,7 +285,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 onChange={e => setNewCatLine(e.target.value)}
                 className="flex h-12 w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-black uppercase text-stone-700 outline-none focus:ring-2 focus:ring-stone-900 focus:ring-offset-2 transition-all cursor-pointer"
               >
-                <option value="">Automatique (selon mots-clés)</option>
+                <option value="" disabled>Sélectionner une ligne logistique...</option>
                 <option value="Fabric">Fabric</option>
                 <option value="Slider et puller">Slider et puller</option>
                 <option value="Zipper">Zipper</option>
