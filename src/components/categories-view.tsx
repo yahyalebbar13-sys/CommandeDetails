@@ -23,8 +23,10 @@ import {
   Users,
   Factory,
   Settings2,
-  MousePointer2
+  MousePointer2,
+  Pencil
 } from 'lucide-react';
+import EditOrderModal from './edit-order-modal';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
@@ -53,6 +55,7 @@ const STATUS_COLORS = {
 
 export default function CategoriesView({
   articles = [],
+  factures = [],
   generalCategories = [],
   subCategories = [],
   selectedCategory,
@@ -65,6 +68,7 @@ export default function CategoriesView({
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [todayStr, setTodayStr] = useState('');
+  const [editingArticle, setEditingArticle] = useState<any>(null);
 
   useEffect(() => {
     const today = new Date();
@@ -444,16 +448,26 @@ export default function CategoriesView({
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
                         <TableCell className="py-3 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.name}</div>
-                          {((a.hsCode) || (a.customsValuePerKg) || (a.importDutyRate) || (a.tvaRate)) && (
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
+                            <span>{a.name}</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" 
+                              onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          {((a.hsCode) || (a.customsValuePerKg != null) || (a.importDutyRate != null) || (a.tpiRate != null) || (a.tvaRate != null)) && (
                             <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
                               {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
                               <span className="text-[7.5px] text-stone-400 leading-tight">
                                 {[
-                                  a.customsValuePerKg && `${a.customsValuePerKg}$/kg`,
-                                  a.importDutyRate && `DI:${a.importDutyRate}%`,
-                                  a.tpiRate && `TPI:${a.tpiRate}%`,
-                                  a.tvaRate && `TVA:${a.tvaRate}%`
+                                  a.customsValuePerKg != null && `${a.customsValuePerKg}$/kg`,
+                                  a.importDutyRate != null && `DI:${a.importDutyRate}%`,
+                                  a.tpiRate != null && `TPI:${a.tpiRate}%`,
+                                  a.tvaRate != null && `TVA:${a.tvaRate}%`
                                 ].filter(Boolean).join(' • ')}
                               </span>
                             </div>
@@ -539,16 +553,26 @@ export default function CategoriesView({
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
                         <TableCell className="py-3 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.name}</div>
-                          {((a.hsCode) || (a.customsValuePerKg) || (a.importDutyRate) || (a.tvaRate)) && (
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
+                            <span>{a.name}</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" 
+                              onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          {((a.hsCode) || (a.customsValuePerKg != null) || (a.importDutyRate != null) || (a.tpiRate != null) || (a.tvaRate != null)) && (
                             <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
                               {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
                               <span className="text-[7.5px] text-stone-400 leading-tight">
                                 {[
-                                  a.customsValuePerKg && `${a.customsValuePerKg}$/kg`,
-                                  a.importDutyRate && `DI:${a.importDutyRate}%`,
-                                  a.tpiRate && `TPI:${a.tpiRate}%`,
-                                  a.tvaRate && `TVA:${a.tvaRate}%`
+                                  a.customsValuePerKg != null && `${a.customsValuePerKg}$/kg`,
+                                  a.importDutyRate != null && `DI:${a.importDutyRate}%`,
+                                  a.tpiRate != null && `TPI:${a.tpiRate}%`,
+                                  a.tvaRate != null && `TVA:${a.tvaRate}%`
                                 ].filter(Boolean).join(' • ')}
                               </span>
                             </div>
@@ -633,16 +657,26 @@ export default function CategoriesView({
                     return (
                       <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
                         <TableCell className="py-3 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.name}</div>
-                          {((a.hsCode) || (a.customsValuePerKg) || (a.importDutyRate) || (a.tvaRate)) && (
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
+                            <span>{a.name}</span>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" 
+                              onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          {((a.hsCode) || (a.customsValuePerKg != null) || (a.importDutyRate != null) || (a.tpiRate != null) || (a.tvaRate != null)) && (
                             <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
                               {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
                               <span className="text-[7.5px] text-stone-400 leading-tight">
                                 {[
-                                  a.customsValuePerKg && `${a.customsValuePerKg}$/kg`,
-                                  a.importDutyRate && `DI:${a.importDutyRate}%`,
-                                  a.tpiRate && `TPI:${a.tpiRate}%`,
-                                  a.tvaRate && `TVA:${a.tvaRate}%`
+                                  a.customsValuePerKg != null && `${a.customsValuePerKg}$/kg`,
+                                  a.importDutyRate != null && `DI:${a.importDutyRate}%`,
+                                  a.tpiRate != null && `TPI:${a.tpiRate}%`,
+                                  a.tvaRate != null && `TVA:${a.tvaRate}%`
                                 ].filter(Boolean).join(' • ')}
                               </span>
                             </div>
@@ -785,6 +819,13 @@ export default function CategoriesView({
             </CardContent>
           </Card>
         </div>
+        {editingArticle && (
+          <EditOrderModal 
+            article={editingArticle} 
+            onOpenChange={(open) => !open && setEditingArticle(null)} 
+            factures={factures} 
+          />
+        )}
       </div>
     );
   }
