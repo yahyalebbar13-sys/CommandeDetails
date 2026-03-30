@@ -56,7 +56,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         zipperType: article.zipperType || '',
         slider: article.slider || '',
         sliderType: article.sliderType || '',
-        priority: article.priority || 'todo'
+        priority: article.priority || 'todo',
+        hsCode: article.hsCode || '',
+        customsValuePerKg: article.customsValuePerKg ?? '',
+        importDutyRate: article.importDutyRate ?? '',
+        tpiRate: article.tpiRate ?? '',
+        tvaRate: article.tvaRate ?? ''
       });
       setSelectedGenCatId(article.generalCategoryId || '');
     } else {
@@ -317,6 +322,36 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   onChange={e => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))}
                   className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl"
                 />
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 rounded-xl border border-dashed border-amber-200 space-y-4 md:col-span-2">
+              <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
+                <ClipboardList className="w-3.5 h-3.5" /> Informations Douanières
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Code HS</Label>
+                  <Input placeholder="0000.00.00" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.hsCode} onChange={e => setFormData((p: any) => ({ ...p, hsCode: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Val Douane / Kg</Label>
+                  <Input type="number" step="0.01" placeholder="0.00" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.customsValuePerKg} onChange={e => setFormData((p: any) => ({ ...p, customsValuePerKg: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Taux DI (%)</Label>
+                  <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.importDutyRate} onChange={e => setFormData((p: any) => ({ ...p, importDutyRate: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TPI (%)</Label>
+                  <Input type="number" step="0.01" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.tpiRate} onChange={e => setFormData((p: any) => ({ ...p, tpiRate: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TVA (%)</Label>
+                  <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.tvaRate} onChange={e => setFormData((p: any) => ({ ...p, tvaRate: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+                </div>
               </div>
             </div>
 

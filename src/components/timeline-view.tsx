@@ -162,7 +162,7 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
                         <div className="flex flex-wrap gap-1.5">
                           {Object.entries(f.summary).slice(0, 3).map(([cat, qty]: any) => (
                             <Badge key={cat} variant="outline" className="text-[7px] font-black uppercase px-1.5 h-4 border-stone-100 text-stone-400">
-                              {Math.round(qty).toLocaleString()} {cat}
+                              {Number(qty).toLocaleString('en-US', { maximumFractionDigits: 3 })} {cat}
                             </Badge>
                           ))}
                           {Object.keys(f.summary).length > 3 && (
@@ -173,8 +173,8 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
                         </div>
 
                         <div className="pt-3 border-t border-stone-50 flex justify-between items-center text-[9px] font-black">
-                          <span className="text-stone-400">VOL: {f.cbm.toFixed(2)} m³</span>
-                          <span className={group.isPast ? 'text-emerald-600' : 'text-blue-600'}>VAL RÉELLE: {Math.round(f.totalRealValue).toLocaleString()} $</span>
+                          <span className="text-stone-400">VOL: {f.cbm.toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</span>
+                          <span className={group.isPast ? 'text-emerald-600' : 'text-blue-600'}>VAL RÉELLE: {Number(f.totalRealValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</span>
                         </div>
                       </div>
                     </CardContent>

@@ -126,7 +126,7 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-stone-900 mb-6">{Math.round(stat.val).toLocaleString()} $</div>
+                <div className="text-2xl font-black text-stone-900 mb-6">{Number(stat.val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
                 <div className="space-y-2 pt-4 border-t border-stone-50">
                   <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
                     <span>Articles</span>
@@ -169,7 +169,7 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black text-stone-900 mb-6">{Math.round(stat.val).toLocaleString()} $</div>
+                <div className="text-2xl font-black text-stone-900 mb-6">{Number(stat.val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
                 <div className="space-y-2 pt-4 border-t border-stone-50">
                   <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
                     <span>Dossiers</span>
@@ -289,15 +289,15 @@ function SupplierDetailView({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full xl:w-auto relative z-10">
-            <SummaryBlock label="Valeur Réelle Totale" value={Math.round(totalRealVal).toLocaleString()} sub="$" color="text-white" />
-            <SummaryBlock label="Valeur Déclarée Totale" value={Math.round(totalDeclaredVal).toLocaleString()} sub="$" color="text-amber-500" />
+            <SummaryBlock label="Valeur Réelle Totale" value={Number(totalRealVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$" color="text-white" />
+            <SummaryBlock label="Valeur Déclarée Totale" value={Number(totalDeclaredVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$" color="text-amber-500" />
             <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg border border-white/5">
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Différence Totale</p>
-              <div className="text-xl font-black text-blue-400">{Math.round(currentGap).toLocaleString()} $</div>
+              <div className="text-xl font-black text-blue-400">{Number(currentGap).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
             </div>
             <div className={`p-5 rounded-2xl text-white shadow-lg border ${remainingToPay <= 0 ? 'bg-emerald-600 border-emerald-500' : 'bg-red-600 border-red-500'}`}>
               <p className="text-[8px] font-black opacity-70 uppercase tracking-widest mb-1">Reste à Régulariser</p>
-              <div className="text-xl font-black">{Math.round(remainingToPay).toLocaleString()} $</div>
+              <div className="text-xl font-black">{Number(remainingToPay).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
             </div>
           </div>
         </div>
@@ -338,9 +338,9 @@ function SupplierDetailView({
                       </TableCell>
                       <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
                       <TableCell className={`py-3 text-[10px] font-bold ${f.isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{f.arrivalDate}</TableCell>
-                      <TableCell className="py-3 text-right font-bold text-stone-500 text-[10px]">{f.cbm.toFixed(3)} m³</TableCell>
-                      <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Math.round(f.totalReal).toLocaleString()} $</TableCell>
-                      <TableCell className="py-3 text-right font-black text-amber-600 text-[11px] bg-amber-50/30">{Math.round(f.declared).toLocaleString()} $</TableCell>
+                      <TableCell className="py-3 text-right font-bold text-stone-500 text-[10px]">{f.cbm.toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</TableCell>
+                      <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(f.totalReal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                      <TableCell className="py-3 text-right font-black text-amber-600 text-[11px] bg-amber-50/30">{Number(f.declared).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
                       <TableCell className="py-3">
                         <Button variant="ghost" size="icon" onClick={() => onNavigateToFacture(f.id)} className="h-7 w-7 text-stone-300 hover:text-stone-900 opacity-0 group-hover:opacity-100">
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -389,7 +389,7 @@ function SupplierDetailView({
                           <div className="text-[8px] font-bold text-stone-400 uppercase truncate max-w-[120px]">{p.notes || 'Règlement diff.'}</div>
                         </TableCell>
                         <TableCell className="py-3 text-right font-black text-blue-600">
-                          {Math.round(p.amount).toLocaleString()} $
+                          {Number(p.amount).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                         </TableCell>
                         <TableCell className="py-3 pr-4 w-10">
                           <Button variant="ghost" size="icon" onClick={() => handleDeletePayment(p.id)} className="h-6 w-6 text-stone-200 hover:text-red-500 opacity-0 group-hover:opacity-100">
@@ -404,7 +404,7 @@ function SupplierDetailView({
               {supPayments.length > 0 && (
                 <div className="p-4 bg-stone-50 border-t flex justify-between items-center">
                   <span className="text-[9px] font-black text-stone-400 uppercase">Total Transmis</span>
-                  <span className="text-xs font-black text-blue-700">{Math.round(totalPaid).toLocaleString()} $</span>
+                  <span className="text-xs font-black text-blue-700">{Number(totalPaid).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</span>
                 </div>
               )}
             </Card>
@@ -495,11 +495,11 @@ function CompanyDetailView({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full xl:w-auto relative z-10">
-            <SummaryBlock label="Valeur Réelle Cumulée" value={Math.round(totalRealVal).toLocaleString()} sub="$" color="text-white" />
-            <SummaryBlock label="Valeur Douane Cumulée" value={Math.round(totalDeclaredVal).toLocaleString()} sub="$" color="text-amber-500" />
+            <SummaryBlock label="Valeur Réelle Cumulée" value={Number(totalRealVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$" color="text-white" />
+            <SummaryBlock label="Valeur Douane Cumulée" value={Number(totalDeclaredVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$" color="text-amber-500" />
             <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg border border-white/5">
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Différence à Régulariser</p>
-              <div className="text-xl font-black text-blue-400">{Math.round(currentGap).toLocaleString()} $</div>
+              <div className="text-xl font-black text-blue-400">{Number(currentGap).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
             </div>
           </div>
         </div>
@@ -539,8 +539,8 @@ function CompanyDetailView({
                   <TableCell className="py-3 font-bold text-stone-500 uppercase text-[10px]">{f.supplierId}</TableCell>
                   <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
                   <TableCell className={`py-3 text-[10px] font-bold ${f.isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{f.arrivalDate}</TableCell>
-                  <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Math.round(f.totalReal).toLocaleString()} $</TableCell>
-                  <TableCell className="py-3 text-right font-black text-amber-600 text-[11px] bg-amber-50/30">{Math.round(Number(f.declaredValue) || f.totalReal).toLocaleString()} $</TableCell>
+                  <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(f.totalReal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                  <TableCell className="py-3 text-right font-black text-amber-600 text-[11px] bg-amber-50/30">{Number(Number(f.declaredValue) || f.totalReal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
                   <TableCell className="py-3">
                     <Button variant="ghost" size="icon" onClick={() => onNavigateToFacture(f.id)} className="h-7 w-7 text-stone-300 hover:text-stone-900 opacity-0 group-hover:opacity-100">
                       <ArrowRight className="w-3.5 h-3.5" />

@@ -74,11 +74,11 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
         <div className="flex gap-4">
           <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
             <div className="text-[10px] text-blue-600 font-bold uppercase">Volume Total</div>
-            <div className="text-xl font-black text-blue-700">{stats.cbm.toFixed(2)} m³</div>
+            <div className="text-xl font-black text-blue-700">{stats.cbm.toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</div>
           </div>
           <div className="bg-amber-50 px-4 py-2 rounded-lg border border-amber-200">
             <div className="text-[10px] text-amber-600 font-bold uppercase">Valeur Engagée</div>
-            <div className="text-xl font-black text-amber-700">{Math.round(stats.val).toLocaleString()} $</div>
+            <div className="text-xl font-black text-amber-700">{Number(stats.val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
           </div>
         </div>
       </div>
@@ -152,9 +152,9 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                       <TableCell className="text-right font-black text-xs py-3">
                         {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1 uppercase">{o.unitOfMeasure}</span>
                       </TableCell>
-                      <TableCell className="text-right text-emerald-700 font-black text-xs py-3">{o.cubicMeasurement?.toFixed(2)} <span className="text-[9px] font-bold text-stone-300 ml-0.5 uppercase">m³</span></TableCell>
+                      <TableCell className="text-right text-emerald-700 font-black text-xs py-3">{o.cubicMeasurement?.toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[9px] font-bold text-stone-300 ml-0.5 uppercase">m³</span></TableCell>
                       <TableCell className="text-right font-black text-amber-700 bg-amber-50/10 text-xs py-3 px-6">
-                        {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
+                        {Number(o.quantity * o.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

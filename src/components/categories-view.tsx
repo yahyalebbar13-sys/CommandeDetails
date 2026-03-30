@@ -387,11 +387,11 @@ export default function CategoriesView({
                 <>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Valeur Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{Math.round(headerStats.totalVal).toLocaleString()} $</p>
+                    <p className="text-lg font-black text-white leading-none">{Number(headerStats.totalVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
                   </div>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Quantité Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{Math.round(headerStats.totalQty).toLocaleString()}</p>
+                    <p className="text-lg font-black text-white leading-none">{Number(headerStats.totalQty).toLocaleString('en-US', { maximumFractionDigits: 3 })}</p>
                   </div>
                   <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
                     <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Prochaine Arrivée</p>
@@ -443,8 +443,21 @@ export default function CategoriesView({
                     const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                        <TableCell className="py-3 px-6">
-                          <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
+                        <TableCell className="py-3 px-6 align-top">
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.name}</div>
+                          {((a.hsCode) || (a.customsValuePerKg) || (a.importDutyRate) || (a.tvaRate)) && (
+                            <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
+                              {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
+                              <span className="text-[7.5px] text-stone-400 leading-tight">
+                                {[
+                                  a.customsValuePerKg && `${a.customsValuePerKg}$/kg`,
+                                  a.importDutyRate && `DI:${a.importDutyRate}%`,
+                                  a.tpiRate && `TPI:${a.tpiRate}%`,
+                                  a.tvaRate && `TVA:${a.tvaRate}%`
+                                ].filter(Boolean).join(' • ')}
+                              </span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
@@ -466,19 +479,19 @@ export default function CategoriesView({
                         <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
                           <div>
-                            {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                            {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                           </div>
                           {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
                             <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
-                              {(Number(a.netWeight) / Number(a.quantity)).toFixed(4)} kg/{a.unitOfMeasure || 'U'}
+                              {(Number(a.netWeight) / Number(a.quantity)).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg/{a.unitOfMeasure || 'U'}
                             </div>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">
-                          {Number(a.purchasePricePerUnit).toFixed(4)} $
+                          {Number(a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                         </TableCell>
                         <TableCell className="text-right font-black text-amber-600 text-[11px] py-3 px-6">
-                          {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                          {Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                         </TableCell>
                       </TableRow>
                     );
@@ -525,8 +538,21 @@ export default function CategoriesView({
                     const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
-                        <TableCell className="py-3 px-6">
-                          <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
+                        <TableCell className="py-3 px-6 align-top">
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.name}</div>
+                          {((a.hsCode) || (a.customsValuePerKg) || (a.importDutyRate) || (a.tvaRate)) && (
+                            <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
+                              {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
+                              <span className="text-[7.5px] text-stone-400 leading-tight">
+                                {[
+                                  a.customsValuePerKg && `${a.customsValuePerKg}$/kg`,
+                                  a.importDutyRate && `DI:${a.importDutyRate}%`,
+                                  a.tpiRate && `TPI:${a.tpiRate}%`,
+                                  a.tvaRate && `TVA:${a.tvaRate}%`
+                                ].filter(Boolean).join(' • ')}
+                              </span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
@@ -551,16 +577,16 @@ export default function CategoriesView({
                         </TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
                           <div>
-                            {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                            {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                           </div>
                           {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
                             <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
-                              {(Number(a.netWeight) / Number(a.quantity)).toFixed(4)} kg/{a.unitOfMeasure || 'U'}
+                              {(Number(a.netWeight) / Number(a.quantity)).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg/{a.unitOfMeasure || 'U'}
                             </div>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-black text-blue-700 text-[11px] py-3 px-6">
-                          {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                          {Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                         </TableCell>
                       </TableRow>
                     );
@@ -606,8 +632,21 @@ export default function CategoriesView({
                     const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
                       <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
-                        <TableCell className="py-3 px-6">
-                          <div className="font-black text-[11px] text-stone-900 uppercase">{a.name}</div>
+                        <TableCell className="py-3 px-6 align-top">
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.name}</div>
+                          {((a.hsCode) || (a.customsValuePerKg) || (a.importDutyRate) || (a.tvaRate)) && (
+                            <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
+                              {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
+                              <span className="text-[7.5px] text-stone-400 leading-tight">
+                                {[
+                                  a.customsValuePerKg && `${a.customsValuePerKg}$/kg`,
+                                  a.importDutyRate && `DI:${a.importDutyRate}%`,
+                                  a.tpiRate && `TPI:${a.tpiRate}%`,
+                                  a.tvaRate && `TVA:${a.tvaRate}%`
+                                ].filter(Boolean).join(' • ')}
+                              </span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
@@ -629,16 +668,16 @@ export default function CategoriesView({
                         <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.arrivalDate}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
                           <div>
-                            {Math.round(a.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
+                            {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
                           </div>
                           {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
                             <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
-                              {(Number(a.netWeight) / Number(a.quantity)).toFixed(4)} kg/{a.unitOfMeasure || 'U'}
+                              {(Number(a.netWeight) / Number(a.quantity)).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg/{a.unitOfMeasure || 'U'}
                             </div>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-black text-emerald-700 text-[11px] py-3 px-6">
-                          {Math.round(a.quantity * a.purchasePricePerUnit).toLocaleString()} $
+                          {Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                         </TableCell>
                       </TableRow>
                     );
@@ -664,9 +703,9 @@ export default function CategoriesView({
                 <BarChart data={detailedAnalytics.quantityData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Math.round(v).toLocaleString()} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 3 })} style={{ fontSize: '9px', fontWeight: '900' }} />
                   <RechartsTooltip 
-                    formatter={(val: number) => [Math.round(val).toLocaleString()]}
+                    formatter={(val: number) => [Number(val).toLocaleString('en-US', { maximumFractionDigits: 3 })]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
                   />
                   <Bar dataKey="value" fill="#CC8626" radius={[4, 4, 0, 0]} />
@@ -690,11 +729,11 @@ export default function CategoriesView({
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tickFormatter={(v) => v.toFixed(3)} 
+                    tickFormatter={(v) => v.toLocaleString('en-US', { maximumFractionDigits: 3 })} 
                     style={{ fontSize: '9px', fontWeight: '900' }} 
                   />
                   <RechartsTooltip 
-                    formatter={(val: number) => [`${val.toFixed(4)} $`]}
+                    formatter={(val: number) => [`${val.toLocaleString('en-US', { maximumFractionDigits: 3 })} $`]}
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
                   />
                   <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '8px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
@@ -739,7 +778,7 @@ export default function CategoriesView({
                       <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />
                     ))}
                   </Pie>
-                  <RechartsTooltip formatter={(val: number) => [`${Math.round(val).toLocaleString()} $`]} />
+                  <RechartsTooltip formatter={(val: number) => [`${Number(val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $`]} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -817,7 +856,7 @@ export default function CategoriesView({
                         <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                       </span>
                       <span className="font-black text-stone-900">
-                        {Math.round(sc.totalValue).toLocaleString()} $
+                        {Number(sc.totalValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                       </span>
                     </div>
                   </div>
@@ -881,7 +920,7 @@ export default function CategoriesView({
                           <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                         </span>
                         <span className="font-black text-stone-800">
-                          {Math.round(stat.totalValue).toLocaleString()} $
+                          {Number(stat.totalValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                         </span>
                       </div>
                     </div>

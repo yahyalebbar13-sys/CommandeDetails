@@ -142,7 +142,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                             {o.quantity.toLocaleString()} <span className="text-[10px] text-stone-400 font-bold ml-1 uppercase">{o.unitOfMeasure}</span>
                           </TableCell>
                           <TableCell className="text-right font-black text-amber-700 text-xs py-3">
-                            {Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $
+                            {Number(o.quantity * o.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                           </TableCell>
                           <TableCell className="text-right py-3">
                             <div className="flex justify-end items-center gap-1">

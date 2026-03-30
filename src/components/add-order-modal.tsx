@@ -42,6 +42,11 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     sliderType: '',
     purchasePricePerUnit: 0,
     priority: 'todo',
+    hsCode: '',
+    customsValuePerKg: '',
+    importDutyRate: '',
+    tpiRate: '',
+    tvaRate: '',
   });
 
   const filteredSubCategories = useMemo(() => {
@@ -127,7 +132,18 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               </Label>
               <Select
                 disabled={!selectedGenCatId}
-                onValueChange={v => setFormData((p: any) => ({ ...p, categoryId: v }))}
+                onValueChange={v => {
+                  const cat = filteredSubCategories.find(c => c.name === v);
+                  setFormData((p: any) => ({ 
+                    ...p, 
+                    categoryId: v,
+                    hsCode: cat?.hsCode || '',
+                    customsValuePerKg: cat?.customsValuePerKg ?? '',
+                    importDutyRate: cat?.importDutyRate ?? '',
+                    tpiRate: cat?.tpiRate ?? '',
+                    tvaRate: cat?.tvaRate ?? ''
+                  }));
+                }}
               >
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue placeholder="Choisir..." />
@@ -263,6 +279,36 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation PA ($)</Label>
               <Input type="number" step="0.0001" className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({ ...p, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} />
+            </div>
+          </div>
+
+          <div className="p-4 bg-amber-50 rounded-xl border border-dashed border-amber-200 space-y-4">
+            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
+              <ClipboardList className="w-3.5 h-3.5" /> Informations Douanières
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Code HS</Label>
+                <Input placeholder="0000.00.00" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.hsCode} onChange={e => setFormData((p: any) => ({ ...p, hsCode: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Val Douane / Kg</Label>
+                <Input type="number" step="0.01" placeholder="0.00" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.customsValuePerKg} onChange={e => setFormData((p: any) => ({ ...p, customsValuePerKg: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Taux DI (%)</Label>
+                <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.importDutyRate} onChange={e => setFormData((p: any) => ({ ...p, importDutyRate: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TPI (%)</Label>
+                <Input type="number" step="0.01" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.tpiRate} onChange={e => setFormData((p: any) => ({ ...p, tpiRate: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TVA (%)</Label>
+                <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 bg-white" value={formData.tvaRate} onChange={e => setFormData((p: any) => ({ ...p, tvaRate: e.target.value !== '' ? Number(e.target.value) : '' }))} />
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { Order, Facture } from './types';
 
-export const initialOrders: Order[] = [
+export const initialOrders: any[] = [
   // ================== VISOR & TAG PINS ==================
   { category: "Visor for Cap", article: "Visor for Cap 2.8*72*182mm", specs: "20pcs/bundle", color: "WHITE", supplier: "MH", facture: "25MH114285", orderDate: "2025-12-12", arrivalDate: "2026-01-25", qty: 110, unit: "ctn", pa: 0.452, cbm: 3.20 },
   { category: "Visor for Cap", article: "Visor for Cap 2.8*72*182mm", specs: "20pcs/bundle", color: "BLACK", supplier: "MH", facture: "25MH114285", orderDate: "2025-12-12", arrivalDate: "2026-01-25", qty: 991, unit: "ctn", pa: 0.421, cbm: 28.50 },
@@ -111,7 +111,7 @@ export const initialOrders: Order[] = [
   { category: "Button", article: "COVERED MOULD BUTTON 15MM", specs: "1000set/bag", color: "ALUMINIUM", supplier: "JIMMY", facture: "25HD1045", orderDate: "2025-11-20", arrivalDate: "2026-01-05", qty: 1000, unit: "bag", pa: 5.20, cbm: 0.85 }
 ];
 
-export const initialFactures: Facture[] = [
+export const initialFactures: any[] = [
   { id: "25MH114285", arrivalDate: "2026-01-25", supplier: "MH", freight: 1200 },
   { id: "26HD1004", arrivalDate: "2026-02-05", supplier: "JIMMY", freight: 850 },
   { id: "INV-JACK-001", arrivalDate: "2026-01-20", supplier: "JACKSON", freight: 450 },

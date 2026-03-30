@@ -31,6 +31,11 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
   const [newSubName, setNewSubName] = useState('');
+  const [newSubHsCode, setNewSubHsCode] = useState('');
+  const [newSubCustomsValue, setNewSubCustomsValue] = useState<number | ''>('');
+  const [newSubDutyRate, setNewSubDutyRate] = useState<number | ''>('');
+  const [newSubTpiRate, setNewSubTpiRate] = useState<number | ''>('');
+  const [newSubTvaRate, setNewSubTvaRate] = useState<number | ''>('');
   const [targetGenCatId, setTargetGenCatId] = useState<string | null>(null);
 
   const groupStats = useMemo(() => {
@@ -133,14 +138,27 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     if (!user || !firestore || !newSubName.trim() || !targetGenCatId) return;
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'categories', id);
-    setDocumentNonBlocking(docRef, { 
+    const catData: any = { 
       id, 
       name: newSubName.trim().toUpperCase(), 
       generalCategoryId: targetGenCatId 
-    }, { merge: true });
+    };
+    
+    if (newSubHsCode) catData.hsCode = newSubHsCode;
+    if (newSubCustomsValue !== '') catData.customsValuePerKg = Number(newSubCustomsValue);
+    if (newSubDutyRate !== '') catData.importDutyRate = Number(newSubDutyRate);
+    if (newSubTpiRate !== '') catData.tpiRate = Number(newSubTpiRate);
+    if (newSubTvaRate !== '') catData.tvaRate = Number(newSubTvaRate);
+
+    setDocumentNonBlocking(docRef, catData, { merge: true });
     
     toast({ title: "Sous-catégorie ajoutée" });
     setNewSubName('');
+    setNewSubHsCode('');
+    setNewSubCustomsValue('');
+    setNewSubDutyRate('');
+    setNewSubTpiRate('');
+    setNewSubTvaRate('');
     setTargetGenCatId(null);
     setIsSubModalOpen(false);
   };
@@ -239,7 +257,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                       <DollarSign className="w-2.5 h-2.5" /> VALEUR TOTALE
                     </span>
                     <span className="font-black text-stone-900">
-                      {Math.round(stats.totalValue).toLocaleString()} $
+                      {Number(stats.totalValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
                     </span>
                   </div>
                 </div>
@@ -319,6 +337,32 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-amber-600 text-base"
                 autoFocus
               />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Code HS</label>
+                <Input value={newSubHsCode} onChange={e => setNewSubHsCode(e.target.value)} placeholder="0000.00.00" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Val Douane / Kg ($)</label>
+                <Input type="number" step="0.01" value={newSubCustomsValue} onChange={e => setNewSubCustomsValue(e.target.value ? Number(e.target.value) : '')} placeholder="0.00" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Taux DI (%)</label>
+                <Input type="number" step="0.1" value={newSubDutyRate} onChange={e => setNewSubDutyRate(e.target.value ? Number(e.target.value) : '')} placeholder="2.5" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">TPI (%)</label>
+                <Input type="number" step="0.01" value={newSubTpiRate} onChange={e => setNewSubTpiRate(e.target.value ? Number(e.target.value) : '')} placeholder="0.25" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">TVA (%)</label>
+                <Input type="number" step="0.1" value={newSubTvaRate} onChange={e => setNewSubTvaRate(e.target.value ? Number(e.target.value) : '')} placeholder="20" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
+              </div>
             </div>
           </div>
           <DialogFooter className="p-6 bg-stone-50 gap-3">

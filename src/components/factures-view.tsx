@@ -145,15 +145,15 @@ export default function FacturesView({
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto relative z-10">
-              <SummaryBlock label="Efficience Fret" value={Math.round(selectedFacture.efficiency).toString()} sub="$ / m³" color="text-amber-500" />
-              <SummaryBlock label="Volume Total" value={Math.round(selectedFacture.cbm).toString()} sub="m³" color="text-blue-400" />
+              <SummaryBlock label="Efficience Fret" value={Number(selectedFacture.efficiency).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$ / m³" color="text-amber-500" />
+              <SummaryBlock label="Volume Total" value={Number(selectedFacture.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="m³" color="text-blue-400" />
               <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg">
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Facture Réelle</p>
-                <div className="text-xl font-black">{Math.round(selectedFacture.realFactureValue).toLocaleString()} $</div>
+                <div className="text-xl font-black">{Number(selectedFacture.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
               </div>
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
                 <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Déclarée (Douane)</p>
-                <div className="text-xl font-black">{Math.round(selectedFacture.declaredValue || selectedFacture.realFactureValue).toLocaleString()} $</div>
+                <div className="text-xl font-black">{Number(selectedFacture.declaredValue || selectedFacture.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
               </div>
             </div>
           </div>
@@ -170,12 +170,12 @@ export default function FacturesView({
               </div>
               <div>
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Valeur Marchandise Seule</p>
-                <p className="text-[11px] font-bold text-stone-600">{Math.round(selectedFacture.itemsVal).toLocaleString()} $</p>
+                <p className="text-[11px] font-bold text-stone-600">{Number(selectedFacture.itemsVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
               </div>
               <div>
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Frais de Fret Appliqués</p>
                 <div className="flex items-center gap-2">
-                  <p className="text-[11px] font-bold text-blue-600">{Math.round(selectedFacture.freight).toLocaleString()} $</p>
+                  <p className="text-[11px] font-bold text-blue-600">{Number(selectedFacture.freight).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
                   {Number(selectedFacture.netWeight) > 0 && (
                     <span className="text-[9px] font-bold text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded uppercase">
                       NW: {selectedFacture.netWeight.toLocaleString()} kg
@@ -226,11 +226,11 @@ export default function FacturesView({
                         )}
                       </TableCell>
                       <TableCell className="text-right font-black text-xs py-3">
-                        {Math.round(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
+                        {Number(o.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[9px] text-stone-400 font-normal uppercase ml-1">{o.unitOfMeasure}</span>
                       </TableCell>
-                      <TableCell className="text-right text-emerald-600 font-bold text-xs py-3">{o.cubicMeasurement?.toFixed(3)} m³</TableCell>
-                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">{Number(o.purchasePricePerUnit).toFixed(4)} $</TableCell>
-                      <TableCell className="text-right font-black text-stone-900 text-xs py-3 pr-8">{Math.round(o.quantity * o.purchasePricePerUnit).toLocaleString()} $</TableCell>
+                      <TableCell className="text-right text-emerald-600 font-bold text-xs py-3">{o.cubicMeasurement?.toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</TableCell>
+                      <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">{Number(o.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                      <TableCell className="text-right font-black text-stone-900 text-xs py-3 pr-8">{Number(o.quantity * o.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
                     </TableRow>
                   );
                 })}
@@ -355,12 +355,12 @@ export default function FacturesView({
               <div className="grid grid-cols-2 gap-4 mb-8">
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Valeur Facture</p>
-                  <p className="text-base font-black text-stone-900">{Math.round(f.realFactureValue).toLocaleString()}</p>
+                  <p className="text-base font-black text-stone-900">{Number(f.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })}</p>
                   <p className="text-[7px] font-bold text-stone-300">TOTAL RÉEL $</p>
                 </div>
                 <div className="bg-stone-50 p-4 rounded-2xl text-center group-hover:bg-stone-100/50 transition-colors">
                   <p className="text-[8px] font-black text-stone-400 uppercase mb-1">Volume</p>
-                  <p className="text-base font-black text-stone-900">{Math.round(f.cbm).toLocaleString()}</p>
+                  <p className="text-base font-black text-stone-900">{Number(f.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })}</p>
                   <p className="text-[7px] font-bold text-stone-300">m³</p>
                 </div>
               </div>
@@ -368,7 +368,7 @@ export default function FacturesView({
               <div className="pt-6 border-t border-stone-100 flex justify-between items-end">
                 <div>
                   <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Déclarée (Douane)</p>
-                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Math.round(f.declaredValue || f.realFactureValue).toLocaleString()} $</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Number(f.declaredValue || f.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
                 </div>
                 <div className="p-3 bg-stone-50 rounded-xl group-hover:bg-stone-900 group-hover:text-white transition-all">
                   <ArrowUpRight className="w-4 h-4" />
