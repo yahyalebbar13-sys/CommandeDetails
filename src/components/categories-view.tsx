@@ -31,7 +31,9 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
 } from 'recharts';
-import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -69,6 +71,47 @@ export default function CategoriesView({
   const [searchTerm, setSearchTerm] = useState('');
   const [todayStr, setTodayStr] = useState('');
   const [editingArticle, setEditingArticle] = useState<any>(null);
+
+  const currentCategoryObj = useMemo(() => {
+    if (!selectedCategory || !subCategories) return null;
+    return subCategories.find(c => c.name === selectedCategory) || null;
+  }, [selectedCategory, subCategories]);
+
+  const [isCustomsModalOpen, setIsCustomsModalOpen] = useState(false);
+  const [customsForm, setCustomsForm] = useState({
+    hsCode: '',
+    customsValuePerKg: '',
+    importDutyRate: '',
+    tpiRate: '',
+    tvaRate: ''
+  });
+
+  useEffect(() => {
+    if (currentCategoryObj && isCustomsModalOpen) {
+      setCustomsForm({
+        hsCode: currentCategoryObj.hsCode || '',
+        customsValuePerKg: currentCategoryObj.customsValuePerKg ?? '',
+        importDutyRate: currentCategoryObj.importDutyRate ?? '',
+        tpiRate: currentCategoryObj.tpiRate ?? '',
+        tvaRate: currentCategoryObj.tvaRate ?? ''
+      });
+    }
+  }, [currentCategoryObj, isCustomsModalOpen]);
+
+  const handleUpdateCustoms = () => {
+    if (!user || !firestore || !currentCategoryObj) return;
+    const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
+    updateDocumentNonBlocking(docRef, {
+      ...currentCategoryObj,
+      hsCode: customsForm.hsCode,
+      customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
+      importDutyRate: customsForm.importDutyRate === '' ? null : Number(customsForm.importDutyRate),
+      tpiRate: customsForm.tpiRate === '' ? null : Number(customsForm.tpiRate),
+      tvaRate: customsForm.tvaRate === '' ? null : Number(customsForm.tvaRate),
+    });
+    toast({ title: 'Données douanières mises à jour' });
+    setIsCustomsModalOpen(false);
+  };
 
   useEffect(() => {
     const today = new Date();
@@ -382,7 +425,28 @@ export default function CategoriesView({
               </Button>
               <div>
                 <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
+                  {currentCategoryObj && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="h-8 border-stone-700 bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white rounded-lg px-3 space-x-2 text-[10px] uppercase font-bold"
+                      onClick={() => setIsCustomsModalOpen(true)}
+                    >
+                      <span>HS: {currentCategoryObj.hsCode || 'NON DÉFINI'}</span>
+                      <Pencil className="w-3 h-3 text-amber-500" />
+                    </Button>
+                  )}
+                </div>
+                {currentCategoryObj && (currentCategoryObj.customsValuePerKg != null || currentCategoryObj.importDutyRate != null || currentCategoryObj.tpiRate != null || currentCategoryObj.tvaRate != null) && (
+                  <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-bold text-stone-400 bg-stone-800/50 p-2 rounded-lg max-w-fit leading-tight border border-stone-800">
+                    {currentCategoryObj.customsValuePerKg != null && <span>VAL LÉGALE: <span className="text-stone-300">{currentCategoryObj.customsValuePerKg} dh/kg</span></span>}
+                    {currentCategoryObj.importDutyRate != null && <span>DI: <span className="text-stone-300">{currentCategoryObj.importDutyRate}%</span></span>}
+                    {currentCategoryObj.tpiRate != null && <span>TPI: <span className="text-stone-300">{currentCategoryObj.tpiRate}%</span></span>}
+                    {currentCategoryObj.tvaRate != null && <span>TVA: <span className="text-stone-300">{currentCategoryObj.tvaRate}%</span></span>}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -459,19 +523,7 @@ export default function CategoriesView({
                               <Pencil className="w-3 h-3" />
                             </Button>
                           </div>
-                          {((a.hsCode) || (a.customsValuePerKg != null) || (a.importDutyRate != null) || (a.tpiRate != null) || (a.tvaRate != null)) && (
-                            <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
-                              {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
-                              <span className="text-[7.5px] text-stone-400 leading-tight">
-                                {[
-                                  a.customsValuePerKg != null && `${a.customsValuePerKg}$/kg`,
-                                  a.importDutyRate != null && `DI:${a.importDutyRate}%`,
-                                  a.tpiRate != null && `TPI:${a.tpiRate}%`,
-                                  a.tvaRate != null && `TVA:${a.tvaRate}%`
-                                ].filter(Boolean).join(' • ')}
-                              </span>
-                            </div>
-                          )}
+
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
@@ -564,19 +616,7 @@ export default function CategoriesView({
                               <Pencil className="w-3 h-3" />
                             </Button>
                           </div>
-                          {((a.hsCode) || (a.customsValuePerKg != null) || (a.importDutyRate != null) || (a.tpiRate != null) || (a.tvaRate != null)) && (
-                            <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
-                              {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
-                              <span className="text-[7.5px] text-stone-400 leading-tight">
-                                {[
-                                  a.customsValuePerKg != null && `${a.customsValuePerKg}$/kg`,
-                                  a.importDutyRate != null && `DI:${a.importDutyRate}%`,
-                                  a.tpiRate != null && `TPI:${a.tpiRate}%`,
-                                  a.tvaRate != null && `TVA:${a.tvaRate}%`
-                                ].filter(Boolean).join(' • ')}
-                              </span>
-                            </div>
-                          )}
+
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
@@ -668,19 +708,6 @@ export default function CategoriesView({
                               <Pencil className="w-3 h-3" />
                             </Button>
                           </div>
-                          {((a.hsCode) || (a.customsValuePerKg != null) || (a.importDutyRate != null) || (a.tpiRate != null) || (a.tvaRate != null)) && (
-                            <div className="mt-1 flex flex-col gap-0.5 text-[8px] font-bold text-stone-500">
-                              {a.hsCode && <span className="uppercase text-amber-700">HS: {a.hsCode}</span>}
-                              <span className="text-[7.5px] text-stone-400 leading-tight">
-                                {[
-                                  a.customsValuePerKg != null && `${a.customsValuePerKg}$/kg`,
-                                  a.importDutyRate != null && `DI:${a.importDutyRate}%`,
-                                  a.tpiRate != null && `TPI:${a.tpiRate}%`,
-                                  a.tvaRate != null && `TVA:${a.tvaRate}%`
-                                ].filter(Boolean).join(' • ')}
-                              </span>
-                            </div>
-                          )}
                         </TableCell>
                         <TableCell className="py-3">
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
@@ -826,6 +853,46 @@ export default function CategoriesView({
             factures={factures} 
           />
         )}
+        
+        <Dialog open={isCustomsModalOpen} onOpenChange={setIsCustomsModalOpen}>
+          <DialogContent className="max-w-md rounded-[1.5rem] p-0 border-none overflow-hidden">
+            <div className="bg-amber-600 p-6 text-white">
+              <DialogTitle className="text-lg font-black uppercase tracking-tight">Informations Douanières</DialogTitle>
+              <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">Audit Analytique Produit - {selectedCategory}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Code HS</Label>
+                  <Input placeholder="0000.00.00" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.hsCode} onChange={e => setCustomsForm(p => ({ ...p, hsCode: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Val Douane / Kg (dh)</Label>
+                  <Input type="number" step="0.01" placeholder="0.00" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.customsValuePerKg} onChange={e => setCustomsForm(p => ({ ...p, customsValuePerKg: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Taux DI (%)</Label>
+                  <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.importDutyRate} onChange={e => setCustomsForm(p => ({ ...p, importDutyRate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TPI (%)</Label>
+                  <Input type="number" step="0.01" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.tpiRate} onChange={e => setCustomsForm(p => ({ ...p, tpiRate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TVA (%)</Label>
+                  <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.tvaRate} onChange={e => setCustomsForm(p => ({ ...p, tvaRate: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="p-6 bg-stone-50 gap-3">
+              <Button variant="ghost" onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
+              <Button onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">Enregistrer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     );
   }

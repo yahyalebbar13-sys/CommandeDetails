@@ -345,7 +345,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 <Input value={newSubHsCode} onChange={e => setNewSubHsCode(e.target.value)} placeholder="0000.00.00" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Val Douane / Kg ($)</label>
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Val Douane / Kg (dh)</label>
                 <Input type="number" step="0.01" value={newSubCustomsValue} onChange={e => setNewSubCustomsValue(e.target.value ? Number(e.target.value) : '')} placeholder="0.00" className="h-10 text-[11px] font-bold border-stone-200 rounded-xl focus:ring-amber-600" />
               </div>
             </div>

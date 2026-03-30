@@ -39,11 +39,6 @@ export type Order = {
   priority?: 'urgent' | 'important' | 'todo';
   status: OrderStatus;
   createdAt?: any;
-  hsCode?: string;
-  customsValuePerKg?: number;
-  importDutyRate?: number;
-  tpiRate?: number;
-  tvaRate?: number;
 };
 
 export type Facture = {
