@@ -32,6 +32,7 @@ const COMPANIES_LIST = ["New fournitures", "Lebtex", "Robe in box"];
 export default function SuppliersView({ articles, factures, payments, onNavigateToFacture }: SuppliersViewProps) {
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [selectedShipping, setSelectedShipping] = useState<string | null>(null);
 
   const supplierStats = useMemo(() => {
     const stats: Record<string, { val: number; orders: number; categories: Set<string> }> = {};
@@ -67,6 +68,27 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
     }).sort((a, b) => b.val - a.val);
   }, [articles, factures]);
 
+  const shippingStats = useMemo(() => {
+    const stats: Record<string, { val: number; dossiers: number; freight: number; cbm: number }> = {};
+    factures.forEach(f => {
+      const line = f.shippingLine || 'Inconnu';
+      if (!stats[line]) stats[line] = { val: 0, dossiers: 0, freight: 0, cbm: 0 };
+      
+      const fArticles = articles.filter(a => a.factureId === f.id);
+      const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
+      const itemsCbm = fArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
+      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      
+      stats[line].val += (itemsVal + freight);
+      stats[line].freight += freight;
+      stats[line].dossiers += 1;
+      stats[line].cbm += itemsCbm;
+    });
+    return Object.entries(stats)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.freight - a.freight);
+  }, [articles, factures]);
+
   if (selectedSupplier) {
     return (
       <SupplierDetailView 
@@ -87,6 +109,18 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
         articles={articles} 
         factures={factures}
         onBack={() => setSelectedCompany(null)}
+        onNavigateToFacture={onNavigateToFacture}
+      />
+    );
+  }
+
+  if (selectedShipping) {
+    return (
+      <ShippingDetailView 
+        shippingName={selectedShipping} 
+        articles={articles} 
+        factures={factures}
+        onBack={() => setSelectedShipping(null)}
         onNavigateToFacture={onNavigateToFacture}
       />
     );
@@ -178,6 +212,49 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
                   <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
                     <span>Articles</span>
                     <span className="text-stone-900">{stat.articles}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <Separator className="bg-stone-200" />
+
+      <section className="space-y-6 pb-10">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-emerald-500/10 rounded-lg">
+            <Ship className="w-5 h-5 text-emerald-600" />
+          </div>
+          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Compagnies Maritimes</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {shippingStats.map((stat) => (
+            <Card 
+              key={stat.name} 
+              onClick={() => setSelectedShipping(stat.name)}
+              className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-emerald"
+            >
+              <div className="h-1 w-full bg-stone-900 group-hover:bg-emerald-500 transition-colors" />
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-emerald-600 transition-colors">{stat.name}</CardTitle>
+                  <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-emerald-500 transition-colors">
+                    <Ship className="w-4 h-4" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-black text-stone-900 mb-6">{Number(stat.freight).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
+                <div className="space-y-2 pt-4 border-t border-stone-50">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                    <span>Arrivages</span>
+                    <span className="text-stone-900">{stat.dossiers}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                    <span>Volume</span>
+                    <span className="text-stone-900">{Number(stat.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</span>
                   </div>
                 </div>
               </CardContent>
@@ -650,5 +727,133 @@ function AddPaymentModal({ open, onOpenChange, supplierId }: { open: boolean, on
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ShippingDetailView({ 
+  shippingName, 
+  articles, 
+  factures, 
+  onBack, 
+  onNavigateToFacture 
+}: { 
+  shippingName: string, 
+  articles: any[], 
+  factures: any[], 
+  onBack: () => void, 
+  onNavigateToFacture: (id: string) => void 
+}) {
+  const shippingFactures = useMemo(() => {
+    const now = new Date();
+    return factures.filter(f => (f.shippingLine || 'Inconnu') === shippingName).map(f => {
+      const fArticles = articles.filter(a => a.factureId === f.id);
+      const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
+      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      const cbm = fArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
+      return {
+        ...f,
+        totalReal: itemsVal + freight,
+        freight,
+        cbm,
+        isArrived: f.arrivalDate ? new Date(f.arrivalDate) <= now : false
+      };
+    }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+  }, [shippingName, factures, articles]);
+
+  const totalFreightVal = shippingFactures.reduce((s, f) => s + f.freight, 0);
+  const totalRealVal = shippingFactures.reduce((s, f) => s + f.totalReal, 0);
+  const totalCbm = shippingFactures.reduce((s, f) => s + f.cbm, 0);
+
+  return (
+    <div className="space-y-8 fade-in">
+      <div className="flex items-center gap-3">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onBack} 
+          className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
+        >
+          <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+      </div>
+
+      <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
+        <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
+          
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="p-4 bg-stone-800 rounded-2xl shadow-lg border border-white/5">
+              <Ship className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-1">Compagnie Maritime</p>
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{shippingName}</h2>
+              <div className="flex gap-4 mt-4">
+                <Badge className="bg-white/10 text-white border-white/10 px-3 py-1 text-[10px] font-bold uppercase">
+                  {shippingFactures.length} Arrivages
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full xl:w-auto relative z-10">
+            <SummaryBlock label="Fret Total" value={Number(totalFreightVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$" color="text-white" />
+            <SummaryBlock label="Volume Total" value={Number(totalCbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="m³" color="text-emerald-500" />
+            <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg border border-white/5">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Transit</p>
+              <div className="text-xl font-black text-stone-300">{Number(totalRealVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section className="space-y-4">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-stone-100 rounded-lg">
+            <Layers className="w-4 h-4 text-stone-500" />
+          </div>
+          <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Historique des Lignes de {shippingName}</h3>
+        </div>
+        <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
+          <Table>
+            <TableHeader className="bg-stone-50/80">
+              <TableRow>
+                <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">N° Dossier</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Arrivée</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4">Volume CBM</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4 text-emerald-600">Fret Payé</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4">Valeur Marchandise</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shippingFactures.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucune opération pour cette ligne</TableCell></TableRow>
+              ) : shippingFactures.map((f) => (
+                <TableRow key={f.id} className="hover:bg-stone-50/50 transition-colors group">
+                  <TableCell className="py-3">
+                    {f.isArrived ? 
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] font-black uppercase">Réceptionné</Badge> : 
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] font-black uppercase">Transit</Badge>
+                    }
+                  </TableCell>
+                  <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
+                  <TableCell className={`py-3 text-[10px] font-bold ${f.isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>{f.arrivalDate}</TableCell>
+                  <TableCell className="py-3 text-right font-black text-stone-500 text-[11px]">{Number(f.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</TableCell>
+                  <TableCell className="py-3 text-right font-black text-emerald-600 text-[11px] bg-emerald-50/30">{Number(f.freight).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                  <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(f.totalReal - f.freight).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                  <TableCell className="py-3">
+                    <Button variant="ghost" size="icon" onClick={() => onNavigateToFacture(f.id)} className="h-7 w-7 text-stone-300 hover:text-stone-900 opacity-0 group-hover:opacity-100">
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </section>
+    </div>
   );
 }

@@ -7,10 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, 
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
+import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -36,6 +37,7 @@ export default function FacturesView({
   const { toast } = useToast();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [modalInitialData, setModalInitialData] = useState<any>(null);
+  const [editingArticle, setEditingArticle] = useState<any>(null);
 
   const { declaredFactures, orphanedFactureIds } = useMemo(() => {
     const declaredIds = new Set((factures || []).map(f => f.id));
@@ -206,12 +208,22 @@ export default function FacturesView({
                   return (
                     <TableRow key={o.id} className="hover:bg-stone-50/50 transition-colors border-stone-100 group">
                       <TableCell className="py-3 px-8">
-                        <button 
-                          onClick={() => onNavigateToCategory(o.categoryId)}
-                          className="text-[11px] font-black text-stone-900 group-hover:text-amber-600 uppercase flex items-center gap-2 transition-colors text-left"
-                        >
-                          {o.name} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </button>
+                        <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
+                          <button 
+                            onClick={() => onNavigateToCategory(o.categoryId)}
+                            className="group-hover:text-amber-600 flex items-center gap-2 transition-colors text-left"
+                          >
+                            {o.name} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" 
+                            onClick={(e) => { e.stopPropagation(); setEditingArticle(o); }}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell className="py-3 text-[10px]">{o.size || '-'}</TableCell>
                       <TableCell className="py-3 text-[10px]">{o.color || '-'}</TableCell>
@@ -256,6 +268,14 @@ export default function FacturesView({
           editFacture={modalInitialData}
           associatedArticles={selectedFactureArticles}
         />
+
+        {editingArticle && (
+          <EditOrderModal 
+            article={editingArticle} 
+            onOpenChange={(open) => !open && setEditingArticle(null)} 
+            factures={factures} 
+          />
+        )}
       </div>
     );
   }
