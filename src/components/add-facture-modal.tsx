@@ -40,7 +40,11 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     forwarderGivenDate: '',
     freightCost: 0,
     declaredValue: 0,
-    customsPaidDhs: 0
+    customsPaidDhs: 0,
+    invoicePaidDhs: 0,
+    exchangeInvoiceAmount: 0,
+    supplierInvoiceAmount: 0,
+    additionalCostsAmount: 0
   });
 
   useEffect(() => {
@@ -58,7 +62,11 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         forwarderGivenDate: editFacture.forwarderGivenDate || '',
         freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0,
         declaredValue: Number(editFacture.declaredValue) || 0,
-        customsPaidDhs: Number(editFacture.customsPaidDhs) || 0
+        customsPaidDhs: Number(editFacture.customsPaidDhs) || 0,
+        invoicePaidDhs: Number(editFacture.invoicePaidDhs) || 0,
+        exchangeInvoiceAmount: Number(editFacture.exchangeInvoiceAmount) || 0,
+        supplierInvoiceAmount: Number(editFacture.supplierInvoiceAmount) || 0,
+        additionalCostsAmount: Number(editFacture.additionalCostsAmount) || 0
       });
     } else {
       setFormData({
@@ -74,7 +82,11 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         forwarderGivenDate: '',
         freightCost: 0,
         declaredValue: 0,
-        customsPaidDhs: 0
+        customsPaidDhs: 0,
+        invoicePaidDhs: 0,
+        exchangeInvoiceAmount: 0,
+        supplierInvoiceAmount: 0,
+        additionalCostsAmount: 0
       });
     }
   }, [editFacture, open]);
@@ -134,7 +146,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° FACTURE / CONTENEUR</Label>
@@ -314,7 +326,59 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 placeholder="0.00 MAD"
               />
             </div>
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-stone-100">
+            <div className="space-y-1.5 focus-within:text-emerald-600">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> FACTURE PAYÉE (MAD)
+              </Label>
+              <Input 
+                type="number" step="0.01"
+                className="border-stone-200 h-11 font-black text-emerald-600 rounded-xl"
+                value={formData.invoicePaidDhs || ''}
+                onChange={e => setFormData((prev: any) => ({ ...prev, invoicePaidDhs: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00 MAD"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> FACTURE D'ÉCHANGE (MAD)
+              </Label>
+              <Input 
+                type="number" step="0.01"
+                className="border-stone-200 h-11 font-bold rounded-xl"
+                value={formData.exchangeInvoiceAmount || ''}
+                onChange={e => setFormData((prev: any) => ({ ...prev, exchangeInvoiceAmount: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00 MAD"
+              />
+            </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> FACTURE FRNS (MAD)
+              </Label>
+              <Input 
+                type="number" step="0.01"
+                className="border-stone-200 h-11 font-bold rounded-xl"
+                value={formData.supplierInvoiceAmount || ''}
+                onChange={e => setFormData((prev: any) => ({ ...prev, supplierInvoiceAmount: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00 MAD"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Truck className="w-3 h-3" /> FRAIS SUPP (MAD)
+              </Label>
+              <Input 
+                type="number" step="0.01"
+                className="border-stone-200 h-11 font-bold rounded-xl"
+                value={formData.additionalCostsAmount || ''}
+                onChange={e => setFormData((prev: any) => ({ ...prev, additionalCostsAmount: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00 MAD"
+              />
+            </div>
+          </div></div>
           
           {associatedArticles && associatedArticles.length > 0 && (
             <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">

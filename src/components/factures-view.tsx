@@ -149,6 +149,12 @@ export default function FacturesView({
                   </span>
                 </div>
               </div>
+              {selectedFacture.stockEntryDate && (
+                <div className="bg-emerald-500/20 p-3 px-4 rounded-2xl border border-emerald-500/30 shrink-0">
+                  <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Entrée Stock</p>
+                  <p className="text-sm font-black text-white uppercase">{selectedFacture.stockEntryDate}</p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full lg:w-auto relative z-10">
@@ -200,6 +206,35 @@ export default function FacturesView({
               </div>
             </div>
           </div>
+
+          {(selectedFacture.invoicePaidDhs || selectedFacture.exchangeInvoiceAmount || selectedFacture.supplierInvoiceAmount || selectedFacture.additionalCostsAmount) && (
+            <div className="px-8 py-3 bg-stone-900 border-t border-white/5 flex gap-12 overflow-x-auto whitespace-nowrap scrollbar-hide">
+              {selectedFacture.invoicePaidDhs > 0 && (
+                <div>
+                  <p className="text-[7px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5">Total Payé (MAD)</p>
+                  <p className="text-[12px] font-black text-emerald-400">{selectedFacture.invoicePaidDhs.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                </div>
+              )}
+              {selectedFacture.exchangeInvoiceAmount > 0 && (
+                <div>
+                  <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Facture Échange</p>
+                  <p className="text-[12px] font-black text-white">{selectedFacture.exchangeInvoiceAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                </div>
+              )}
+              {selectedFacture.supplierInvoiceAmount > 0 && (
+                <div>
+                  <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Facture FRNS</p>
+                  <p className="text-[12px] font-black text-white">{selectedFacture.supplierInvoiceAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                </div>
+              )}
+              {selectedFacture.additionalCostsAmount > 0 && (
+                <div>
+                  <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Frais Supp.</p>
+                  <p className="text-[12px] font-black text-stone-300">{selectedFacture.additionalCostsAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="p-0">
             <Table>

@@ -56,6 +56,10 @@ export type Facture = {
   freightCost: number;
   declaredValue?: number;
   customsPaidDhs?: number;
+  invoicePaidDhs?: number;
+  exchangeInvoiceAmount?: number;
+  supplierInvoiceAmount?: number;
+  additionalCostsAmount?: number;
 };
 
 export type SupplierPayment = {

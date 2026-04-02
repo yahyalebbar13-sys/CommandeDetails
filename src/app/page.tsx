@@ -15,6 +15,7 @@ import TransitOrdersView from '@/components/transit-orders-view';
 import TimelineView from '@/components/timeline-view';
 import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
+import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import { Button } from '@/components/ui/button';
 import { 
@@ -44,6 +45,7 @@ export default function StockVueApp() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [passToStockFactureId, setPassToStockFactureId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const facturesRef = useMemoFirebase(() => {
@@ -71,11 +73,17 @@ export default function StockVueApp() {
     return collection(firestore, 'users', user.uid, 'supplierPayments');
   }, [firestore, user]);
 
-  const { data: factures = [], isLoading: isFacturesLoading } = useCollection(facturesRef);
-  const { data: articles = [], isLoading: isArticlesLoading } = useCollection(articlesRef);
-  const { data: generalCategories = [], isLoading: isGenCatsLoading } = useCollection(genCatsRef);
-  const { data: subCategories = [], isLoading: isSubCatsLoading } = useCollection(subCatsRef);
-  const { data: payments = [], isLoading: isPaymentsLoading } = useCollection(paymentsRef);
+  const { data: rawFactures, isLoading: isFacturesLoading } = useCollection(facturesRef);
+  const { data: rawArticles, isLoading: isArticlesLoading } = useCollection(articlesRef);
+  const { data: rawGenCats, isLoading: isGenCatsLoading } = useCollection(genCatsRef);
+  const { data: rawSubCats, isLoading: isSubCatsLoading } = useCollection(subCatsRef);
+  const { data: rawPayments, isLoading: isPaymentsLoading } = useCollection(paymentsRef);
+
+  const factures = rawFactures || [];
+  const articles = rawArticles || [];
+  const generalCategories = rawGenCats || [];
+  const subCategories = rawSubCats || [];
+  const payments = rawPayments || [];
 
   const handleNavigateToFacture = (factureId: string) => {
     setSelectedFactureId(factureId);
@@ -85,6 +93,10 @@ export default function StockVueApp() {
 
   const handleEditArticle = (article: any) => {
     setEditingArticle(article);
+  };
+
+  const handlePassToStock = (factureId: string) => {
+    setPassToStockFactureId(factureId);
   };
 
   const handleSelectGeneralCategory = (id: string | null) => {
@@ -203,7 +215,7 @@ export default function StockVueApp() {
             {activeTab === 'to-order' && <ToOrderView articles={articles} onEdit={handleEditArticle} />}
             {activeTab === 'pending' && <PendingOrdersView articles={articles} factures={factures} onEdit={handleEditArticle} />}
             {activeTab === 'transit' && <TransitOrdersView articles={articles} onEdit={handleEditArticle} />}
-            {activeTab === 'timeline' && <TimelineView articles={articles} factures={factures} onNavigateToFacture={handleNavigateToFacture} />}
+            {activeTab === 'timeline' && <TimelineView articles={articles} factures={factures} onNavigateToFacture={handleNavigateToFacture} onPassToStock={handlePassToStock} />}
             {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
             {activeTab === 'general-categories' && <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={handleSelectGeneralCategory} />}
             {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={handleSelectGeneralCategory} />}
@@ -222,8 +234,17 @@ export default function StockVueApp() {
         </div>
       </footer>
       
+      
       <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} />
       <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
+      {passToStockFactureId && (
+        <PassToStockModal 
+          open={!!passToStockFactureId} 
+          onOpenChange={(open) => !open && setPassToStockFactureId(null)} 
+          facture={factures.find(f => f.id === passToStockFactureId)}
+          associatedArticles={articles.filter(a => a.factureId === passToStockFactureId)}
+        />
+      )}
     </div>
   );
 }
