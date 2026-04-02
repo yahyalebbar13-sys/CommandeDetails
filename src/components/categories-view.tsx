@@ -218,9 +218,9 @@ export default function CategoriesView({
     if (!selectedCategory || !todayStr) return null;
     
     return {
-      transit: currentArticles.filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr),
+      transit: currentArticles.filter(a => a.status === 'SHIPPED' && (!a.stockEntryDate || a.stockEntryDate > todayStr)),
       arrived: currentArticles.filter(a => 
-        (a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate <= todayStr)
+        (a.status === 'SHIPPED' && a.stockEntryDate && a.stockEntryDate <= todayStr)
       ),
       production: currentArticles.filter(a => a.status === 'PI'),
       pending: currentArticles.filter(a => a.status === 'TO_ORDER')
@@ -686,7 +686,7 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique / Spécifications</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Cmd</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Réceptionné le</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Entrée Stock</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur Totale</TableHead>
                   </TableRow>
@@ -726,7 +726,7 @@ export default function CategoriesView({
                           )}
                         </TableCell>
                         <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.arrivalDate}</TableCell>
+                        <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.stockEntryDate || a.arrivalDate}</TableCell>
                         <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
                           <div>
                             {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>

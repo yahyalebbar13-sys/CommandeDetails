@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
-  AlertCircle, CheckCircle2, FileText, Box, 
+  AlertCircle, CheckCircle2, FileText, Box, Truck,
   ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -134,6 +134,11 @@ export default function FacturesView({
                       <Hash className="w-3 h-3 mr-2" /> BL: {selectedFacture.noBL}
                     </Badge>
                   )}
+                  {selectedFacture.forwarder && (
+                    <Badge variant="outline" className="text-amber-400 border-amber-500/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
+                      <Truck className="w-3 h-3 mr-2" /> {selectedFacture.forwarder}
+                    </Badge>
+                  )}
                   {selectedFacture.shippingLine && (
                     <Badge variant="outline" className="text-stone-400 border-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
                       <Ship className="w-3 h-3 mr-2" /> {selectedFacture.shippingLine}
@@ -146,7 +151,7 @@ export default function FacturesView({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto relative z-10">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full lg:w-auto relative z-10">
               <SummaryBlock label="Efficience Fret" value={Number(selectedFacture.efficiency).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="$ / m³" color="text-amber-500" />
               <SummaryBlock label="Volume Total" value={Number(selectedFacture.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} sub="m³" color="text-blue-400" />
               <div className="bg-stone-800 p-5 rounded-2xl text-white shadow-lg">
@@ -154,8 +159,12 @@ export default function FacturesView({
                 <div className="text-xl font-black">{Number(selectedFacture.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
               </div>
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
-                <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Déclarée (Douane)</p>
+                <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Douane</p>
                 <div className="text-xl font-black">{Number(selectedFacture.declaredValue || selectedFacture.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
+              </div>
+              <div className="bg-red-600 p-5 rounded-2xl text-white shadow-lg shadow-red-600/20">
+                <p className="text-[8px] font-black text-red-100 uppercase tracking-widest mb-1">Droits Payés</p>
+                <div className="text-xl font-black">{Number(selectedFacture.customsPaidDhs || 0).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[10px] font-bold text-red-200 ml-1">MAD</span></div>
               </div>
             </div>
           </div>
@@ -169,6 +178,10 @@ export default function FacturesView({
               <div>
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Date d'Arrivée (ETA)</p>
                 <p className="text-[11px] font-bold text-stone-600">{selectedFacture.arrivalDate}</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Transitaire (Remis le)</p>
+                <p className="text-[11px] font-bold text-stone-600">{selectedFacture.forwarder || '-'} {selectedFacture.forwarderGivenDate ? `(${selectedFacture.forwarderGivenDate})` : ''}</p>
               </div>
               <div>
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Valeur Marchandise Seule</p>

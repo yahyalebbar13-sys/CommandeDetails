@@ -97,11 +97,15 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
 
     let arrivalDate = formData.arrivalDate || '';
+    let stockEntryDate = formData.stockEntryDate || '';
     const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
 
     if (formData.status === 'SHIPPED' && finalFactureId) {
       const selectedFacture = (factures || []).find(f => f.id === finalFactureId);
-      if (selectedFacture) arrivalDate = selectedFacture.arrivalDate;
+      if (selectedFacture) {
+        arrivalDate = selectedFacture.arrivalDate;
+        stockEntryDate = selectedFacture.stockEntryDate || '';
+      }
     }
 
     const finalData = {
@@ -109,7 +113,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       factureId: finalFactureId,
-      arrivalDate
+      arrivalDate,
+      stockEntryDate
     };
 
     updateDocumentNonBlocking(docRef, finalData);

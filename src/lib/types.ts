@@ -31,6 +31,7 @@ export type Order = {
   factureId?: string;
   orderDate: string;
   arrivalDate?: string;
+  stockEntryDate?: string;
   quantity: number;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
@@ -45,12 +46,16 @@ export type Facture = {
   id: string;
   noBL?: string;
   arrivalDate: string;
+  stockEntryDate?: string;
   shippingDate?: string;
   shippingLine?: string;
   supplierId: string;
   declaringCompany?: "New fournitures" | "Lebtex" | "Robe in box";
+  forwarder?: string;
+  forwarderGivenDate?: string;
   freightCost: number;
   declaredValue?: number;
+  customsPaidDhs?: number;
 };
 
 export type SupplierPayment = {

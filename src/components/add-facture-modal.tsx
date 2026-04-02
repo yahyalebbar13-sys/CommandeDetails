@@ -31,12 +31,16 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     id: '',
     noBL: '',
     arrivalDate: '',
+    stockEntryDate: '',
     shippingDate: '',
     shippingLine: '',
     supplierId: '',
     declaringCompany: '',
+    forwarder: '',
+    forwarderGivenDate: '',
     freightCost: 0,
-    declaredValue: 0
+    declaredValue: 0,
+    customsPaidDhs: 0
   });
 
   useEffect(() => {
@@ -45,24 +49,32 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         id: editFacture.id || '',
         noBL: editFacture.noBL || '',
         arrivalDate: editFacture.arrivalDate || new Date().toISOString().split('T')[0],
+        stockEntryDate: editFacture.stockEntryDate || '',
         shippingDate: editFacture.shippingDate || '',
         shippingLine: editFacture.shippingLine || '',
         supplierId: editFacture.supplierId || editFacture.supplier || '',
         declaringCompany: editFacture.declaringCompany || '',
+        forwarder: editFacture.forwarder || '',
+        forwarderGivenDate: editFacture.forwarderGivenDate || '',
         freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0,
-        declaredValue: Number(editFacture.declaredValue) || 0
+        declaredValue: Number(editFacture.declaredValue) || 0,
+        customsPaidDhs: Number(editFacture.customsPaidDhs) || 0
       });
     } else {
       setFormData({
         id: '',
         noBL: '',
         arrivalDate: new Date().toISOString().split('T')[0],
+        stockEntryDate: '',
         shippingDate: '',
         shippingLine: '',
         supplierId: '',
         declaringCompany: '',
+        forwarder: '',
+        forwarderGivenDate: '',
         freightCost: 0,
-        declaredValue: 0
+        declaredValue: 0,
+        customsPaidDhs: 0
       });
     }
   }, [editFacture, open]);
@@ -81,19 +93,23 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       id: factureId,
       noBL: formData.noBL.toUpperCase().trim(),
       shippingLine: formData.shippingLine.toUpperCase().trim(),
+      forwarder: formData.forwarder,
       updatedAt: serverTimestamp()
     };
 
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
-    if (editFacture && formData.arrivalDate !== editFacture.arrivalDate && associatedArticles && associatedArticles.length > 0) {
+    if (editFacture && (formData.arrivalDate !== editFacture.arrivalDate || formData.stockEntryDate !== editFacture.stockEntryDate) && associatedArticles && associatedArticles.length > 0) {
       associatedArticles.forEach((article: any) => {
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
-        updateDocumentNonBlocking(articleRef, { arrivalDate: formData.arrivalDate });
+        const updates: any = {};
+        if (formData.arrivalDate !== editFacture.arrivalDate) updates.arrivalDate = formData.arrivalDate;
+        if (formData.stockEntryDate !== editFacture.stockEntryDate) updates.stockEntryDate = formData.stockEntryDate;
+        updateDocumentNonBlocking(articleRef, updates);
       });
       toast({ 
         title: "Dossier et articles synchronisés", 
-        description: `Date propagée à ${associatedArticles.length} articles liés.` 
+        description: `Mises à jour propagées à ${associatedArticles.length} articles liés.` 
       });
     } else {
       toast({ 
@@ -160,7 +176,12 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               </Label>
               <Select 
                 value={formData.declaringCompany} 
-                onValueChange={v => setFormData((prev: any) => ({ ...prev, declaringCompany: v }))}
+                onValueChange={v => {
+                  let inferredForwarder = formData.forwarder;
+                  if (v === 'Robe in box' || v === 'New fournitures') inferredForwarder = 'NOUH TRANSIT TRANSPORT';
+                  if (v === 'Lebtex') inferredForwarder = 'IDRISTRANS';
+                  setFormData((prev: any) => ({ ...prev, declaringCompany: v, forwarder: inferredForwarder }));
+                }}
               >
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue placeholder="Choisir la société..." />
@@ -202,7 +223,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Calendar className="w-3 h-3" /> DATE D'ARRIVÉE (ETA)
+                <Calendar className="w-3 h-3" /> DATE D'ARRIVÉE (ETA - PORT)
               </Label>
               <Input 
                 type="date"
@@ -212,6 +233,20 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 onChange={e => setFormData((prev: any) => ({ ...prev, arrivalDate: e.target.value }))}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> DATE D'ENTRÉE EN STOCK
+              </Label>
+              <Input 
+                type="date"
+                className="border-stone-200 h-11 font-bold rounded-xl"
+                value={formData.stockEntryDate}
+                onChange={e => setFormData((prev: any) => ({ ...prev, stockEntryDate: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Truck className="w-3 h-3" /> FRAIS DE FRET ($)
@@ -227,18 +262,58 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-              <DollarSign className="w-3 h-3" /> VRAIE VALEUR DÉCLARÉE EN DOUANE ($)
-            </Label>
-            <Input 
-              type="number"
-              step="0.01"
-              className="border-stone-200 h-11 font-black text-amber-600 rounded-xl"
-              value={formData.declaredValue}
-              onChange={e => setFormData((prev: any) => ({ ...prev, declaredValue: parseFloat(e.target.value) || 0 }))}
-              placeholder="0.00"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Truck className="w-3 h-3" /> TRANSITAIRE
+              </Label>
+              <Input 
+                value={formData.forwarder}
+                onChange={e => setFormData((prev: any) => ({ ...prev, forwarder: e.target.value.toUpperCase() }))}
+                placeholder="EX: NOUH TRANSIT..."
+                className="font-bold border-stone-200 h-11 rounded-xl uppercase"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar className="w-3 h-3" /> DATE REMISE DOSSIER
+              </Label>
+              <Input 
+                type="date"
+                className="border-stone-200 h-11 font-bold rounded-xl"
+                value={formData.forwarderGivenDate}
+                onChange={e => setFormData((prev: any) => ({ ...prev, forwarderGivenDate: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> VALEUR DÉCLARÉE EN DOUANE ($)
+              </Label>
+              <Input 
+                type="number"
+                step="0.01"
+                className="border-stone-200 h-11 font-black text-amber-600 rounded-xl"
+                value={formData.declaredValue}
+                onChange={e => setFormData((prev: any) => ({ ...prev, declaredValue: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> TOTAL DROITS PAYÉS (MAD)
+              </Label>
+              <Input 
+                type="number"
+                step="0.01"
+                className="border-stone-200 h-11 font-black text-red-500 rounded-xl"
+                value={formData.customsPaidDhs}
+                onChange={e => setFormData((prev: any) => ({ ...prev, customsPaidDhs: parseFloat(e.target.value) || 0 }))}
+                placeholder="0.00 MAD"
+              />
+            </div>
           </div>
           
           {associatedArticles && associatedArticles.length > 0 && (
@@ -247,7 +322,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <div>
                 <p className="text-[10px] font-black text-amber-800 uppercase tracking-tight">Propagation Automatique</p>
                 <p className="text-[9px] font-bold text-amber-600 uppercase leading-tight mt-0.5">
-                  La modification de la date d'arrivée impactera {associatedArticles.length} articles déjà liés.
+                  La modification des dates impactera {associatedArticles.length} articles déjà liés.
                 </p>
               </div>
             </div>

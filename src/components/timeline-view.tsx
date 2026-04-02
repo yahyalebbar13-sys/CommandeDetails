@@ -148,7 +148,7 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
                       </div>
 
                       <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2 items-center">
+                        <div className="flex flex-wrap gap-2 items-center mb-1">
                           <span className="text-[9px] font-bold text-stone-500 uppercase flex items-center gap-1.5 bg-stone-50 px-2 py-0.5 rounded border border-stone-100">
                             <Factory className="w-2.5 h-2.5" /> {f.supplierId || f.supplier}
                           </span>
@@ -158,6 +158,25 @@ export default function TimelineView({ articles, factures, onNavigateToFacture }
                             </span>
                           )}
                         </div>
+
+                        {group.isPast && (
+                          <div className="bg-stone-50 border border-stone-100 rounded-lg p-2.5 mb-2">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">En Dédouanement</span>
+                              <span className="text-[8px] font-black uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded shadow-sm">
+                                {f.forwarder || 'Transitaire Non Assigné'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-stone-200/60">
+                              <span className="text-[8px] font-bold text-stone-500 flex items-center gap-1">
+                                <CalendarDays className="w-2.5 h-2.5" /> {f.forwarderGivenDate ? `Remis le ${f.forwarderGivenDate}` : 'Date en attente'}
+                              </span>
+                              <span className="text-[9px] font-black text-red-600 border border-red-100 bg-red-50/50 px-1.5 py-0.5 rounded">
+                                {f.customsPaidDhs ? `${f.customsPaidDhs.toLocaleString()} MAD` : '0 MAD'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="flex flex-wrap gap-1.5">
                           {Object.entries(f.summary).slice(0, 3).map(([cat, qty]: any) => (
