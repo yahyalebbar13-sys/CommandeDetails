@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown
 } from 'lucide-react';
+import { exportFacturePDF } from '@/lib/pdf-export';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
@@ -310,6 +311,13 @@ export default function FacturesView({
         </header>
 
         <div className="flex justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={() => exportFacturePDF(selectedFacture, selectedFactureArticles)}
+            className="h-10 text-[10px] font-black uppercase tracking-widest border-stone-200 rounded-xl px-6 gap-2 text-red-600 border-red-200 hover:bg-red-50"
+          >
+            <FileDown className="w-4 h-4" /> Exporter PDF
+          </Button>
            <Button 
             variant="outline" 
             onClick={() => { setModalInitialData(selectedFacture); setIsEditModalOpen(true); }}

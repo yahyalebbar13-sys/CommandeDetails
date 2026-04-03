@@ -8,8 +8,9 @@ import {
 } from '@/components/ui/table';
 import {
   Calculator, ChevronDown, AlertTriangle, CheckCircle2,
-  FileText, Truck, Package, DollarSign, TrendingUp, Info
+  FileText, Truck, Package, DollarSign, TrendingUp, Info, FileDown
 } from 'lucide-react';
+import { exportCostAnalysisPDF } from '@/lib/pdf-export';
 
 interface CostAnalysisViewProps {
   articles: any[];
@@ -123,22 +124,32 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
             </p>
           </div>
 
-          {/* Sélecteur dossier */}
-          <div className="flex flex-col gap-2 w-full lg:w-72">
+          {/* Sélecteur dossier + Export */}
+          <div className="flex flex-col gap-2 w-full lg:w-auto">
             <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Sélectionner un Dossier</label>
-            <div className="relative">
-              <select
-                value={selectedFactureId || ''}
-                onChange={e => setSelectedFactureId(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-amber-500 transition-colors"
-              >
-                {factures.map(f => (
-                  <option key={f.id} value={f.id} className="text-stone-900 bg-white">
-                    {f.id} — {f.arrivalDate}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+            <div className="flex gap-3">
+              <div className="relative flex-1 lg:w-72">
+                <select
+                  value={selectedFactureId || ''}
+                  onChange={e => setSelectedFactureId(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-amber-500 transition-colors"
+                >
+                  {factures.map(f => (
+                    <option key={f.id} value={f.id} className="text-stone-900 bg-white">
+                      {f.id} — {f.arrivalDate}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+              </div>
+              {selectedFacture && analysis && (
+                <button
+                  onClick={() => exportCostAnalysisPDF(selectedFacture, analysis.rows, analysis)}
+                  className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
+                >
+                  <FileDown className="w-4 h-4" /> PDF
+                </button>
+              )}
             </div>
           </div>
         </div>
