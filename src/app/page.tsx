@@ -17,11 +17,12 @@ import AddOrderModal from '@/components/add-order-modal';
 import EditOrderModal from '@/components/edit-order-modal';
 import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
+import CostAnalysisView from '@/components/cost-analysis-view';
 import { Button } from '@/components/ui/button';
 import { 
   LogOut, Loader2, Layers, Package, Plus, Database, 
   LayoutDashboard, ClipboardList, Factory, Truck, 
-  Anchor, Boxes, UserCheck, Menu, X, Timer 
+  Anchor, Boxes, UserCheck, Menu, X, Timer, Calculator
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -124,7 +125,7 @@ export default function StockVueApp() {
     { id: 'timeline', label: 'Timeline', icon: Timer },
     { id: 'factures', label: 'Arrivages', icon: Anchor },
     { id: 'general-categories', label: 'Groupes', icon: Layers },
-    { id: 'categories', label: 'Inventaire', icon: Boxes },
+    { id: 'cost-analysis', label: 'Coût Revient', icon: Calculator },
     { id: 'suppliers', label: 'Partenaires', icon: UserCheck },
     { id: 'data', label: 'Data Lab', icon: Database },
   ] as const;
@@ -219,6 +220,7 @@ export default function StockVueApp() {
             {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
             {activeTab === 'general-categories' && <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={handleSelectGeneralCategory} />}
             {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={handleSelectGeneralCategory} />}
+            {activeTab === 'cost-analysis' && <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />}
             {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'data' && <DataView articles={articles} onEdit={handleEditArticle} />}
           </div>

@@ -223,7 +223,7 @@ export default function FacturesView({
               )}
               {selectedFacture.supplierInvoiceAmount > 0 && (
                 <div>
-                  <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Facture FRNS</p>
+                  <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Facture Transitaire</p>
                   <p className="text-[12px] font-black text-white">{selectedFacture.supplierInvoiceAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
                 </div>
               )}
@@ -231,6 +231,16 @@ export default function FacturesView({
                 <div>
                   <p className="text-[7px] font-bold text-stone-400 uppercase tracking-widest mb-0.5">Frais Supp.</p>
                   <p className="text-[12px] font-black text-stone-300">{selectedFacture.additionalCostsAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
+                </div>
+              )}
+              {selectedFacture.invoicePaidDhs > 0 && selectedFacture.declaredValue > 0 && (
+                <div className="border-l border-white/10 pl-8">
+                  <p className="text-[7px] font-bold text-blue-400 uppercase tracking-widest mb-0.5">Taux de Change</p>
+                  <p className="text-[12px] font-black text-blue-300">
+                    {(selectedFacture.invoicePaidDhs / selectedFacture.declaredValue).toFixed(4)}
+                    <span className="text-[8px] font-bold opacity-60 ml-1">MAD/$</span>
+                  </p>
+                  <p className="text-[7px] text-blue-500/60 uppercase tracking-widest">FACTURE PAYÉE ÷ VALEUR DOUANE</p>
                 </div>
               )}
             </div>

@@ -356,7 +356,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <DollarSign className="w-3 h-3" /> FACTURE FRNS (MAD)
+                <DollarSign className="w-3 h-3" /> FACTURE TRANSITAIRE (MAD)
               </Label>
               <Input 
                 type="number" step="0.01"
@@ -377,6 +377,29 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                 onChange={e => setFormData((prev: any) => ({ ...prev, additionalCostsAmount: parseFloat(e.target.value) || 0 }))}
                 placeholder="0.00 MAD"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> TAUX DE CHANGE (MAD/$)
+              </Label>
+              <div className="relative">
+                <Input
+                  readOnly
+                  className="border-stone-200 h-11 font-black text-blue-600 rounded-xl bg-blue-50 cursor-default"
+                  value={
+                    formData.declaredValue > 0
+                      ? (formData.invoicePaidDhs / formData.declaredValue).toFixed(4)
+                      : '—'
+                  }
+                  placeholder="Calculé automatiquement"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-blue-400 uppercase tracking-widest">
+                  FACTURE PAYÉE ÷ VALEUR DOUANE
+                </span>
+              </div>
             </div>
           </div></div>
           
