@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -8,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, 
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Trash2, Landmark, CheckCircle2, History, Building2, Layers
+  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
@@ -19,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF } from '@/lib/pdf-export';
 
 interface SuppliersViewProps {
   articles: any[];
@@ -33,6 +33,7 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedShipping, setSelectedShipping] = useState<string | null>(null);
+  const [selectedForwarder, setSelectedForwarder] = useState<string | null>(null);
 
   const supplierStats = useMemo(() => {
     const stats: Record<string, { val: number; orders: number; categories: Set<string> }> = {};
@@ -89,6 +90,21 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
       .sort((a, b) => b.freight - a.freight);
   }, [articles, factures]);
 
+  const forwarderStats = useMemo(() => {
+    const stats: Record<string, { dossiers: number; dossiersList: string[] }> = {};
+    factures
+      .filter(f => f.forwarder && f.forwarderGivenDate)
+      .forEach(f => {
+        const fw = f.forwarder;
+        if (!stats[fw]) stats[fw] = { dossiers: 0, dossiersList: [] };
+        stats[fw].dossiers += 1;
+        stats[fw].dossiersList.push(f.id);
+      });
+    return Object.entries(stats)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.dossiers - a.dossiers);
+  }, [factures]);
+
   if (selectedSupplier) {
     return (
       <SupplierDetailView 
@@ -121,6 +137,18 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
         articles={articles} 
         factures={factures}
         onBack={() => setSelectedShipping(null)}
+        onNavigateToFacture={onNavigateToFacture}
+      />
+    );
+  }
+
+  if (selectedForwarder) {
+    return (
+      <ForwarderDetailView
+        forwarderName={selectedForwarder}
+        articles={articles}
+        factures={factures}
+        onBack={() => setSelectedForwarder(null)}
         onNavigateToFacture={onNavigateToFacture}
       />
     );
@@ -262,6 +290,49 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
           ))}
         </div>
       </section>
+
+      <Separator className="bg-stone-200" />
+
+      <section className="space-y-6 pb-10">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-violet-500/10 rounded-lg">
+            <Briefcase className="w-5 h-5 text-violet-600" />
+          </div>
+          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Transitaires</h3>
+        </div>
+        {forwarderStats.length === 0 ? (
+          <div className="text-center py-16 text-stone-300 font-bold uppercase text-[10px]">Aucun transitaire avec dossier remis pour le moment</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {forwarderStats.map((stat) => (
+              <Card
+                key={stat.name}
+                onClick={() => setSelectedForwarder(stat.name)}
+                className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95"
+              >
+                <div className="h-1 w-full bg-stone-900 group-hover:bg-violet-500 transition-colors" />
+                <CardHeader className="pb-4">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-violet-600 transition-colors">{stat.name}</CardTitle>
+                    <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-violet-500 transition-colors">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black text-stone-900 mb-6">{stat.dossiers} <span className="text-sm font-bold text-stone-400">Dossiers</span></div>
+                  <div className="space-y-2 pt-4 border-t border-stone-50">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                      <span>Dossiers remis</span>
+                      <span className="text-violet-600 font-black">{stat.dossiers}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -314,7 +385,6 @@ function SupplierDetailView({
       };
     }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
   }, [supArticles, factures]);
-
   const totalRealVal = supplierFactures.reduce((s, f) => s + f.totalReal, 0);
   const totalDeclaredVal = supplierFactures.reduce((s, f) => s + f.declared, 0);
   const totalPaid = supPayments.reduce((s, p) => s + Number(p.amount), 0);
@@ -330,9 +400,19 @@ function SupplierDetailView({
     }
   };
 
+  const handleExportPDF = () => {
+    exportSupplierPDF(supplierName, supplierFactures, {
+      totalReal: totalRealVal,
+      totalDeclared: totalDeclaredVal,
+      gap: currentGap,
+      remaining: remainingToPay,
+      articles: supArticles.length,
+    });
+  };
+
   return (
     <div className="space-y-8 fade-in">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <Button 
           variant="ghost" 
           size="sm" 
@@ -340,6 +420,13 @@ function SupplierDetailView({
           className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
         >
           <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleExportPDF}
+          className="bg-amber-500 hover:bg-amber-600 text-stone-900 font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-amber-100 gap-2"
+        >
+          <Download className="w-3.5 h-3.5" /> Exporter PDF
         </Button>
       </div>
 
@@ -541,7 +628,7 @@ function CompanyDetailView({
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <Button 
           variant="ghost" 
           size="sm" 
@@ -549,6 +636,13 @@ function CompanyDetailView({
           className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
         >
           <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => exportCompanyPDF(companyName, companyFactures, { totalReal: totalRealVal, totalDeclared: totalDeclaredVal, gap: currentGap })}
+          className="bg-blue-500 hover:bg-blue-600 text-white font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-blue-100 gap-2"
+        >
+          <Download className="w-3.5 h-3.5" /> Exporter PDF
         </Button>
       </div>
 
@@ -766,7 +860,7 @@ function ShippingDetailView({
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <Button 
           variant="ghost" 
           size="sm" 
@@ -774,6 +868,13 @@ function ShippingDetailView({
           className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
         >
           <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => exportShippingPDF(shippingName, shippingFactures, { totalFreight: totalFreightVal, totalReal: totalRealVal, totalCbm })}
+          className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-emerald-100 gap-2"
+        >
+          <Download className="w-3.5 h-3.5" /> Exporter PDF
         </Button>
       </div>
 
@@ -852,6 +953,230 @@ function ShippingDetailView({
               ))}
             </TableBody>
           </Table>
+        </Card>
+      </section>
+    </div>
+  );
+}
+
+function ForwarderDetailView({
+  forwarderName,
+  articles,
+  factures,
+  onBack,
+  onNavigateToFacture
+}: {
+  forwarderName: string;
+  articles: any[];
+  factures: any[];
+  onBack: () => void;
+  onNavigateToFacture: (id: string) => void;
+}) {
+  const now = new Date();
+
+  const forwarderDossiers = useMemo(() => {
+    return factures
+      .filter(f => f.forwarder === forwarderName && f.forwarderGivenDate)
+      .map(f => {
+        const fArticles = articles.filter(a => a.factureId === f.id);
+        const itemsVal = fArticles.reduce((s: number, a: any) => s + (a.quantity * a.purchasePricePerUnit), 0);
+        const freight = Number(f.freightCost) || Number(f.freight) || 0;
+        const cbm = fArticles.reduce((s: number, a: any) => s + (a.cubicMeasurement || 0), 0);
+        const isArrived = f.arrivalDate ? new Date(f.arrivalDate) <= now : false;
+        const inStock = f.stockEntryDate ? true : false;
+        return {
+          ...f,
+          totalReal: itemsVal + freight,
+          freight,
+          cbm,
+          isArrived,
+          inStock,
+          articlesCount: fArticles.length,
+        };
+      })
+      .sort((a: any, b: any) => {
+        const dA = new Date(a.forwarderGivenDate || '').getTime();
+        const dB = new Date(b.forwarderGivenDate || '').getTime();
+        return dB - dA;
+      });
+  }, [forwarderName, factures, articles]);
+
+  // Dossiers à remettre : forwarder assigné, pas encore remis, arrivée dans < 7 jours
+  const dossiersARemettre = useMemo(() => {
+    const oneWeekFromNow = new Date();
+    oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+    return factures
+      .filter(f => f.forwarder === forwarderName && !f.forwarderGivenDate && f.arrivalDate)
+      .filter(f => new Date(f.arrivalDate) <= oneWeekFromNow)
+      .map(f => {
+        const arrival = new Date(f.arrivalDate);
+        const daysLeft = Math.ceil((arrival.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        return { ...f, daysLeft };
+      })
+      .sort((a: any, b: any) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
+  }, [forwarderName, factures]);
+
+  const totalDossiers = forwarderDossiers.length;
+  const totalFactureTransitaire = forwarderDossiers.reduce((s: number, f: any) => s + (Number(f.supplierInvoiceAmount) || 0), 0);
+
+  return (
+    <div className="space-y-8 fade-in">
+      <div className="flex items-center justify-between gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
+        >
+          <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => exportForwarderPDF(forwarderName, forwarderDossiers, dossiersARemettre, totalFactureTransitaire)}
+          className="bg-violet-500 hover:bg-violet-600 text-white font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-violet-100 gap-2"
+        >
+          <Download className="w-3.5 h-3.5" /> Exporter PDF
+        </Button>
+      </div>
+
+      <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
+        <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-violet-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="p-4 bg-stone-800 rounded-2xl shadow-lg border border-white/5">
+              <Briefcase className="w-8 h-8 text-violet-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-1">Transitaire Partenaire</p>
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{forwarderName}</h2>
+              <div className="flex gap-4 mt-4 flex-wrap">
+                <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/20 px-3 py-1 text-[10px] font-bold uppercase">
+                  {totalDossiers} Dossiers Remis
+                </Badge>
+                {dossiersARemettre.length > 0 && (
+                  <Badge className="bg-red-500/20 text-red-300 border-red-500/20 px-3 py-1 text-[10px] font-bold uppercase animate-pulse">
+                    ⚠ {dossiersARemettre.length} À Remettre
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 w-full xl:w-auto relative z-10">
+            <SummaryBlock label="Dossiers Remis" value={String(totalDossiers)} sub="" color="text-white" />
+            <SummaryBlock label="Total Fact. Transitaire" value={Number(totalFactureTransitaire).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-violet-400" />
+          </div>
+        </div>
+      </header>
+
+      {/* Section dossiers urgents à remettre */}
+      {dossiersARemettre.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-3 px-2">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <Calendar className="w-4 h-4 text-red-600" />
+            </div>
+            <h3 className="text-xs font-black text-red-700 uppercase tracking-widest">⚠ Dossiers À Remettre — Arrivée imminente (&lt; 7 jours)</h3>
+          </div>
+          <Card className="border-red-200 shadow-xl rounded-2xl overflow-hidden bg-white">
+            <div className="h-1 w-full bg-red-500" />
+            <Table>
+              <TableHeader className="bg-red-50/60">
+                <TableRow>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-red-700">N° Dossier</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-red-700">N° BL</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-red-700">Date Arrivée</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4 text-red-700">Délai</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase py-4">Fournisseur</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dossiersARemettre.map((f: any) => (
+                  <TableRow key={f.id} className="hover:bg-red-50/40 transition-colors group border-red-50">
+                    <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
+                    <TableCell className="py-3 font-bold text-stone-500 text-[10px]">{f.noBL || '-'}</TableCell>
+                    <TableCell className="py-3 text-[10px] font-black text-red-600">{f.arrivalDate}</TableCell>
+                    <TableCell className="py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${f.daysLeft <= 0 ? 'bg-red-600 text-white' : f.daysLeft <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {f.daysLeft <= 0 ? 'Arrivé' : `J-${f.daysLeft}`}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-3 font-bold text-stone-500 uppercase text-[10px]">{f.supplierId}</TableCell>
+                    <TableCell className="py-3">
+                      <Button variant="ghost" size="icon" onClick={() => onNavigateToFacture(f.id)} className="h-7 w-7 text-stone-300 hover:text-red-600 opacity-0 group-hover:opacity-100">
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </section>
+      )}
+
+      {/* Section dossiers remis */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-violet-100 rounded-lg">
+            <Layers className="w-4 h-4 text-violet-600" />
+          </div>
+          <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Dossiers confiés à {forwarderName}</h3>
+        </div>
+        <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
+          <Table>
+            <TableHeader className="bg-stone-50/80">
+              <TableRow>
+                <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">N° Dossier</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">N° BL</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Compagnie Maritime</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4 text-violet-600">Date Remise</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Arrivée</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Fournisseur</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4">CBM</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4 text-violet-600">Fact. Transit.</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {forwarderDossiers.length === 0 ? (
+                <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun dossier remis à ce transitaire</TableCell></TableRow>
+              ) : forwarderDossiers.map((f: any) => (
+                <TableRow key={f.id} className="hover:bg-violet-50/30 transition-colors group border-stone-50">
+                  <TableCell className="py-3">
+                    {f.inStock
+                      ? <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] font-black uppercase">En Stock</Badge>
+                      : f.isArrived
+                      ? <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[8px] font-black uppercase">Dédouanement</Badge>
+                      : <Badge className="bg-violet-50 text-violet-700 border-violet-100 text-[8px] font-black uppercase">En Transit</Badge>
+                    }
+                  </TableCell>
+                  <TableCell className="py-3 font-black text-stone-900 uppercase text-[11px]">{f.id}</TableCell>
+                  <TableCell className="py-3 font-bold text-stone-500 text-[10px]">{f.noBL || '-'}</TableCell>
+                  <TableCell className="py-3 font-bold text-stone-500 text-[10px] uppercase">{f.shippingLine || '-'}</TableCell>
+                  <TableCell className="py-3 text-[10px] font-black text-violet-600">{f.forwarderGivenDate}</TableCell>
+                  <TableCell className={`py-3 text-[10px] font-bold ${f.isArrived ? 'text-emerald-600' : 'text-blue-500'}`}>{f.arrivalDate || '-'}</TableCell>
+                  <TableCell className="py-3 font-bold text-stone-500 uppercase text-[10px]">{f.supplierId}</TableCell>
+                  <TableCell className="py-3 text-right font-bold text-stone-500 text-[10px]">{Number(f.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</TableCell>
+                  <TableCell className="py-3 text-right font-black text-violet-700 text-[11px] bg-violet-50/30">
+                    {f.supplierInvoiceAmount ? `${Number(f.supplierInvoiceAmount).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD` : '-'}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Button variant="ghost" size="icon" onClick={() => onNavigateToFacture(f.id)} className="h-7 w-7 text-stone-300 hover:text-stone-900 opacity-0 group-hover:opacity-100">
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {forwarderDossiers.length > 0 && (
+            <div className="p-4 bg-violet-50 border-t border-violet-100 flex justify-between items-center">
+              <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest">Total Factures Transitaire</span>
+              <span className="text-sm font-black text-violet-700">{Number(totalFactureTransitaire).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD</span>
+            </div>
+          )}
         </Card>
       </section>
     </div>
