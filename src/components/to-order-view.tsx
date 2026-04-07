@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil, Box, Badge, Settings2, MousePointer2 } from 'lucide-react';
+import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil, Box, Settings2, MousePointer2, Flame, AlertTriangle, CheckSquare } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -99,8 +99,13 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
               ) : (
                 toOrderArticles.map((o) => {
                   const isZipper = isZipperCategory(o.categoryId);
+                  const priorityConfig = o.priority === 'urgent'
+                    ? { border: 'border-l-4 border-l-red-500', rowBg: 'hover:bg-red-50/40', badge: 'bg-red-500 text-white shadow-sm shadow-red-200', label: 'Urgent', icon: <Flame className="w-3 h-3" />, dot: 'bg-red-500' }
+                    : o.priority === 'important'
+                    ? { border: 'border-l-4 border-l-amber-400', rowBg: 'hover:bg-amber-50/40', badge: 'bg-amber-400 text-white shadow-sm shadow-amber-200', label: 'Important', icon: <AlertTriangle className="w-3 h-3" />, dot: 'bg-amber-400' }
+                    : { border: 'border-l-4 border-l-stone-300', rowBg: 'hover:bg-stone-50', badge: 'bg-stone-100 text-stone-500 border border-stone-200', label: 'À faire', icon: <CheckSquare className="w-3 h-3" />, dot: 'bg-stone-300' };
                   return (
-                    <TableRow key={o.id} className="hover:bg-stone-50 transition-colors border-stone-50">
+                    <TableRow key={o.id} className={`transition-colors border-b border-stone-50 ${priorityConfig.border} ${priorityConfig.rowBg}`}>
                       <TableCell className="py-3">
                         <div className="font-black text-stone-900 text-xs uppercase">{o.name}</div>
                       </TableCell>
@@ -121,9 +126,10 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
                         )}
                       </TableCell>
                       <TableCell className="py-3">
-                        {o.priority === 'urgent' && <Badge className="bg-red-100 text-red-700 border-red-200 font-black text-[9px] uppercase">Urgent</Badge>}
-                        {o.priority === 'important' && <Badge className="bg-amber-100 text-amber-700 border-amber-200 font-black text-[9px] uppercase">Important</Badge>}
-                        {(o.priority === 'todo' || !o.priority) && <Badge className="bg-stone-100 text-stone-600 border-stone-200 font-black text-[9px] uppercase">À faire</Badge>}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${priorityConfig.badge}`}>
+                          {priorityConfig.icon}
+                          {priorityConfig.label}
+                        </span>
                       </TableCell>
                       <TableCell className="text-right font-black text-xs py-3">
                         {o.quantity.toLocaleString()} <span className="text-[9px] text-stone-400 font-bold ml-1 uppercase">{o.unitOfMeasure}</span>
