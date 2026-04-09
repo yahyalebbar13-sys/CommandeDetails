@@ -405,6 +405,10 @@ export default function CategoriesView({
       }
     });
 
+    result.forEach(g => {
+      g.items.sort((a, b) => (a.stat.name || '').localeCompare(b.stat.name || ''));
+    });
+
     return result.filter(g => g.items.length > 0);
   }, [groupStats]);
 
