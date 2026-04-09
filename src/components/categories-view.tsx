@@ -206,7 +206,8 @@ export default function CategoriesView({
           totalValue 
         };
       })
-      .filter(sc => sc.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      .filter(sc => sc.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [selectedGeneralCategoryId, subCategories, articles, searchTerm, todayStr]);
 
   const currentArticles = useMemo(() => {

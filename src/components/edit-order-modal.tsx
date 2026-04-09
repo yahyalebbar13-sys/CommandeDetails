@@ -66,7 +66,31 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   const filteredSubCategories = useMemo(() => {
     if (!selectedGenCatId || !subCategories) return [];
-    return (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
+    const filtered = (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
+    
+    const getGroupIndex = (name: string) => {
+      const catName = (name || '').toLowerCase().trim();
+      
+      const fabricKeywords = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
+      const sliderKeywords = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
+      const zipperKeywords = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
+      const buttonKeywords = ["covered mould button", "snap button", "button"];
+
+      if (fabricKeywords.some(kw => catName.includes(kw))) return 1;
+      if (sliderKeywords.some(kw => catName.includes(kw))) return 2;
+      if (zipperKeywords.some(kw => catName.includes(kw))) return 3;
+      if (buttonKeywords.some(kw => catName.includes(kw))) return 4;
+      return 5;
+    };
+
+    return filtered.sort((a, b) => {
+      const indexA = getGroupIndex(a.name);
+      const indexB = getGroupIndex(b.name);
+      if (indexA !== indexB) {
+        return indexA - indexB;
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
