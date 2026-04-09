@@ -12,7 +12,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -193,9 +193,34 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {(filteredSubCategories || []).map(sc => (
-                    <SelectItem key={sc.id} value={sc.name} className="font-bold">{sc.name}</SelectItem>
-                  ))}
+                  {(() => {
+                    const groups: Record<string, any[]> = {};
+                    (filteredSubCategories || []).forEach(sc => {
+                      const catName = (sc.name || '').toLowerCase().trim();
+                      const fabricKeywords = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
+                      const sliderKeywords = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
+                      const zipperKeywords = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
+                      const buttonKeywords = ["covered mould button", "snap button", "button"];
+                      let label = "Reste";
+                      if (fabricKeywords.some(kw => catName.includes(kw))) label = "Fabric";
+                      else if (sliderKeywords.some(kw => catName.includes(kw))) label = "Slider et puller";
+                      else if (zipperKeywords.some(kw => catName.includes(kw))) label = "Zipper";
+                      else if (buttonKeywords.some(kw => catName.includes(kw))) label = "Bouton";
+                      if (!groups[label]) groups[label] = [];
+                      groups[label].push(sc);
+                    });
+                    return ["Fabric", "Slider et puller", "Zipper", "Bouton", "Reste"].map(label => {
+                      if (!groups[label] || groups[label].length === 0) return null;
+                      return (
+                        <SelectGroup key={label}>
+                          <SelectLabel className="text-[10px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-2">{label}</SelectLabel>
+                          {groups[label].map(sc => (
+                            <SelectItem key={sc.id} value={sc.name} className="font-bold pl-6">{sc.name}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      );
+                    });
+                  })()}
                 </SelectContent>
               </Select>
             </div>
