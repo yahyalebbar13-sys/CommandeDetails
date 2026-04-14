@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 interface FacturesViewProps {
   articles: any[];
   factures: any[];
+  subCategories: any[];
   selectedFactureId: string | null;
   setSelectedFactureId: (id: string | null) => void;
   onNavigateToCategory: (categoryName: string) => void;
@@ -28,7 +29,8 @@ interface FacturesViewProps {
 
 export default function FacturesView({ 
   articles, 
-  factures, 
+  factures,
+  subCategories,
   selectedFactureId, 
   setSelectedFactureId,
   onNavigateToCategory 
@@ -71,6 +73,31 @@ export default function FacturesView({
       .filter(o => o.factureId === selectedFactureId)
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [articles, selectedFactureId]);
+
+  // Calcul automatique du total droits payés (DI+TPI+TVA) pour le dossier sélectionné
+  const calculatedDroitsPayes = useMemo(() => {
+    if (!selectedFactureId) return 0;
+    const factureArticles = articles.filter(a => a.factureId === selectedFactureId);
+    const facture = declaredFactures.find(f => f.id === selectedFactureId);
+    if (!facture) return 0;
+    const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
+    const declaredValue = Number(facture.declaredValue) || 0;
+    const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
+    return factureArticles.reduce((total, a) => {
+      const nw = Number(a.netWeight) || 0;
+      const cat = subCategories.find(c => c.name === a.categoryId);
+      if (!cat || cat.customsValuePerKg == null) return total;
+      const customsValuePerKg = Number(cat.customsValuePerKg);
+      const importDutyRate = cat.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0;
+      const tpiRate = cat.tpiRate != null ? Number(cat.tpiRate) / 100 : 0;
+      const tvaRate = cat.tvaRate != null ? Number(cat.tvaRate) / 100 : 0;
+      const valDouane = nw * customsValuePerKg;
+      const di = valDouane * importDutyRate;
+      const tpi = valDouane * tpiRate;
+      const tva = (valDouane + di + tpi) * tvaRate;
+      return total + di + tpi + tva;
+    }, 0);
+  }, [selectedFactureId, articles, declaredFactures, subCategories]);
 
   const handleAddFacture = (initialId?: string) => {
     if (initialId) {
@@ -171,7 +198,8 @@ export default function FacturesView({
               </div>
               <div className="bg-red-600 p-5 rounded-2xl text-white shadow-lg shadow-red-600/20">
                 <p className="text-[8px] font-black text-red-100 uppercase tracking-widest mb-1">Droits Payés</p>
-                <div className="text-xl font-black">{Number(selectedFacture.customsPaidDhs || 0).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[10px] font-bold text-red-200 ml-1">MAD</span></div>
+                <div className="text-xl font-black">{calculatedDroitsPayes.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} <span className="text-[10px] font-bold text-red-200 ml-1">MAD</span></div>
+                <p className="text-[7px] font-bold text-red-300 uppercase mt-0.5">Σ DI + TPI + TVA</p>
               </div>
             </div>
           </div>

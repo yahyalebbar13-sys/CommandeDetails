@@ -98,7 +98,10 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       };
     });
 
-    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, rows };
+    // ── Total droits payés (somme des totalDouane de tous les articles) ──
+    const totalDroitsPayes = rows.reduce((s, r) => s + (r.totalDouane || 0), 0);
+
+    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, totalDroitsPayes, rows };
   }, [selectedFacture, dossierArticles, subCategories]);
 
   const missingCount = analysis?.rows.filter(r => r.missingData).length || 0;
@@ -164,7 +167,7 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       {selectedFacture && analysis && (
         <>
           {/* ── Synthèse frais ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
             <SyntheseCard
               label="Taux de Change"
               value={analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'}
@@ -213,6 +216,15 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
               bgColor="bg-emerald-50"
               icon={<Package className="w-4 h-4" />}
             />
+            <div className="col-span-1 bg-red-600 rounded-2xl p-4 flex flex-col justify-between shadow-lg shadow-red-600/20">
+              <p className="text-[9px] font-black text-red-100 uppercase tracking-widest">Total Droits Payés</p>
+              <div>
+                <p className="text-2xl font-black text-white leading-none">
+                  {analysis.totalDroitsPayes.toLocaleString('fr-MA', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-[10px] font-bold text-red-200 mt-1">MAD — ΣDI+TPI+TVA</p>
+              </div>
+            </div>
             <div className="col-span-1 bg-amber-500 rounded-2xl p-4 flex flex-col justify-between shadow-lg shadow-amber-500/20">
               <p className="text-[9px] font-black text-amber-100 uppercase tracking-widest">Total Frais Log.</p>
               <div>

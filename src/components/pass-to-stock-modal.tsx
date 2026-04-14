@@ -16,16 +16,16 @@ interface PassToStockModalProps {
   onOpenChange: (open: boolean) => void;
   facture: any;
   associatedArticles: any[];
+  subCategories: any[];
 }
 
-export default function PassToStockModal({ open, onOpenChange, facture, associatedArticles }: PassToStockModalProps) {
+export default function PassToStockModal({ open, onOpenChange, facture, associatedArticles, subCategories }: PassToStockModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     stockEntryDate: '',
-    customsPaidDhs: 0,
     invoicePaidDhs: 0,
     exchangeInvoiceAmount: 0,
     supplierInvoiceAmount: 0,
@@ -36,7 +36,6 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
     if (facture && open) {
       setFormData({
         stockEntryDate: facture.stockEntryDate || new Date().toISOString().split('T')[0],
-        customsPaidDhs: Number(facture.customsPaidDhs) || 0,
         invoicePaidDhs: Number(facture.invoicePaidDhs) || 0,
         exchangeInvoiceAmount: Number(facture.exchangeInvoiceAmount) || 0,
         supplierInvoiceAmount: Number(facture.supplierInvoiceAmount) || 0,
@@ -44,6 +43,28 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
       });
     }
   }, [facture, open]);
+
+  // Calcul automatique du total droits payés (DI+TPI+TVA) depuis les articles liés
+  const calculatedDroitsPayes = React.useMemo(() => {
+    if (!facture) return 0;
+    const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
+    const declaredValue = Number(facture.declaredValue) || 0;
+    const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
+    return (associatedArticles || []).reduce((total, a) => {
+      const nw = Number(a.netWeight) || 0;
+      const cat = (subCategories || []).find((c: any) => c.name === a.categoryId);
+      if (!cat || cat.customsValuePerKg == null) return total;
+      const customsValuePerKg = Number(cat.customsValuePerKg);
+      const importDutyRate = cat.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0;
+      const tpiRate = cat.tpiRate != null ? Number(cat.tpiRate) / 100 : 0;
+      const tvaRate = cat.tvaRate != null ? Number(cat.tvaRate) / 100 : 0;
+      const valDouane = nw * customsValuePerKg;
+      const di = valDouane * importDutyRate;
+      const tpi = valDouane * tpiRate;
+      const tva = (valDouane + di + tpi) * tvaRate;
+      return total + di + tpi + tva;
+    }, 0);
+  }, [facture, associatedArticles, subCategories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +76,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
     const factureRef = doc(firestore, 'users', user.uid, 'factures', facture.id);
     const updates = {
       stockEntryDate: formData.stockEntryDate,
-      customsPaidDhs: formData.customsPaidDhs,
+      customsPaidDhs: calculatedDroitsPayes,
       invoicePaidDhs: formData.invoicePaidDhs,
       exchangeInvoiceAmount: formData.exchangeInvoiceAmount,
       supplierInvoiceAmount: formData.supplierInvoiceAmount,
@@ -146,15 +167,12 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Montant Total Douane</Label>
-              <div className="relative">
-                <Input 
-                  type="number" step="0.01" placeholder="0.00"
-                  className="border-stone-200 h-11 font-bold pl-8 text-red-600 rounded-xl bg-red-50/30"
-                  value={formData.customsPaidDhs || ''}
-                  onChange={e => setFormData(prev => ({ ...prev, customsPaidDhs: parseFloat(e.target.value) || 0 }))}
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400 font-bold text-xs uppercase">MAD</span>
+              <Label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Total Droits Douane</Label>
+              <div className="h-11 rounded-xl border border-red-200 bg-red-50 flex items-center justify-between px-3">
+                <span className="text-[9px] font-black text-red-400 uppercase tracking-widest">Σ DI + TPI + TVA (auto)</span>
+                <span className="font-black text-red-600 text-sm">
+                  {calculatedDroitsPayes.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD
+                </span>
               </div>
             </div>
 

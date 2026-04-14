@@ -43,7 +43,7 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
 
   const finBlocks = [
     ['Valeur Déclarée', `${(facture.declaredValue || 0).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} $`],
-    ['Droits Payés', `${(facture.customsPaidDhs || 0).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD`],
+    ['Droits Payés', `${(facture.customsPaidDhs || 0).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD (auto)`],
     ['Facture Payée', `${(facture.invoicePaidDhs || 0).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD`],
     ['Taux de Change', taux > 0 ? `${taux.toFixed(4)} MAD/$` : '—'],
     ['Fact. Échange', `${(facture.exchangeInvoiceAmount || 0).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD`],
@@ -131,7 +131,7 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
 export async function exportCostAnalysisPDF(
   facture: any,
   rows: any[],
-  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; exchange: number; transitaire: number; fraisSupp: number; fretMad: number }
+  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; exchange: number; transitaire: number; fraisSupp: number; fretMad: number; totalDroitsPayes: number }
 ) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -168,6 +168,7 @@ export async function exportCostAnalysisPDF(
     ['Fact. Transitaire', `${analysis.transitaire.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
     ['Frais Supp.', `${analysis.fraisSupp.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
     ['CBM Total', `${analysis.cbmTotal.toFixed(3)} m³`],
+    ['DROITS PAYÉS (ΣDI+TPI+TVA)', `${analysis.totalDroitsPayes.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
     ['TOTAL FRAIS LOG.', `${analysis.mtFraisTotal.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
   ];
 
@@ -177,17 +178,20 @@ export async function exportCostAnalysisPDF(
 
   synBlocks.forEach(([label, value], i) => {
     const isLast = i === synBlocks.length - 1;
+    const isCustoms = label.startsWith('DROITS');
     if (isLast) {
       doc.setFillColor(251, 191, 36);
+    } else if (isCustoms) {
+      doc.setFillColor(220, 38, 38); // red
     } else {
       doc.setFillColor(245, 245, 244);
     }
     doc.roundedRect(bx, by, bw - 2, 16, 2, 2, 'F');
-    doc.setTextColor(isLast ? 28 : 161, isLast ? 25 : 161, isLast ? 23 : 170);
+    doc.setTextColor(isLast ? 28 : isCustoms ? 255 : 161, isLast ? 25 : isCustoms ? 255 : 161, isLast ? 23 : isCustoms ? 255 : 170);
     doc.setFontSize(6);
     doc.setFont('helvetica', 'bold');
     doc.text(label.toUpperCase(), bx + 3, by + 5);
-    doc.setTextColor(28, 25, 23);
+    doc.setTextColor(isCustoms ? 255 : 28, isCustoms ? 255 : 25, isCustoms ? 255 : 23);
     doc.setFontSize(isLast ? 9 : 8);
     doc.text(value, bx + 3, by + 12);
     bx += bw;

@@ -40,7 +40,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
     forwarderGivenDate: '',
     freightCost: 0,
     declaredValue: 0,
-    customsPaidDhs: 0,
     invoicePaidDhs: 0,
     exchangeInvoiceAmount: 0,
     supplierInvoiceAmount: 0,
@@ -62,7 +61,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         forwarderGivenDate: editFacture.forwarderGivenDate || '',
         freightCost: Number(editFacture.freightCost) || Number(editFacture.freight) || 0,
         declaredValue: Number(editFacture.declaredValue) || 0,
-        customsPaidDhs: Number(editFacture.customsPaidDhs) || 0,
         invoicePaidDhs: Number(editFacture.invoicePaidDhs) || 0,
         exchangeInvoiceAmount: Number(editFacture.exchangeInvoiceAmount) || 0,
         supplierInvoiceAmount: Number(editFacture.supplierInvoiceAmount) || 0,
@@ -82,7 +80,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         forwarderGivenDate: '',
         freightCost: 0,
         declaredValue: 0,
-        customsPaidDhs: 0,
         invoicePaidDhs: 0,
         exchangeInvoiceAmount: 0,
         supplierInvoiceAmount: 0,
@@ -317,14 +314,14 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <DollarSign className="w-3 h-3" /> TOTAL DROITS PAYÉS (MAD)
               </Label>
-              <Input 
-                type="number"
-                step="0.01"
-                className="border-stone-200 h-11 font-black text-red-500 rounded-xl"
-                value={formData.customsPaidDhs}
-                onChange={e => setFormData((prev: any) => ({ ...prev, customsPaidDhs: parseFloat(e.target.value) || 0 }))}
-                placeholder="0.00 MAD"
-              />
+              <div className="h-11 rounded-xl border border-red-200 bg-red-50 flex items-center px-3 gap-2">
+                <span className="text-[9px] font-black text-red-400 uppercase tracking-widest flex-1">
+                  Calculé automatiquement
+                </span>
+                <span className="text-[8px] font-black text-red-300 uppercase">
+                  ΣDI + TPI + TVA (articles)
+                </span>
+              </div>
             </div>
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-stone-100">
             <div className="space-y-1.5 focus-within:text-emerald-600">
