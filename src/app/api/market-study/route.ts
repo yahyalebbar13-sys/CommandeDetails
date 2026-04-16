@@ -1,38 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import * as fs from 'fs';
+import * as path from 'path';
 
-// Simple input/output schema — text in, text out, we parse manually
-const InputSchema = z.object({ promptText: z.string() });
-const OutputSchema = z.object({ text: z.string() });
-
-const marketStudyPrompt = ai.definePrompt({
-  name: 'marketStudyRawPrompt',
-  input: { schema: InputSchema },
-  output: { schema: OutputSchema },
-  prompt: `{{{promptText}}}`,
-});
-
-const marketStudyFlow = ai.defineFlow(
-  {
-    name: 'marketStudyRawFlow',
-    inputSchema: InputSchema,
-    outputSchema: OutputSchema,
-  },
-  async (input) => {
-    const { output } = await marketStudyPrompt(input);
-    if (!output) throw new Error('No output from AI');
-    return output;
+function getApiKey() {
+  let dynamicKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!dynamicKey) {
+    try {
+      const envContent = fs.readFileSync(path.join(process.cwd(), '.env.local'), 'utf-8');
+      const match = envContent.match(/GEMINI_API_KEY=([^\r\n]+)/);
+      if (match && match[1]) {
+        dynamicKey = match[1].trim();
+      }
+    } catch (e) {
+      // Ignore
+    }
   }
-);
+  return dynamicKey;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      throw new Error("Clé API Gemini introuvable. Veuillez vérifier .env.local.");
+    }
+
     const { categoryName, avgPurchasePriceUsd, totalQuantityOrdered, suppliersUsed, unitOfMeasure } = await request.json();
 
     const lines: string[] = [
-      `Tu es un expert en commerce international et en importation de fournitures industrielles au Maroc (confection textile : fermetures éclair, boutons, fils, tissus, accessoires).`,
-      ``,
+      `Tu es expert en commerce international et importation de fournitures au Maroc (textile).`,
       `Génère une étude de marché complète pour :`,
       `Catégorie : ${categoryName}`,
     ];
@@ -43,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     lines.push(
       ``,
-      `Retourne UNIQUEMENT un objet JSON valide (sans markdown, sans code blocks, juste le JSON brut) avec cette structure exacte :`,
+      `Retourne UNIQUEMENT un objet JSON valide (sans markdown) avec cette structure :`,
       `{`,
       `  "executiveSummary": "string",`,
       `  "technicalSpecs": ["string", ...],`,
@@ -73,16 +69,34 @@ export async function POST(request: NextRequest) {
       `  "growthTrendPercent": number`,
       `}`,
       ``,
-      `Contraintes : seasonality exactement 12 mois, clientSegments somme = 100, risks minimum 4, toutes les descriptions en français, chiffres réalistes pour le marché marocain.`,
+      `Contraintes : seasonality exactement 12 mois, clientSegments somme = 100, risks minimum 4. Chiffres réalistes.`
     );
 
     const promptText = lines.join('\n');
 
-    const result = await marketStudyFlow({ promptText });
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+        }
+      })
+    });
 
-    // Parse the raw text as JSON
-    let jsonText = result.text.trim();
-    // Remove markdown code blocks if the model adds them anyway
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error?.message || "Erreur lors de l'appel à l'API Gemini");
+    }
+
+    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textOutput) {
+      throw new Error("Réponse vide de Gemini");
+    }
+
+    let jsonText = textOutput.trim();
     jsonText = jsonText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
 
     const study = JSON.parse(jsonText);
