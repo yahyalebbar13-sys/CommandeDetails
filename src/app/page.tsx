@@ -120,7 +120,7 @@ export default function StockVueApp() {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'to-order', label: 'Besoins', icon: ClipboardList },
+    { id: 'to-order', label: 'Besoins et Réclamations', icon: ClipboardList },
     { id: 'pending', label: 'Production', icon: Factory },
     { id: 'transit', label: 'Transit', icon: Truck },
     { id: 'timeline', label: 'Timeline', icon: Timer },

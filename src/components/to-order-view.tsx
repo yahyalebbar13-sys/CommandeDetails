@@ -73,9 +73,9 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
 
   // ── Helpers ──────────────────────────────────────────────────────────
   const getFactureLabel = (f: any) => {
-    const bl = f.noBL ? `BL ${f.noBL}` : 'Sans BL';
+    const numFacture = f.id ? `Facture ${f.id}` : 'Sans Facture';
     const date = f.arrivalDate ? new Date(f.arrivalDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-    return `${bl}${date ? ' · ' + date : ''}`;
+    return `${numFacture}${date ? ' · ' + date : ''}`;
   };
 
   const isZipperCategory = (cat: string) => {
@@ -333,7 +333,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                           >
                             <Anchor className="w-3 h-3 flex-shrink-0 text-stone-400" />
                             <div>
-                              <div className="uppercase">{f.noBL ? `BL ${f.noBL}` : 'Sans BL'}</div>
+                              <div className="uppercase">{f.id ? `Facture ${f.id}` : 'Sans Facture'}</div>
                               {f.arrivalDate && (
                                 <div className="text-[10px] text-stone-400 font-normal">
                                   Arrivée : {new Date(f.arrivalDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
