@@ -18,11 +18,12 @@ import EditOrderModal from '@/components/edit-order-modal';
 import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
+import AIView from '@/components/ai-view';
 import { Button } from '@/components/ui/button';
 import { 
   LogOut, Loader2, Layers, Package, Plus, Database, 
   LayoutDashboard, ClipboardList, Factory, Truck, 
-  Anchor, Boxes, UserCheck, Menu, X, Timer, Calculator
+  Anchor, Boxes, UserCheck, Menu, X, Timer, Calculator, Sparkles
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -128,6 +129,7 @@ export default function StockVueApp() {
     { id: 'cost-analysis', label: 'Coût Revient', icon: Calculator },
     { id: 'suppliers', label: 'Partenaires', icon: UserCheck },
     { id: 'data', label: 'Data Lab', icon: Database },
+    { id: 'ai', label: 'IA Marché', icon: Sparkles },
   ] as const;
 
   const NavButtons = ({ vertical = false }: { vertical?: boolean }) => (
@@ -223,6 +225,7 @@ export default function StockVueApp() {
             {activeTab === 'cost-analysis' && <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />}
             {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} onNavigateToFacture={handleNavigateToFacture} />}
             {activeTab === 'data' && <DataView articles={articles} onEdit={handleEditArticle} />}
+            {activeTab === 'ai' && <AIView articles={articles} generalCategories={generalCategories} subCategories={subCategories} />}
           </div>
         )}
       </main>
