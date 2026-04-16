@@ -15,7 +15,30 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend, AreaChart, Area, CartesianGrid, LineChart, Line
 } from 'recharts';
-import { generateCategoryMarketStudy, CategoryMarketStudyOutput } from '@/ai/flows/category-market-study-flow';
+// Types for the market study (matching API route response)
+export interface CategoryMarketStudyOutput {
+  executiveSummary: string;
+  technicalSpecs: string[];
+  requiredComponents: string[];
+  moroccanUseCases: string[];
+  competitors: { name: string; type: string; estimatedMarketShare: string; pricePositioning: string }[];
+  avgPurchasePriceAnalysis: string;
+  recommendedSellingPriceMAD: number;
+  recommendedSellingPriceContext: string;
+  minimumImportQuantity: number;
+  minimumImportQuantityUnit: string;
+  idealOrderQuantity: number;
+  idealOrderQuantityUnit: string;
+  idealOrderQuantityRationale: string;
+  replenishmentFrequencyDays: number;
+  replenishmentFrequencyRationale: string;
+  risks: { type: string; level: string; description: string }[];
+  clientSegments: { segment: string; percentage: number; description: string }[];
+  seasonality: { month: string; demandIndex: number }[];
+  keyInsights: string[];
+  marketSizeEstimateMAD?: number;
+  growthTrendPercent?: number;
+}
 
 interface AIViewProps {
   articles: any[];
@@ -24,7 +47,18 @@ interface AIViewProps {
 }
 
 const CHART_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#8B5CF6', '#F43F5E', '#EC4899', '#F59E0B'];
-const RISK_COLORS = { 'Faible': '#10B981', 'Modéré': '#F59E0B', 'Élevé': '#F43F5E' };
+const getRiskColor = (level: string) => {
+  const l = level?.toLowerCase() || '';
+  if (l.includes('elev') || l.includes('élev')) return '#F43F5E';
+  if (l.includes('mod') || l.includes('modé')) return '#F59E0B';
+  return '#10B981';
+};
+const getRiskLabel = (level: string) => {
+  const l = level?.toLowerCase() || '';
+  if (l.includes('elev') || l.includes('élev')) return 'Élevé';
+  if (l.includes('mod')) return 'Modéré';
+  return 'Faible';
+};
 
 const SectionHeader = ({ icon: Icon, title, subtitle, color = 'amber' }: { icon: any, title: string, subtitle?: string, color?: string }) => {
   const colors: Record<string, string> = {
@@ -133,14 +167,25 @@ export default function AIView({ articles, generalCategories, subCategories }: A
           .filter(Boolean)
       )];
 
-      const result = await generateCategoryMarketStudy({
-        categoryName: selectedCategory.name,
-        avgPurchasePriceUsd: selectedCategory.avgPrice > 0 ? Math.round(selectedCategory.avgPrice * 100) / 100 : undefined,
-        totalQuantityOrdered: selectedCategory.totalQty > 0 ? selectedCategory.totalQty : undefined,
-        suppliersUsed: suppliers.length > 0 ? suppliers : undefined,
-        unitOfMeasure: selectedCategory.unit,
+      const res = await fetch('/api/market-study', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categoryName: selectedCategory.name,
+          avgPurchasePriceUsd: selectedCategory.avgPrice > 0 ? Math.round(selectedCategory.avgPrice * 100) / 100 : undefined,
+          totalQuantityOrdered: selectedCategory.totalQty > 0 ? selectedCategory.totalQty : undefined,
+          suppliersUsed: suppliers.length > 0 ? suppliers : undefined,
+          unitOfMeasure: selectedCategory.unit,
+        }),
       });
-      setStudy(result);
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `Erreur HTTP ${res.status}`);
+      }
+
+      setStudy(data.study);
     } catch (e: any) {
       setError(e.message || 'Erreur lors de la génération de l\'étude.');
     } finally {
@@ -588,7 +633,7 @@ export default function AIView({ articles, generalCategories, subCategories }: A
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 {study.risks.map((risk, i) => {
-                  const color = RISK_COLORS[risk.level];
+                  const color = getRiskColor(risk.level);
                   return (
                     <div key={i} className="rounded-xl border border-stone-100 p-5 bg-white flex gap-4">
                       <div className="flex-shrink-0">
@@ -604,7 +649,7 @@ export default function AIView({ articles, generalCategories, subCategories }: A
                             className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full"
                             style={{ backgroundColor: `${color}20`, color }}
                           >
-                            {risk.level}
+                            {getRiskLabel(risk.level)}
                           </span>
                         </div>
                         <p className="text-[11px] text-stone-600 font-bold leading-relaxed">{risk.description}</p>
@@ -619,7 +664,7 @@ export default function AIView({ articles, generalCategories, subCategories }: A
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={study.risks.map(r => ({
                     risk: r.type,
-                    niveau: r.level === 'Élevé' ? 3 : r.level === 'Modéré' ? 2 : 1,
+                    niveau: getRiskLabel(r.level) === 'Élevé' ? 3 : getRiskLabel(r.level) === 'Modéré' ? 2 : 1,
                   }))}>
                     <PolarGrid stroke="#f1f1f1" />
                     <PolarAngleAxis dataKey="risk" tick={{ fontSize: 9, fontWeight: 900, textAnchor: 'middle' }} />
