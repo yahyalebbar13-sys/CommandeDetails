@@ -2,23 +2,13 @@
 /**
  * @fileOverview Genkit flow for generating a complete Moroccan market study
  * for a given logistics product category.
+ * Uses the same pattern as suggest-article-specifications-flow.ts
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-// ── Input ─────────────────────────────────────────────────────────────────────
-
-const CategoryMarketStudyInputSchema = z.object({
-  categoryName: z.string().describe('Name of the product category.'),
-  avgPurchasePriceUsd: z.number().optional(),
-  totalQuantityOrdered: z.number().optional(),
-  suppliersUsed: z.array(z.string()).optional(),
-  unitOfMeasure: z.string().optional(),
-});
-export type CategoryMarketStudyInput = z.infer<typeof CategoryMarketStudyInputSchema>;
-
-// ── Output ────────────────────────────────────────────────────────────────────
+// ── Output schema ─────────────────────────────────────────────────────────────
 
 const RiskSchema = z.object({
   type: z.string(),
@@ -69,33 +59,86 @@ const CategoryMarketStudyOutputSchema = z.object({
 });
 export type CategoryMarketStudyOutput = z.infer<typeof CategoryMarketStudyOutputSchema>;
 
-// ── Flow ──────────────────────────────────────────────────────────────────────
+// ── Input schema — single string to avoid Handlebars issues ──────────────────
 
-export async function generateCategoryMarketStudy(input: CategoryMarketStudyInput): Promise<CategoryMarketStudyOutput> {
-  // Build the prompt string dynamically to avoid Handlebars array/conditional issues
-  const lines: string[] = [];
-  lines.push(`Tu es un expert en commerce international et en importation de fournitures industrielles (mercerie, textile, accessoires de confection) au Maroc.`);
-  lines.push(`Génère une étude de marché complète et professionnelle pour la catégorie suivante dans le contexte marocain :\n`);
-  lines.push(`Catégorie : ${input.categoryName}`);
-  if (input.avgPurchasePriceUsd != null) lines.push(`Prix d'achat moyen actuel : ${input.avgPurchasePriceUsd} USD/${input.unitOfMeasure || 'u'}`);
-  if (input.totalQuantityOrdered != null) lines.push(`Quantité totale commandée historiquement : ${input.totalQuantityOrdered} ${input.unitOfMeasure || 'u'}`);
-  if (input.suppliersUsed && input.suppliersUsed.length > 0) lines.push(`Fournisseurs utilisés : ${input.suppliersUsed.join(', ')}`);
-  lines.push(`\nRéponds UNIQUEMENT avec un objet JSON valide respectant le schéma de sortie. Toutes les descriptions et analyses doivent être en français.`);
-  lines.push(`\nContraintes :`);
-  lines.push(`- Pour la saisonnalité : fournis exactement 12 entrées (Janv, Févr, Mars, Avr, Mai, Juin, Juil, Août, Sept, Oct, Nov, Déc), chaque demandIndex entre 0 et 100.`);
-  lines.push(`- Pour clientSegments : la somme des pourcentages doit être égale à 100.`);
-  lines.push(`- Pour risks : inclus au minimum les risques prix, qualité, délai, saisonnalité.`);
-  lines.push(`- Les données chiffrées doivent être réalistes pour le marché marocain de la confection textile (Casablanca, Fès, Tanger, Marrakech).`);
+const CategoryMarketStudyInputSchema = z.object({
+  promptText: z.string().describe('Full pre-built prompt text for the market study.'),
+});
 
-  const prompt = lines.join('\n');
+// ── Types exported for use in the UI ─────────────────────────────────────────
 
-  const result = await ai.generate({
-    prompt,
-    output: { schema: CategoryMarketStudyOutputSchema },
-  });
+export interface CategoryMarketStudyInput {
+  categoryName: string;
+  avgPurchasePriceUsd?: number;
+  totalQuantityOrdered?: number;
+  suppliersUsed?: string[];
+  unitOfMeasure?: string;
+}
 
-  if (!result.output) {
-    throw new Error('No output received from the AI model.');
+// ── Prompt definition ─────────────────────────────────────────────────────────
+
+const categoryMarketStudyPrompt = ai.definePrompt({
+  name: 'categoryMarketStudyPrompt',
+  input: { schema: CategoryMarketStudyInputSchema },
+  output: { schema: CategoryMarketStudyOutputSchema },
+  prompt: `{{{promptText}}}`,
+});
+
+// ── Flow definition ───────────────────────────────────────────────────────────
+
+const categoryMarketStudyFlow = ai.defineFlow(
+  {
+    name: 'categoryMarketStudyFlow',
+    inputSchema: CategoryMarketStudyInputSchema,
+    outputSchema: CategoryMarketStudyOutputSchema,
+  },
+  async (input) => {
+    const { output } = await categoryMarketStudyPrompt(input);
+    if (!output) {
+      throw new Error('No output received from the AI model.');
+    }
+    return output;
   }
-  return result.output;
+);
+
+// ── Public function ───────────────────────────────────────────────────────────
+
+export async function generateCategoryMarketStudy(
+  input: CategoryMarketStudyInput
+): Promise<CategoryMarketStudyOutput> {
+  // Build the full prompt as a plain string — no Handlebars issues
+  const lines: string[] = [
+    `Tu es un expert en commerce international, en importation de fournitures industrielles et de mercerie, et en analyse de marché au Maroc.`,
+    `Tu travailles pour un importateur logistique spécialisé dans les accessoires de confection textile (fermetures éclair, boutons, fils, tissus, etc.).`,
+    ``,
+    `Génère une étude de marché complète et professionnelle pour la catégorie suivante dans le contexte marocain :`,
+    ``,
+    `Catégorie : ${input.categoryName}`,
+  ];
+
+  if (input.avgPurchasePriceUsd != null) {
+    lines.push(`Prix d'achat moyen actuel : ${input.avgPurchasePriceUsd} USD/${input.unitOfMeasure || 'u'}`);
+  }
+  if (input.totalQuantityOrdered != null) {
+    lines.push(`Quantité totale commandée historiquement : ${input.totalQuantityOrdered} ${input.unitOfMeasure || 'u'}`);
+  }
+  if (input.suppliersUsed && input.suppliersUsed.length > 0) {
+    lines.push(`Fournisseurs utilisés : ${input.suppliersUsed.join(', ')}`);
+  }
+
+  lines.push(
+    ``,
+    `Réponds UNIQUEMENT avec un objet JSON valide respectant le schéma de sortie. Toutes les descriptions et analyses doivent être en français.`,
+    ``,
+    `Contraintes importantes :`,
+    `- seasonality : exactement 12 objets avec les clés "month" (Janv, Févr, Mars, Avr, Mai, Juin, Juil, Août, Sept, Oct, Nov, Déc) et "demandIndex" (nombre entre 0 et 100).`,
+    `- clientSegments : la somme de tous les "percentage" doit être exactement 100.`,
+    `- risks : au minimum 4 risques couvrant : variation des prix matières, qualité fournisseur, délais de livraison, saisonnalité.`,
+    `- Tous les chiffres doivent être réalistes pour le marché marocain de la confection textile (Casablanca, Fès, Tanger, Marrakech).`,
+    `- marketSizeEstimateMAD et growthTrendPercent sont optionnels mais recommandés.`,
+  );
+
+  const promptText = lines.join('\n');
+
+  return categoryMarketStudyFlow({ promptText });
 }
