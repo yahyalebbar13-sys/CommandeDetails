@@ -17,7 +17,12 @@ if (!dynamicKey) {
   }
 }
 
+// Force environment variable so the Genkit plugin reads it natively
+if (dynamicKey) {
+  process.env.GEMINI_API_KEY = dynamicKey;
+}
+
 export const ai = genkit({
-  plugins: [googleAI({ apiKey: dynamicKey })],
+  plugins: [googleAI()],
   model: 'googleai/gemini-2.5-flash',
 });
