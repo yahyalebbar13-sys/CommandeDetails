@@ -5,9 +5,14 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ListTodo, Trash2, ArrowRight, ShoppingCart, Pencil, Box, Settings2, MousePointer2, Flame, AlertTriangle, CheckSquare } from 'lucide-react';
-import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  ListTodo, Trash2, ArrowRight, Pencil, Settings2, MousePointer2,
+  Flame, AlertTriangle, CheckSquare, MessageSquareWarning, Send,
+  ChevronDown, Package, X, Clock, CheckCircle2
+} from 'lucide-react';
+import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 
@@ -23,42 +28,103 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
 
+  // Réclamation state
+  const [reclamationArticleId, setReclamationArticleId] = useState<string>('');
+  const [reclamationText, setReclamationText] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
   const toOrderArticles = useMemo(() => {
     const priorityOrder = { 'urgent': 0, 'important': 1, 'todo': 2 };
-
     return [...articles]
       .filter(o => o.status === 'TO_ORDER')
       .sort((a, b) => {
         const pA = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
         const pB = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
-
         if (pA !== pB) return pA - pB;
         return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
       });
   }, [articles]);
 
+  // All non-TO_ORDER articles that can have complaints + TO_ORDER too
+  const allArticles = useMemo(() => {
+    return [...articles].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [articles]);
+
+  // Articles that already have a reclamation
+  const articlesWithReclamation = useMemo(() => {
+    return articles.filter(a => a.reclamation && a.reclamation.trim() !== '');
+  }, [articles]);
+
   const handleActionDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
-
     if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
       const docRef = doc(firestore, 'users', user.uid, 'articles', id);
       deleteDocumentNonBlocking(docRef);
-      toast({
-        title: "Rappel supprimé",
-        description: name
-      });
+      toast({ title: "Rappel supprimé", description: name });
     }
   };
 
   const isZipperCategory = (cat: string) => {
     const c = cat?.toUpperCase() || "";
-    const isZipper = c.includes("ZIPPER");
-    const isExcluded = c.includes("LONG CHAIN") || c.includes("SLIDER");
-    return isZipper && !isExcluded;
+    return c.includes("ZIPPER") && !c.includes("LONG CHAIN") && !c.includes("SLIDER");
   };
 
+  const handleSubmitReclamation = () => {
+    if (!user || !firestore) return;
+    if (!reclamationArticleId) {
+      toast({ title: "Sélectionnez un produit", description: "Veuillez choisir un produit défectueux.", variant: "destructive" });
+      return;
+    }
+    if (!reclamationText.trim()) {
+      toast({ title: "Réclamation vide", description: "Veuillez saisir le texte de la réclamation.", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const docRef = doc(firestore, 'users', user.uid, 'articles', reclamationArticleId);
+    updateDocumentNonBlocking(docRef, {
+      reclamation: reclamationText.trim(),
+      reclamationDate: new Date().toISOString(),
+      reclamationStatus: 'open',
+    });
+
+    const article = allArticles.find(a => a.id === reclamationArticleId);
+    toast({
+      title: "Réclamation enregistrée",
+      description: `Réclamation pour "${article?.name}" soumise avec succès.`,
+    });
+
+    setReclamationText('');
+    setReclamationArticleId('');
+    setIsSubmitting(false);
+  };
+
+  const handleDeleteReclamation = (articleId: string, articleName: string) => {
+    if (!user || !firestore) return;
+    if (window.confirm(`Supprimer la réclamation pour "${articleName}" ?`)) {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+      updateDocumentNonBlocking(docRef, {
+        reclamation: '',
+        reclamationDate: null,
+        reclamationStatus: null,
+      });
+      toast({ title: "Réclamation supprimée", description: articleName });
+    }
+  };
+
+  const handlecloseReclamation = (articleId: string, articleName: string) => {
+    if (!user || !firestore) return;
+    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    updateDocumentNonBlocking(docRef, { reclamationStatus: 'closed' });
+    toast({ title: "Réclamation clôturée", description: articleName });
+  };
+
+  const selectedArticleName = allArticles.find(a => a.id === reclamationArticleId)?.name || '';
+
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-8 fade-in">
+      {/* ─── Header ─── */}
       <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-8 border-l-stone-800">
         <div>
           <h2 className="text-3xl font-bold text-stone-900 flex items-center gap-2">
@@ -75,6 +141,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
         </div>
       </div>
 
+      {/* ─── Besoins Table ─── */}
       <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
         <CardContent className="p-0">
           <Table>
@@ -92,7 +159,7 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
             <TableBody>
               {toOrderArticles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-20 text-stone-400 italic font-bold">
+                  <TableCell colSpan={7} className="text-center py-20 text-stone-400 italic font-bold">
                     Aucun besoin identifié pour le moment.
                   </TableCell>
                 </TableRow>
@@ -169,6 +236,190 @@ export default function ToOrderView({ articles, onEdit }: ToOrderViewProps) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* ─── Réclamations Section ─── */}
+      <div className="space-y-6">
+        {/* Section Header */}
+        <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-8 border-l-orange-500">
+          <div>
+            <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2">
+              <MessageSquareWarning className="w-7 h-7 text-orange-500" />
+              Réclamations Produits
+            </h2>
+            <p className="text-stone-500 mt-1 text-sm">
+              Signalez un produit défectueux et rédigez votre réclamation.
+            </p>
+          </div>
+          <div className="bg-orange-50 px-4 py-2 rounded-lg border border-orange-100">
+            <div className="text-[10px] text-orange-400 font-black uppercase">En cours</div>
+            <div className="text-2xl font-black text-orange-600">
+              {articlesWithReclamation.filter(a => a.reclamationStatus !== 'closed').length} Réclamation(s)
+            </div>
+          </div>
+        </div>
+
+        {/* New Reclamation Form */}
+        <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4">
+            <h3 className="text-white font-black uppercase tracking-widest text-[11px] flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Nouvelle Réclamation
+            </h3>
+          </div>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Product selector */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">
+                  Produit Défectueux *
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(prev => !prev)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left text-sm font-bold transition-all
+                      ${reclamationArticleId
+                        ? 'border-orange-400 bg-orange-50 text-orange-800'
+                        : 'border-stone-200 bg-stone-50 text-stone-400 hover:border-stone-300'
+                      }`}
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Package className="w-4 h-4 flex-shrink-0" />
+                      {selectedArticleName || 'Sélectionner un produit…'}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {dropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-stone-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                      {allArticles.length === 0 ? (
+                        <div className="p-4 text-center text-stone-400 text-xs font-bold">Aucun produit disponible</div>
+                      ) : (
+                        allArticles.map(a => (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => { setReclamationArticleId(a.id); setDropdownOpen(false); }}
+                            className={`w-full text-left px-4 py-3 text-xs font-bold hover:bg-orange-50 hover:text-orange-700 transition-colors flex items-center gap-2 border-b border-stone-50 last:border-0
+                              ${reclamationArticleId === a.id ? 'bg-orange-50 text-orange-700' : 'text-stone-700'}`}
+                          >
+                            <Package className="w-3 h-3 flex-shrink-0 text-stone-400" />
+                            <span className="truncate uppercase">{a.name}</span>
+                            {a.color && <span className="text-stone-400 font-normal">— {a.color}</span>}
+                            {a.size && <span className="text-stone-400 font-normal text-[10px]">{a.size}</span>}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Reclamation text */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">
+                  Description de la Réclamation *
+                </label>
+                <Textarea
+                  value={reclamationText}
+                  onChange={e => setReclamationText(e.target.value)}
+                  placeholder="Décrivez le problème constaté sur ce produit…"
+                  rows={4}
+                  className="resize-none rounded-xl border-2 border-stone-200 focus:border-orange-400 focus:ring-0 text-sm font-medium text-stone-800 placeholder:text-stone-300"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleSubmitReclamation}
+                disabled={isSubmitting || !reclamationArticleId || !reclamationText.trim()}
+                className="bg-orange-500 hover:bg-orange-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-10 rounded-xl shadow-lg shadow-orange-500/20 flex items-center gap-2 disabled:opacity-40"
+              >
+                <Send className="w-4 h-4" />
+                Soumettre la Réclamation
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Existing Reclamations List */}
+        {articlesWithReclamation.length > 0 && (
+          <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+            <div className="bg-stone-50 border-b border-stone-100 px-6 py-4">
+              <h3 className="text-stone-700 font-black uppercase tracking-widest text-[11px] flex items-center gap-2">
+                <MessageSquareWarning className="w-4 h-4 text-orange-500" />
+                Réclamations Enregistrées
+              </h3>
+            </div>
+            <CardContent className="p-0">
+              <div className="divide-y divide-stone-50">
+                {articlesWithReclamation.map(a => {
+                  const isClosed = a.reclamationStatus === 'closed';
+                  const recDate = a.reclamationDate ? new Date(a.reclamationDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+                  return (
+                    <div key={a.id} className={`p-5 flex flex-col sm:flex-row gap-4 transition-colors ${isClosed ? 'bg-stone-50/60 opacity-60' : 'hover:bg-orange-50/30'}`}>
+                      {/* Left: product info */}
+                      <div className="flex-shrink-0 min-w-[160px]">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Package className="w-3.5 h-3.5 text-orange-400" />
+                          <span className="font-black text-stone-900 text-xs uppercase">{a.name}</span>
+                        </div>
+                        {(a.color || a.size) && (
+                          <div className="text-[10px] text-stone-400 font-bold uppercase ml-5">
+                            {[a.color, a.size].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
+                        {recDate && (
+                          <div className="flex items-center gap-1 mt-1.5 ml-5">
+                            <Clock className="w-2.5 h-2.5 text-stone-300" />
+                            <span className="text-[9px] text-stone-400 font-bold">{recDate}</span>
+                          </div>
+                        )}
+                        <div className="mt-2 ml-5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider
+                            ${isClosed ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                            {isClosed ? <><CheckCircle2 className="w-2.5 h-2.5" /> Clôturée</> : <><AlertTriangle className="w-2.5 h-2.5" /> Ouverte</>}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right: reclamation text */}
+                      <div className="flex-1 bg-white rounded-xl border border-stone-100 p-4 relative">
+                        <p className="text-sm text-stone-700 font-medium leading-relaxed whitespace-pre-wrap">{a.reclamation}</p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex sm:flex-col gap-2 items-start flex-shrink-0">
+                        {!isClosed && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlecloseReclamation(a.id, a.name)}
+                            className="h-8 px-3 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Clôturer
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteReclamation(a.id, a.name)}
+                          className="h-8 px-3 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Supprimer
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       <LaunchOrderModal
         open={isLaunchModalOpen}
