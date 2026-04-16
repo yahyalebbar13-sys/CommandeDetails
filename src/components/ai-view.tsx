@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -73,6 +73,18 @@ const StatCard = ({ label, value, sub, color = 'stone', icon: Icon }: any) => {
 export default function AIView({ articles, generalCategories, subCategories }: AIViewProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
   const [study, setStudy] = useState<CategoryMarketStudyOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -160,8 +172,8 @@ export default function AIView({ articles, generalCategories, subCategories }: A
       </div>
 
       {/* ── Category Selector + Launch ── */}
-      <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
+      <Card className="border-none shadow-xl rounded-2xl">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 rounded-t-2xl">
           <h3 className="text-white font-black uppercase tracking-widest text-[11px] flex items-center gap-2">
             <Target className="w-4 h-4" /> Sélection de la Catégorie
           </h3>
@@ -174,7 +186,7 @@ export default function AIView({ articles, generalCategories, subCategories }: A
               <label className="text-[10px] font-black uppercase tracking-widest text-stone-500">
                 Catégorie de Produit *
               </label>
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
                   onClick={() => setDropdownOpen(p => !p)}
