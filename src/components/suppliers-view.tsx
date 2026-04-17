@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF } from '@/lib/pdf-export';
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
 interface SuppliersViewProps {
@@ -1304,7 +1304,7 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !email || !password) return;
-    
+
     if (user.email !== 'yahya.lebbar13@gmail.com') {
       toast({ variant: 'destructive', title: 'Accès refusé', description: "Seul l'administrateur principal peut créer des comptes clients." });
       return;
@@ -1312,33 +1312,58 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
 
     setLoading(true);
     try {
-      // Use a secondary Firebase app to create the account without logging out the admin
+      // Use a secondary Firebase app to create/sign-in without logging out the admin
       const secondaryAppName = 'clientCreation_' + Date.now();
       const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
-      const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-      const clientUid = credential.user.uid;
+
+      let clientUid: string;
+
+      try {
+        // Try creating a new Firebase Auth user
+        const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        clientUid = credential.user.uid;
+      } catch (createErr: any) {
+        if (createErr.code === 'auth/email-already-in-use') {
+          // User already exists → sign in to get their UID
+          const credential = await signInWithEmailAndPassword(secondaryAuth, email, password);
+          clientUid = credential.user.uid;
+        } else {
+          throw createErr;
+        }
+      }
+
       await deleteApp(secondaryApp);
 
-      // Register the client mapping in Firestore (global collection accessible by the client)
-      const clientDocRef = doc(firestore, 'clientAccess', clientUid);
-      await setDoc(clientDocRef, {
+      // Write (or overwrite) the clientAccess mapping in Firestore
+      await setDoc(doc(firestore, 'clientAccess', clientUid), {
         clientName,
         email,
         adminUid: user.uid,
         createdAt: serverTimestamp(),
       });
 
-      toast({ title: '✅ Accès créé', description: `Compte créé pour ${clientName} — ${email}` });
+      toast({ title: '✅ Accès configuré', description: `Accès activé pour ${clientName} (${email})` });
       onOpenChange(false);
       setEmail('');
       setPassword('');
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de créer le compte.' });
+      let msg = 'Impossible de configurer cet accès.';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        msg = 'Mot de passe incorrect pour cet email existant.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Adresse email invalide.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'Mot de passe trop faible (min. 6 caractères).';
+      } else if (err.message) {
+        msg = err.message;
+      }
+      toast({ variant: 'destructive', title: 'Erreur', description: msg });
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
