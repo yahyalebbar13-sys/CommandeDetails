@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
@@ -28,9 +28,12 @@ import {
   Anchor, UserCheck, Menu, Timer, Calculator, Sparkles, Lock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirebase, useCollection, useMemoFirebase, initializeFirebase } from '@/firebase';
+import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { signOut, signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
+import { signOut, signInWithEmailAndPassword, onAuthStateChanged, getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 import {
   Sheet,
   SheetContent,
@@ -39,10 +42,16 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 
-// ─── CLIENT PORTAL ───────────────────────────────────────────────────────────
-const { auth: clientAuth, firestore: clientFirestore } = initializeFirebase();
+// ─── Separate Firebase app for client portal (isolated auth state from admin) ─
+function getClientPortalFirebase() {
+  if (typeof window === 'undefined') return null;
+  const name = 'clientPortal';
+  const app = getApps().find(a => a.name === name) || initializeApp(firebaseConfig, name);
+  return { auth: getAuth(app), db: getFirestore(app) };
+}
 
-type ClientPortalState =
+// ─── CLIENT PORTAL ─────────────────────────────────────────────────────────
+type PortalState =
   | { status: 'loading' }
   | { status: 'login' }
   | { status: 'checking' }
@@ -50,7 +59,7 @@ type ClientPortalState =
   | { status: 'error'; message: string };
 
 function ClientPortal() {
-  const [state, setState] = useState<ClientPortalState>({ status: 'loading' });
+  const [state, setState] = useState<PortalState>({ status: 'loading' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
@@ -59,33 +68,46 @@ function ClientPortal() {
   const [factures, setFactures] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
+  // Refs hold the isolated Firebase instances — never shared with the admin app
+  const authRef = useRef<ReturnType<typeof getAuth> | null>(null);
+  const dbRef = useRef<ReturnType<typeof getFirestore> | null>(null);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(clientAuth, async (user) => {
+    const fb = getClientPortalFirebase();
+    if (!fb) return;
+    authRef.current = fb.auth;
+    dbRef.current = fb.db;
+
+    const unsubscribe = onAuthStateChanged(fb.auth, async (user) => {
       if (!user) { setState({ status: 'login' }); return; }
       setState({ status: 'checking' });
       try {
-        const snap = await getDoc(doc(clientFirestore, 'clientAccess', user.uid));
+        const snap = await getDoc(doc(fb.db, 'clientAccess', user.uid));
         if (snap.exists()) {
           const data = snap.data();
           setState({ status: 'portal', clientName: data.clientName, adminUid: data.adminUid });
         } else {
-          await signOut(clientAuth);
+          await signOut(fb.auth);
           setState({ status: 'error', message: "Ce compte n'est pas autorisé pour le portail client." });
         }
-      } catch {
+      } catch (e) {
+        await signOut(fb.auth);
         setState({ status: 'error', message: "Erreur de vérification de votre accès." });
       }
     });
     return () => unsubscribe();
   }, []);
 
+  // Load client data when authenticated
   useEffect(() => {
     if (state.status !== 'portal') return;
     const { adminUid } = state as { status: 'portal'; clientName: string; adminUid: string };
+    if (!dbRef.current) return;
     setDataLoading(true);
+    const db = dbRef.current;
     Promise.all([
-      getDocs(collection(clientFirestore, 'users', adminUid, 'articles')),
-      getDocs(collection(clientFirestore, 'users', adminUid, 'factures')),
+      getDocs(collection(db, 'users', adminUid, 'articles')),
+      getDocs(collection(db, 'users', adminUid, 'factures')),
     ]).then(([artSnap, facSnap]) => {
       setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
       setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
@@ -95,10 +117,11 @@ function ClientPortal() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!authRef.current) return;
     setLoginLoading(true);
     setLoginError('');
     try {
-      await signInWithEmailAndPassword(clientAuth, email, password);
+      await signInWithEmailAndPassword(authRef.current, email, password);
     } catch {
       setLoginError("Identifiants invalides. Veuillez réessayer.");
     } finally {
@@ -106,10 +129,17 @@ function ClientPortal() {
     }
   };
 
+  const handleLogout = () => { if (authRef.current) signOut(authRef.current); };
+
   if (state.status === 'loading' || state.status === 'checking') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F9F6F0]">
-        <Loader2 className="animate-spin text-indigo-500 w-10 h-10" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-indigo-500 w-10 h-10" />
+          <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">
+            {state.status === 'checking' ? 'Vérification de vos droits...' : 'Chargement...'}
+          </p>
+        </div>
       </div>
     );
   }
@@ -133,7 +163,9 @@ function ClientPortal() {
                 <Lock className="w-5 h-5 text-indigo-200" />
               </div>
               <h2 className="text-lg font-black text-white uppercase tracking-tight">Accès Espace Client</h2>
-              <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest mt-1">Consultez vos précommandes en temps réel</p>
+              <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest mt-1">
+                Consultez vos précommandes en temps réel
+              </p>
             </div>
             <form onSubmit={handleLogin} className="p-8 space-y-5">
               {(state.status === 'error' || loginError) && (
@@ -157,13 +189,10 @@ function ClientPortal() {
                 className="w-full h-12 bg-indigo-700 hover:bg-indigo-800 text-white font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-indigo-200">
                 {loginLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Accéder à Mon Espace"}
               </Button>
-              <p className="text-center text-[9px] text-stone-300 uppercase tracking-widest font-bold pt-2">Accès sécurisé — Données confidentielles</p>
+              <p className="text-center text-[9px] text-stone-300 uppercase tracking-widest font-bold pt-2">
+                Accès sécurisé — Données confidentielles
+              </p>
             </form>
-          </div>
-          <div className="text-center mt-4">
-            <button onClick={() => { window.location.hash = ''; }} className="text-[10px] text-stone-400 hover:text-stone-600 font-bold uppercase tracking-widest">
-              ← Retour au site principal
-            </button>
           </div>
         </div>
       </div>
@@ -176,7 +205,7 @@ function ClientPortal() {
       <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
+            <div className="inline-flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
               <Package className="w-4 h-4 text-white" />
             </div>
             <span className="text-lg font-black tracking-tighter text-stone-900 uppercase">
@@ -188,10 +217,13 @@ function ClientPortal() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-full px-4 py-1.5">
               <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">{portalState.clientName}</span>
+              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
+                {portalState.clientName}
+              </span>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => signOut(clientAuth)}
-              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors">
+            <Button variant="ghost" size="icon" onClick={handleLogout}
+              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors"
+              title="Déconnexion">
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -201,11 +233,18 @@ function ClientPortal() {
         {dataLoading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
-            <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Chargement de vos commandes...</p>
+            <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">
+              Chargement de vos commandes...
+            </p>
           </div>
         ) : (
           <div className="fade-in">
-            <ClientDetailView clientName={portalState.clientName} articles={articles} factures={factures} isPortal />
+            <ClientDetailView
+              clientName={portalState.clientName}
+              articles={articles}
+              factures={factures}
+              isPortal
+            />
           </div>
         )}
       </main>
@@ -219,7 +258,7 @@ function ClientPortal() {
   );
 }
 
-// ─── ADMIN APP ────────────────────────────────────────────────────────────────
+// ─── ROUTER ────────────────────────────────────────────────────────────────
 export default function StockVueApp() {
   const [isClientPortal, setIsClientPortal] = useState(false);
 
@@ -234,6 +273,7 @@ export default function StockVueApp() {
   return <AdminApp />;
 }
 
+// ─── ADMIN APP ─────────────────────────────────────────────────────────────
 function AdminApp() {
   const { user, isUserLoading } = useUser();
   const { auth, firestore } = useFirebase();
@@ -292,12 +332,10 @@ function AdminApp() {
 
   const handleEditArticle = (article: any) => { setEditingArticle(article); };
   const handlePassToStock = (factureId: string) => { setPassToStockFactureId(factureId); };
-
   const handleSelectGeneralCategory = (id: string | null) => {
     setSelectedGeneralCategoryId(id);
     setActiveTab(id ? 'categories' : 'general-categories');
   };
-
   const resetToHome = () => {
     setActiveTab('dashboard');
     setSelectedFactureId(null);
