@@ -7,11 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, 
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2
+  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -19,6 +19,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF } from '@/lib/pdf-export';
+import { initializeApp, getApps, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { firebaseConfig } from '@/firebase/config';
 
 interface SuppliersViewProps {
   articles: any[];
@@ -126,6 +129,7 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
       <ClientDetailView
         clientName={selectedClient}
         articles={articles}
+        factures={factures}
         onBack={() => setSelectedClient(null)}
       />
     );
@@ -374,30 +378,11 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {clientStats.map((stat) => (
-              <Card
+              <ClientCard
                 key={stat.name}
-                onClick={() => setSelectedClient(stat.name)}
-                className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95"
-              >
-                <div className="h-1 w-full bg-stone-900 group-hover:bg-indigo-500 transition-colors" />
-                <CardHeader className="pb-4">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{stat.name}</CardTitle>
-                    <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-indigo-500 transition-colors">
-                      <UserCircle2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-black text-stone-900 mb-6">{stat.orders} <span className="text-sm font-bold text-stone-400">Articles</span></div>
-                  <div className="space-y-2 pt-4 border-t border-stone-50">
-                    <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                      <span>Familles</span>
-                      <span className="text-indigo-600 font-black">{stat.categories.size}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                stat={stat}
+                onSelect={() => setSelectedClient(stat.name)}
+              />
             ))}
           </div>
         )}
@@ -1252,21 +1237,177 @@ function ForwarderDetailView({
   );
 }
 
-function ClientDetailView({
+function ClientCard({ stat, onSelect }: { stat: { name: string; orders: number; categories: Set<string> }; onSelect: () => void }) {
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+
+  return (
+    <>
+      <Card
+        className="border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group"
+      >
+        <div className="h-1 w-full bg-stone-900 group-hover:bg-indigo-500 transition-colors" />
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+            <CardTitle
+              className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors cursor-pointer"
+              onClick={onSelect}
+            >
+              {stat.name}
+            </CardTitle>
+            <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-indigo-500 transition-colors cursor-pointer" onClick={onSelect}>
+              <UserCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-black text-stone-900 mb-4 cursor-pointer" onClick={onSelect}>
+            {stat.orders} <span className="text-sm font-bold text-stone-400">Articles</span>
+          </div>
+          <div className="space-y-2 pt-3 border-t border-stone-50">
+            <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase cursor-pointer" onClick={onSelect}>
+              <span>Familles</span>
+              <span className="text-indigo-600 font-black">{stat.categories.size}</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-8 text-[9px] font-black uppercase tracking-wider border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 gap-1.5 mt-2"
+              onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
+            >
+              <KeyRound className="w-3 h-3" />
+              Créer Accès Client
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <CreateClientAccessModal
+        open={isAccessModalOpen}
+        onOpenChange={setIsAccessModalOpen}
+        clientName={stat.name}
+      />
+    </>
+  );
+}
+
+function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boolean; onOpenChange: (o: boolean) => void; clientName: string }) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !firestore || !email || !password) return;
+    setLoading(true);
+    try {
+      // Use a secondary Firebase app to create the account without logging out the admin
+      const secondaryAppName = 'clientCreation_' + Date.now();
+      const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+      const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const clientUid = credential.user.uid;
+      await deleteApp(secondaryApp);
+
+      // Register the client mapping in Firestore (global collection accessible by the client)
+      const clientDocRef = doc(firestore, 'clientAccess', clientUid);
+      await setDoc(clientDocRef, {
+        clientName,
+        email,
+        adminUid: user.uid,
+        createdAt: serverTimestamp(),
+      });
+
+      toast({ title: '✅ Accès créé', description: `Compte créé pour ${clientName} — ${email}` });
+      onOpenChange(false);
+      setEmail('');
+      setPassword('');
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message || 'Impossible de créer le compte.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm rounded-2xl p-0 border-none overflow-hidden">
+        <div className="bg-indigo-900 p-6 text-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/10 rounded-lg">
+              <KeyRound className="w-5 h-5 text-indigo-300" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-black uppercase tracking-tight">Créer Accès Client</DialogTitle>
+              <p className="text-indigo-300 text-[9px] font-bold uppercase tracking-widest mt-1">{clientName}</p>
+            </div>
+          </div>
+        </div>
+        <form onSubmit={handleCreate} className="p-6 space-y-4">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-[10px] text-indigo-700 font-bold">
+            Le client accédera à <span className="font-black">/client</span> avec ces identifiants et verra uniquement ses précommandes.
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Email du Client</Label>
+            <Input
+              type="email"
+              required
+              placeholder="client@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="h-11 border-stone-200 font-bold rounded-xl"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Mot de Passe</Label>
+            <Input
+              type="password"
+              required
+              placeholder="Min. 6 caractères"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="h-11 border-stone-200 font-bold rounded-xl"
+            />
+          </div>
+        </form>
+        <DialogFooter className="p-6 bg-stone-50 gap-3 border-t">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 font-black uppercase text-[10px] tracking-widest flex-1" disabled={loading}>Annuler</Button>
+          <Button onClick={handleCreate} className="h-11 bg-indigo-700 hover:bg-indigo-800 text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-indigo-200 gap-2" disabled={loading}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><KeyRound className="w-3.5 h-3.5" /> Créer l'Accès</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function ClientDetailView({
   clientName,
   articles,
+  factures,
   onBack,
+  isPortal = false,
 }: {
   clientName: string;
   articles: any[];
-  onBack: () => void;
+  factures: any[];
+  onBack?: () => void;
+  isPortal?: boolean;
 }) {
-  const clientArticles = useMemo(() =>
-    articles
+  const clientArticles = useMemo(() => {
+    return articles
       .filter(a => a.isPreorder && a.clientName?.trim() === clientName)
-      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || '')),
-    [clientName, articles]
-  );
+      .map(a => {
+        const facture = factures.find(f => f.id === a.factureId);
+        return {
+          ...a,
+          arrivalDate: facture?.arrivalDate || a.arrivalDate || null,
+        };
+      })
+      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || ''));
+  }, [clientName, articles, factures]);
 
   const statusLabel = (status: string) => {
     if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200' };
@@ -1277,16 +1418,18 @@ function ClientDetailView({
 
   return (
     <div className="space-y-8 fade-in">
-      <div className="flex items-center justify-between gap-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
-        >
-          <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
-        </Button>
-      </div>
+      {!isPortal && onBack && (
+        <div className="flex items-center justify-between gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
+          >
+            <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+          </Button>
+        </div>
+      )}
 
       <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
         <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative overflow-hidden">
@@ -1324,6 +1467,7 @@ function ClientDetailView({
             <TableHeader className="bg-stone-50/80">
               <TableRow>
                 <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Arrivée Prévue</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Fournisseur</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Type Produit</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Taille</TableHead>
@@ -1335,13 +1479,24 @@ function ClientDetailView({
             </TableHeader>
             <TableBody>
               {clientArticles.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
               ) : clientArticles.map((a) => {
                 const { label, cls } = statusLabel(a.status);
+                const now = new Date();
+                const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
                 return (
                   <TableRow key={a.id} className="hover:bg-indigo-50/20 transition-colors group border-stone-50">
                     <TableCell className="py-3">
                       <Badge className={`${cls} text-[8px] font-black uppercase`}>{label}</Badge>
+                    </TableCell>
+                    <TableCell className="py-3">
+                      {a.arrivalDate ? (
+                        <span className={`text-[10px] font-bold ${isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>
+                          {a.arrivalDate}
+                        </span>
+                      ) : (
+                        <span className="text-stone-300 text-[10px]">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="py-3 font-bold text-stone-700 uppercase text-[10px]">{a.supplierId || '—'}</TableCell>
                     <TableCell className="py-3 font-black text-stone-900 text-[11px]">{a.categoryId || '—'}</TableCell>
