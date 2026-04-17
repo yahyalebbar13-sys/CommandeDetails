@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, 
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2
+  Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
+  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
@@ -1455,6 +1456,9 @@ export function ClientDetailView({
     if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200' };
     if (status === 'PI') return { label: 'En Production', cls: 'bg-amber-50 text-amber-700 border-amber-100' };
     if (status === 'SHIPPED') return { label: 'Expédié', cls: 'bg-blue-50 text-blue-700 border-blue-100' };
+    if (status === 'TRANSIT') return { label: 'En Transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-100' };
+    if (status === 'CUSTOMS') return { label: 'En Dédouanement', cls: 'bg-purple-50 text-purple-700 border-purple-100' };
+    if (status === 'STOCK') return { label: 'En Stock', cls: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
     return { label: status, cls: 'bg-stone-100 text-stone-600 border-stone-200' };
   };
 
@@ -1504,24 +1508,52 @@ export function ClientDetailView({
           </div>
           <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Commandes de {clientName}</h3>
         </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-6 mb-4">
+          <div className="p-3 bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-stone-100 text-stone-600 border-stone-200 text-[8px] uppercase font-black tracking-widest mb-2">À Commander</Badge>
+            <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest leading-tight">Attente de validation usine</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-amber-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[8px] uppercase font-black tracking-widest mb-2">En Production</Badge>
+            <p className="text-[9px] text-amber-600/70 font-bold uppercase tracking-widest leading-tight">Fabrication en cours</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-blue-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] uppercase font-black tracking-widest mb-2">Expédié</Badge>
+            <p className="text-[9px] text-blue-600/70 font-bold uppercase tracking-widest leading-tight">Départ usine effectué</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-indigo-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[8px] uppercase font-black tracking-widest mb-2">En Transit</Badge>
+            <p className="text-[9px] text-indigo-600/70 font-bold uppercase tracking-widest leading-tight">En cours d'acheminement</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-purple-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-[8px] uppercase font-black tracking-widest mb-2">Dédouanement</Badge>
+            <p className="text-[9px] text-purple-600/70 font-bold uppercase tracking-widest leading-tight">Procédures douanières</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-emerald-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] uppercase font-black tracking-widest mb-2">En Stock</Badge>
+            <p className="text-[9px] text-emerald-600/70 font-bold uppercase tracking-widest leading-tight">Arrivé à destination</p>
+          </div>
+        </div>
+
         <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
           <Table>
             <TableHeader className="bg-stone-50/80">
               <TableRow>
                 <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Arrivée Prévue</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Fournisseur</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Type Produit</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Taille</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Couleur</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Détails Tech.</TableHead>
                 <TableHead className="text-right text-[9px] font-black uppercase py-4">Qté</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Unité</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4 text-center">CBM</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4 text-center">Net Weight</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clientArticles.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
               ) : clientArticles.map((a) => {
                 const { label, cls } = statusLabel(a.status);
                 const now = new Date();
@@ -1540,19 +1572,34 @@ export function ClientDetailView({
                         <span className="text-stone-300 text-[10px]">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="py-3 font-bold text-stone-700 uppercase text-[10px]">{a.supplierId || '—'}</TableCell>
                     <TableCell className="py-3 font-black text-stone-900 text-[11px]">{a.categoryId || '—'}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-500 text-[10px]">{a.size || '—'}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-500 text-[10px] uppercase">{a.color || '—'}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-400 text-[10px] max-w-[200px] truncate">{a.specs || '—'}</TableCell>
                     <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US')}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-400 text-[10px] uppercase">{a.unitOfMeasure || '—'}</TableCell>
+                    <TableCell className="py-3 text-center font-bold text-stone-600 text-[10px]">{a.cbm ? `${Number(a.cbm).toLocaleString('en-US')} m³` : '—'}</TableCell>
+                    <TableCell className="py-3 text-center font-bold text-stone-600 text-[10px]">{a.netWeight ? `${Number(a.netWeight).toLocaleString('en-US')} kg` : '—'}</TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
         </Card>
+
+        <div className="bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/60 rounded-2xl p-5 flex items-start gap-4 mt-8 shadow-sm">
+          <div className="bg-amber-100 p-2 rounded-xl shrink-0 mt-0.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <h4 className="text-amber-900 font-black text-[11px] uppercase tracking-widest mb-1.5 flex items-center gap-2">
+              Information Délais de Traitement <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+            </h4>
+            <p className="text-amber-800/80 font-bold text-[10px] uppercase tracking-widest leading-relaxed">
+              Si le conteneur ou l'article affiche le statut <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-[4px] font-black border border-purple-200 mx-1">EN DÉDOUANEMENT</span>, la durée prévisionnelle de traitement est de <span className="font-black underline decoration-amber-400 underline-offset-4 decoration-2 px-1">7 à 15 jours</span> ouvrés.
+            </p>
+          </div>
+        </div>
       </section>
     </div>
   );
