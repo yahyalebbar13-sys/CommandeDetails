@@ -1534,7 +1534,80 @@ export function ClientDetailView({
           </div>
         </div>
 
-        <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
+        {/* ── MOBILE: Cards (< md) ── */}
+        <div className="flex flex-col gap-4 md:hidden">
+          {clientArticles.length === 0 ? (
+            <div className="text-center py-16 text-stone-300 font-bold uppercase text-[10px] tracking-widest">
+              Aucun article précommandé pour ce client
+            </div>
+          ) : clientArticles.map((a) => {
+            const { label, cls } = statusLabel(a.status);
+            const now = new Date();
+            const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
+            return (
+              <div key={a.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+                {/* Card header: status + date */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-stone-50">
+                  <Badge className={`${cls} text-[9px] font-black uppercase px-3 py-1`}>{label}</Badge>
+                  {a.arrivalDate ? (
+                    <span className={`text-[11px] font-black ${isArrived ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                      📅 {a.arrivalDate}
+                    </span>
+                  ) : (
+                    <span className="text-stone-300 text-[10px] font-bold">Date non définie</span>
+                  )}
+                </div>
+                {/* Card body: product info grid */}
+                <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
+                    <p className="text-[13px] font-black text-stone-900 leading-tight">{a.categoryId || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
+                    <p className="text-[13px] font-black text-stone-900 leading-tight">
+                      {Number(a.quantity).toLocaleString('en-US')}
+                      <span className="text-[10px] font-bold text-stone-400 ml-1">{a.unitOfMeasure || ''}</span>
+                    </p>
+                  </div>
+                  {a.size && (
+                    <div>
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taille</p>
+                      <p className="text-[12px] font-bold text-stone-700">{a.size}</p>
+                    </div>
+                  )}
+                  {a.color && (
+                    <div>
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Couleur</p>
+                      <p className="text-[12px] font-bold text-stone-700 uppercase">{a.color}</p>
+                    </div>
+                  )}
+                  {a.cbm != null && (
+                    <div>
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">CBM</p>
+                      <p className="text-[12px] font-bold text-stone-700">{Number(a.cbm).toLocaleString('en-US')} m³</p>
+                    </div>
+                  )}
+                  {a.netWeight != null && (
+                    <div>
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Net Weight</p>
+                      <p className="text-[12px] font-bold text-stone-700">{Number(a.netWeight).toLocaleString('en-US')} kg</p>
+                    </div>
+                  )}
+                  {a.specs && (
+                    <div className="col-span-2">
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Détails Techniques</p>
+                      <p className="text-[11px] font-bold text-stone-500 leading-relaxed">{a.specs}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── DESKTOP: Table (≥ md) ── */}
+        <Card className="hidden md:block border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
           <Table>
             <TableHeader className="bg-stone-50/80">
               <TableRow>
@@ -1602,4 +1675,4 @@ export function ClientDetailView({
       </section>
     </div>
   );
-}
+}
