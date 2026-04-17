@@ -1356,7 +1356,7 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
         </div>
         <form onSubmit={handleCreate} className="p-6 space-y-4">
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-[10px] text-indigo-700 font-bold">
-            Le client accédera à <span className="font-black">/client</span> avec ces identifiants et verra uniquement ses précommandes.
+            Le client accédera à <span className="font-black">votresite.com<span className="text-indigo-500">#client</span></span> avec ces identifiants et verra uniquement ses précommandes.
           </div>
           <div className="space-y-1.5">
             <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Email du Client</Label>
