@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import {
   Sheet,
@@ -37,39 +37,30 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 
-// ─── Role detection ───────────────────────────────────────────────────────────
-type UserRole = 'checking' | 'admin' | 'client';
+// ─── Parse client role from Firebase Auth displayName ─────────────────────
+// Format: "CLIENT:{clientName}:{adminUid}"
+// This is set by the admin modal when creating client access.
+// Using displayName avoids any Firestore permission dependency for role detection.
+function parseClientRole(displayName: string | null | undefined) {
+  if (!displayName?.startsWith('CLIENT:')) return null;
+  const withoutPrefix = displayName.slice('CLIENT:'.length);
+  const lastColon = withoutPrefix.lastIndexOf(':');
+  if (lastColon === -1) return null;
+  return {
+    clientName: withoutPrefix.substring(0, lastColon),
+    adminUid: withoutPrefix.substring(lastColon + 1),
+  };
+}
 
+// ─── App Router ───────────────────────────────────────────────────────────────
 export default function StockVueApp() {
   const { user, isUserLoading } = useUser();
   const { auth, firestore } = useFirebase();
-  const [role, setRole] = useState<UserRole>('checking');
-  const [clientName, setClientName] = useState('');
-  const [adminUid, setAdminUid] = useState('');
 
-  // After login, check Firestore to determine who this user is
-  useEffect(() => {
-    if (!user || !firestore) { setRole('checking'); return; }
+  // Synchronous, instant role detection — no Firestore read, no permissions needed
+  const clientInfo = useMemo(() => parseClientRole(user?.displayName), [user?.displayName]);
 
-    getDoc(doc(firestore, 'clientAccess', user.uid))
-      .then(snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setClientName(data.clientName);
-          setAdminUid(data.adminUid);
-          setRole('client');
-        } else {
-          setRole('admin');
-        }
-      })
-      .catch(() => {
-        // Permission denied = not a client = admin
-        setRole('admin');
-      });
-  }, [user?.uid, firestore]);
-
-  // Global loading
-  if (isUserLoading || (user && role === 'checking')) {
+  if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <Loader2 className="animate-spin text-amber-500 w-10 h-10" />
@@ -77,19 +68,25 @@ export default function StockVueApp() {
     );
   }
 
-  // Not logged in → common login page
   if (!user) return <AuthView />;
 
-  // Client → client portal
-  if (role === 'client') {
-    return <ClientPortalView clientName={clientName} adminUid={adminUid} auth={auth} firestore={firestore} />;
+  // Client → show only their orders
+  if (clientInfo) {
+    return (
+      <ClientPortalView
+        clientName={clientInfo.clientName}
+        adminUid={clientInfo.adminUid}
+        auth={auth}
+        firestore={firestore}
+      />
+    );
   }
 
   // Admin → full dashboard
   return <AdminApp />;
 }
 
-// ─── Client Portal ───────────────────────────────────────────────────────────
+// ─── Client Portal View ───────────────────────────────────────────────────────
 function ClientPortalView({
   clientName,
   adminUid,
@@ -122,7 +119,6 @@ function ClientPortalView({
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
-      {/* Navbar */}
       <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -157,7 +153,6 @@ function ClientPortalView({
         </div>
       </nav>
 
-      {/* Content */}
       <main className="flex-grow max-w-[1400px] mx-auto px-6 py-8 w-full">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
@@ -188,9 +183,9 @@ function ClientPortalView({
   );
 }
 
-// ─── Admin App ────────────────────────────────────────────────────────────────
+// ─── Admin Dashboard ──────────────────────────────────────────────────────────
 function AdminApp() {
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);

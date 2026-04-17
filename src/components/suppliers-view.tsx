@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF } from '@/lib/pdf-export';
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
 interface SuppliersViewProps {
@@ -1317,25 +1317,32 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
       const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
       const secondaryAuth = getAuth(secondaryApp);
 
-      let clientUid: string;
+      let clientUser: any;
 
       try {
         // Try creating a new Firebase Auth user
         const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-        clientUid = credential.user.uid;
+        clientUser = credential.user;
       } catch (createErr: any) {
         if (createErr.code === 'auth/email-already-in-use') {
-          // User already exists → sign in to get their UID
+          // User already exists → sign in to get their user object
           const credential = await signInWithEmailAndPassword(secondaryAuth, email, password);
-          clientUid = credential.user.uid;
+          clientUser = credential.user;
         } else {
           throw createErr;
         }
       }
 
+      // ⭐ KEY FIX: Store role in the Auth displayName — works without Firestore permissions
+      // Format: CLIENT:{clientName}:{adminUid}
+      await updateProfile(clientUser, {
+        displayName: `CLIENT:${clientName}:${user.uid}`,
+      });
+
+      const clientUid = clientUser.uid;
       await deleteApp(secondaryApp);
 
-      // Write (or overwrite) the clientAccess mapping in Firestore
+      // Also write to Firestore as supplementary data (used for loading articles/factures)
       await setDoc(doc(firestore, 'clientAccess', clientUid), {
         clientName,
         email,
