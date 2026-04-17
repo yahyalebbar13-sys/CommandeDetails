@@ -1239,6 +1239,8 @@ function ForwarderDetailView({
 
 function ClientCard({ stat, onSelect }: { stat: { name: string; orders: number; categories: Set<string> }; onSelect: () => void }) {
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const { user } = useUser();
+  const canCreateAccount = user?.email === 'yahya.lebbar13@gmail.com';
 
   return (
     <>
@@ -1268,15 +1270,17 @@ function ClientCard({ stat, onSelect }: { stat: { name: string; orders: number; 
               <span>Familles</span>
               <span className="text-indigo-600 font-black">{stat.categories.size}</span>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full h-8 text-[9px] font-black uppercase tracking-wider border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 gap-1.5 mt-2"
-              onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
-            >
-              <KeyRound className="w-3 h-3" />
-              Créer Accès Client
-            </Button>
+            {canCreateAccount && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-8 text-[9px] font-black uppercase tracking-wider border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 gap-1.5 mt-2"
+                onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
+              >
+                <KeyRound className="w-3 h-3" />
+                Créer Accès Client
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1300,6 +1304,12 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !email || !password) return;
+    
+    if (user.email !== 'yahya.lebbar13@gmail.com') {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: "Seul l'administrateur principal peut créer des comptes clients." });
+      return;
+    }
+
     setLoading(true);
     try {
       // Use a secondary Firebase app to create the account without logging out the admin
