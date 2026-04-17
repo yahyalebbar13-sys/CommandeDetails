@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, 
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
   Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
