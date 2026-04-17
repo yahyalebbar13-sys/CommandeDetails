@@ -1507,32 +1507,6 @@ export function ClientDetailView({
           </div>
           <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Commandes de {clientName}</h3>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-6 mb-4">
-          <div className="p-3 bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-stone-100 text-stone-600 border-stone-200 text-[8px] uppercase font-black tracking-widest mb-2">À Commander</Badge>
-            <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest leading-tight">Attente de validation usine</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-amber-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[8px] uppercase font-black tracking-widest mb-2">En Production</Badge>
-            <p className="text-[9px] text-amber-600/70 font-bold uppercase tracking-widest leading-tight">Fabrication en cours</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-blue-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] uppercase font-black tracking-widest mb-2">Expédié</Badge>
-            <p className="text-[9px] text-blue-600/70 font-bold uppercase tracking-widest leading-tight">Départ usine effectué</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-indigo-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[8px] uppercase font-black tracking-widest mb-2">En Transit</Badge>
-            <p className="text-[9px] text-indigo-600/70 font-bold uppercase tracking-widest leading-tight">En cours d'acheminement</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-purple-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-[8px] uppercase font-black tracking-widest mb-2">Dédouanement</Badge>
-            <p className="text-[9px] text-purple-600/70 font-bold uppercase tracking-widest leading-tight">Procédures douanières</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-emerald-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] uppercase font-black tracking-widest mb-2">En Stock</Badge>
-            <p className="text-[9px] text-emerald-600/70 font-bold uppercase tracking-widest leading-tight">Arrivé à destination</p>
-          </div>
-        </div>
 
         {/* ── MOBILE: Cards (< md) ── */}
         <div className="flex flex-col gap-4 md:hidden">
@@ -1659,7 +1633,7 @@ export function ClientDetailView({
           </Table>
         </Card>
 
-        <div className="bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/60 rounded-2xl p-5 flex items-start gap-4 mt-8 shadow-sm">
+      <div className="bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/60 rounded-2xl p-5 flex items-start gap-4 mt-8 shadow-sm">
           <div className="bg-amber-100 p-2 rounded-xl shrink-0 mt-0.5">
             <AlertTriangle className="w-5 h-5 text-amber-600" />
           </div>
@@ -1670,6 +1644,33 @@ export function ClientDetailView({
             <p className="text-amber-800/80 font-bold text-[10px] uppercase tracking-widest leading-relaxed">
               Si le conteneur ou l'article affiche le statut <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-[4px] font-black border border-purple-200 mx-1">EN DÉDOUANEMENT</span>, la durée prévisionnelle de traitement est de <span className="font-black underline decoration-amber-400 underline-offset-4 decoration-2 px-1">7 à 15 jours</span> ouvrés.
             </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-6">
+          <div className="p-3 bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-stone-100 text-stone-600 border-stone-200 text-[8px] uppercase font-black tracking-widest mb-2">À Commander</Badge>
+            <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest leading-tight">Attente de validation usine</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-amber-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[8px] uppercase font-black tracking-widest mb-2">En Production</Badge>
+            <p className="text-[9px] text-amber-600/70 font-bold uppercase tracking-widest leading-tight">Fabrication en cours</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-blue-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] uppercase font-black tracking-widest mb-2">Expédié</Badge>
+            <p className="text-[9px] text-blue-600/70 font-bold uppercase tracking-widest leading-tight">Départ usine effectué</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-indigo-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[8px] uppercase font-black tracking-widest mb-2">En Transit</Badge>
+            <p className="text-[9px] text-indigo-600/70 font-bold uppercase tracking-widest leading-tight">En cours d'acheminement</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-purple-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-[8px] uppercase font-black tracking-widest mb-2">Dédouanement</Badge>
+            <p className="text-[9px] text-purple-600/70 font-bold uppercase tracking-widest leading-tight">Procédures douanières</p>
+          </div>
+          <div className="p-3 bg-white rounded-2xl border border-emerald-100 shadow-sm flex flex-col items-center text-center">
+            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] uppercase font-black tracking-widest mb-2">En Stock</Badge>
+            <p className="text-[9px] text-emerald-600/70 font-bold uppercase tracking-widest leading-tight">Arrivé à destination</p>
           </div>
         </div>
       </section>
