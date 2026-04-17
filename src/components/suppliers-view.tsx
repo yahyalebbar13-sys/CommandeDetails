@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, 
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download
+  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
@@ -34,6 +34,7 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedShipping, setSelectedShipping] = useState<string | null>(null);
   const [selectedForwarder, setSelectedForwarder] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<string | null>(null);
 
   const supplierStats = useMemo(() => {
     const stats: Record<string, { val: number; orders: number; categories: Set<string> }> = {};
@@ -104,6 +105,31 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
       .map(([name, data]) => ({ name, ...data }))
       .sort((a, b) => b.dossiers - a.dossiers);
   }, [factures]);
+
+  const clientStats = useMemo(() => {
+    const stats: Record<string, { orders: number; categories: Set<string> }> = {};
+    articles
+      .filter(a => a.isPreorder && a.clientName)
+      .forEach(a => {
+        const client = a.clientName.trim();
+        if (!stats[client]) stats[client] = { orders: 0, categories: new Set() };
+        stats[client].orders += 1;
+        stats[client].categories.add(a.categoryId || 'Inconnu');
+      });
+    return Object.entries(stats)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.orders - a.orders);
+  }, [articles]);
+
+  if (selectedClient) {
+    return (
+      <ClientDetailView
+        clientName={selectedClient}
+        articles={articles}
+        onBack={() => setSelectedClient(null)}
+      />
+    );
+  }
 
   if (selectedSupplier) {
     return (
@@ -325,6 +351,49 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
                     <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
                       <span>Dossiers remis</span>
                       <span className="text-violet-600 font-black">{stat.dossiers}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <Separator className="bg-stone-200" />
+
+      <section className="space-y-6 pb-10">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-indigo-500/10 rounded-lg">
+            <UserCircle2 className="w-5 h-5 text-indigo-600" />
+          </div>
+          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Clients</h3>
+        </div>
+        {clientStats.length === 0 ? (
+          <div className="text-center py-16 text-stone-300 font-bold uppercase text-[10px]">Aucune précommande client enregistrée</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {clientStats.map((stat) => (
+              <Card
+                key={stat.name}
+                onClick={() => setSelectedClient(stat.name)}
+                className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95"
+              >
+                <div className="h-1 w-full bg-stone-900 group-hover:bg-indigo-500 transition-colors" />
+                <CardHeader className="pb-4">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{stat.name}</CardTitle>
+                    <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-indigo-500 transition-colors">
+                      <UserCircle2 className="w-4 h-4" />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black text-stone-900 mb-6">{stat.orders} <span className="text-sm font-bold text-stone-400">Articles</span></div>
+                  <div className="space-y-2 pt-4 border-t border-stone-50">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
+                      <span>Familles</span>
+                      <span className="text-indigo-600 font-black">{stat.categories.size}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -1177,6 +1246,115 @@ function ForwarderDetailView({
               <span className="text-sm font-black text-violet-700">{Number(totalFactureTransitaire).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD</span>
             </div>
           )}
+        </Card>
+      </section>
+    </div>
+  );
+}
+
+function ClientDetailView({
+  clientName,
+  articles,
+  onBack,
+}: {
+  clientName: string;
+  articles: any[];
+  onBack: () => void;
+}) {
+  const clientArticles = useMemo(() =>
+    articles
+      .filter(a => a.isPreorder && a.clientName?.trim() === clientName)
+      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || '')),
+    [clientName, articles]
+  );
+
+  const statusLabel = (status: string) => {
+    if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200' };
+    if (status === 'PI') return { label: 'En Production', cls: 'bg-amber-50 text-amber-700 border-amber-100' };
+    if (status === 'SHIPPED') return { label: 'Expédié', cls: 'bg-blue-50 text-blue-700 border-blue-100' };
+    return { label: status, cls: 'bg-stone-100 text-stone-600 border-stone-200' };
+  };
+
+  return (
+    <div className="space-y-8 fade-in">
+      <div className="flex items-center justify-between gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
+        >
+          <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
+        </Button>
+      </div>
+
+      <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
+        <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="p-4 bg-stone-800 rounded-2xl shadow-lg border border-white/5">
+              <UserCircle2 className="w-8 h-8 text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-1">Dossier Client — Précommandes</p>
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{clientName}</h2>
+              <div className="flex gap-4 mt-4 flex-wrap">
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/20 px-3 py-1 text-[10px] font-bold uppercase">
+                  {clientArticles.length} Articles Précommandés
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 w-full xl:w-auto relative z-10">
+            <SummaryBlock label="Articles" value={String(clientArticles.length)} sub="" color="text-white" />
+            <SummaryBlock label="Familles" value={String(new Set(clientArticles.map(a => a.categoryId)).size)} sub="" color="text-indigo-400" />
+          </div>
+        </div>
+      </header>
+
+      <section className="space-y-4">
+        <div className="flex items-center gap-3 px-2">
+          <div className="p-2 bg-indigo-100 rounded-lg">
+            <Package className="w-4 h-4 text-indigo-600" />
+          </div>
+          <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Commandes de {clientName}</h3>
+        </div>
+        <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
+          <Table>
+            <TableHeader className="bg-stone-50/80">
+              <TableRow>
+                <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Fournisseur</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Type Produit</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Taille</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Couleur</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Détails Tech.</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase py-4">Qté</TableHead>
+                <TableHead className="text-[9px] font-black uppercase py-4">Unité</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {clientArticles.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
+              ) : clientArticles.map((a) => {
+                const { label, cls } = statusLabel(a.status);
+                return (
+                  <TableRow key={a.id} className="hover:bg-indigo-50/20 transition-colors group border-stone-50">
+                    <TableCell className="py-3">
+                      <Badge className={`${cls} text-[8px] font-black uppercase`}>{label}</Badge>
+                    </TableCell>
+                    <TableCell className="py-3 font-bold text-stone-700 uppercase text-[10px]">{a.supplierId || '—'}</TableCell>
+                    <TableCell className="py-3 font-black text-stone-900 text-[11px]">{a.categoryId || '—'}</TableCell>
+                    <TableCell className="py-3 font-bold text-stone-500 text-[10px]">{a.size || '—'}</TableCell>
+                    <TableCell className="py-3 font-bold text-stone-500 text-[10px] uppercase">{a.color || '—'}</TableCell>
+                    <TableCell className="py-3 font-bold text-stone-400 text-[10px] max-w-[200px] truncate">{a.specs || '—'}</TableCell>
+                    <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US')}</TableCell>
+                    <TableCell className="py-3 font-bold text-stone-400 text-[10px] uppercase">{a.unitOfMeasure || '—'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </Card>
       </section>
     </div>

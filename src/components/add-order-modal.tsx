@@ -11,7 +11,8 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors } from 'lucide-react';
+import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -42,6 +43,8 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     sliderType: '',
     purchasePricePerUnit: 0,
     priority: 'todo',
+    isPreorder: false,
+    clientName: '',
   });
 
   const filteredSubCategories = useMemo(() => {
@@ -109,6 +112,8 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       sliderType: '',
       purchasePricePerUnit: 0,
       priority: 'todo',
+      isPreorder: false,
+      clientName: '',
     });
     setSelectedGenCatId('');
     onOpenChange(false);
@@ -322,10 +327,38 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           </div>
 
 
-          <div className="p-4 bg-stone-50 rounded-xl border border-dashed border-stone-200">
-            <p className="text-[9px] font-bold text-stone-500 uppercase text-center italic">
-              Le suivi logistique (Fournisseur, CBM, Facture) sera activé lors du passage en production.
-            </p>
+          {/* Précommande client */}
+          <div className={`p-4 rounded-xl border transition-all ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCircle2 className={`w-4 h-4 ${formData.isPreorder ? 'text-indigo-600' : 'text-stone-400'}`} />
+                <span className={`text-[10px] font-black uppercase tracking-widest ${formData.isPreorder ? 'text-indigo-700' : 'text-stone-500'}`}>
+                  Précommande Client
+                </span>
+              </div>
+              <Switch
+                checked={formData.isPreorder}
+                onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '' }))}
+              />
+            </div>
+            {formData.isPreorder && (
+              <div className="mt-3 space-y-1.5">
+                <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                  <UserCircle2 className="w-3 h-3" /> Nom du Client
+                </Label>
+                <Input
+                  placeholder="Ex: Zara, H&M, Client X..."
+                  className="h-11 border-indigo-200 font-bold rounded-xl bg-white focus:ring-indigo-400"
+                  value={formData.clientName}
+                  onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                />
+              </div>
+            )}
+            {!formData.isPreorder && (
+              <p className="text-[9px] font-bold text-stone-400 uppercase mt-2 text-center italic">
+                Activer si cet article est précommandé par un client
+              </p>
+            )}
           </div>
 
           <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest h-14 rounded-xl gap-2 mt-2 shadow-xl shadow-stone-200">

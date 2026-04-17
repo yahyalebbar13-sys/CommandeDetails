@@ -3,16 +3,32 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 function getApiKey() {
-  let dynamicKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY;
+  let dynamicKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   if (!dynamicKey) {
     try {
-      const envContent = fs.readFileSync(path.join(process.cwd(), '.env.local'), 'utf-8');
-      const match = envContent.match(/GEMINI_API_KEY=([^\r\n]+)/);
-      if (match && match[1]) {
-        dynamicKey = match[1].trim();
+      const isWindow = typeof window !== 'undefined';
+      if (!isWindow) {
+        // Only run fs on server side
+        const envFiles = ['.env.local', '.env'];
+        for (const file of envFiles) {
+          try {
+            const envPath = path.join(process.cwd(), file);
+            if (fs.existsSync(envPath)) {
+              const envContent = fs.readFileSync(envPath, 'utf-8');
+              const match = envContent.match(/(?:GEMINI_API_KEY|GOOGLE_GENAI_API_KEY|GOOGLE_API_KEY)=['"]?([^\r\n'"]+)/);
+              if (match && match[1]) {
+                dynamicKey = match[1].trim();
+                console.log(`[market-study API] Successfully loaded API key manually from ${file}`);
+                break;
+              }
+            }
+          } catch (err) {
+            console.error(`[market-study API] Failed to read ${file}:`, err);
+          }
+        }
       }
     } catch (e) {
-      // Ignore
+      console.error('[market-study API] Manual key extraction error:', e);
     }
   }
   return dynamicKey;
