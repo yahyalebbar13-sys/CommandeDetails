@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewType } from '@/lib/types';
 import DashboardView from '@/components/dashboard-view';
 import FacturesView from '@/components/factures-view';
@@ -18,15 +18,16 @@ import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
 import AIView from '@/components/ai-view';
+import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Sparkles
+  Anchor, UserCheck, Menu, Timer, Calculator, Sparkles, Package
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import {
   Sheet,
@@ -36,7 +37,159 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 
+// ─── Role detection ───────────────────────────────────────────────────────────
+type UserRole = 'checking' | 'admin' | 'client';
+
 export default function StockVueApp() {
+  const { user, isUserLoading } = useUser();
+  const { auth, firestore } = useFirebase();
+  const [role, setRole] = useState<UserRole>('checking');
+  const [clientName, setClientName] = useState('');
+  const [adminUid, setAdminUid] = useState('');
+
+  // After login, check Firestore to determine who this user is
+  useEffect(() => {
+    if (!user || !firestore) { setRole('checking'); return; }
+
+    getDoc(doc(firestore, 'clientAccess', user.uid))
+      .then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setClientName(data.clientName);
+          setAdminUid(data.adminUid);
+          setRole('client');
+        } else {
+          setRole('admin');
+        }
+      })
+      .catch(() => {
+        // Permission denied = not a client = admin
+        setRole('admin');
+      });
+  }, [user?.uid, firestore]);
+
+  // Global loading
+  if (isUserLoading || (user && role === 'checking')) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <Loader2 className="animate-spin text-amber-500 w-10 h-10" />
+      </div>
+    );
+  }
+
+  // Not logged in → common login page
+  if (!user) return <AuthView />;
+
+  // Client → client portal
+  if (role === 'client') {
+    return <ClientPortalView clientName={clientName} adminUid={adminUid} auth={auth} firestore={firestore} />;
+  }
+
+  // Admin → full dashboard
+  return <AdminApp />;
+}
+
+// ─── Client Portal ───────────────────────────────────────────────────────────
+function ClientPortalView({
+  clientName,
+  adminUid,
+  auth,
+  firestore,
+}: {
+  clientName: string;
+  adminUid: string;
+  auth: any;
+  firestore: any;
+}) {
+  const [articles, setArticles] = useState<any[]>([]);
+  const [factures, setFactures] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!firestore || !adminUid) return;
+    setLoading(true);
+    Promise.all([
+      getDocs(collection(firestore, 'users', adminUid, 'articles')),
+      getDocs(collection(firestore, 'users', adminUid, 'factures')),
+    ])
+      .then(([artSnap, facSnap]) => {
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [adminUid, firestore]);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
+      {/* Navbar */}
+      <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-[1400px] mx-auto px-6 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
+              <Package className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-lg font-black tracking-tighter text-stone-900 uppercase">
+              STOCK<span className="text-indigo-600">VUE</span>
+            </span>
+            <div className="h-5 w-px bg-stone-200 mx-2" />
+            <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
+              Espace Client
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-full px-4 py-1.5">
+              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
+                {clientName}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => signOut(auth)}
+              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors"
+              title="Déconnexion"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Content */}
+      <main className="flex-grow max-w-[1400px] mx-auto px-6 py-8 w-full">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-40 space-y-6">
+            <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
+            <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">
+              Chargement de vos commandes...
+            </p>
+          </div>
+        ) : (
+          <div className="fade-in">
+            <ClientDetailView
+              clientName={clientName}
+              articles={articles}
+              factures={factures}
+              isPortal
+            />
+          </div>
+        )}
+      </main>
+
+      <footer className="border-t border-stone-200 bg-white py-4">
+        <div className="max-w-[1400px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
+          <p>© 2024 STOCKVUE — PORTAIL CLIENT PRIVÉ</p>
+          <span className="text-stone-300">Accès Sécurisé</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+// ─── Admin App ────────────────────────────────────────────────────────────────
+function AdminApp() {
   const { user, isUserLoading } = useUser();
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
@@ -139,16 +292,6 @@ export default function StockVueApp() {
       ))}
     </div>
   );
-
-  if (isUserLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <Loader2 className="animate-spin text-amber-500 w-10 h-10" />
-      </div>
-    );
-  }
-
-  if (!user) return <AuthView />;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
