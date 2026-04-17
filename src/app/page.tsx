@@ -17,13 +17,13 @@ import EditOrderModal from '@/components/edit-order-modal';
 import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
-import AIView from '@/components/ai-view';
+
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Sparkles, Package, ShieldOff
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -282,8 +282,8 @@ function AdminApp() {
     { id: 'cost-analysis', label: 'Coût Revient', icon: Calculator },
     { id: 'suppliers', label: 'Partenaires', icon: UserCheck },
     { id: 'data', label: 'Data Lab', icon: Database },
-    { id: 'ai', label: 'IA Marché', icon: Sparkles },
   ] as const;
+
 
   const NavButtons = ({ vertical = false }: { vertical?: boolean }) => (
     <div className={`flex ${vertical ? 'flex-col space-y-2' : 'flex-row space-x-1'}`}>
@@ -350,9 +350,9 @@ function AdminApp() {
             {activeTab === 'cost-analysis' && <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />}
             {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} onNavigateToFacture={(id) => { setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />}
             {activeTab === 'data' && <DataView articles={articles} onEdit={setEditingArticle} />}
-            {activeTab === 'ai' && <AIView articles={articles} generalCategories={generalCategories} subCategories={subCategories} />}
           </div>
         )}
+
       </main>
 
       <footer className="border-t border-stone-200 bg-white py-6">
