@@ -1748,7 +1748,7 @@ export function ClientDetailView({
                  <div className="grid grid-cols-2 gap-3">
                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Code HS</span>
-                     <span className="text-sm font-black text-stone-900">{selectedCategory?.hsCode || '—'}</span>
+                     <span className="text-sm font-black text-stone-900">{selectedArticle.hsCode || selectedCategory?.hsCode || '—'}</span>
                    </div>
                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">CBM</span>
@@ -1777,15 +1777,15 @@ export function ClientDetailView({
                    <div className="grid grid-cols-3 gap-2 relative z-10">
                      <div className="flex flex-col">
                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD (DI)</span>
-                       <span className="text-sm font-black text-emerald-400">{selectedCategory?.importDutyRate != null ? `${selectedCategory.importDutyRate}%` : '—'}</span>
+                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) != null ? `${selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate}%` : '—'}</span>
                      </div>
                      <div className="flex flex-col border-l border-stone-800 pl-2">
                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD1 (TPI)</span>
-                       <span className="text-sm font-black text-emerald-400">{selectedCategory?.tpiRate != null ? `${selectedCategory.tpiRate}%` : '—'}</span>
+                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.tpiRate ?? selectedCategory?.tpiRate) != null ? `${selectedArticle.tpiRate ?? selectedCategory?.tpiRate}%` : '—'}</span>
                      </div>
                      <div className="flex flex-col border-l border-stone-800 pl-2">
                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
-                       <span className="text-sm font-black text-emerald-400">{selectedCategory?.tvaRate != null ? `${selectedCategory.tvaRate}%` : '—'}</span>
+                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.tvaRate ?? selectedCategory?.tvaRate) != null ? `${selectedArticle.tvaRate ?? selectedCategory?.tvaRate}%` : '—'}</span>
                      </div>
                    </div>
                  </div>

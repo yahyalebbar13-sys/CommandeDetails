@@ -86,6 +86,9 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     e.preventDefault();
     if (!user || !firestore || !formData.categoryId || !selectedGenCatId) return;
 
+    // Find the selected subcategory to embed customs data directly in the article
+    const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'articles', id);
 
@@ -95,7 +98,12 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       status: 'TO_ORDER',
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      // Embed customs data so client portal can display it without extra permissions
+      hsCode: selectedSubCat?.hsCode || null,
+      importDutyRate: selectedSubCat?.importDutyRate ?? null,
+      tpiRate: selectedSubCat?.tpiRate ?? null,
+      tvaRate: selectedSubCat?.tvaRate ?? null,
     }, { merge: true });
 
     toast({ title: "Besoins enregistrés", description: "L'article a été ajouté à la liste des rappels." });
