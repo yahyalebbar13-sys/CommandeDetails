@@ -1444,8 +1444,13 @@ export function ClientDetailView({
 }) {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const clientArticles = useMemo(() => {
+    const nameLower = (clientName || '').trim().toLowerCase();
     return articles
-      .filter(a => a.isPreorder && a.clientName?.trim() === clientName)
+      .filter(a => {
+        if (!a.isPreorder) return false;
+        const aName = (a.clientName || '').trim().toLowerCase();
+        return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
+      })
       .map(a => {
         const facture = factures.find(f => f.id === a.factureId);
         let derivedStatus = a.status;
@@ -1602,10 +1607,14 @@ export function ClientDetailView({
                       <p className="text-[12px] font-bold text-stone-700 uppercase">{a.color}</p>
                     </div>
                   )}
-                  <div className="col-span-2 pt-2 border-t border-stone-50">
-                    <Button onClick={() => setSelectedArticleId(a.id)} className="w-full h-10 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black uppercase text-[10px] tracking-widest rounded-xl shadow-none">
-                       Voir Détails
-                    </Button>
+                  <div className="col-span-2 pt-3 border-t border-stone-50 mt-1">
+                    <button
+                      onClick={() => setSelectedArticleId(a.id)}
+                      className="w-full h-11 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                      Voir Détails
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1654,8 +1663,14 @@ export function ClientDetailView({
                     <TableCell className="py-3 font-bold text-stone-500 text-[10px] uppercase">{a.color || '—'}</TableCell>
                     <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US')}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-400 text-[10px] uppercase">{a.unitOfMeasure || '—'}</TableCell>
-                    <TableCell className="py-3">
-                       <Button onClick={() => setSelectedArticleId(a.id)} className="h-8 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black uppercase text-[9px] tracking-widest rounded-lg">Détails</Button>
+                    <TableCell className="py-3 pr-4">
+                      <button
+                        onClick={() => setSelectedArticleId(a.id)}
+                        className="w-full h-9 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black uppercase text-[9px] tracking-widest rounded-xl shadow-sm shadow-indigo-200 transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Info className="w-3 h-3" />
+                        Voir Détails
+                      </button>
                     </TableCell>
                   </TableRow>
                 );
