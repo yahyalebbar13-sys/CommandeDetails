@@ -1490,7 +1490,11 @@ export function ClientDetailView({
   const selectedArticle = useMemo(() => clientArticles.find(a => a.id === selectedArticleId), [clientArticles, selectedArticleId]);
   const selectedCategory = useMemo(() => {
     if (!selectedArticle) return null;
-    return categories.find(c => c.name === selectedArticle.categoryId) || null;
+    const searchName = (selectedArticle.categoryId || '').trim().toLowerCase();
+    return categories.find(c => {
+      const catName = (c.name || '').trim().toLowerCase();
+      return catName === searchName || c.id === selectedArticle.categoryId;
+    }) || null;
   }, [selectedArticle, categories]);
 
   const statusLabel = (status: string) => {
@@ -1732,6 +1736,10 @@ export function ClientDetailView({
                      <span className="text-sm font-black text-stone-900">{selectedCategory?.hsCode || '—'}</span>
                    </div>
                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">CBM</span>
+                     <span className="text-sm font-black text-stone-900">{selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—'}</span>
+                   </div>
+                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Taille</span>
                      <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
                    </div>
@@ -1739,22 +1747,22 @@ export function ClientDetailView({
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Couleur</span>
                      <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
                    </div>
-                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Unité</span>
-                     <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.unitOfMeasure || '—'}</span>
-                   </div>
                  </div>
 
                  <div className="bg-stone-900 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-                   <div className="grid grid-cols-2 gap-4 relative z-10">
+                   <div className="grid grid-cols-3 gap-2 relative z-10">
                      <div className="flex flex-col">
-                       <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD (Droit Import)</span>
-                       <span className="text-lg font-black text-emerald-400">{selectedCategory?.importDutyRate ? `${selectedCategory.importDutyRate}%` : '—'}</span>
+                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD (DI)</span>
+                       <span className="text-sm font-black text-emerald-400">{selectedCategory?.importDutyRate != null ? `${selectedCategory.importDutyRate}%` : '—'}</span>
                      </div>
-                     <div className="flex flex-col border-l border-stone-800 pl-4">
-                       <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest block mb-1">TDI / TPI</span>
-                       <span className="text-lg font-black text-emerald-400">{selectedCategory?.tpiRate ? `${selectedCategory.tpiRate}%` : '—'}</span>
+                     <div className="flex flex-col border-l border-stone-800 pl-2">
+                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD1 (TPI)</span>
+                       <span className="text-sm font-black text-emerald-400">{selectedCategory?.tpiRate != null ? `${selectedCategory.tpiRate}%` : '—'}</span>
+                     </div>
+                     <div className="flex flex-col border-l border-stone-800 pl-2">
+                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
+                       <span className="text-sm font-black text-emerald-400">{selectedCategory?.tvaRate != null ? `${selectedCategory.tvaRate}%` : '—'}</span>
                      </div>
                    </div>
                  </div>
