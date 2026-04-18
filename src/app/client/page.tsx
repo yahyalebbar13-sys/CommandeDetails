@@ -172,7 +172,7 @@ export default function ClientPortalPage() {
             <form onSubmit={handleLogin} className="p-8 space-y-5">
               {(state.status === 'error' || loginError) && (
                 <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-[10px] text-red-600 font-bold text-center uppercase tracking-wide">
-                  {loginError || state.message}
+                  {loginError || (state.status === 'error' ? state.message : '')}
                 </div>
               )}
 

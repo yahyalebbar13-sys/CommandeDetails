@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { 
   Users, ChevronLeft, Package, Calendar, Clock, ClipboardList,
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
-  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle
+  Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle,
+  Search, SortAsc, SortDesc, TrendingUp, ChevronRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
@@ -33,12 +34,34 @@ interface SuppliersViewProps {
 
 const COMPANIES_LIST = ["New fournitures", "Lebtex", "Robe in box"];
 
+type TabId = 'suppliers' | 'entities' | 'shipping' | 'forwarders' | 'clients';
+type SortOrder = 'desc' | 'asc';
+
+const TAB_CONFIG = [
+  { id: 'suppliers' as TabId, label: 'Fournisseurs', icon: Factory, activeClasses: 'bg-amber-500 text-white shadow-lg shadow-amber-200', dotColor: 'bg-amber-500' },
+  { id: 'entities' as TabId, label: 'Entités', icon: Building2, activeClasses: 'bg-blue-500 text-white shadow-lg shadow-blue-200', dotColor: 'bg-blue-500' },
+  { id: 'shipping' as TabId, label: 'Maritime', icon: Ship, activeClasses: 'bg-emerald-500 text-white shadow-lg shadow-emerald-200', dotColor: 'bg-emerald-500' },
+  { id: 'forwarders' as TabId, label: 'Transitaires', icon: Briefcase, activeClasses: 'bg-violet-500 text-white shadow-lg shadow-violet-200', dotColor: 'bg-violet-500' },
+  { id: 'clients' as TabId, label: 'Clients', icon: UserCircle2, activeClasses: 'bg-indigo-500 text-white shadow-lg shadow-indigo-200', dotColor: 'bg-indigo-500' },
+];
+
+
+
 export default function SuppliersView({ articles, factures, payments, categories = [], onNavigateToFacture }: SuppliersViewProps) {
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedShipping, setSelectedShipping] = useState<string | null>(null);
   const [selectedForwarder, setSelectedForwarder] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('suppliers');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    setSearchQuery('');
+    setSortOrder('desc');
+  };
 
   const supplierStats = useMemo(() => {
     const stats: Record<string, { val: number; orders: number; categories: Set<string> }> = {};
@@ -125,6 +148,18 @@ export default function SuppliersView({ articles, factures, payments, categories
       .sort((a, b) => b.orders - a.orders);
   }, [articles]);
 
+  const totalSupplierValue = useMemo(() => supplierStats.reduce((s, [, d]) => s + d.val, 0), [supplierStats]);
+  const totalFreight = useMemo(() => shippingStats.reduce((s, d) => s + d.freight, 0), [shippingStats]);
+  const totalClientOrders = useMemo(() => clientStats.reduce((s, d) => s + d.orders, 0), [clientStats]);
+
+  const tabCounts: Record<TabId, number> = {
+    suppliers: supplierStats.length,
+    entities: companyStats.length,
+    shipping: shippingStats.length,
+    forwarders: forwarderStats.length,
+    clients: clientStats.length,
+  };
+
   if (selectedClient) {
     return (
       <ClientDetailView
@@ -186,209 +221,333 @@ export default function SuppliersView({ articles, factures, payments, categories
     );
   }
 
+  const activeConfig = TAB_CONFIG.find(t => t.id === activeTab)!;
+
   return (
-    <div className="space-y-12 fade-in">
-      <header className="bg-stone-900 p-8 rounded-[2rem] shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-        <div className="relative z-10">
-          <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Analyse des <br /><span className="text-amber-500">Flux Partenaires</span></h2>
-          <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-3">Gestion de la performance financière globale</p>
+    <div className="space-y-8 fade-in">
+      <header className="bg-stone-900 rounded-[2rem] shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-blue-500/5 rounded-full translate-y-1/2 blur-3xl pointer-events-none" />
+        <div className="relative z-10 p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+          <div>
+            <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Tableau de bord</p>
+            <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-none">
+              Analyse des<br />
+              <span className="text-amber-500">Flux Partenaires</span>
+            </h2>
+            <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-3">
+              Performance financière & opérationnelle consolidée
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:w-auto w-full">
+            <KpiBlock label="Fournisseurs" value={String(supplierStats.length)} sub="actifs" color="text-amber-500" />
+            <KpiBlock
+              label="Valeur totale"
+              value={totalSupplierValue >= 1_000_000 ? `${(totalSupplierValue / 1_000_000).toFixed(1)}M` : `${Math.round(totalSupplierValue / 1000)}K`}
+              sub="USD"
+              color="text-white"
+            />
+            <KpiBlock
+              label="Fret total"
+              value={totalFreight >= 1_000_000 ? `${(totalFreight / 1_000_000).toFixed(1)}M` : `${Math.round(totalFreight / 1000)}K`}
+              sub="USD"
+              color="text-emerald-400"
+            />
+            <KpiBlock label="Précommandes" value={String(totalClientOrders)} sub="articles" color="text-indigo-400" />
+          </div>
         </div>
       </header>
-      
-      <section className="space-y-6">
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-amber-500/10 rounded-lg">
-            <Users className="w-5 h-5 text-amber-600" />
-          </div>
-          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Fournisseurs</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {supplierStats.map(([name, stat]) => (
-            <Card 
-              key={name} 
-              onClick={() => setSelectedSupplier(name)}
-              className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-amber"
-            >
-              <div className="h-1 w-full bg-stone-900 group-hover:bg-amber-500 transition-colors" />
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-amber-600 transition-colors">{name}</CardTitle>
-                  <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-amber-500 transition-colors">
-                    <Factory className="w-4 h-4" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black text-stone-900 mb-6">{Number(stat.val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
-                <div className="space-y-2 pt-4 border-t border-stone-50">
-                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                    <span>Articles</span>
-                    <span className="text-stone-900">{stat.orders}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                    <span>Familles</span>
-                    <span className="text-stone-900">{stat.categories.size}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
 
-      <Separator className="bg-stone-200" />
-
-      <section className="space-y-6 pb-10">
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-blue-500/10 rounded-lg">
-            <Building2 className="w-5 h-5 text-blue-600" />
-          </div>
-          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse de nos Entités</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {companyStats.map((stat) => (
-            <Card 
-              key={stat.name} 
-              onClick={() => setSelectedCompany(stat.name)}
-              className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-blue"
-            >
-              <div className="h-1 w-full bg-stone-900 group-hover:bg-blue-500 transition-colors" />
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{stat.name}</CardTitle>
-                  <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-blue-500 transition-colors">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black text-stone-900 mb-6">{Number(stat.val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
-                <div className="space-y-2 pt-4 border-t border-stone-50">
-                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                    <span>Dossiers</span>
-                    <span className="text-stone-900">{stat.dossiers}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                    <span>Articles</span>
-                    <span className="text-stone-900">{stat.articles}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <Separator className="bg-stone-200" />
-
-      <section className="space-y-6 pb-10">
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-emerald-500/10 rounded-lg">
-            <Ship className="w-5 h-5 text-emerald-600" />
-          </div>
-          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Compagnies Maritimes</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {shippingStats.map((stat) => (
-            <Card 
-              key={stat.name} 
-              onClick={() => setSelectedShipping(stat.name)}
-              className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95 status-glow-emerald"
-            >
-              <div className="h-1 w-full bg-stone-900 group-hover:bg-emerald-500 transition-colors" />
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-emerald-600 transition-colors">{stat.name}</CardTitle>
-                  <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-emerald-500 transition-colors">
-                    <Ship className="w-4 h-4" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black text-stone-900 mb-6">{Number(stat.freight).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
-                <div className="space-y-2 pt-4 border-t border-stone-50">
-                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                    <span>Arrivages</span>
-                    <span className="text-stone-900">{stat.dossiers}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                    <span>Volume</span>
-                    <span className="text-stone-900">{Number(stat.cbm).toLocaleString('en-US', { maximumFractionDigits: 3 })} m³</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <Separator className="bg-stone-200" />
-
-      <section className="space-y-6 pb-10">
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-violet-500/10 rounded-lg">
-            <Briefcase className="w-5 h-5 text-violet-600" />
-          </div>
-          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Transitaires</h3>
-        </div>
-        {forwarderStats.length === 0 ? (
-          <div className="text-center py-16 text-stone-300 font-bold uppercase text-[10px]">Aucun transitaire avec dossier remis pour le moment</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {forwarderStats.map((stat) => (
-              <Card
-                key={stat.name}
-                onClick={() => setSelectedForwarder(stat.name)}
-                className="cursor-pointer border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group active:scale-95"
+      {/* ── Tab Navigation ──────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-2">
+        <div className="flex gap-1 overflow-x-auto scrollbar-none">
+          {TAB_CONFIG.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            const count = tabCounts[tab.id];
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
+                  isActive
+                    ? `${tab.activeClasses} shadow-lg`
+                    : 'text-stone-400 hover:text-stone-700 hover:bg-stone-50'
+                }`}
               >
-                <div className="h-1 w-full bg-stone-900 group-hover:bg-violet-500 transition-colors" />
-                <CardHeader className="pb-4">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-violet-600 transition-colors">{stat.name}</CardTitle>
-                    <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-violet-500 transition-colors">
-                      <Briefcase className="w-4 h-4" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-black text-stone-900 mb-6">{stat.dossiers} <span className="text-sm font-bold text-stone-400">Dossiers</span></div>
-                  <div className="space-y-2 pt-4 border-t border-stone-50">
-                    <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase">
-                      <span>Dossiers remis</span>
-                      <span className="text-violet-600 font-black">{stat.dossiers}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Search + Sort ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
+          <input
+            type="text"
+            placeholder={`Rechercher…`}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full h-11 pl-10 pr-4 bg-white border border-stone-200 rounded-xl text-[11px] font-bold text-stone-700 placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-200 shadow-sm"
+          />
+        </div>
+        <button
+          onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
+          className="flex items-center gap-2 h-11 px-5 bg-white border border-stone-200 rounded-xl text-[10px] font-black text-stone-500 hover:text-stone-900 hover:border-stone-300 transition-all shadow-sm uppercase tracking-wider shrink-0"
+        >
+          {sortOrder === 'desc'
+            ? <><SortDesc className="w-4 h-4" /> Décroissant</>
+            : <><SortAsc className="w-4 h-4" /> Croissant</>
+          }
+        </button>
+      </div>
+
+      {/* ── FOURNISSEURS ── */}
+      {activeTab === 'suppliers' && (() => {
+        const filtered = supplierStats
+          .filter(([name]) => name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .sort((a, b) => sortOrder === 'desc' ? b[1].val - a[1].val : a[1].val - b[1].val);
+        const maxVal = filtered[0]?.[1].val || 1;
+        if (filtered.length === 0) return <EmptyTab label="Aucun fournisseur enregistré" />;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filtered.map(([name, stat], idx) => (
+              <PartnerCard
+                key={name} rank={idx + 1}
+                title={name}
+                primaryValue={`${Number(stat.val).toLocaleString('en-US', { maximumFractionDigits: 0 })} $`}
+                primaryLabel="Valeur marchandise"
+                icon={<Factory className="w-4 h-4" />}
+                progressPct={Math.round((stat.val / maxVal) * 100)}
+                progressColor="bg-amber-500"
+                stats={[{ label: 'Articles', value: String(stat.orders) }, { label: 'Familles', value: String(stat.categories.size) }]}
+                accentColor="amber"
+                onClick={() => setSelectedSupplier(name)}
+              />
             ))}
           </div>
-        )}
-      </section>
+        );
+      })()}
 
-      <Separator className="bg-stone-200" />
-
-      <section className="space-y-6 pb-10">
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-indigo-500/10 rounded-lg">
-            <UserCircle2 className="w-5 h-5 text-indigo-600" />
+      {/* ── ENTITÉS ── */}
+      {activeTab === 'entities' && (() => {
+        const filtered = companyStats
+          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .sort((a, b) => sortOrder === 'desc' ? b.val - a.val : a.val - b.val);
+        const maxVal = filtered[0]?.val || 1;
+        if (filtered.length === 0) return <EmptyTab label="Aucune entité enregistrée" />;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filtered.map((stat, idx) => (
+              <PartnerCard
+                key={stat.name} rank={idx + 1}
+                title={stat.name}
+                primaryValue={`${Number(stat.val).toLocaleString('en-US', { maximumFractionDigits: 0 })} $`}
+                primaryLabel="Valeur déclarée totale"
+                icon={<Building2 className="w-4 h-4" />}
+                progressPct={Math.round((stat.val / maxVal) * 100)}
+                progressColor="bg-blue-500"
+                stats={[{ label: 'Dossiers', value: String(stat.dossiers) }, { label: 'Articles', value: String(stat.articles) }]}
+                accentColor="blue"
+                onClick={() => setSelectedCompany(stat.name)}
+              />
+            ))}
           </div>
-          <h3 className="text-lg font-black text-stone-900 uppercase tracking-tight">Analyse des Clients</h3>
-        </div>
-        {clientStats.length === 0 ? (
-          <div className="text-center py-16 text-stone-300 font-bold uppercase text-[10px]">Aucune précommande client enregistrée</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {clientStats.map((stat) => (
+        );
+      })()}
+
+      {/* ── MARITIME ── */}
+      {activeTab === 'shipping' && (() => {
+        const filtered = shippingStats
+          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .sort((a, b) => sortOrder === 'desc' ? b.freight - a.freight : a.freight - b.freight);
+        const maxVal = filtered[0]?.freight || 1;
+        if (filtered.length === 0) return <EmptyTab label="Aucune compagnie maritime" />;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filtered.map((stat, idx) => (
+              <PartnerCard
+                key={stat.name} rank={idx + 1}
+                title={stat.name}
+                primaryValue={`${Number(stat.freight).toLocaleString('en-US', { maximumFractionDigits: 0 })} $`}
+                primaryLabel="Fret total payé"
+                icon={<Ship className="w-4 h-4" />}
+                progressPct={Math.round((stat.freight / maxVal) * 100)}
+                progressColor="bg-emerald-500"
+                stats={[{ label: 'Arrivages', value: String(stat.dossiers) }, { label: 'Volume', value: `${Number(stat.cbm).toFixed(1)} m³` }]}
+                accentColor="emerald"
+                onClick={() => setSelectedShipping(stat.name)}
+              />
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ── TRANSITAIRES ── */}
+      {activeTab === 'forwarders' && (() => {
+        const filtered = forwarderStats
+          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .sort((a, b) => sortOrder === 'desc' ? b.dossiers - a.dossiers : a.dossiers - b.dossiers);
+        const maxVal = filtered[0]?.dossiers || 1;
+        if (filtered.length === 0) return <EmptyTab label="Aucun transitaire avec dossier remis" />;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filtered.map((stat, idx) => (
+              <PartnerCard
+                key={stat.name} rank={idx + 1}
+                title={stat.name}
+                primaryValue={`${stat.dossiers} Dossiers`}
+                primaryLabel="Total dossiers remis"
+                icon={<Briefcase className="w-4 h-4" />}
+                progressPct={Math.round((stat.dossiers / maxVal) * 100)}
+                progressColor="bg-violet-500"
+                stats={[{ label: 'Dossiers remis', value: String(stat.dossiers) }]}
+                accentColor="violet"
+                onClick={() => setSelectedForwarder(stat.name)}
+              />
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ── CLIENTS ── */}
+      {activeTab === 'clients' && (() => {
+        const filtered = clientStats
+          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .sort((a, b) => sortOrder === 'desc' ? b.orders - a.orders : a.orders - b.orders);
+        const maxVal = filtered[0]?.orders || 1;
+        if (filtered.length === 0) return <EmptyTab label="Aucune précommande client enregistrée" />;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filtered.map((stat, idx) => (
               <ClientCard
                 key={stat.name}
                 stat={stat}
+                rank={idx + 1}
+                pct={Math.round((stat.orders / maxVal) * 100)}
                 onSelect={() => setSelectedClient(stat.name)}
               />
             ))}
           </div>
-        )}
-      </section>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ── KPI block ─────────────────────────────────────────────────────────────────
+function KpiBlock({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+  return (
+    <div className="bg-white/5 border border-white/10 p-4 rounded-2xl text-center backdrop-blur-sm">
+      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">{label}</p>
+      <div className={`text-2xl font-black ${color} leading-none`}>{value}</div>
+      <p className="text-[8px] text-stone-600 font-bold uppercase mt-1">{sub}</p>
+    </div>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyTab({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <div className="w-16 h-16 bg-stone-100 rounded-2xl flex items-center justify-center mb-4">
+        <TrendingUp className="w-7 h-7 text-stone-300" />
+      </div>
+      <p className="text-stone-300 font-black uppercase text-[10px] tracking-widest">{label}</p>
+    </div>
+  );
+}
+
+// ── Accent palette ────────────────────────────────────────────────────────────
+type AccentColor = 'amber' | 'blue' | 'emerald' | 'violet' | 'indigo';
+const ACCENT: Record<AccentColor, { badge: string; hover: string; icon: string }> = {
+  amber:   { badge: 'bg-amber-100 text-amber-700 border-amber-200',      hover: 'group-hover:text-amber-600',   icon: 'group-hover:text-amber-500 group-hover:bg-amber-50' },
+  blue:    { badge: 'bg-blue-100 text-blue-700 border-blue-200',          hover: 'group-hover:text-blue-600',    icon: 'group-hover:text-blue-500 group-hover:bg-blue-50' },
+  emerald: { badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', hover: 'group-hover:text-emerald-600', icon: 'group-hover:text-emerald-500 group-hover:bg-emerald-50' },
+  violet:  { badge: 'bg-violet-100 text-violet-700 border-violet-200',    hover: 'group-hover:text-violet-600',  icon: 'group-hover:text-violet-500 group-hover:bg-violet-50' },
+  indigo:  { badge: 'bg-indigo-100 text-indigo-700 border-indigo-200',    hover: 'group-hover:text-indigo-600',  icon: 'group-hover:text-indigo-500 group-hover:bg-indigo-50' },
+};
+
+// ── Generic partner card ──────────────────────────────────────────────────────
+function PartnerCard({
+  rank, title, primaryValue, primaryLabel, icon, progressPct, progressColor, stats, accentColor, onClick,
+}: {
+  rank: number; title: string; primaryValue: string; primaryLabel: string;
+  icon: React.ReactNode; progressPct: number; progressColor: string;
+  stats: { label: string; value: string }[]; accentColor: AccentColor; onClick: () => void;
+}) {
+  const a = ACCENT[accentColor];
+  return (
+    <div
+      onClick={onClick}
+      className="group cursor-pointer bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-200 overflow-hidden active:scale-[0.98] border border-stone-100"
+    >
+      {/* Animated progress topper */}
+      <div className="relative h-1.5 w-full bg-stone-100">
+        <div className={`h-full ${progressColor} transition-all duration-700`} style={{ width: `${progressPct}%` }} />
+      </div>
+
+      <div className="p-5">
+        {/* Rank + icon row */}
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex-1 min-w-0">
+            {rank <= 3 ? (
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase border mb-1.5 ${a.badge}`}>
+                {rank === 1 ? '🥇 N°1' : rank === 2 ? '🥈 N°2' : '🥉 N°3'}
+              </span>
+            ) : (
+              <span className="text-[9px] font-black text-stone-300 uppercase tracking-widest block mb-1.5">#{rank}</span>
+            )}
+            <h4 className={`font-black text-stone-900 uppercase tracking-tight text-[13px] leading-tight truncate transition-colors ${a.hover}`}>
+              {title}
+            </h4>
+          </div>
+          <div className={`p-2 bg-stone-50 rounded-xl text-stone-300 transition-all shrink-0 ${a.icon}`}>
+            {icon}
+          </div>
+        </div>
+
+        {/* Primary value */}
+        <div className="mb-4">
+          <div className="text-xl font-black text-stone-900 leading-none mb-1">{primaryValue}</div>
+          <p className="text-[8px] font-bold text-stone-400 uppercase tracking-widest">{primaryLabel}</p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Part relative</span>
+            <span className="text-[9px] font-black text-stone-700">{progressPct}%</span>
+          </div>
+          <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+            <div className={`h-full ${progressColor} rounded-full transition-all duration-700`} style={{ width: `${progressPct}%` }} />
+          </div>
+        </div>
+
+        {/* Sub-stats */}
+        <div className={`grid gap-3 pt-3 border-t border-stone-50 ${stats.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {stats.map(s => (
+            <div key={s.label}>
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">{s.label}</p>
+              <p className="text-xs font-black text-stone-900">{s.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA arrow */}
+        <div className={`mt-4 flex items-center justify-end text-[9px] font-black uppercase tracking-widest text-stone-300 ${a.hover} transition-colors`}>
+          Voir détails <ChevronRight className="w-3 h-3 ml-0.5" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -1239,53 +1398,88 @@ function ForwarderDetailView({
   );
 }
 
-function ClientCard({ stat, onSelect }: { stat: { name: string; orders: number; categories: Set<string> }; onSelect: () => void }) {
+function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; orders: number; categories: Set<string> }; rank: number; pct: number; onSelect: () => void }) {
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const { user } = useUser();
   const canCreateAccount = user?.email === 'yahya.lebbar13@gmail.com';
 
   return (
     <>
-      <Card
-        className="border-none bg-white shadow-lg hover:shadow-2xl transition-all rounded-2xl overflow-hidden group"
+      <div
+        className="group cursor-pointer bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-200 overflow-hidden active:scale-[0.98] border border-stone-100"
+        onClick={onSelect}
       >
-        <div className="h-1 w-full bg-stone-900 group-hover:bg-indigo-500 transition-colors" />
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start">
-            <CardTitle
-              className="text-lg font-black text-stone-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors cursor-pointer"
-              onClick={onSelect}
-            >
-              {stat.name}
-            </CardTitle>
-            <div className="p-2 bg-stone-50 rounded-lg text-stone-300 group-hover:text-indigo-500 transition-colors cursor-pointer" onClick={onSelect}>
+        {/* Indigo progress topper */}
+        <div className="relative h-1.5 w-full bg-stone-100">
+          <div className="h-full bg-indigo-500 transition-all duration-700" style={{ width: `${pct}%` }} />
+        </div>
+
+        <div className="p-5">
+          {/* Rank + icon */}
+          <div className="flex items-start justify-between gap-2 mb-4">
+            <div className="flex-1 min-w-0">
+              {rank <= 3 ? (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase border mb-1.5 bg-indigo-100 text-indigo-700 border-indigo-200">
+                  {rank === 1 ? '🥇 N°1' : rank === 2 ? '🥈 N°2' : '🥉 N°3'}
+                </span>
+              ) : (
+                <span className="text-[9px] font-black text-stone-300 uppercase tracking-widest block mb-1.5">#{rank}</span>
+              )}
+              <h4 className="font-black text-stone-900 uppercase tracking-tight text-[13px] leading-tight truncate transition-colors group-hover:text-indigo-600">
+                {stat.name}
+              </h4>
+            </div>
+            <div className="p-2 bg-stone-50 rounded-xl text-stone-300 transition-all shrink-0 group-hover:text-indigo-500 group-hover:bg-indigo-50">
               <UserCircle2 className="w-4 h-4" />
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-black text-stone-900 mb-4 cursor-pointer" onClick={onSelect}>
-            {stat.orders} <span className="text-sm font-bold text-stone-400">Articles</span>
+
+          {/* Primary value */}
+          <div className="mb-4">
+            <div className="text-xl font-black text-stone-900 leading-none mb-1">{stat.orders} Articles</div>
+            <p className="text-[8px] font-bold text-stone-400 uppercase tracking-widest">Total précommandes</p>
           </div>
-          <div className="space-y-2 pt-3 border-t border-stone-50">
-            <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase cursor-pointer" onClick={onSelect}>
-              <span>Familles</span>
-              <span className="text-indigo-600 font-black">{stat.categories.size}</span>
+
+          {/* Progress bar */}
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Part relative</span>
+              <span className="text-[9px] font-black text-stone-700">{pct}%</span>
             </div>
-            {canCreateAccount && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full h-8 text-[9px] font-black uppercase tracking-wider border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 gap-1.5 mt-2"
+            <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+
+          {/* Sub-stats */}
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-stone-50">
+            <div>
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Articles</p>
+              <p className="text-xs font-black text-stone-900">{stat.orders}</p>
+            </div>
+            <div>
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Familles</p>
+              <p className="text-xs font-black text-indigo-600">{stat.categories.size}</p>
+            </div>
+          </div>
+
+          {/* Access button (admin only) + CTA */}
+          <div className="mt-4 flex items-center justify-between">
+            {canCreateAccount ? (
+              <button
+                className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-indigo-500 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50 transition-colors"
                 onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
               >
                 <KeyRound className="w-3 h-3" />
-                Créer Accès Client
-              </Button>
-            )}
+                Créer accès
+              </button>
+            ) : <div />}
+            <div className="flex items-center text-[9px] font-black uppercase tracking-widest text-stone-300 group-hover:text-indigo-600 transition-colors">
+              Voir détails <ChevronRight className="w-3 h-3 ml-0.5" />
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       <CreateClientAccessModal
         open={isAccessModalOpen}
         onOpenChange={setIsAccessModalOpen}
