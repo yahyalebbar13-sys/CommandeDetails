@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
-  Users, ChevronLeft, Package, Calendar, Clock, 
+  Users, ChevronLeft, Package, Calendar, Clock, ClipboardList,
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
   Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle
 } from 'lucide-react';
@@ -1746,6 +1746,14 @@ export function ClientDetailView({
                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Couleur</span>
                      <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
+                   </div>
+                   <div className="bg-white p-4 py-3 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all col-span-2">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400 transition-colors flex items-center gap-1">
+                       <ClipboardList className="w-2.5 h-2.5" /> Technique / Spécifications
+                     </span>
+                     <span className="text-[11px] font-bold text-stone-600 leading-tight">
+                       {selectedArticle.specs || (selectedArticle.zipperType ? `${selectedArticle.zipperType} ${selectedArticle.slider || ''}` : '—')}
+                     </span>
                    </div>
                  </div>
 
