@@ -348,7 +348,7 @@ function AdminApp() {
             {activeTab === 'general-categories' && <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />}
             {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />}
             {activeTab === 'cost-analysis' && <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />}
-            {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} onNavigateToFacture={(id) => { setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />}
+            {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />}
             {activeTab === 'data' && <DataView articles={articles} onEdit={setEditingArticle} />}
           </div>
         )}

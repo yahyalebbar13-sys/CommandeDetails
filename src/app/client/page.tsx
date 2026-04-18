@@ -35,6 +35,7 @@ export default function ClientPortalPage() {
   const [loginError, setLoginError] = useState('');
   const [articles, setArticles] = useState<any[]>([]);
   const [factures, setFactures] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   const authRef = useRef<ReturnType<typeof getAuth> | null>(null);
@@ -85,10 +86,12 @@ export default function ClientPortalPage() {
     Promise.all([
       getDocs(collection(db, 'users', adminUid, 'articles')),
       getDocs(collection(db, 'users', adminUid, 'factures')),
+      getDocs(collection(db, 'users', adminUid, 'categories')),
     ])
-      .then(([artSnap, facSnap]) => {
+      .then(([artSnap, facSnap, catSnap]) => {
         setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setDataLoading(false);
       })
       .catch(() => setDataLoading(false));
@@ -268,6 +271,7 @@ export default function ClientPortalPage() {
               clientName={clientName}
               articles={articles}
               factures={factures}
+              categories={categories}
               isPortal
             />
           </div>

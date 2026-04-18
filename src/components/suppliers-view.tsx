@@ -27,12 +27,13 @@ interface SuppliersViewProps {
   articles: any[];
   factures: any[];
   payments: any[];
+  categories?: any[];
   onNavigateToFacture: (factureId: string) => void;
 }
 
 const COMPANIES_LIST = ["New fournitures", "Lebtex", "Robe in box"];
 
-export default function SuppliersView({ articles, factures, payments, onNavigateToFacture }: SuppliersViewProps) {
+export default function SuppliersView({ articles, factures, payments, categories = [], onNavigateToFacture }: SuppliersViewProps) {
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [selectedShipping, setSelectedShipping] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export default function SuppliersView({ articles, factures, payments, onNavigate
         clientName={selectedClient}
         articles={articles}
         factures={factures}
+        categories={categories}
         onBack={() => setSelectedClient(null)}
       />
     );
@@ -1429,27 +1431,67 @@ export function ClientDetailView({
   clientName,
   articles,
   factures,
+  categories = [],
   onBack,
   isPortal = false,
 }: {
   clientName: string;
   articles: any[];
   factures: any[];
+  categories?: any[];
   onBack?: () => void;
   isPortal?: boolean;
 }) {
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const clientArticles = useMemo(() => {
     return articles
       .filter(a => a.isPreorder && a.clientName?.trim() === clientName)
       .map(a => {
         const facture = factures.find(f => f.id === a.factureId);
+        let derivedStatus = a.status;
+        const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
+        if (facture) {
+          const now = new Date();
+          const isArrived = arrivalDate ? new Date(arrivalDate) <= now : false;
+          if (facture.inStock) {
+            derivedStatus = 'STOCK';
+          } else if (isArrived) {
+            derivedStatus = 'CUSTOMS';
+          } else {
+            derivedStatus = 'TRANSIT';
+          }
+        }
+        
+        let orderDate = '-';
+        if (facture?.orderDate) {
+          orderDate = facture.orderDate;
+        } else if (a.createdAt?.seconds) {
+          orderDate = new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0];
+        } else if (typeof a.createdAt === 'string') {
+          orderDate = a.createdAt.split('T')[0];
+        } else if (a.date) {
+           orderDate = a.date;
+        }
+
         return {
           ...a,
-          arrivalDate: facture?.arrivalDate || a.arrivalDate || null,
+          status: derivedStatus,
+          arrivalDate,
+          orderDate
         };
       })
-      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || ''));
+      .sort((a, b) => {
+        const tA = a.arrivalDate ? new Date(a.arrivalDate).getTime() : Infinity;
+        const tB = b.arrivalDate ? new Date(b.arrivalDate).getTime() : Infinity;
+        return tA - tB;
+      });
   }, [clientName, articles, factures]);
+
+  const selectedArticle = useMemo(() => clientArticles.find(a => a.id === selectedArticleId), [clientArticles, selectedArticleId]);
+  const selectedCategory = useMemo(() => {
+    if (!selectedArticle) return null;
+    return categories.find(c => c.name === selectedArticle.categoryId) || null;
+  }, [selectedArticle, categories]);
 
   const statusLabel = (status: string) => {
     if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200' };
@@ -1556,24 +1598,11 @@ export function ClientDetailView({
                       <p className="text-[12px] font-bold text-stone-700 uppercase">{a.color}</p>
                     </div>
                   )}
-                  {a.cbm != null && (
-                    <div>
-                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">CBM</p>
-                      <p className="text-[12px] font-bold text-stone-700">{Number(a.cbm).toLocaleString('en-US')} m³</p>
-                    </div>
-                  )}
-                  {a.netWeight != null && (
-                    <div>
-                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Net Weight</p>
-                      <p className="text-[12px] font-bold text-stone-700">{Number(a.netWeight).toLocaleString('en-US')} kg</p>
-                    </div>
-                  )}
-                  {a.specs && (
-                    <div className="col-span-2">
-                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Détails Techniques</p>
-                      <p className="text-[11px] font-bold text-stone-500 leading-relaxed">{a.specs}</p>
-                    </div>
-                  )}
+                  <div className="col-span-2 pt-2 border-t border-stone-50">
+                    <Button onClick={() => setSelectedArticleId(a.id)} className="w-full h-10 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black uppercase text-[10px] tracking-widest rounded-xl shadow-none">
+                       Voir Détails
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
@@ -1590,16 +1619,14 @@ export function ClientDetailView({
                 <TableHead className="text-[9px] font-black uppercase py-4">Type Produit</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Taille</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Couleur</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Détails Tech.</TableHead>
                 <TableHead className="text-right text-[9px] font-black uppercase py-4">Qté</TableHead>
                 <TableHead className="text-[9px] font-black uppercase py-4">Unité</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4 text-center">CBM</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4 text-center">Net Weight</TableHead>
+                <TableHead className="w-24"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clientArticles.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
               ) : clientArticles.map((a) => {
                 const { label, cls } = statusLabel(a.status);
                 const now = new Date();
@@ -1621,11 +1648,11 @@ export function ClientDetailView({
                     <TableCell className="py-3 font-black text-stone-900 text-[11px]">{a.categoryId || '—'}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-500 text-[10px]">{a.size || '—'}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-500 text-[10px] uppercase">{a.color || '—'}</TableCell>
-                    <TableCell className="py-3 font-bold text-stone-400 text-[10px] max-w-[200px] truncate">{a.specs || '—'}</TableCell>
                     <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US')}</TableCell>
                     <TableCell className="py-3 font-bold text-stone-400 text-[10px] uppercase">{a.unitOfMeasure || '—'}</TableCell>
-                    <TableCell className="py-3 text-center font-bold text-stone-600 text-[10px]">{a.cbm ? `${Number(a.cbm).toLocaleString('en-US')} m³` : '—'}</TableCell>
-                    <TableCell className="py-3 text-center font-bold text-stone-600 text-[10px]">{a.netWeight ? `${Number(a.netWeight).toLocaleString('en-US')} kg` : '—'}</TableCell>
+                    <TableCell className="py-3">
+                       <Button onClick={() => setSelectedArticleId(a.id)} className="h-8 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-black uppercase text-[9px] tracking-widest rounded-lg">Détails</Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -1674,6 +1701,79 @@ export function ClientDetailView({
           </div>
         </div>
       </section>
+
+      <Dialog open={!!selectedArticleId} onOpenChange={(o) => { if (!o) setSelectedArticleId(null); }}>
+        <DialogContent className="max-w-sm rounded-[2rem] p-0 border-transparent overflow-hidden shadow-2xl bg-stone-50">
+          {selectedArticle && (
+             <div className="flex flex-col relative w-full h-full">
+               <div className="bg-indigo-900 p-8 pt-10 text-center relative overflow-hidden shrink-0">
+                 <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl" />
+                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full translate-y-1/2 -translate-x-1/4 blur-xl" />
+                 
+                 <div className="relative z-10 flex flex-col items-center">
+                   <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-800 rounded-2xl mb-4 shadow-xl border border-indigo-700/50">
+                     <Package className="w-7 h-7 text-indigo-200" />
+                   </div>
+                   <h2 className="text-3xl font-black text-white uppercase tracking-tight leading-none mb-2">{selectedArticle.categoryId}</h2>
+                   <div className="flex justify-center gap-2 mb-4 mt-2">
+                     <span className="inline-flex items-center justify-center px-4 py-1.5 bg-white/10 rounded-full border border-white/10 backdrop-blur-md">
+                       <span className="text-[11px] font-black text-white uppercase tracking-widest">
+                         {Number(selectedArticle.quantity).toLocaleString('en-US')} {selectedArticle.unitOfMeasure || 'U'}
+                       </span>
+                     </span>
+                   </div>
+                 </div>
+               </div>
+               
+               <div className="p-6 space-y-4 relative z-10 shrink-0">
+                 <div className="grid grid-cols-2 gap-3">
+                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Code HS</span>
+                     <span className="text-sm font-black text-stone-900">{selectedCategory?.hsCode || '—'}</span>
+                   </div>
+                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Taille</span>
+                     <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
+                   </div>
+                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Couleur</span>
+                     <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
+                   </div>
+                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Unité</span>
+                     <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.unitOfMeasure || '—'}</span>
+                   </div>
+                 </div>
+
+                 <div className="bg-stone-900 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+                   <div className="grid grid-cols-2 gap-4 relative z-10">
+                     <div className="flex flex-col">
+                       <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD (Droit Import)</span>
+                       <span className="text-lg font-black text-emerald-400">{selectedCategory?.importDutyRate ? `${selectedCategory.importDutyRate}%` : '—'}</span>
+                     </div>
+                     <div className="flex flex-col border-l border-stone-800 pl-4">
+                       <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest block mb-1">TDI / TPI</span>
+                       <span className="text-lg font-black text-emerald-400">{selectedCategory?.tpiRate ? `${selectedCategory.tpiRate}%` : '—'}</span>
+                     </div>
+                   </div>
+                 </div>
+
+                 <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm grid grid-cols-2 gap-4 mt-2 text-center ring-1 ring-indigo-50">
+                   <div className="flex flex-col justify-center">
+                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</span>
+                     <span className="text-xs font-black text-stone-900 bg-stone-50 py-1.5 rounded-lg border border-stone-100">{selectedArticle.orderDate || '—'}</span>
+                   </div>
+                   <div className="pl-4 border-l border-stone-100 flex flex-col justify-center">
+                     <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Clock className="w-3 h-3" /> Date Arrivée</span>
+                     <span className="text-xs font-black text-indigo-700 bg-indigo-50 py-1.5 rounded-lg border border-indigo-100">{selectedArticle.arrivalDate || '—'}</span>
+                   </div>
+                 </div>
+               </div>
+             </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
