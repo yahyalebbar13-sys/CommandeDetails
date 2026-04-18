@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -1443,6 +1443,39 @@ export function ClientDetailView({
   isPortal?: boolean;
 }) {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  // Auto-sync: when admin views a client, embed customs data from categories into articles
+  // This makes the data available to the client portal which can only read articles
+  useEffect(() => {
+    if (isPortal || !user || !firestore || categories.length === 0 || articles.length === 0) return;
+    const nameLower = (clientName || '').trim().toLowerCase();
+    const clientArts = articles.filter(a => {
+      if (!a.isPreorder) return false;
+      const aName = (a.clientName || '').trim().toLowerCase();
+      return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
+    });
+    clientArts.forEach(a => {
+      // Only sync if customs data is missing on the article
+      if (a.hsCode !== undefined && a.importDutyRate !== undefined) return;
+      const catName = (a.categoryId || '').trim().toLowerCase();
+      const cat = categories.find(c => {
+        const cName = (c.name || '').trim().toLowerCase();
+        return cName === catName || c.id === a.categoryId;
+      });
+      if (!cat) return;
+      // Has category customs data worth syncing?
+      if (cat.hsCode == null && cat.importDutyRate == null && cat.tpiRate == null && cat.tvaRate == null) return;
+      const docRef = doc(firestore, 'users', user.uid, 'articles', a.id);
+      setDocumentNonBlocking(docRef, {
+        hsCode: cat.hsCode || null,
+        importDutyRate: cat.importDutyRate ?? null,
+        tpiRate: cat.tpiRate ?? null,
+        tvaRate: cat.tvaRate ?? null,
+      }, { merge: true });
+    });
+  }, [isPortal, user, firestore, clientName, articles, categories]);
   const clientArticles = useMemo(() => {
     const nameLower = (clientName || '').trim().toLowerCase();
     return articles
