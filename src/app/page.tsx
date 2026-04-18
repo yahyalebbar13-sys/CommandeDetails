@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/sheet';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// Only this email sees the admin dashboard
+// Only this email sees the admin dashboard — enforced ALSO by Firestore rules
 const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
 
 // Parse client role from Firebase Auth displayName
@@ -44,10 +44,12 @@ function parseClientDisplayName(displayName: string | null | undefined) {
   const body = displayName.slice('CLIENT:'.length);
   const lastColon = body.lastIndexOf(':');
   if (lastColon === -1) return null;
-  return {
-    clientName: body.substring(0, lastColon),
-    adminUid: body.substring(lastColon + 1),
-  };
+  const clientName = body.substring(0, lastColon);
+  const adminUid = body.substring(lastColon + 1);
+  // Basic sanity — adminUid should look like a Firebase UID (alphanumeric, non-empty)
+  if (!adminUid || adminUid.length < 10) return null;
+  if (!clientName || clientName.trim().length === 0) return null;
+  return { clientName: clientName.trim(), adminUid };
 }
 
 // ─── Role type ────────────────────────────────────────────────────────────────
@@ -66,37 +68,36 @@ export default function StockVueApp() {
   useEffect(() => {
     if (!user) { setRole({ kind: 'loading' }); return; }
 
-    // ① Admin by email — always reliable
+    // ① Admin by email — fast-path; ALSO enforced server-side by Firestore rules
     if (user.email === ADMIN_EMAIL) {
       setRole({ kind: 'admin' });
       return;
     }
 
-    // ② Client by displayName — instant, no Firestore (set when modal runs)
-    const fromDisplayName = parseClientDisplayName(user.displayName);
-    if (fromDisplayName) {
-      setRole({ kind: 'client', ...fromDisplayName });
-      return;
-    }
-
-    // ③ Fallback: read clientAccess from Firestore (old accounts before displayName was added)
+    // Non-admin must have a valid Firestore clientAccess document
+    // displayName is a fast-path hint but Firestore is authoritative
     if (!firestore) { setRole({ kind: 'noAccess' }); return; }
 
     getDoc(doc(firestore, 'clientAccess', user.uid))
       .then(snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setRole({ kind: 'client', clientName: data.clientName, adminUid: data.adminUid });
-        } else {
-          // Document doesn't exist: client was created but Firestore write failed
+        if (!snap.exists()) {
           setRole({ kind: 'noAccess' });
+          return;
         }
+        const data = snap.data();
+        const clientName = (data.clientName || '').trim();
+        const adminUid = (data.adminUid || '').trim();
+        if (!clientName || !adminUid) {
+          setRole({ kind: 'noAccess' });
+          return;
+        }
+        setRole({ kind: 'client', clientName, adminUid });
       })
       .catch(() => {
-        // Permission error: Firestore rules block the read
+        // Permission denied by Firestore rules — not a valid client
         setRole({ kind: 'noAccess' });
       });
-  }, [user?.uid, user?.email, user?.displayName, firestore]);
+  }, [user?.uid, user?.email, firestore]);
 
   // Loading state
   if (isUserLoading || (user && role.kind === 'loading')) {
@@ -168,18 +169,23 @@ function ClientPortalView({
 }) {
   const [articles, setArticles] = useState<any[]>([]);
   const [factures, setFactures] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!firestore || !adminUid) return;
+    // Validate adminUid looks like a real Firebase UID before fetching
+    if (adminUid.length < 10) return;
     setLoading(true);
     Promise.all([
       getDocs(collection(firestore, 'users', adminUid, 'articles')),
       getDocs(collection(firestore, 'users', adminUid, 'factures')),
+      getDocs(collection(firestore, 'users', adminUid, 'categories')),
     ])
-      .then(([artSnap, facSnap]) => {
+      .then(([artSnap, facSnap, catSnap]) => {
         setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -220,7 +226,7 @@ function ClientPortalView({
           </div>
         ) : (
           <div className="fade-in">
-            <ClientDetailView clientName={clientName} articles={articles} factures={factures} isPortal />
+            <ClientDetailView clientName={clientName} articles={articles} factures={factures} categories={categories} isPortal />
           </div>
         )}
       </main>

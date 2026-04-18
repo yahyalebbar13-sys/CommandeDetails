@@ -37,6 +37,7 @@ export default function ClientPortalPage() {
   const [factures, setFactures] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState(false);
 
   const authRef = useRef<ReturnType<typeof getAuth> | null>(null);
   const dbRef = useRef<ReturnType<typeof getFirestore> | null>(null);
@@ -82,7 +83,13 @@ export default function ClientPortalPage() {
     if (state.status !== 'portal' || !dbRef.current) return;
     const { adminUid } = state as { status: 'portal'; clientName: string; adminUid: string };
     const db = dbRef.current;
+    // Security: validate adminUid looks like a real Firebase UID before using it as a Firestore path
+    if (!adminUid || adminUid.length < 10 || adminUid.includes('/')) {
+      setState({ status: 'error', message: 'Configuration invalide. Contactez votre administrateur.' });
+      return;
+    }
     setDataLoading(true);
+    setDataError(false);
     Promise.all([
       getDocs(collection(db, 'users', adminUid, 'articles')),
       getDocs(collection(db, 'users', adminUid, 'factures')),
@@ -94,7 +101,10 @@ export default function ClientPortalPage() {
         setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setDataLoading(false);
       })
-      .catch(() => setDataLoading(false));
+      .catch(() => {
+        setDataLoading(false);
+        setDataError(true);
+      });
   }, [state.status]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -264,6 +274,16 @@ export default function ClientPortalPage() {
             <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">
               Chargement de vos commandes...
             </p>
+          </div>
+        ) : dataError ? (
+          <div className="flex flex-col items-center justify-center py-40 space-y-4">
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-8 text-center max-w-sm">
+              <p className="text-red-700 font-black uppercase text-[11px] tracking-widest">Erreur de chargement</p>
+              <p className="text-red-500 text-[10px] font-bold mt-2">Vérifiez votre connexion et rechargez la page.</p>
+              <button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-red-600 text-white font-black text-[10px] uppercase rounded-xl hover:bg-red-700 transition-colors">
+                Recharger
+              </button>
+            </div>
           </div>
         ) : (
           <div className="fade-in">

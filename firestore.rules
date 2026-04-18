@@ -1,43 +1,88 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
     }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Admin data
+    // ── Admin user document ────────────────────────────────────────────────────
     match /users/{userId} {
+      // Only the owner can read/write their own user doc
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update, delete: if isOwner(userId);
 
-      match /generalCategories/{id} { allow read, write: if isOwner(userId); }
+      // generalCategories: owner only (internal admin data)
+      match /generalCategories/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // categories: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /categories/{id} {
-        allow read: if isSignedIn();
+        allow read: if isOwner(userId)
+          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
+              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
         allow write: if isOwner(userId);
       }
-      match /suppliers/{id} { allow read, write: if isOwner(userId); }
+
+      // suppliers: owner only (financially sensitive)
+      match /suppliers/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // articles: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /articles/{id} {
-        allow read: if isSignedIn();
+        allow read: if isOwner(userId)
+          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
+              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
         allow write: if isOwner(userId);
       }
+
+      // factures: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /factures/{id} {
-        allow read: if isSignedIn();
+        allow read: if isOwner(userId)
+          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
+              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
         allow write: if isOwner(userId);
       }
-      match /supplierPayments/{id} { allow read, write: if isOwner(userId); }
+
+      // supplierPayments: strictly owner only (financial data)
+      match /supplierPayments/{id} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
-    // Client access mapping
-    // Write: any authenticated user (UI restricts button to admin only)
-    // Read: the client reads their own doc to find their clientName + adminUid
+    // ── Client Access mapping ──────────────────────────────────────────────────
+    // /clientAccess/{clientUid}
+    //   - A client can READ their own document (to discover clientName + adminUid)
+    //   - Only the ADMIN identified in the document can WRITE it
+    //     (we enforce this by checking that the writer's uid matches request.resource.data.adminUid)
+    //   - No one else can read or write
     match /clientAccess/{clientUid} {
-      allow read: if isSignedIn() && request.auth.uid == clientUid;
-      allow write: if isSignedIn();
+      // Client reads their own access doc
+      allow get: if isSignedIn() && request.auth.uid == clientUid;
+
+      // Admin creates/updates: the writer must be the adminUid stored in the document
+      allow create: if isSignedIn()
+        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.keys().hasAll(['clientName', 'adminUid', 'email', 'createdAt']);
+
+      allow update: if isSignedIn()
+        // The EXISTING document's adminUid must match the requester (prevents client from hijacking)
+        && resource.data.adminUid == request.auth.uid
+        // The NEW document must keep the same adminUid (cannot be changed)
+        && request.resource.data.adminUid == resource.data.adminUid;
+
+      allow delete: if isSignedIn() && resource.data.adminUid == request.auth.uid;
+
+      // No list access — only direct get by the client themselves
+      // (no allow list rule means listing is denied)
     }
   }
 }

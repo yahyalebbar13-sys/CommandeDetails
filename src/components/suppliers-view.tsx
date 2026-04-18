@@ -1312,6 +1312,17 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
       return;
     }
 
+    // Prevent using the admin's own email as a client account
+    if (email.toLowerCase().trim() === user.email?.toLowerCase()) {
+      toast({ variant: 'destructive', title: 'Email invalide', description: "Vous ne pouvez pas utiliser le compte administrateur comme compte client." });
+      return;
+    }
+
+    if (password.length < 8) {
+      toast({ variant: 'destructive', title: 'Mot de passe trop faible', description: 'Le mot de passe doit contenir au moins 8 caractères.' });
+      return;
+    }
+
     setLoading(true);
     try {
       // Use a secondary Firebase app to create/sign-in without logging out the admin
@@ -1337,8 +1348,10 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
 
       // ⭐ KEY FIX: Store role in the Auth displayName — works without Firestore permissions
       // Format: CLIENT:{clientName}:{adminUid}
+      // Sanitize clientName: strip colons to preserve the parsing format
+      const safeClientName = clientName.replace(/:/g, '-');
       await updateProfile(clientUser, {
-        displayName: `CLIENT:${clientName}:${user.uid}`,
+        displayName: `CLIENT:${safeClientName}:${user.uid}`,
       });
 
       const clientUid = clientUser.uid;
@@ -1409,7 +1422,8 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
             <Input
               type="password"
               required
-              placeholder="Min. 6 caractères"
+              minLength={8}
+              placeholder="Min. 8 caractères"
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="h-11 border-stone-200 font-bold rounded-xl"
