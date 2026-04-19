@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,8 +10,15 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
-import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2 } from 'lucide-react';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  SelectGroup, SelectLabel
+} from '@/components/ui/select';
+import {
+  Layers, Package, Save, Palette, Ruler, ClipboardList,
+  Maximize, Settings2, MousePointer2, Scissors, UserCircle2,
+  AlertCircle, DollarSign, Building2, Star, ChevronRight
+} from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 
@@ -19,6 +26,28 @@ const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
 const ZIPPER_TYPES = ["O/E", "C/E"];
 const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
+const PRIORITY_CONFIG = [
+  { value: 'urgent',    label: 'Urgent',    color: 'bg-red-500',   dot: 'bg-red-500',   text: 'text-red-700',   bg: 'bg-red-50 border-red-200' },
+  { value: 'important', label: 'Important', color: 'bg-amber-500', dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+  { value: 'todo',      label: 'À faire',   color: 'bg-stone-400', dot: 'bg-stone-400', text: 'text-stone-600', bg: 'bg-stone-50 border-stone-200' },
+];
+
+const EMPTY_FORM = {
+  supplierId: '',
+  categoryId: '',
+  specs: '',
+  quantity: '' as string | number,
+  unitOfMeasure: 'pièces',
+  color: 'white',
+  size: '',
+  zipperType: '',
+  slider: '',
+  sliderType: '',
+  purchasePricePerUnit: '' as string | number,
+  priority: 'todo',
+  isPreorder: false,
+  clientName: '',
+};
 
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const { user } = useUser();
@@ -27,255 +56,274 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
 
   const genCatsRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'generalCategories') : null, [firestore, user]);
   const subCatsRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'categories') : null, [firestore, user]);
+  const articlesRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'articles') : null, [firestore, user]);
 
   const { data: generalCategories = [] } = useCollection(genCatsRef);
   const { data: subCategories = [] } = useCollection(subCatsRef);
+  const { data: allArticles = [] } = useCollection(articlesRef);
 
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+  const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
 
-  const [formData, setFormData] = useState<any>({
-    categoryId: '',
-    specs: '',
-    quantity: 0,
-    unitOfMeasure: 'pièces',
-    color: 'white',
-    size: '',
-    zipperType: '',
-    slider: '',
-    sliderType: '',
-    purchasePricePerUnit: 0,
-    priority: 'todo',
-    isPreorder: false,
-    clientName: '',
-  });
+  // Derive unique supplier list from past articles for autocomplete
+  const knownSuppliers = useMemo(() => {
+    const set = new Set<string>();
+    (allArticles || []).forEach((a: any) => { if (a.supplierId) set.add(a.supplierId); });
+    return Array.from(set).sort();
+  }, [allArticles]);
 
-  const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
+  const handleColorBreakdownChange = useCallback((rows: ColorBreakdownRow[] | null, total: number) => {
     setColorBreakdown(rows);
     if (rows && rows.length > 0) {
       setFormData((p: any) => ({ ...p, quantity: total, color: 'various', unitOfMeasure: 'rolls' }));
     }
-  };
+  }, []);
 
   const filteredSubCategories = useMemo(() => {
     if (!selectedGenCatId) return [];
-    const filtered = (subCategories || []).filter(sc => sc.generalCategoryId === selectedGenCatId);
-    
-    const getGroupIndex = (name: string) => {
-      const catName = (name || '').toLowerCase().trim();
-      
-      const fabricKeywords = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
-      const sliderKeywords = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
-      const zipperKeywords = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
-      const buttonKeywords = ["covered mould button", "snap button", "button"];
+    const filtered = (subCategories || []).filter((sc: any) => sc.generalCategoryId === selectedGenCatId);
 
-      if (fabricKeywords.some(kw => catName.includes(kw))) return 1;
-      if (sliderKeywords.some(kw => catName.includes(kw))) return 2;
-      if (zipperKeywords.some(kw => catName.includes(kw))) return 3;
-      if (buttonKeywords.some(kw => catName.includes(kw))) return 4;
+    const getGroupIndex = (name: string) => {
+      const n = (name || '').toLowerCase().trim();
+      const fabricKw   = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
+      const sliderKw   = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
+      const zipperKw   = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
+      const buttonKw   = ["covered mould button", "snap button", "button"];
+      if (fabricKw.some(k => n.includes(k)))  return 1;
+      if (sliderKw.some(k => n.includes(k)))  return 2;
+      if (zipperKw.some(k => n.includes(k)))  return 3;
+      if (buttonKw.some(k => n.includes(k)))  return 4;
       return 5;
     };
 
-    return filtered.sort((a, b) => {
-      const indexA = getGroupIndex(a.name);
-      const indexB = getGroupIndex(b.name);
-      if (indexA !== indexB) {
-        return indexA - indexB;
-      }
-      return (a.name || '').localeCompare(b.name || '');
+    return filtered.sort((a: any, b: any) => {
+      const diff = getGroupIndex(a.name) - getGroupIndex(b.name);
+      return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '');
     });
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
-    const upper = formData.categoryId?.toUpperCase() || "";
-    // On inclut les Zippers mais on exclut explicitement Long Chain et Slider
+    const upper = (formData.categoryId || '').toUpperCase();
     return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
   }, [formData.categoryId]);
 
+  // Validation
+  const errors = useMemo(() => {
+    const e: Record<string, string> = {};
+    if (!selectedGenCatId) e.genCat = 'Requis';
+    if (!formData.categoryId) e.category = 'Requis';
+    if (!colorBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
+      e.quantity = 'Quantité requise';
+    return e;
+  }, [selectedGenCatId, formData.categoryId, formData.quantity, colorBreakdown]);
+
+  const isValid = Object.keys(errors).length === 0;
+  const priorityConf = PRIORITY_CONFIG.find(p => p.value === formData.priority) || PRIORITY_CONFIG[2];
+
+  const resetForm = () => {
+    setColorBreakdown(null);
+    setFormData({ ...EMPTY_FORM });
+    setSelectedGenCatId('');
+  };
+
+  const handleClose = (open: boolean) => {
+    if (!open) resetForm();
+    onOpenChange(open);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !firestore || !formData.categoryId || !selectedGenCatId) return;
+    if (!user || !firestore || !isValid) return;
 
-    // Find the selected subcategory to embed customs data directly in the article
     const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const basePayload = {
+      ...formData,
+      name: formData.categoryId,
+      generalCategoryId: selectedGenCatId,
+      status: 'TO_ORDER',
+      createdAt: serverTimestamp(),
+      hsCode: selectedSubCat?.hsCode || null,
+      importDutyRate: selectedSubCat?.importDutyRate ?? null,
+      tpiRate: selectedSubCat?.tpiRate ?? null,
+      tvaRate: selectedSubCat?.tvaRate ?? null,
+    };
 
     if (!colorBreakdown || colorBreakdown.length === 0) {
       const id = crypto.randomUUID();
-      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
-
-      setDocumentNonBlocking(docRef, {
-        ...formData,
-        id,
-        name: formData.categoryId,
-        generalCategoryId: selectedGenCatId,
-        status: 'TO_ORDER',
-        createdAt: serverTimestamp(),
-        hsCode: selectedSubCat?.hsCode || null,
-        importDutyRate: selectedSubCat?.importDutyRate ?? null,
-        tpiRate: selectedSubCat?.tpiRate ?? null,
-        tvaRate: selectedSubCat?.tvaRate ?? null,
-        colorBreakdown: null,
-      }, { merge: true });
+      setDocumentNonBlocking(
+        doc(firestore, 'users', user.uid, 'articles', id),
+        { ...basePayload, id, colorBreakdown: null },
+        { merge: true }
+      );
     } else {
-      // Auto-split by price
+      // Auto-split by price override
       const groups = new Map<number, ColorBreakdownRow[]>();
-      
       for (const row of colorBreakdown) {
-        const price = (row.priceOverride !== '' && row.priceOverride !== undefined) 
-           ? Number(row.priceOverride) 
-           : Number(formData.purchasePricePerUnit || 0);
-
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
+          ? Number(row.priceOverride)
+          : Number(formData.purchasePricePerUnit || 0);
         if (!groups.has(price)) groups.set(price, []);
         groups.get(price)!.push(row);
       }
-
-      Array.from(groups.entries()).forEach(([price, rows]) => {
+      groups.forEach((rows, price) => {
         const id = crypto.randomUUID();
-        const docRef = doc(firestore, 'users', user.uid, 'articles', id);
         const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
-
-        setDocumentNonBlocking(docRef, {
-          ...formData,
-          id,
-          name: formData.categoryId,
-          generalCategoryId: selectedGenCatId,
-          status: 'TO_ORDER',
-          createdAt: serverTimestamp(),
-          hsCode: selectedSubCat?.hsCode || null,
-          importDutyRate: selectedSubCat?.importDutyRate ?? null,
-          tpiRate: selectedSubCat?.tpiRate ?? null,
-          tvaRate: selectedSubCat?.tvaRate ?? null,
-          // Overrides for this group
-          purchasePricePerUnit: price,
-          quantity: groupQty,
-          colorBreakdown: rows,
-        }, { merge: true });
+        setDocumentNonBlocking(
+          doc(firestore, 'users', user.uid, 'articles', id),
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows },
+          { merge: true }
+        );
       });
     }
 
-    toast({ title: "Besoins enregistrés", description: "La commande a été ajoutée à la liste des rappels." });
+    const splitCount = colorBreakdown
+      ? new Set(colorBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size
+      : 1;
 
-    setColorBreakdown(null);
-    setFormData({
-      categoryId: '',
-      specs: '',
-      quantity: 0,
-      unitOfMeasure: 'pièces',
-      color: 'white',
-      size: '',
-      zipperType: '',
-      slider: '',
-      sliderType: '',
-      purchasePricePerUnit: 0,
-      priority: 'todo',
-      isPreorder: false,
-      clientName: '',
+    toast({
+      title: "✅ Besoin enregistré",
+      description: splitCount > 1
+        ? `${splitCount} articles créés (auto-split par prix)`
+        : "L'article a été ajouté à la liste des rappels.",
     });
-    setSelectedGenCatId('');
+
+    resetForm();
     onOpenChange(false);
   };
 
+  // ── Grouped Select Content helper ──────────────────────────────────────────
+  const GroupedCategorySelect = () => {
+    const LABEL_MAP: Record<string, string> = {
+      'Fabric': 'Fabric', 'Slider et puller': 'Slider / Puller',
+      'Zipper': 'Zipper', 'Bouton': 'Bouton', 'Reste': 'Reste'
+    };
+    const groups: Record<string, any[]> = {};
+    (filteredSubCategories || []).forEach((sc: any) => {
+      const n = (sc.name || '').toLowerCase().trim();
+      const fabricKw = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
+      const sliderKw = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
+      const zipperKw = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
+      const buttonKw = ["covered mould button", "snap button", "button"];
+      let label = 'Reste';
+      if (fabricKw.some(k => n.includes(k)))  label = 'Fabric';
+      else if (sliderKw.some(k => n.includes(k))) label = 'Slider et puller';
+      else if (zipperKw.some(k => n.includes(k))) label = 'Zipper';
+      else if (buttonKw.some(k => n.includes(k))) label = 'Bouton';
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(sc);
+    });
+    return (
+      <>
+        {Object.entries(LABEL_MAP).map(([key, display]) => {
+          if (!groups[key]?.length) return null;
+          return (
+            <SelectGroup key={key}>
+              <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-2">{display}</SelectLabel>
+              {groups[key].map((sc: any) => (
+                <SelectItem key={sc.id} value={sc.name} className="font-bold pl-6 text-[11px]">{sc.name}</SelectItem>
+              ))}
+            </SelectGroup>
+          );
+        })}
+      </>
+    );
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-stone-200 max-h-[90vh] overflow-y-auto rounded-2xl p-0">
-        <div className="bg-stone-900 p-6 flex items-center gap-3 text-white">
-          <div className="p-2 bg-white/10 rounded-lg">
-            <Package className="w-6 h-6" />
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-lg border-stone-200 max-h-[92vh] overflow-y-auto rounded-2xl p-0">
+
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="bg-gradient-to-br from-stone-900 to-stone-800 p-6 flex items-start gap-4 text-white sticky top-0 z-10">
+          <div className="p-2.5 bg-amber-500/20 rounded-xl border border-amber-500/30 shrink-0 mt-0.5">
+            <Package className="w-5 h-5 text-amber-400" />
           </div>
-          <div>
-            <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none">Nouvel Article</DialogTitle>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Identification du besoin initial</p>
+          <div className="flex-1 min-w-0">
+            <DialogTitle className="text-lg font-black uppercase tracking-tight leading-none">
+              Nouvel Article
+            </DialogTitle>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">
+              Identification du besoin logistique
+            </p>
+          </div>
+          {/* Priority badge in header */}
+          <div className={`px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shrink-0 ${priorityConf.bg} ${priorityConf.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${priorityConf.dot}`} />
+            {priorityConf.label}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {/* ── Section 1: Identification ──────────────────────────────────── */}
+          <SectionLabel icon={<Layers className="w-3 h-3" />} label="Identification" />
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Pôle */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Layers className="w-3 h-3" /> Pôle Logistique
+                <Layers className="w-3 h-3" /> Pôle
+                {errors.genCat && <AlertCircle className="w-3 h-3 text-red-400 ml-auto" />}
               </Label>
-              <Select value={selectedGenCatId} onValueChange={setSelectedGenCatId}>
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+              <Select value={selectedGenCatId} onValueChange={id => { setSelectedGenCatId(id); setFormData((p: any) => ({ ...p, categoryId: '' })); }}>
+                <SelectTrigger className={`h-11 font-bold rounded-xl border ${errors.genCat ? 'border-red-300 bg-red-50' : 'border-stone-200 bg-white'}`}>
                   <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {(generalCategories || []).map(gc => (
+                  {(generalCategories || []).map((gc: any) => (
                     <SelectItem key={gc.id} value={gc.id} className="font-bold">{gc.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Type Produit */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Package className="w-3 h-3" /> Type de Produit
+                <Package className="w-3 h-3" /> Type Produit
+                {errors.category && <AlertCircle className="w-3 h-3 text-red-400 ml-auto" />}
               </Label>
               <Select
                 disabled={!selectedGenCatId}
-                onValueChange={v => {
-                  const cat = filteredSubCategories.find(c => c.name === v);
-                  setFormData((p: any) => ({ 
-                    ...p, 
-                    categoryId: v
-                  }));
-                }}
+                value={formData.categoryId}
+                onValueChange={v => setFormData((p: any) => ({ ...p, categoryId: v }))}
               >
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                  <SelectValue placeholder="Choisir..." />
+                <SelectTrigger className={`h-11 font-bold rounded-xl border ${!selectedGenCatId ? 'opacity-50' : errors.category ? 'border-red-300 bg-red-50' : 'border-stone-200 bg-white'}`}>
+                  <SelectValue placeholder={selectedGenCatId ? "Choisir..." : "← Pôle d'abord"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(() => {
-                    const groups: Record<string, any[]> = {};
-                    (filteredSubCategories || []).forEach(sc => {
-                      const catName = (sc.name || '').toLowerCase().trim();
-                      const fabricKeywords = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
-                      const sliderKeywords = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
-                      const zipperKeywords = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
-                      const buttonKeywords = ["covered mould button", "snap button", "button"];
-                      let label = "Reste";
-                      if (fabricKeywords.some(kw => catName.includes(kw))) label = "Fabric";
-                      else if (sliderKeywords.some(kw => catName.includes(kw))) label = "Slider et puller";
-                      else if (zipperKeywords.some(kw => catName.includes(kw))) label = "Zipper";
-                      else if (buttonKeywords.some(kw => catName.includes(kw))) label = "Bouton";
-                      if (!groups[label]) groups[label] = [];
-                      groups[label].push(sc);
-                    });
-                    return ["Fabric", "Slider et puller", "Zipper", "Bouton", "Reste"].map(label => {
-                      if (!groups[label] || groups[label].length === 0) return null;
-                      return (
-                        <SelectGroup key={label}>
-                          <SelectLabel className="text-[10px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-2">{label}</SelectLabel>
-                          {groups[label].map(sc => (
-                            <SelectItem key={sc.id} value={sc.name} className="font-bold pl-6">{sc.name}</SelectItem>
-                          ))}
-                        </SelectGroup>
-                      );
-                    });
-                  })()}
+                  <GroupedCategorySelect />
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* ── Section 2: Spécifications ──────────────────────────────────── */}
+          <SectionLabel icon={<Settings2 className="w-3 h-3" />} label="Spécifications" />
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Taille */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Maximize className="w-3 h-3" /> Taille / Dimension
+                <Maximize className="w-3 h-3" /> Taille
               </Label>
               <Input
-                placeholder="Ex: No.5, 20cm..."
-                className="h-12 border-stone-200 font-bold rounded-xl"
+                placeholder="No.5, 20cm..."
+                className="h-11 border-stone-200 font-bold rounded-xl"
                 value={formData.size}
                 onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
               />
             </div>
-            {isZipper && (
+
+            {/* Zipper Type — conditionnel */}
+            {isZipper ? (
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Settings2 className="w-3 h-3" /> Type Zipper
                 </Label>
                 <Select value={formData.zipperType} onValueChange={v => setFormData((p: any) => ({ ...p, zipperType: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                  <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
                     <SelectValue placeholder="Type..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -283,18 +331,60 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              /* Couleur — standard si pas zipper */
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Palette className="w-3 h-3" /> Couleur
+                </Label>
+                {colorBreakdown && colorBreakdown.length > 0 ? (
+                  <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                    <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
+                  </div>
+                ) : (
+                  <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
+                    <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             )}
           </div>
 
+          {/* Zipper extra fields */}
           {isZipper && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
+              {/* Couleur pour zipper */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Palette className="w-3 h-3" /> Couleur
+                </Label>
+                {colorBreakdown && colorBreakdown.length > 0 ? (
+                  <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                    <span className="text-[9px] font-black text-violet-700 uppercase">VARIOUS</span>
+                  </div>
+                ) : (
+                  <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
+                    <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <MousePointer2 className="w-3 h-3" /> Curseur
                 </Label>
                 <Input
-                  placeholder="Ex: Auto-lock..."
-                  className="h-12 border-stone-200 font-bold rounded-xl"
+                  placeholder="Auto-lock..."
+                  className="h-11 border-stone-200 font-bold rounded-xl"
                   value={formData.slider}
                   onChange={e => setFormData((p: any) => ({ ...p, slider: e.target.value }))}
                 />
@@ -304,8 +394,8 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                   <Scissors className="w-3 h-3" /> Type Curseur
                 </Label>
                 <Select value={formData.sliderType} onValueChange={v => setFormData((p: any) => ({ ...p, sliderType: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue placeholder="Type Curseur..." />
+                  <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue placeholder="..." />
                   </SelectTrigger>
                   <SelectContent>
                     {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
@@ -315,34 +405,36 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             </div>
           )}
 
+          {/* Specs / Notes */}
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-              <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Détails Techniques / Specs'}
+              <ClipboardList className="w-3 h-3" />
+              {isZipper ? 'Notes additionnelles' : 'Détails Techniques / Specs'}
             </Label>
             <Input
-              placeholder={isZipper ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
-              className="h-12 border-stone-200 font-bold rounded-xl"
+              placeholder={isZipper ? 'Notes...' : 'Ex: Semi-Auto, 50m/roll...'}
+              className="h-11 border-stone-200 font-bold rounded-xl"
               value={formData.specs}
               onChange={e => setFormData((p: any) => ({ ...p, specs: e.target.value }))}
             />
           </div>
 
-          <ColorBreakdownInput
-            value={colorBreakdown}
-            onChange={handleColorBreakdownChange}
-          />
+          {/* ── Section 3: Couleurs Multi ──────────────────────────────────── */}
+          <ColorBreakdownInput value={colorBreakdown} onChange={handleColorBreakdownChange} />
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* ── Section 4: Commande ───────────────────────────────────────── */}
+          <SectionLabel icon={<Ruler className="w-3 h-3" />} label="Commande & Prix" />
+
+          {/* Unité + Quantité + Prix */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Ruler className="w-3 h-3" /> Unité
-              </Label>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Unité</Label>
               <Select
                 value={formData.unitOfMeasure}
                 onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
                 disabled={!!colorBreakdown && colorBreakdown.length > 0}
               >
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -350,64 +442,89 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Palette className="w-3 h-3" /> Couleur
+                Quantité
+                {errors.quantity && <AlertCircle className="w-3 h-3 text-red-400 ml-auto" />}
               </Label>
               {colorBreakdown && colorBreakdown.length > 0 ? (
-                <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
-                  <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
+                <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
+                  <span className="text-[10px] font-black text-violet-700">{Number(formData.quantity).toLocaleString()}</span>
+                  <span className="text-[8px] font-bold text-violet-400 uppercase">auto</span>
                 </div>
               ) : (
-                <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  className={`h-11 border font-black rounded-xl text-center text-stone-900 ${errors.quantity ? 'border-red-300 bg-red-50' : 'border-stone-200'}`}
+                  value={formData.quantity === 0 ? '' : formData.quantity}
+                  onChange={e => setFormData((p: any) => ({ ...p, quantity: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 }))}
+                />
               )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> PA ($)
+              </Label>
+              <Input
+                type="number"
+                step="0.0001"
+                min={0}
+                placeholder="0.00"
+                className="h-11 border-stone-200 font-black rounded-xl text-center text-amber-700"
+                value={formData.purchasePricePerUnit === 0 ? '' : formData.purchasePricePerUnit}
+                onChange={e => setFormData((p: any) => ({ ...p, purchasePricePerUnit: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 }))}
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
-              {colorBreakdown && colorBreakdown.length > 0 ? (
-                <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
-                  <span className="text-[10px] font-black text-violet-700">{formData.quantity.toLocaleString()} rolls</span>
-                  <span className="text-[9px] font-bold text-violet-400 uppercase">calculé auto</span>
-                </div>
-              ) : (
-                <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({ ...p, quantity: parseFloat(e.target.value) || 0 }))} />
-              )}
-            </div>
+          {/* Fournisseur + Priorité */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> Importance
+                <Building2 className="w-3 h-3" /> Fournisseur
               </Label>
-              <Select value={formData.priority} onValueChange={v => setFormData((p: any) => ({ ...p, priority: v }))}>
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="urgent" className="font-bold text-red-600 uppercase">Urgent</SelectItem>
-                  <SelectItem value="important" className="font-bold text-amber-600 uppercase">Important</SelectItem>
-                  <SelectItem value="todo" className="font-bold text-stone-600 uppercase">À faire</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                list="suppliers-list"
+                placeholder="Nom du fournisseur..."
+                className="h-11 border-stone-200 font-bold rounded-xl"
+                value={formData.supplierId}
+                onChange={e => setFormData((p: any) => ({ ...p, supplierId: e.target.value }))}
+              />
+              <datalist id="suppliers-list">
+                {knownSuppliers.map(s => <option key={s} value={s} />)}
+              </datalist>
             </div>
+
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Estimation PA ($)</Label>
-              <Input type="number" step="0.0001" className="h-12 border-stone-200 font-bold text-amber-700 rounded-xl" value={formData.purchasePricePerUnit} onChange={e => setFormData((p: any) => ({ ...p, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} />
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Star className="w-3 h-3" /> Priorité
+              </Label>
+              <div className="grid grid-cols-3 gap-1.5 h-11">
+                {PRIORITY_CONFIG.map(p => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setFormData((f: any) => ({ ...f, priority: p.value }))}
+                    className={`h-full rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all ${
+                      formData.priority === p.value
+                        ? `${p.bg} ${p.text} border-current shadow-sm`
+                        : 'bg-white border-stone-200 text-stone-400 hover:border-stone-300'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-
-          {/* Précommande client */}
-          <div className={`p-4 rounded-xl border transition-all ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
-            <div className="flex items-center justify-between">
+          {/* ── Section 5: Précommande Client ─────────────────────────────── */}
+          <div className={`rounded-xl border transition-all ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
+            <div className="flex items-center justify-between p-3.5">
               <div className="flex items-center gap-2">
                 <UserCircle2 className={`w-4 h-4 ${formData.isPreorder ? 'text-indigo-600' : 'text-stone-400'}`} />
                 <span className={`text-[10px] font-black uppercase tracking-widest ${formData.isPreorder ? 'text-indigo-700' : 'text-stone-500'}`}>
@@ -420,30 +537,58 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               />
             </div>
             {formData.isPreorder && (
-              <div className="mt-3 space-y-1.5">
+              <div className="px-3.5 pb-3.5 space-y-1.5">
                 <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
                   <UserCircle2 className="w-3 h-3" /> Nom du Client
                 </Label>
                 <Input
                   placeholder="Ex: Zara, H&M, Client X..."
-                  className="h-11 border-indigo-200 font-bold rounded-xl bg-white focus:ring-indigo-400"
+                  className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
                   value={formData.clientName}
                   onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
                 />
               </div>
             )}
             {!formData.isPreorder && (
-              <p className="text-[9px] font-bold text-stone-400 uppercase mt-2 text-center italic">
+              <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic">
                 Activer si cet article est précommandé par un client
               </p>
             )}
           </div>
 
-          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase tracking-widest h-14 rounded-xl gap-2 mt-2 shadow-xl shadow-stone-200">
-            <Save className="w-5 h-5" /> Enregistrer le besoin
+          {/* ── Submit ─────────────────────────────────────────────────────── */}
+          <Button
+            type="submit"
+            disabled={!isValid}
+            className={`w-full font-black uppercase tracking-widest h-13 rounded-xl gap-2 mt-1 shadow-lg transition-all ${
+              isValid
+                ? 'bg-stone-900 hover:bg-black text-white shadow-stone-200'
+                : 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'
+            }`}
+          >
+            <Save className="w-4 h-4" />
+            Enregistrer le besoin
+            {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
+
+          {!isValid && (
+            <p className="text-[9px] text-red-400 font-bold uppercase text-center -mt-3">
+              Complète les champs requis pour continuer
+            </p>
+          )}
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Section label helper ───────────────────────────────────────────────────────
+function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-2 -mb-1">
+      <div className="p-1.5 bg-stone-100 rounded-lg text-stone-500">{icon}</div>
+      <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">{label}</span>
+      <div className="flex-1 h-px bg-stone-100" />
+    </div>
   );
 }
