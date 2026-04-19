@@ -259,13 +259,14 @@ function AdminApp() {
   const articlesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'), [firestore, user]);
   const genCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'generalCategories'), [firestore, user]);
   const subCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'), [firestore, user]);
-  const paymentsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'supplierPayments'), [firestore, user]);
+  // payments is only needed by SuppliersView — load lazily when that tab is active
+  const paymentsRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'suppliers') ? null : collection(firestore, 'users', user.uid, 'supplierPayments'), [firestore, user, activeTab]);
 
   const { data: rawFactures, isLoading: isFacturesLoading } = useCollection(facturesRef);
   const { data: rawArticles, isLoading: isArticlesLoading } = useCollection(articlesRef);
   const { data: rawGenCats, isLoading: isGenCatsLoading } = useCollection(genCatsRef);
   const { data: rawSubCats, isLoading: isSubCatsLoading } = useCollection(subCatsRef);
-  const { data: rawPayments, isLoading: isPaymentsLoading } = useCollection(paymentsRef);
+  const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
 
   const factures = rawFactures || [];
   const articles = rawArticles || [];
@@ -338,7 +339,8 @@ function AdminApp() {
       </nav>
 
       <main className="flex-grow max-w-[1600px] mx-auto px-6 py-8 w-full">
-        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading || isPaymentsLoading) ? (
+        // Only block on the 4 core collections — payments loads silently in background
+        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <Loader2 className="animate-spin text-amber-500 w-12 h-12" />
             <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Synchronisation flux logistique...</p>
@@ -369,7 +371,10 @@ function AdminApp() {
       </footer>
 
       <AddOrderModal open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen} />
-      <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
+      {/* EditOrderModal — only mounted when actually editing an article */}
+      {editingArticle && (
+        <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
+      )}
       {passToStockFactureId && (
         <PassToStockModal open={!!passToStockFactureId} onOpenChange={(open) => !open && setPassToStockFactureId(null)}
           facture={factures.find(f => f.id === passToStockFactureId)}

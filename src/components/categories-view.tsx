@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -71,9 +71,16 @@ export default function CategoriesView({
   const firestore = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [todayStr, setTodayStr] = useState('');
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
+
+  // Debounce search: only filter after 200ms of inactivity
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 200);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const currentCategoryObj = useMemo(() => {
     if (!selectedCategory || !subCategories) return null;
@@ -124,13 +131,12 @@ export default function CategoriesView({
     setTodayStr(`${year}-${month}-${day}`);
   }, []);
 
-  const isTechnicalZipper = (catName: string | undefined) => {
+  // Memoized with useCallback so it's not re-created on every render
+  const isTechnicalZipper = useCallback((catName: string | undefined): boolean => {
     if (!catName) return false;
     const upper = catName.toUpperCase();
-    const isZipper = upper.includes('ZIPPER');
-    const isExcluded = upper.includes('LONG CHAIN') || upper.includes('SLIDER');
-    return isZipper && !isExcluded;
-  };
+    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
+  }, []);
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
@@ -209,9 +215,9 @@ export default function CategoriesView({
           totalValue 
         };
       })
-      .filter(sc => sc.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter(sc => sc.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [selectedGeneralCategoryId, subCategories, articles, searchTerm, todayStr]);
+  }, [selectedGeneralCategoryId, subCategories, articles, debouncedSearchTerm, todayStr]);
 
   const currentArticles = useMemo(() => {
     if (!selectedCategory) return [];

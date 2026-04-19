@@ -55,7 +55,14 @@ export default function SuppliersView({ articles, factures, payments, categories
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('suppliers');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // Debounce search: only filter after 200ms of inactivity
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
@@ -314,7 +321,7 @@ export default function SuppliersView({ articles, factures, payments, categories
       {/* ── FOURNISSEURS ── */}
       {activeTab === 'suppliers' && (() => {
         const filtered = supplierStats
-          .filter(([name]) => name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .filter(([name]) => name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
           .sort((a, b) => sortOrder === 'desc' ? b[1].val - a[1].val : a[1].val - b[1].val);
         const maxVal = filtered[0]?.[1].val || 1;
         if (filtered.length === 0) return <EmptyTab label="Aucun fournisseur enregistré" />;
@@ -341,7 +348,7 @@ export default function SuppliersView({ articles, factures, payments, categories
       {/* ── ENTITÉS ── */}
       {activeTab === 'entities' && (() => {
         const filtered = companyStats
-          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .filter(s => s.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
           .sort((a, b) => sortOrder === 'desc' ? b.val - a.val : a.val - b.val);
         const maxVal = filtered[0]?.val || 1;
         if (filtered.length === 0) return <EmptyTab label="Aucune entité enregistrée" />;
@@ -368,7 +375,7 @@ export default function SuppliersView({ articles, factures, payments, categories
       {/* ── MARITIME ── */}
       {activeTab === 'shipping' && (() => {
         const filtered = shippingStats
-          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .filter(s => s.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
           .sort((a, b) => sortOrder === 'desc' ? b.freight - a.freight : a.freight - b.freight);
         const maxVal = filtered[0]?.freight || 1;
         if (filtered.length === 0) return <EmptyTab label="Aucune compagnie maritime" />;
@@ -395,7 +402,7 @@ export default function SuppliersView({ articles, factures, payments, categories
       {/* ── TRANSITAIRES ── */}
       {activeTab === 'forwarders' && (() => {
         const filtered = forwarderStats
-          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .filter(s => s.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
           .sort((a, b) => sortOrder === 'desc' ? b.dossiers - a.dossiers : a.dossiers - b.dossiers);
         const maxVal = filtered[0]?.dossiers || 1;
         if (filtered.length === 0) return <EmptyTab label="Aucun transitaire avec dossier remis" />;
@@ -422,7 +429,7 @@ export default function SuppliersView({ articles, factures, payments, categories
       {/* ── CLIENTS ── */}
       {activeTab === 'clients' && (() => {
         const filtered = clientStats
-          .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+          .filter(s => s.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
           .sort((a, b) => sortOrder === 'desc' ? b.orders - a.orders : a.orders - b.orders);
         const maxVal = filtered[0]?.orders || 1;
         if (filtered.length === 0) return <EmptyTab label="Aucune précommande client enregistrée" />;
