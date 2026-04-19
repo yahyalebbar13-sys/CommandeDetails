@@ -24,7 +24,9 @@ import {
   Factory,
   Settings2,
   MousePointer2,
-  Pencil
+  Pencil,
+  Palette,
+  Hash
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import { 
@@ -71,6 +73,7 @@ export default function CategoriesView({
   const [searchTerm, setSearchTerm] = useState('');
   const [todayStr, setTodayStr] = useState('');
   const [editingArticle, setEditingArticle] = useState<any>(null);
+  const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
 
   const currentCategoryObj = useMemo(() => {
     if (!selectedCategory || !subCategories) return null;
@@ -534,7 +537,19 @@ export default function CategoriesView({
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                          {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
+                              <button
+                                onClick={() => setColorDetailArticle(a)}
+                                className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"
+                              >
+                                <Palette className="w-2.5 h-2.5" /> Détail
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
                           {isTechnical ? (
@@ -627,7 +642,19 @@ export default function CategoriesView({
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                          {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
+                              <button
+                                onClick={() => setColorDetailArticle(a)}
+                                className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"
+                              >
+                                <Palette className="w-2.5 h-2.5" /> Détail
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
                           {isTechnical ? (
@@ -718,7 +745,19 @@ export default function CategoriesView({
                           <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                          {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
+                              <button
+                                onClick={() => setColorDetailArticle(a)}
+                                className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"
+                              >
+                                <Palette className="w-2.5 h-2.5" /> Détail
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-[10px] py-3">
                           {isTechnical ? (
@@ -857,6 +896,53 @@ export default function CategoriesView({
             onOpenChange={(open) => !open && setEditingArticle(null)} 
             factures={factures} 
           />
+        )}
+
+        {/* Color Breakdown Detail Dialog */}
+        {colorDetailArticle && (
+          <Dialog open={!!colorDetailArticle} onOpenChange={(open) => !open && setColorDetailArticle(null)}>
+            <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
+              <div className="bg-violet-700 p-5 flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <Palette className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
+                    Détail Multi-Couleurs
+                  </DialogTitle>
+                  <p className="text-[9px] font-bold text-violet-300 uppercase tracking-widest mt-0.5">
+                    {colorDetailArticle.name} · {colorDetailArticle.size || ''}
+                  </p>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="rounded-xl overflow-hidden border border-violet-100">
+                  <div className="grid grid-cols-[1fr_100px] bg-violet-100/60">
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest flex items-center gap-1">
+                      <Hash className="w-2.5 h-2.5" /> N° Couleur
+                    </div>
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right">
+                      Rouleaux
+                    </div>
+                  </div>
+                  <div className="divide-y divide-violet-50">
+                    {(colorDetailArticle.colorBreakdown || []).map((row: any, i: number) => (
+                      <div key={i} className="grid grid-cols-[1fr_100px] hover:bg-violet-50/30 transition-colors">
+                        <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
+                        <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-[1fr_100px] bg-violet-600 text-white">
+                    <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest">TOTAL</div>
+                    <div className="py-2.5 px-3 text-right text-[11px] font-black">
+                      {(colorDetailArticle.colorBreakdown || []).reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString('en-US')} rolls
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
         
         <Dialog open={isCustomsModalOpen} onOpenChange={setIsCustomsModalOpen}>

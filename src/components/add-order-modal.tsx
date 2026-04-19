@@ -13,6 +13,7 @@ import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -31,6 +32,8 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   const { data: subCategories = [] } = useCollection(subCatsRef);
 
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
+  const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+
   const [formData, setFormData] = useState<any>({
     categoryId: '',
     specs: '',
@@ -46,6 +49,13 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     isPreorder: false,
     clientName: '',
   });
+
+  const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
+    setColorBreakdown(rows);
+    if (rows && rows.length > 0) {
+      setFormData((p: any) => ({ ...p, quantity: total, color: 'various', unitOfMeasure: 'rolls' }));
+    }
+  };
 
   const filteredSubCategories = useMemo(() => {
     if (!selectedGenCatId) return [];
@@ -104,10 +114,13 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       importDutyRate: selectedSubCat?.importDutyRate ?? null,
       tpiRate: selectedSubCat?.tpiRate ?? null,
       tvaRate: selectedSubCat?.tvaRate ?? null,
+      // Multi-color breakdown
+      colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
     }, { merge: true });
 
     toast({ title: "Besoins enregistrés", description: "L'article a été ajouté à la liste des rappels." });
 
+    setColorBreakdown(null);
     setFormData({
       categoryId: '',
       specs: '',
@@ -279,12 +292,21 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             />
           </div>
 
+          <ColorBreakdownInput
+            value={colorBreakdown}
+            onChange={handleColorBreakdownChange}
+          />
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Ruler className="w-3 h-3" /> Unité
               </Label>
-              <Select value={formData.unitOfMeasure} onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}>
+              <Select
+                value={formData.unitOfMeasure}
+                onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
+                disabled={!!colorBreakdown && colorBreakdown.length > 0}
+              >
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
@@ -297,21 +319,34 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Palette className="w-3 h-3" /> Couleur
               </Label>
-              <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {colorBreakdown && colorBreakdown.length > 0 ? (
+                <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                  <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
+                </div>
+              ) : (
+                <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
-              <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({ ...p, quantity: parseFloat(e.target.value) || 0 }))} />
+              {colorBreakdown && colorBreakdown.length > 0 ? (
+                <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
+                  <span className="text-[10px] font-black text-violet-700">{formData.quantity.toLocaleString()} rolls</span>
+                  <span className="text-[9px] font-bold text-violet-400 uppercase">calculé auto</span>
+                </div>
+              ) : (
+                <Input type="number" required className="h-12 border-stone-200 font-bold rounded-xl" value={formData.quantity} onChange={e => setFormData((p: any) => ({ ...p, quantity: parseFloat(e.target.value) || 0 }))} />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">

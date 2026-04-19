@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -47,6 +48,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
   const [formData, setFormData] = useState<any>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+
+  const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
+    setColorBreakdown(rows);
+    if (rows && rows.length > 0) {
+      setFormData((p: any) => p ? { ...p, quantity: total, color: 'various', unitOfMeasure: 'rolls' } : p);
+    }
+  };
 
   useEffect(() => {
     if (article) {
@@ -62,8 +71,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         clientName: article.clientName || '',
       });
       setSelectedGenCatId(article.generalCategoryId || '');
+      // Load existing color breakdown if present
+      setColorBreakdown(article.colorBreakdown || null);
     } else {
       setFormData(null);
+      setColorBreakdown(null);
     }
   }, [article]);
 
@@ -141,7 +153,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       generalCategoryId: selectedGenCatId,
       factureId: finalFactureId,
       arrivalDate,
-      stockEntryDate
+      stockEntryDate,
+      // Multi-color breakdown
+      colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
     };
 
     updateDocumentNonBlocking(docRef, finalData);
@@ -314,20 +328,30 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Palette className="w-3 h-3" /> Couleur
               </Label>
-              <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
-                <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {colorBreakdown && colorBreakdown.length > 0 ? (
+                <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                  <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
+                </div>
+              ) : (
+                <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Ruler className="w-3 h-3" /> Unité
               </Label>
-              <Select value={formData.unitOfMeasure} onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}>
+              <Select
+                value={formData.unitOfMeasure}
+                onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
+                disabled={!!colorBreakdown && colorBreakdown.length > 0}
+              >
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
@@ -340,13 +364,20 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             <div className="grid grid-cols-2 gap-4 md:col-span-2">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
-                <Input
-                  type="number"
-                  required
-                  value={formData.quantity || 0}
-                  onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
-                  className="h-12 border-stone-200 font-bold rounded-xl"
-                />
+                {colorBreakdown && colorBreakdown.length > 0 ? (
+                  <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
+                    <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} rolls</span>
+                    <span className="text-[9px] font-bold text-violet-400 uppercase">calculé auto</span>
+                  </div>
+                ) : (
+                  <Input
+                    type="number"
+                    required
+                    value={formData.quantity || 0}
+                    onChange={e => setFormData((prev: any) => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
+                    className="h-12 border-stone-200 font-bold rounded-xl"
+                  />
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -379,6 +410,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
 
             <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
+              <div className="md:col-span-2">
+                <ColorBreakdownInput
+                  value={colorBreakdown}
+                  onChange={handleColorBreakdownChange}
+                />
+              </div>
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({ ...p, status: v }))}>
