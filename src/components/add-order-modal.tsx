@@ -99,26 +99,61 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     // Find the selected subcategory to embed customs data directly in the article
     const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
 
-    const id = crypto.randomUUID();
-    const docRef = doc(firestore, 'users', user.uid, 'articles', id);
+    if (!colorBreakdown || colorBreakdown.length === 0) {
+      const id = crypto.randomUUID();
+      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
 
-    setDocumentNonBlocking(docRef, {
-      ...formData,
-      id,
-      name: formData.categoryId,
-      generalCategoryId: selectedGenCatId,
-      status: 'TO_ORDER',
-      createdAt: serverTimestamp(),
-      // Embed customs data so client portal can display it without extra permissions
-      hsCode: selectedSubCat?.hsCode || null,
-      importDutyRate: selectedSubCat?.importDutyRate ?? null,
-      tpiRate: selectedSubCat?.tpiRate ?? null,
-      tvaRate: selectedSubCat?.tvaRate ?? null,
-      // Multi-color breakdown
-      colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
-    }, { merge: true });
+      setDocumentNonBlocking(docRef, {
+        ...formData,
+        id,
+        name: formData.categoryId,
+        generalCategoryId: selectedGenCatId,
+        status: 'TO_ORDER',
+        createdAt: serverTimestamp(),
+        hsCode: selectedSubCat?.hsCode || null,
+        importDutyRate: selectedSubCat?.importDutyRate ?? null,
+        tpiRate: selectedSubCat?.tpiRate ?? null,
+        tvaRate: selectedSubCat?.tvaRate ?? null,
+        colorBreakdown: null,
+      }, { merge: true });
+    } else {
+      // Auto-split by price
+      const groups = new Map<number, ColorBreakdownRow[]>();
+      
+      for (const row of colorBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined) 
+           ? Number(row.priceOverride) 
+           : Number(formData.purchasePricePerUnit || 0);
 
-    toast({ title: "Besoins enregistrés", description: "L'article a été ajouté à la liste des rappels." });
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+
+      Array.from(groups.entries()).forEach(([price, rows]) => {
+        const id = crypto.randomUUID();
+        const docRef = doc(firestore, 'users', user.uid, 'articles', id);
+        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
+
+        setDocumentNonBlocking(docRef, {
+          ...formData,
+          id,
+          name: formData.categoryId,
+          generalCategoryId: selectedGenCatId,
+          status: 'TO_ORDER',
+          createdAt: serverTimestamp(),
+          hsCode: selectedSubCat?.hsCode || null,
+          importDutyRate: selectedSubCat?.importDutyRate ?? null,
+          tpiRate: selectedSubCat?.tpiRate ?? null,
+          tvaRate: selectedSubCat?.tvaRate ?? null,
+          // Overrides for this group
+          purchasePricePerUnit: price,
+          quantity: groupQty,
+          colorBreakdown: rows,
+        }, { merge: true });
+      });
+    }
+
+    toast({ title: "Besoins enregistrés", description: "La commande a été ajoutée à la liste des rappels." });
 
     setColorBreakdown(null);
     setFormData({

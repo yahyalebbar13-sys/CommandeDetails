@@ -6,12 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2 } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
@@ -161,6 +161,42 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     updateDocumentNonBlocking(docRef, finalData);
 
     toast({ title: "Modifié !", description: `L'article a été mis à jour.` });
+    onOpenChange(false);
+  };
+
+  const handleDuplicate = () => {
+    if (!user || !firestore || !article || !formData) return;
+    
+    // Auto-save logic like handleSubmit but inserting a new document
+    let arrivalDate = formData.arrivalDate || '';
+    let stockEntryDate = formData.stockEntryDate || '';
+    const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
+
+    if (formData.status === 'SHIPPED' && finalFactureId) {
+      const selectedFacture = (factures || []).find(f => f.id === finalFactureId);
+      if (selectedFacture) {
+        arrivalDate = selectedFacture.arrivalDate;
+        stockEntryDate = selectedFacture.stockEntryDate || '';
+      }
+    }
+
+    const newId = crypto.randomUUID();
+    const docRef = doc(firestore, 'users', user.uid, 'articles', newId);
+
+    const duplicateData = {
+      ...formData,
+      id: newId,
+      name: formData.categoryId,
+      generalCategoryId: selectedGenCatId,
+      factureId: finalFactureId,
+      arrivalDate,
+      stockEntryDate,
+      createdAt: serverTimestamp(), // reset creation date
+      colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
+    };
+    
+    setDocumentNonBlocking(docRef, duplicateData, { merge: true });
+    toast({ title: "Article Dupliqué", description: `Un nouvel article a été créé à l'identique.` });
     onOpenChange(false);
   };
 
@@ -506,9 +542,22 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               )}
             </div>
           </div>
-          <Button type="submit" className="w-full bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 shadow-lg shadow-stone-200">
-            <Save className="w-4 h-4" /> Sauvegarder les modifications
-          </Button>
+          <div className="flex flex-col md:flex-row gap-3 pt-2">
+            <Button 
+              type="button" 
+              onClick={handleDuplicate}
+              variant="outline"
+              className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 transition-colors"
+            >
+              <Copy className="w-4 h-4" /> Dupliquer cet article
+            </Button>
+            <Button 
+              type="submit" 
+              className="flex-1 bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 shadow-lg shadow-stone-200"
+            >
+              <Save className="w-4 h-4" /> Sauvegarder
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

@@ -11,6 +11,7 @@ import { Palette, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-rea
 export interface ColorBreakdownRow {
   colorCode: string;
   rolls: number;
+  priceOverride?: string | number; // Prix optionnel pour séparer automatiquement
 }
 
 interface ColorBreakdownInputProps {
@@ -21,22 +22,34 @@ interface ColorBreakdownInputProps {
 /**
  * Parse a pasted table string into color breakdown rows.
  * Supports TSV (Excel copy), multiple spaces, or semicolons as separators.
- * Each line = "colorCode[sep]quantity"
+ * Each line = "colorCode[sep]quantity[optional sep]price"
  */
 function parsePastedTable(raw: string): ColorBreakdownRow[] {
   const lines = raw.split(/\r?\n/).filter(l => l.trim() !== '');
   const rows: ColorBreakdownRow[] = [];
 
   for (const line of lines) {
-    // Try splitting by tab, semicolon, comma, or multiple spaces
     const parts = line.trim().split(/\t|;|,|\s{2,}|\s+/);
     if (parts.length < 2) continue;
 
     const colorCode = parts[0].trim();
-    const rolls = parseFloat(parts[parts.length - 1].replace(',', '.'));
+    // Assuming quantity is either the last or second to last
+    let rolls = 0;
+    let priceOverride: number | undefined = undefined;
+
+    if (parts.length >= 3) {
+      // e.g. BLACK   20   1.6
+      rolls = parseFloat(parts[1].replace(',', '.'));
+      const priceVal = parseFloat(parts[parts.length - 1].replace(',', '.'));
+      if (!isNaN(priceVal) && priceVal > 0) {
+        priceOverride = priceVal;
+      }
+    } else {
+      rolls = parseFloat(parts[parts.length - 1].replace(',', '.'));
+    }
 
     if (!colorCode || isNaN(rolls) || rolls < 0) continue;
-    rows.push({ colorCode, rolls });
+    rows.push({ colorCode, rolls, priceOverride: priceOverride || '' });
   }
   return rows;
 }
@@ -88,10 +101,13 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
     }
   };
 
-  const handleRowChange = (index: number, field: 'colorCode' | 'rolls', val: string) => {
-    const next = rows.map((r, i) =>
-      i === index ? { ...r, [field]: field === 'rolls' ? parseFloat(val) || 0 : val } : r
-    );
+  const handleRowChange = (index: number, field: keyof ColorBreakdownRow, val: string) => {
+    const next = rows.map((r, i) => {
+      if (i !== index) return r;
+      if (field === 'rolls') return { ...r, [field]: parseFloat(val) || 0 };
+      if (field === 'priceOverride') return { ...r, [field]: val === '' ? '' : parseFloat(val) || 0 };
+      return { ...r, [field]: val };
+    });
     setRows(next);
     notifyParent(next, enabled);
   };
@@ -103,7 +119,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
   };
 
   const handleAddRow = () => {
-    const next = [...rows, { colorCode: '', rolls: 0 }];
+    const next = [...rows, { colorCode: '', rolls: 0, priceOverride: '' }];
     setRows(next);
     notifyParent(next, enabled);
   };
@@ -152,11 +168,11 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
           {showPasteArea && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <Label className="text-[9px] font-black text-violet-500 uppercase tracking-widest">
-                Coller ici (format : N°Couleur[TAB ou espace]Rouleaux)
+                Coller ici (format : N°Couleur[TAB]Rouleaux[TAB]Prix optionnel)
               </Label>
               <textarea
                 className="w-full h-28 text-[11px] font-mono border border-violet-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white placeholder:text-stone-300"
-                placeholder={"312\t50\n458\t30\n221\t45\n..."}
+                placeholder={"312\t50\n458\t30\nBLACK\t20\t1.60\n..."}
                 value={pasteText}
                 onChange={e => setPasteText(e.target.value)}
                 onPaste={e => {
@@ -200,9 +216,12 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
           {rows.length > 0 && (
             <div className="rounded-xl overflow-hidden border border-violet-100 bg-white">
               {/* Header */}
-              <div className="grid grid-cols-[1fr_100px_36px] gap-0 bg-violet-100/60">
+              <div className="grid grid-cols-[1fr_90px_90px_36px] gap-0 bg-violet-100/60">
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest flex items-center gap-1">
                   <Hash className="w-2.5 h-2.5" /> N° Couleur
+                </div>
+                <div className="py-2 px-1 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right">
+                  Prix Opt ($)
                 </div>
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right flex items-center justify-end gap-1">
                   <Package className="w-2.5 h-2.5" /> Rouleaux
@@ -213,13 +232,25 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
               {/* Rows */}
               <div className="divide-y divide-violet-50">
                 {rows.map((row, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_100px_36px] gap-0 items-center hover:bg-violet-50/30 transition-colors">
+                  <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-violet-50/30 transition-colors">
                     <div className="px-2 py-1">
                       <Input
                         value={row.colorCode}
                         onChange={e => handleRowChange(i, 'colorCode', e.target.value)}
                         className="h-8 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
                         placeholder="Couleur..."
+                      />
+                    </div>
+                    <div className="px-2 py-1">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={row.priceOverride === '' ? '' : row.priceOverride}
+                        onChange={e => handleRowChange(i, 'priceOverride', e.target.value)}
+                        className="h-8 border border-transparent hover:border-violet-200 focus:border-violet-400 bg-transparent font-bold text-[10px] text-violet-700 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-2 rounded placeholder:text-violet-200 transition-colors"
+                        placeholder="Normal"
+                        title="Prix spécifique si différent du prix global"
                       />
                     </div>
                     <div className="px-2 py-1">
@@ -246,8 +277,8 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
               </div>
 
               {/* Total footer */}
-              <div className="grid grid-cols-[1fr_100px_36px] bg-violet-600 text-white">
-                <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest">
+              <div className="grid grid-cols-[1fr_90px_90px_36px] bg-violet-600 text-white">
+                <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest col-span-2">
                   TOTAL
                 </div>
                 <div className="py-2.5 px-3 text-right text-[11px] font-black">
