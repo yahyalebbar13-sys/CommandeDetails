@@ -339,7 +339,7 @@ function AdminApp() {
       </nav>
 
       <main className="flex-grow max-w-[1600px] mx-auto px-6 py-8 w-full">
-        // Only block on the 4 core collections — payments loads silently in background
+        {/* Only block on the 4 core collections — payments loads silently in background */}
         {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <Loader2 className="animate-spin text-amber-500 w-12 h-12" />
