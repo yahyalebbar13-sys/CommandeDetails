@@ -2074,7 +2074,7 @@ export function ClientDetailView({
       </section>
 
       <Dialog open={!!selectedArticleId} onOpenChange={(o) => { if (!o) setSelectedArticleId(null); }}>
-        <DialogContent className="max-w-sm rounded-[2rem] p-0 border-transparent overflow-hidden shadow-2xl bg-stone-50">
+        <DialogContent className="max-w-md rounded-[2rem] p-0 border-transparent overflow-hidden shadow-2xl bg-stone-50">
           {selectedArticle && (() => {
             // Safely parse breakdown data which might be stored as Array or Object in Firestore
             const safeSizeBreakdown = Array.isArray(selectedArticle.sizeBreakdown) 
@@ -2235,7 +2235,7 @@ export function ClientDetailView({
                 </div>
               </div>
             );
-          })}
+          })()}
         </DialogContent>
       </Dialog>
     </div>
