@@ -8,8 +8,9 @@ import {
   Users, ChevronLeft, Package, Calendar, Clock, ClipboardList,
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
   Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle,
-  Search, SortAsc, SortDesc, TrendingUp, ChevronRight
+  Search, SortAsc, SortDesc, TrendingUp, ChevronRight, Calculator
 } from 'lucide-react';
+import CoutDeRevientModal from './cout-de-revient-modal';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -57,6 +58,7 @@ export default function SuppliersView({ articles, factures, payments, categories
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [cdrArticle, setCdrArticle] = useState<any>(null);
 
   // Debounce search: only filter after 200ms of inactivity
   useEffect(() => {
@@ -578,6 +580,7 @@ function SupplierDetailView({
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [cdrArticle, setCdrArticle] = useState<any>(null);
 
   const supArticles = useMemo(() => articles.filter(o => o.supplierId === supplierName), [articles, supplierName]);
   const supPayments = useMemo(() => (payments || []).filter(p => p.supplierId === supplierName).sort((a, b) => b.date.localeCompare(a.date)), [payments, supplierName]);
@@ -738,6 +741,98 @@ function SupplierDetailView({
               </Table>
             </Card>
           </section>
+
+          {/* ── Articles par dossier avec bouton CdR ── */}
+          {supplierFactures.map(f => {
+            const fArticles = supArticles.filter((a: any) => a.factureId === f.id);
+            if (fArticles.length === 0) return null;
+            return (
+              <section key={f.id} className="space-y-3">
+                <div className="flex items-center gap-2 px-2">
+                  <div className="p-1.5 bg-emerald-100 rounded-lg">
+                    <Calculator className="w-3.5 h-3.5 text-emerald-700" />
+                  </div>
+                  <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">
+                    Articles — {f.id}
+                  </h4>
+                  <span className="text-[8px] font-bold text-stone-400 uppercase">{fArticles.length} ligne(s)</span>
+                </div>
+                <Card className="border-stone-100 shadow-sm rounded-2xl overflow-hidden bg-white">
+                  <div className="divide-y divide-stone-50">
+                    {fArticles.map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-3 px-4 py-3 hover:bg-stone-50/50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-stone-900 text-[11px] uppercase truncate">{a.categoryId}</p>
+                          <div className="flex gap-2 mt-0.5 flex-wrap">
+                            {a.size && a.size !== 'various' && <span className="text-[8px] font-bold text-stone-400 uppercase">{a.size}</span>}
+                            {a.color && a.color !== 'various' && <span className="text-[8px] font-bold text-stone-400 uppercase">{a.color}</span>}
+                            <span className="text-[8px] font-bold text-stone-400">{Number(a.quantity).toLocaleString()} {a.unitOfMeasure}</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] font-black text-stone-900">${Number(a.purchasePricePerUnit).toFixed(2)}/u</p>
+                          <p className="text-[8px] font-bold text-stone-400">${(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCdrArticle(a)}
+                          className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest transition-colors shadow-sm shadow-emerald-100"
+                          title="Simuler le prix de revient TTC"
+                        >
+                          <Calculator className="w-3.5 h-3.5" />
+                          CdR
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </section>
+            );
+          })}
+
+          {/* Articles sans dossier (Besoin/PI) */}
+          {(() => {
+            const unlinked = supArticles.filter((a: any) => !a.factureId);
+            if (unlinked.length === 0) return null;
+            return (
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 px-2">
+                  <div className="p-1.5 bg-amber-100 rounded-lg">
+                    <Calculator className="w-3.5 h-3.5 text-amber-700" />
+                  </div>
+                  <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">Articles — Estimation (non liés à un dossier)</h4>
+                </div>
+                <Card className="border-amber-100 shadow-sm rounded-2xl overflow-hidden bg-white">
+                  <div className="divide-y divide-stone-50">
+                    {unlinked.map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50/30 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-stone-900 text-[11px] uppercase truncate">{a.categoryId}</p>
+                          <div className="flex gap-2 mt-0.5 flex-wrap">
+                            {a.size && a.size !== 'various' && <span className="text-[8px] font-bold text-stone-400 uppercase">{a.size}</span>}
+                            <span className="text-[8px] font-bold text-stone-400">{Number(a.quantity).toLocaleString()} {a.unitOfMeasure}</span>
+                            <span className="text-[8px] font-bold text-amber-500 uppercase">{a.status}</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] font-black text-stone-900">${Number(a.purchasePricePerUnit).toFixed(2)}/u</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCdrArticle(a)}
+                          className="shrink-0 h-9 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest transition-colors shadow-sm"
+                          title="Simuler le prix de revient TTC (estimation)"
+                        >
+                          <Calculator className="w-3.5 h-3.5" />
+                          Estimer
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </section>
+            );
+          })()}
         </div>
 
         <div className="space-y-6">
@@ -812,6 +907,13 @@ function SupplierDetailView({
         open={isPaymentModalOpen} 
         onOpenChange={setIsPaymentModalOpen} 
         supplierId={supplierName} 
+      />
+      <CoutDeRevientModal
+        open={!!cdrArticle}
+        onOpenChange={v => { if (!v) setCdrArticle(null); }}
+        article={cdrArticle}
+        factures={factures}
+        articles={articles}
       />
     </div>
   );
