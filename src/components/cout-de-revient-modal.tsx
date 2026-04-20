@@ -130,8 +130,8 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       valeurDouane$ = dossierDeclaredValue * artFobShare;
       douaneSource = 'declared';
     } else {
-      // Calcul standard CAF = FOB + part fret
-      valeurDouane$ = valeurFOB + partFret$;
+      // Pas de valeur déclarée saisie: On prend simplement la valeur des produits (FOB)
+      valeurDouane$ = valeurFOB;
       douaneSource = 'calculated';
     }
 
@@ -325,7 +325,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-[8px] font-black text-amber-700 uppercase tracking-widest">
-                      <AlertCircle className="w-2.5 h-2.5" /> Calculée (FOB + Fret — aucune valeur déclarée saisie)
+                      <AlertCircle className="w-2.5 h-2.5" /> Valeur Produit (FOB — non déclaré)
                     </span>
                   )}
                 </div>
@@ -340,7 +340,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                 <SummaryLine
                   label={computed.douaneSource === 'declared'
                     ? `Valeur douane article (part proratisée)`
-                    : `Valeur en douane (FOB + Fret)`}
+                    : `Valeur base calcul taxes (valeur FOB)`}
                   value={`$${fmt(computed.valeurDouane$)}`}
                   bold
                 />
