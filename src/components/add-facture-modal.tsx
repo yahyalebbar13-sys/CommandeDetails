@@ -26,6 +26,14 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [isProvisional, setIsProvisional] = useState(false);
+
+  const generateProvisionalId = () => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `CTR-${ym}-${rand}`;
+  };
 
   const [formData, setFormData] = useState<any>({
     id: '',
@@ -67,6 +75,8 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         additionalCostsAmount: Number(editFacture.additionalCostsAmount) || 0
       });
     } else {
+      const provisional = editFacture?.id?.startsWith('CTR-') || false;
+      setIsProvisional(provisional);
       setFormData({
         id: '',
         noBL: '',
@@ -144,17 +154,49 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
+          {/* Toggle Conteneur Provisoire — only for new dossiers */}
+          {!editFacture && (
+            <div className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isProvisional ? 'bg-orange-50 border-orange-200' : 'bg-stone-50 border-stone-200'}`}>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-700">Conteneur Complet Sans Facture</p>
+                <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">Génère un ID provisoire (CTR-XXXXXX)</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isProvisional;
+                  setIsProvisional(next);
+                  if (next) setFormData((p: any) => ({ ...p, id: generateProvisionalId(), noBL: '' }));
+                  else setFormData((p: any) => ({ ...p, id: '', noBL: '' }));
+                }}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isProvisional ? 'bg-orange-500' : 'bg-stone-300'}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${isProvisional ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">N° FACTURE / CONTENEUR</Label>
-              <Input 
-                value={formData.id}
-                onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
-                required 
-                disabled={!!editFacture && !editFacture.isOrphaned}
-                className="uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900" 
-                placeholder="EX: 26HD1004"
-              />
+              {isProvisional ? (
+                <div className="flex items-center gap-2">
+                  <Input 
+                    readOnly
+                    value={formData.id}
+                    className="uppercase font-black border-orange-200 h-11 rounded-xl bg-orange-50 text-orange-700 flex-1" 
+                  />
+                  <span className="text-[8px] font-black text-orange-600 bg-orange-100 border border-orange-200 px-2 py-1 rounded-lg uppercase whitespace-nowrap">Provisoire</span>
+                </div>
+              ) : (
+                <Input 
+                  value={formData.id}
+                  onChange={e => setFormData((prev: any) => ({ ...prev, id: e.target.value }))}
+                  required 
+                  disabled={!!editFacture && !editFacture.isOrphaned}
+                  className="uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900" 
+                  placeholder="EX: 26HD1004"
+                />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
@@ -163,8 +205,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <Input 
                 value={formData.noBL}
                 onChange={e => setFormData((prev: any) => ({ ...prev, noBL: e.target.value }))}
-                className="uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900" 
-                placeholder="EX: COSU63..."
+                disabled={isProvisional}
+                className={`uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900 ${isProvisional ? 'opacity-50' : ''}`}
+                placeholder={isProvisional ? 'Non disponible (provisoire)' : 'EX: COSU63...'}
               />
             </div>
           </div>

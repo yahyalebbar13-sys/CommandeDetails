@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1687,6 +1687,7 @@ export function ClientDetailView({
         hsCode: cat.hsCode || null,
         importDutyRate: cat.importDutyRate ?? null,
         tpiRate: cat.tpiRate ?? null,
+        ticRate: cat.ticRate ?? null,
         tvaRate: cat.tvaRate ?? null,
       }, { merge: true });
     });
@@ -1730,7 +1731,8 @@ export function ClientDetailView({
           ...a,
           status: derivedStatus,
           arrivalDate,
-          orderDate
+          orderDate,
+          factureNoBL: facture?.noBL || null,
         };
       })
       .sort((a, b) => {
@@ -2022,14 +2024,18 @@ export function ClientDetailView({
 
                  <div className="bg-stone-900 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-                   <div className="grid grid-cols-3 gap-2 relative z-10">
+                   <div className="grid grid-cols-4 gap-1.5 relative z-10">
                      <div className="flex flex-col">
-                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD (DI)</span>
+                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">DI</span>
                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) != null ? `${selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate}%` : '—'}</span>
                      </div>
                      <div className="flex flex-col border-l border-stone-800 pl-2">
-                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TD1 (TPI)</span>
+                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TPI</span>
                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.tpiRate ?? selectedCategory?.tpiRate) != null ? `${selectedArticle.tpiRate ?? selectedCategory?.tpiRate}%` : '—'}</span>
+                     </div>
+                     <div className="flex flex-col border-l border-stone-800 pl-2">
+                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TIC</span>
+                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.ticRate ?? selectedCategory?.ticRate) != null ? `${selectedArticle.ticRate ?? selectedCategory?.ticRate}%` : chr45+chr39}</span>
                      </div>
                      <div className="flex flex-col border-l border-stone-800 pl-2">
                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
@@ -2038,6 +2044,18 @@ export function ClientDetailView({
                    </div>
                  </div>
 
+                 {selectedArticle.factureId && (
+                   <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                     <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-2">Ref. Dossier</p>
+                     <div className="flex items-center justify-between gap-2">
+                       <div><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N Facture</p><p className="text-[12px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p></div>
+                       {selectedArticle.factureNoBL && (<div className="text-right"><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N BL</p><p className="text-[12px] font-black text-indigo-700 uppercase">{selectedArticle.factureNoBL}</p></div>)}
+                     </div>
+                   </div>
+                 )}
+                 {selectedArticle.colorBreakdown && selectedArticle.colorBreakdown.length > 0 && (
+                   <div className="rounded-2xl border border-violet-100 overflow-hidden"><div className="bg-violet-700 px-4 py-2.5"><span className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Detail Couleurs</span></div><div className="divide-y divide-violet-50 bg-white"><div className="grid grid-cols-[1fr_80px] bg-violet-50"><div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest">Couleur</div><div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest text-right">Qt</div></div>{selectedArticle.colorBreakdown.map((row: any, i: number) => (<div key={i} className="grid grid-cols-[1fr_80px] hover:bg-violet-50/40 transition-colors"><div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div><div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div></div>))}<div className="grid grid-cols-[1fr_80px] bg-violet-600 text-white"><div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div><div className="py-2 px-3 text-right text-[10px] font-black">{selectedArticle.colorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}</div></div></div></div>
+                 )}
                  <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm grid grid-cols-2 gap-4 mt-2 text-center ring-1 ring-indigo-50">
                    <div className="flex flex-col justify-center">
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</span>

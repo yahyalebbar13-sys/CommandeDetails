@@ -283,7 +283,6 @@ function AdminApp() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'to-order', label: 'Besoins et Réclamations', icon: ClipboardList },
     { id: 'pending', label: 'Production', icon: Factory },
-    { id: 'transit', label: 'Transit', icon: Truck },
     { id: 'timeline', label: 'Timeline', icon: Timer },
     { id: 'factures', label: 'Arrivages', icon: Anchor },
     { id: 'general-categories', label: 'Groupes', icon: Layers },
@@ -356,9 +355,6 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
               <PendingOrdersView articles={articles} factures={factures} onEdit={setEditingArticle} />
-            </div>
-            <div className={activeTab === 'transit' ? 'block animate-in fade-in' : 'hidden'}>
-              <TransitOrdersView articles={articles} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'timeline' ? 'block animate-in fade-in' : 'hidden'}>
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />

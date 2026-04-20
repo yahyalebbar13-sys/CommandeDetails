@@ -66,6 +66,7 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
       const importDutyRate = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
       const tpiRate = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
+      const ticRate = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
       const tvaRate = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
       const hasCustData = customsValuePerKg !== null;
 
@@ -73,8 +74,9 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       const valDouane = hasCustData ? nw * customsValuePerKg! : 0;
       const di = importDutyRate != null ? valDouane * importDutyRate : 0;
       const tpi = tpiRate != null ? valDouane * tpiRate : 0;
+      const tic = ticRate != null ? valDouane * ticRate : 0;
       const tva = tvaRate != null ? (valDouane + di + tpi) * tvaRate : 0;
-      const totalDouane = di + tpi + tva;
+      const totalDouane = di + tpi + tic + tva;
 
       // Valeur d'achat de la CMD convertie en MAD (depuis la facture originale)
       const pauDollar = Number(a.purchasePricePerUnit) || 0;
@@ -90,9 +92,9 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
         valAchatMad,
         fraisCmd,
         cat,
-        customsValuePerKg, importDutyRate, tpiRate, tvaRate,
+        customsValuePerKg, importDutyRate, tpiRate, ticRate, tvaRate,
         hasCustData,
-        valDouane, di, tpi, tva, totalDouane,
+        valDouane, di, tpi, tic, tva, totalDouane,
         mtTotal, pauTtc,
         missingData: !hasCustData
       };

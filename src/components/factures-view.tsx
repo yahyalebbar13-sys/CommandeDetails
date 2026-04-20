@@ -60,7 +60,8 @@ export default function FacturesView({
       const freight = Number(f.freightCost) || Number(f.freight) || 0;
       const efficiency = cbm > 0 ? (freight / cbm) : 0;
       const realFactureValue = itemsVal + freight;
-      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue };
+      const isIncomplete = fArticles.some(o => !Number(o.netWeight) || !Number(o.cubicMeasurement));
+      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete };
     }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
@@ -94,12 +95,14 @@ export default function FacturesView({
       const customsValuePerKg = Number(cat.customsValuePerKg);
       const importDutyRate = cat.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0;
       const tpiRate = cat.tpiRate != null ? Number(cat.tpiRate) / 100 : 0;
+      const ticRate = cat.ticRate != null ? Number(cat.ticRate) / 100 : 0;
       const tvaRate = cat.tvaRate != null ? Number(cat.tvaRate) / 100 : 0;
       const valDouane = nw * customsValuePerKg;
       const di = valDouane * importDutyRate;
       const tpi = valDouane * tpiRate;
+      const tic = valDouane * ticRate;
       const tva = (valDouane + di + tpi) * tvaRate;
-      return total + di + tpi + tva;
+      return total + di + tpi + tic + tva;
     }, 0);
   }, [selectedFactureId, articles, declaredFactures, subCategories]);
 
@@ -203,7 +206,7 @@ export default function FacturesView({
               <div className="bg-red-600 p-5 rounded-2xl text-white shadow-lg shadow-red-600/20">
                 <p className="text-[8px] font-black text-red-100 uppercase tracking-widest mb-1">Droits Payés</p>
                 <div className="text-xl font-black">{calculatedDroitsPayes.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} <span className="text-[10px] font-bold text-red-200 ml-1">MAD</span></div>
-                <p className="text-[7px] font-bold text-red-300 uppercase mt-0.5">Σ DI + TPI + TVA</p>
+                <p className="text-[7px] font-bold text-red-300 uppercase mt-0.5">Σ DI + TPI + TIC + TVA</p>
               </div>
             </div>
           </div>
@@ -510,6 +513,11 @@ export default function FacturesView({
           >
             <div className="absolute top-0 left-0 w-2 h-full bg-amber-500 group-hover:w-3 transition-all" />
             
+            {f.isIncomplete && (
+              <div className="absolute top-4 right-4 flex items-center gap-1 bg-orange-100 text-orange-700 border border-orange-200 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-wide">
+                <AlertCircle className="w-2.5 h-2.5" /> Incomplet
+              </div>
+            )}
             <div className="flex justify-between items-start mb-8">
               <div className="p-3 bg-stone-50 rounded-2xl text-stone-400 group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors">
                 <Anchor className="w-6 h-6" />

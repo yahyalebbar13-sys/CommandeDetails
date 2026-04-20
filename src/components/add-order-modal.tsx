@@ -146,6 +146,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       hsCode: selectedSubCat?.hsCode || null,
       importDutyRate: selectedSubCat?.importDutyRate ?? null,
       tpiRate: selectedSubCat?.tpiRate ?? null,
+      ticRate: selectedSubCat?.ticRate ?? null,
       tvaRate: selectedSubCat?.tvaRate ?? null,
     };
 

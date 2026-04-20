@@ -96,6 +96,7 @@ export default function CategoriesView({
     customsValuePerKg: '',
     importDutyRate: '',
     tpiRate: '',
+    ticRate: '',
     tvaRate: ''
   });
 
@@ -106,6 +107,7 @@ export default function CategoriesView({
         customsValuePerKg: currentCategoryObj.customsValuePerKg ?? '',
         importDutyRate: currentCategoryObj.importDutyRate ?? '',
         tpiRate: currentCategoryObj.tpiRate ?? '',
+        ticRate: currentCategoryObj.ticRate ?? '',
         tvaRate: currentCategoryObj.tvaRate ?? ''
       });
     }
@@ -120,6 +122,7 @@ export default function CategoriesView({
       customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
       importDutyRate: customsForm.importDutyRate === '' ? null : Number(customsForm.importDutyRate),
       tpiRate: customsForm.tpiRate === '' ? null : Number(customsForm.tpiRate),
+      ticRate: customsForm.ticRate === '' ? null : Number(customsForm.ticRate),
       tvaRate: customsForm.tvaRate === '' ? null : Number(customsForm.tvaRate),
     });
     toast({ title: 'Données douanières mises à jour' });
@@ -261,7 +264,6 @@ export default function CategoriesView({
     const lastOrder = allOrderDates.length > 0
       ? allOrderDates.sort((a, b) => b.localeCompare(a))[0]
       : '-';
-
     return {
       totalVal,
       totalQty,
@@ -517,6 +519,11 @@ export default function CategoriesView({
                         {currentCategoryObj.tpiRate != null && (
                           <span className="text-[9px] font-black text-stone-400 bg-stone-800/60 border border-stone-700 px-2 py-1 rounded-lg">
                             TPI: <span className="text-stone-200">{currentCategoryObj.tpiRate}%</span>
+                          </span>
+                        )}
+                        {currentCategoryObj.ticRate != null && (
+                          <span className="text-[9px] font-black text-stone-400 bg-stone-800/60 border border-stone-700 px-2 py-1 rounded-lg">
+                            TIC: <span className="text-stone-200">{currentCategoryObj.ticRate}%</span>
                           </span>
                         )}
                         {currentCategoryObj.tvaRate != null && (
@@ -958,7 +965,7 @@ export default function CategoriesView({
                   <Input type="number" step="0.01" placeholder="0.00" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.customsValuePerKg} onChange={e => setCustomsForm(p => ({ ...p, customsValuePerKg: e.target.value }))} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Taux DI (%)</Label>
                   <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.importDutyRate} onChange={e => setCustomsForm(p => ({ ...p, importDutyRate: e.target.value }))} />
@@ -966,6 +973,10 @@ export default function CategoriesView({
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TPI (%)</Label>
                   <Input type="number" step="0.01" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.tpiRate} onChange={e => setCustomsForm(p => ({ ...p, tpiRate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TIC (%)</Label>
+                  <Input type="number" step="0.01" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.ticRate} onChange={e => setCustomsForm(p => ({ ...p, ticRate: e.target.value }))} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TVA (%)</Label>
