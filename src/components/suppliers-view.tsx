@@ -182,8 +182,7 @@ export default function SuppliersView({ articles, factures, payments, categories
   }
 
   if (selectedSupplier) {
-    return (
-      <SupplierDetailView 
+    return (      <SupplierDetailView 
         supplierName={selectedSupplier} 
         articles={articles} 
         factures={factures}
@@ -192,6 +191,7 @@ export default function SuppliersView({ articles, factures, payments, categories
         onBack={() => setSelectedSupplier(null)}
         onNavigateToFacture={onNavigateToFacture}
       />
+
     );
   }
 
@@ -567,6 +567,7 @@ function SupplierDetailView({
   articles, 
   factures, 
   payments,
+  categories,
   onBack, 
   onNavigateToFacture 
 }: { 
@@ -574,6 +575,7 @@ function SupplierDetailView({
   articles: any[], 
   factures: any[], 
   payments: any[],
+  categories: any[],
   onBack: () => void, 
   onNavigateToFacture: (id: string) => void 
 }) {
@@ -915,6 +917,7 @@ function SupplierDetailView({
         article={cdrArticle}
         factures={factures}
         articles={articles}
+        categories={categories}
       />
     </div>
   );

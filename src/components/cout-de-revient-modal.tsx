@@ -37,6 +37,20 @@ const TAX_LINES: TaxLine[] = [
   { label: "TIC", key: "ticRate", color: "text-orange-600" },
 ];
 
+// Formatting utilities
+const fmt = (v: any, decimals = 2) => {
+  if (v == null || isNaN(Number(v))) return '0.00';
+  return Number(v).toLocaleString('fr-FR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+};
+
+const fmtMAD = (v: any) => {
+  if (v == null || isNaN(Number(v))) return '0';
+  return Math.round(Number(v)).toLocaleString('fr-FR');
+};
+
 function SummaryLine({ label, value, sub = '', bold = false, accent = '' }: { label: string; value: string; sub?: string; bold?: boolean; accent?: string }) {
   return (
     <div className={`flex items-center justify-between py-2 border-b border-stone-50 ${bold ? 'bg-stone-100 -mx-4 px-4 rounded-xl mt-1' : ''}`}>
@@ -48,6 +62,9 @@ function SummaryLine({ label, value, sub = '', bold = false, accent = '' }: { la
 
 export default function CoutDeRevientModal({ open, onOpenChange, article, factures, articles, categories }: CoutDeRevientModalProps) {
   const [tauxChange, setTauxChange] = useState<string>('10.5');
+
+  // Ensure categories is always an array
+  const safeCategories = useMemo(() => Array.isArray(categories) ? categories : [], [categories]);
 
   // ─── Detect if article is linked to a real facture/dossier ────────────────
   const linkedFacture = useMemo(() => {
@@ -119,7 +136,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
     // 2. Priorité 2 : Poids Net * Valeur fixe/kg (Réglementation Maroc) si dispo dans catégorie.
     // 3. Fallback : Valeur des produits (FOB).
 
-    const category = categories.find(c => 
+    const category = safeCategories.find(c => 
       c.name === article.categoryId || c.id === article.categoryId
     );
 
