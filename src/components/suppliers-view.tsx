@@ -2035,7 +2035,7 @@ export function ClientDetailView({
                      </div>
                      <div className="flex flex-col border-l border-stone-800 pl-2">
                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TIC</span>
-                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.ticRate ?? selectedCategory?.ticRate) != null ? `${selectedArticle.ticRate ?? selectedCategory?.ticRate}%` : chr45+chr39}</span>
+                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.ticRate ?? selectedCategory?.ticRate) != null ? `${selectedArticle.ticRate ?? selectedCategory?.ticRate}%` : '-'}</span>
                      </div>
                      <div className="flex flex-col border-l border-stone-800 pl-2">
                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
