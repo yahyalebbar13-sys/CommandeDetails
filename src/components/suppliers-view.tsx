@@ -1973,149 +1973,167 @@ export function ClientDetailView({
 
       <Dialog open={!!selectedArticleId} onOpenChange={(o) => { if (!o) setSelectedArticleId(null); }}>
         <DialogContent className="max-w-sm rounded-[2rem] p-0 border-transparent overflow-hidden shadow-2xl bg-stone-50">
-          {selectedArticle && (
-             <div className="flex flex-col relative w-full h-full">
-               <div className="bg-indigo-900 p-8 pt-10 text-center relative overflow-hidden shrink-0">
-                 <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl" />
-                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full translate-y-1/2 -translate-x-1/4 blur-xl" />
-                 
-                 <div className="relative z-10 flex flex-col items-center">
-                   <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-800 rounded-2xl mb-4 shadow-xl border border-indigo-700/50">
-                     <Package className="w-7 h-7 text-indigo-200" />
-                   </div>
-                   <h2 className="text-3xl font-black text-white uppercase tracking-tight leading-none mb-2">{selectedArticle.categoryId}</h2>
-                   <div className="flex justify-center gap-2 mb-4 mt-2">
-                     <span className="inline-flex items-center justify-center px-4 py-1.5 bg-white/10 rounded-full border border-white/10 backdrop-blur-md">
-                       <span className="text-[11px] font-black text-white uppercase tracking-widest">
-                         {Number(selectedArticle.quantity).toLocaleString('en-US')} {selectedArticle.unitOfMeasure || 'U'}
-                       </span>
-                     </span>
-                   </div>
-                 </div>
-               </div>
-               
-               <div className="p-6 space-y-4 relative z-10 shrink-0">
-                 <div className="grid grid-cols-2 gap-3">
-                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Code HS</span>
-                     <span className="text-sm font-black text-stone-900">{selectedArticle.hsCode || selectedCategory?.hsCode || '—'}</span>
-                   </div>
-                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">CBM</span>
-                     <span className="text-sm font-black text-stone-900">{selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—'}</span>
-                   </div>
-                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Taille</span>
-                     <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
-                   </div>
-                   <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Couleur</span>
-                     <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
-                   </div>
-                   <div className="bg-white p-4 py-3 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all col-span-2">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400 transition-colors flex items-center gap-1">
-                       <ClipboardList className="w-2.5 h-2.5" /> Technique / Spécifications
-                     </span>
-                     <span className="text-[11px] font-bold text-stone-600 leading-tight">
-                       {selectedArticle.specs || (selectedArticle.zipperType ? `${selectedArticle.zipperType} ${selectedArticle.slider || ''}` : '—')}
-                     </span>
-                   </div>
-                 </div>
+          {selectedArticle && (() => {
+            // Safely parse breakdown data which might be stored as Array or Object in Firestore
+            const safeSizeBreakdown = Array.isArray(selectedArticle.sizeBreakdown) 
+              ? selectedArticle.sizeBreakdown 
+              : (selectedArticle.sizeBreakdown && typeof selectedArticle.sizeBreakdown === 'object') 
+                ? Object.values(selectedArticle.sizeBreakdown) 
+                : [];
+                
+            const safeColorBreakdown = Array.isArray(selectedArticle.colorBreakdown) 
+              ? selectedArticle.colorBreakdown 
+              : (selectedArticle.colorBreakdown && typeof selectedArticle.colorBreakdown === 'object') 
+                ? Object.values(selectedArticle.colorBreakdown) 
+                : [];
 
-                 <div className="bg-stone-900 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
-                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-                   <div className="grid grid-cols-4 gap-1.5 relative z-10">
-                     <div className="flex flex-col">
-                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">DI</span>
-                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) != null ? `${selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate}%` : '—'}</span>
-                     </div>
-                     <div className="flex flex-col border-l border-stone-800 pl-2">
-                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TPI</span>
-                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.tpiRate ?? selectedCategory?.tpiRate) != null ? `${selectedArticle.tpiRate ?? selectedCategory?.tpiRate}%` : '—'}</span>
-                     </div>
-                     <div className="flex flex-col border-l border-stone-800 pl-2">
-                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TIC</span>
-                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.ticRate ?? selectedCategory?.ticRate) != null ? `${selectedArticle.ticRate ?? selectedCategory?.ticRate}%` : '-'}</span>
-                     </div>
-                     <div className="flex flex-col border-l border-stone-800 pl-2">
-                       <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
-                       <span className="text-sm font-black text-emerald-400">{(selectedArticle.tvaRate ?? selectedCategory?.tvaRate) != null ? `${selectedArticle.tvaRate ?? selectedCategory?.tvaRate}%` : '—'}</span>
-                     </div>
-                   </div>
-                 </div>
+            return (
+              <div className="flex flex-col relative w-full max-h-[85vh] overflow-y-auto custom-scrollbar">
+                <div className="bg-indigo-900 p-8 pt-10 text-center relative overflow-hidden shrink-0">
+                  <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full translate-y-1/2 -translate-x-1/4 blur-xl" />
+                  
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-800 rounded-2xl mb-4 shadow-xl border border-indigo-700/50">
+                      <Package className="w-7 h-7 text-indigo-200" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tight leading-none mb-2">{selectedArticle.categoryId}</h2>
+                    <div className="flex justify-center gap-2 mb-4 mt-2">
+                      <span className="inline-flex items-center justify-center px-4 py-1.5 bg-white/10 rounded-full border border-white/10 backdrop-blur-md">
+                        <span className="text-[11px] font-black text-white uppercase tracking-widest">
+                          {Number(selectedArticle.quantity).toLocaleString('en-US')} {selectedArticle.unitOfMeasure || 'U'}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-4 relative z-10 shrink-0">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Code HS</span>
+                      <span className="text-sm font-black text-stone-900">{selectedArticle.hsCode || selectedCategory?.hsCode || '—'}</span>
+                    </div>
+                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">CBM</span>
+                      <span className="text-sm font-black text-stone-900">{selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—'}</span>
+                    </div>
+                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Taille</span>
+                      <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
+                    </div>
+                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Couleur</span>
+                      <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
+                    </div>
+                    <div className="bg-white p-4 py-3 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all col-span-2">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400 transition-colors flex items-center gap-1">
+                        <ClipboardList className="w-2.5 h-2.5" /> Technique / Spécifications
+                      </span>
+                      <span className="text-[11px] font-bold text-stone-600 leading-tight">
+                        {selectedArticle.specs || (selectedArticle.zipperType ? `${selectedArticle.zipperType} ${selectedArticle.slider || ''}` : '—')}
+                      </span>
+                    </div>
+                  </div>
 
-                 {selectedArticle.factureId && (
-                   <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
-                     <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-2">Ref. Dossier</p>
-                     <div className="flex items-center justify-between gap-2">
-                       <div><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N Facture</p><p className="text-[12px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p></div>
-                       {selectedArticle.factureNoBL && (<div className="text-right"><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N BL</p><p className="text-[12px] font-black text-indigo-700 uppercase">{selectedArticle.factureNoBL}</p></div>)}
-                     </div>
-                   </div>
-                 )}
-                 {Array.isArray(selectedArticle.sizeBreakdown) && selectedArticle.sizeBreakdown.length > 0 && (
-                    <div className="rounded-2xl border border-teal-100 overflow-hidden mt-3">
-                      <div className="bg-teal-700 px-4 py-2.5">
-                        <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest">Detail Tailles</span>
+                  <div className="bg-stone-900 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+                    <div className="grid grid-cols-4 gap-1.5 relative z-10">
+                      <div className="flex flex-col">
+                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">DI</span>
+                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) != null ? `${selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate}%` : '—'}</span>
                       </div>
-                      <div className="divide-y divide-teal-50 bg-white">
-                        <div className="grid grid-cols-[1fr_80px] bg-teal-50">
-                          <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest">Taille</div>
-                          <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest text-right">Qté</div>
-                        </div>
-                        {selectedArticle.sizeBreakdown.map((row: any, i: number) => (
-                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-teal-50/40 transition-colors">
-                            <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
-                            <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
-                          </div>
-                        ))}
-                        <div className="grid grid-cols-[1fr_80px] bg-teal-600 text-white">
-                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
-                          <div className="py-2 px-3 text-right text-[10px] font-black">
-                            {selectedArticle.sizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()}
-                          </div>
-                        </div>
+                      <div className="flex flex-col border-l border-stone-800 pl-2">
+                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TPI</span>
+                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.tpiRate ?? selectedCategory?.tpiRate) != null ? `${selectedArticle.tpiRate ?? selectedCategory?.tpiRate}%` : '—'}</span>
+                      </div>
+                      <div className="flex flex-col border-l border-stone-800 pl-2">
+                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TIC</span>
+                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.ticRate ?? selectedCategory?.ticRate) != null ? `${selectedArticle.ticRate ?? selectedCategory?.ticRate}%` : '-'}</span>
+                      </div>
+                      <div className="flex flex-col border-l border-stone-800 pl-2">
+                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
+                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.tvaRate ?? selectedCategory?.tvaRate) != null ? `${selectedArticle.tvaRate ?? selectedCategory?.tvaRate}%` : '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedArticle.factureId && (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                      <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-2">Ref. Dossier</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N Facture</p><p className="text-[12px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p></div>
+                        {selectedArticle.factureNoBL && (<div className="text-right"><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N BL</p><p className="text-[12px] font-black text-indigo-700 uppercase">{selectedArticle.factureNoBL}</p></div>)}
                       </div>
                     </div>
                   )}
-                  {Array.isArray(selectedArticle.colorBreakdown) && selectedArticle.colorBreakdown.length > 0 && (
-                    <div className="rounded-2xl border border-violet-100 overflow-hidden mt-3">
-                      <div className="bg-violet-700 px-4 py-2.5">
-                        <span className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Detail Couleurs</span>
-                      </div>
-                      <div className="divide-y divide-violet-50 bg-white">
-                        <div className="grid grid-cols-[1fr_80px] bg-violet-50">
-                          <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest">Couleur</div>
-                          <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest text-right">Qté</div>
-                        </div>
-                        {selectedArticle.colorBreakdown.map((row: any, i: number) => (
-                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-violet-50/40 transition-colors">
-                            <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
-                            <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
-                          </div>
-                        ))}
-                        <div className="grid grid-cols-[1fr_80px] bg-violet-600 text-white">
-                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
-                          <div className="py-2 px-3 text-right text-[10px] font-black">
-                            {selectedArticle.colorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
+
+                  {safeSizeBreakdown.length > 0 && (
+                     <div className="rounded-2xl border border-teal-100 overflow-hidden mt-3">
+                       <div className="bg-teal-700 px-4 py-2.5">
+                         <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest">Detail Tailles</span>
+                       </div>
+                       <div className="divide-y divide-teal-50 bg-white">
+                         <div className="grid grid-cols-[1fr_80px] bg-teal-50">
+                           <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest">Taille</div>
+                           <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest text-right">Qté</div>
+                         </div>
+                         {safeSizeBreakdown.map((row: any, i: number) => (
+                           <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-teal-50/40 transition-colors">
+                             <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
+                             <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
+                           </div>
+                         ))}
+                         <div className="grid grid-cols-[1fr_80px] bg-teal-600 text-white">
+                           <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
+                           <div className="py-2 px-3 text-right text-[10px] font-black">
+                             {safeSizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()}
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+
+                   {safeColorBreakdown.length > 0 && (
+                     <div className="rounded-2xl border border-violet-100 overflow-hidden mt-3">
+                       <div className="bg-violet-700 px-4 py-2.5">
+                         <span className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Detail Couleurs</span>
+                       </div>
+                       <div className="divide-y divide-violet-50 bg-white">
+                         <div className="grid grid-cols-[1fr_80px] bg-violet-50">
+                           <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest">Couleur</div>
+                           <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest text-right">Qté</div>
+                         </div>
+                         {safeColorBreakdown.map((row: any, i: number) => (
+                           <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-violet-50/40 transition-colors">
+                             <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
+                             <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
+                           </div>
+                         ))}
+                         <div className="grid grid-cols-[1fr_80px] bg-violet-600 text-white">
+                           <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
+                           <div className="py-2 px-3 text-right text-[10px] font-black">
+                             {safeColorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+
+                  <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm grid grid-cols-2 gap-4 mt-2 text-center ring-1 ring-indigo-50">
+                    <div className="flex flex-col justify-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</span>
+                      <span className="text-xs font-black text-stone-900 bg-stone-50 py-1.5 rounded-lg border border-stone-100">{selectedArticle.orderDate || '—'}</span>
                     </div>
-                  )}
-                 <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm grid grid-cols-2 gap-4 mt-2 text-center ring-1 ring-indigo-50">
-                   <div className="flex flex-col justify-center">
-                     <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</span>
-                     <span className="text-xs font-black text-stone-900 bg-stone-50 py-1.5 rounded-lg border border-stone-100">{selectedArticle.orderDate || '—'}</span>
-                   </div>
-                   <div className="pl-4 border-l border-stone-100 flex flex-col justify-center">
-                     <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Clock className="w-3 h-3" /> Date Arrivée</span>
-                     <span className="text-xs font-black text-indigo-700 bg-indigo-50 py-1.5 rounded-lg border border-indigo-100">{selectedArticle.arrivalDate || '—'}</span>
-                   </div>
-                 </div>
-               </div>
-             </div>
-          )}
+                    <div className="pl-4 border-l border-stone-100 flex flex-col justify-center">
+                      <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Clock className="w-3 h-3" /> Date Arrivée</span>
+                      <span className="text-xs font-black text-indigo-700 bg-indigo-50 py-1.5 rounded-lg border border-indigo-100">{selectedArticle.arrivalDate || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </DialogContent>
       </Dialog>
     </div>
