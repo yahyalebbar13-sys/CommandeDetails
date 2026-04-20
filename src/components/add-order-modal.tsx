@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
+import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -64,6 +65,8 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
 
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+  const [sizeBreakdown, setSizeBreakdown] = useState<SizeBreakdownRow[] | null>(null);
+  const [isFullContainer, setIsFullContainer] = useState(false);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
 
   // Derive unique supplier list from past articles for autocomplete
@@ -77,6 +80,13 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     setColorBreakdown(rows);
     if (rows && rows.length > 0) {
       setFormData((p: any) => ({ ...p, quantity: total, color: 'various', unitOfMeasure: 'rolls' }));
+    }
+  }, []);
+
+  const handleSizeBreakdownChange = useCallback((rows: SizeBreakdownRow[] | null, total: number) => {
+    setSizeBreakdown(rows);
+    if (rows && rows.length > 0) {
+      setFormData((p: any) => ({ ...p, quantity: total, size: 'various' }));
     }
   }, []);
 
@@ -113,16 +123,18 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     const e: Record<string, string> = {};
     if (!selectedGenCatId) e.genCat = 'Requis';
     if (!formData.categoryId) e.category = 'Requis';
-    if (!colorBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
+    if (!colorBreakdown?.length && !sizeBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
       e.quantity = 'Quantité requise';
     return e;
-  }, [selectedGenCatId, formData.categoryId, formData.quantity, colorBreakdown]);
+  }, [selectedGenCatId, formData.categoryId, formData.quantity, colorBreakdown, sizeBreakdown]);
 
   const isValid = Object.keys(errors).length === 0;
   const priorityConf = PRIORITY_CONFIG.find(p => p.value === formData.priority) || PRIORITY_CONFIG[2];
 
   const resetForm = () => {
     setColorBreakdown(null);
+    setSizeBreakdown(null);
+    setIsFullContainer(false);
     setFormData({ ...EMPTY_FORM });
     setSelectedGenCatId('');
   };
@@ -142,6 +154,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       status: 'TO_ORDER',
+      isFullContainer,
       createdAt: serverTimestamp(),
       hsCode: selectedSubCat?.hsCode || null,
       importDutyRate: selectedSubCat?.importDutyRate ?? null,
@@ -150,15 +163,36 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       tvaRate: selectedSubCat?.tvaRate ?? null,
     };
 
+    // ── Color split ──
     if (!colorBreakdown || colorBreakdown.length === 0) {
-      const id = crypto.randomUUID();
-      setDocumentNonBlocking(
-        doc(firestore, 'users', user.uid, 'articles', id),
-        { ...basePayload, id, colorBreakdown: null },
-        { merge: true }
-      );
+      // ── Size split ──
+      if (!sizeBreakdown || sizeBreakdown.length === 0) {
+        const id = crypto.randomUUID();
+        setDocumentNonBlocking(
+          doc(firestore, 'users', user.uid, 'articles', id),
+          { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null },
+          { merge: true }
+        );
+      } else {
+        const sizeGroups = new Map<number, SizeBreakdownRow[]>();
+        for (const row of sizeBreakdown) {
+          const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
+            ? Number(row.priceOverride)
+            : Number(formData.purchasePricePerUnit || 0);
+          if (!sizeGroups.has(price)) sizeGroups.set(price, []);
+          sizeGroups.get(price)!.push(row);
+        }
+        sizeGroups.forEach((rows, price) => {
+          const id = crypto.randomUUID();
+          const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+          setDocumentNonBlocking(
+            doc(firestore, 'users', user.uid, 'articles', id),
+            { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null },
+            { merge: true }
+          );
+        });
+      }
     } else {
-      // Auto-split by price override
       const groups = new Map<number, ColorBreakdownRow[]>();
       for (const row of colorBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
@@ -172,15 +206,19 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
         const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
         setDocumentNonBlocking(
           doc(firestore, 'users', user.uid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows },
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null },
           { merge: true }
         );
       });
     }
 
-    const splitCount = colorBreakdown
+    const colorSplitCount = colorBreakdown
       ? new Set(colorBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size
       : 1;
+    const sizeSplitCount = sizeBreakdown
+      ? new Set(sizeBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size
+      : 1;
+    const splitCount = Math.max(colorSplitCount, sizeSplitCount);
 
     toast({
       title: "✅ Besoin enregistré",
@@ -309,12 +347,18 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Maximize className="w-3 h-3" /> Taille
               </Label>
-              <Input
-                placeholder="No.5, 20cm..."
-                className="h-11 border-stone-200 font-bold rounded-xl"
-                value={formData.size}
-                onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
-              />
+              {sizeBreakdown && sizeBreakdown.length > 0 ? (
+                <div className="h-11 border border-teal-200 bg-teal-50 rounded-xl flex items-center px-3">
+                  <span className="text-[10px] font-black text-teal-700 uppercase">VARIOUS (multi-tailles)</span>
+                </div>
+              ) : (
+                <Input
+                  placeholder="No.5, 20cm..."
+                  className="h-11 border-stone-200 font-bold rounded-xl"
+                  value={formData.size}
+                  onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
+                />
+              )}
             </div>
 
             {/* Zipper Type — conditionnel */}
@@ -420,7 +464,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             />
           </div>
 
-          {/* ── Section 3: Couleurs Multi ──────────────────────────────────── */}
+          {/* ── Section 3a: Tailles Multi ──────────────────────────────────── */}
+          <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} />
+
+          {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
           <ColorBreakdownInput value={colorBreakdown} onChange={handleColorBreakdownChange} />
 
           {/* ── Section 4: Commande ───────────────────────────────────────── */}
@@ -521,6 +568,32 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* ── Section 5.5: Conteneur Complet ────────────────────────────── */}
+          <div className={`rounded-xl border transition-all ${isFullContainer ? 'bg-orange-50 border-orange-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
+            <div className="flex items-center justify-between p-3.5">
+              <div className="flex items-center gap-2">
+                <Package className={`w-4 h-4 ${isFullContainer ? 'text-orange-600' : 'text-stone-400'}`} />
+                <div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${isFullContainer ? 'text-orange-700' : 'text-stone-500'}`}>
+                    Conteneur Complet (PI)
+                  </span>
+                  {isFullContainer && (
+                    <p className="text-[8px] font-bold text-orange-500 uppercase mt-0.5">Cette commande occupera un conteneur entier</p>
+                  )}
+                </div>
+              </div>
+              <Switch
+                checked={isFullContainer}
+                onCheckedChange={v => setIsFullContainer(v)}
+              />
+            </div>
+            {!isFullContainer && (
+              <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic">
+                Activer si cette PI va remplir un conteneur complet
+              </p>
+            )}
           </div>
 
           {/* ── Section 5: Précommande Client ─────────────────────────────── */}
