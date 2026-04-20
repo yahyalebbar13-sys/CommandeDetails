@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -2053,9 +2053,56 @@ export function ClientDetailView({
                      </div>
                    </div>
                  )}
-                 {selectedArticle.colorBreakdown && selectedArticle.colorBreakdown.length > 0 && (
-                   <div className="rounded-2xl border border-violet-100 overflow-hidden"><div className="bg-violet-700 px-4 py-2.5"><span className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Detail Couleurs</span></div><div className="divide-y divide-violet-50 bg-white"><div className="grid grid-cols-[1fr_80px] bg-violet-50"><div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest">Couleur</div><div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest text-right">Qt</div></div>{selectedArticle.colorBreakdown.map((row: any, i: number) => (<div key={i} className="grid grid-cols-[1fr_80px] hover:bg-violet-50/40 transition-colors"><div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div><div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div></div>))}<div className="grid grid-cols-[1fr_80px] bg-violet-600 text-white"><div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div><div className="py-2 px-3 text-right text-[10px] font-black">{selectedArticle.colorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}</div></div></div></div>
-                 )}
+                 {Array.isArray(selectedArticle.sizeBreakdown) && selectedArticle.sizeBreakdown.length > 0 && (
+                    <div className="rounded-2xl border border-teal-100 overflow-hidden mt-3">
+                      <div className="bg-teal-700 px-4 py-2.5">
+                        <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest">Detail Tailles</span>
+                      </div>
+                      <div className="divide-y divide-teal-50 bg-white">
+                        <div className="grid grid-cols-[1fr_80px] bg-teal-50">
+                          <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest">Taille</div>
+                          <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest text-right">Qté</div>
+                        </div>
+                        {selectedArticle.sizeBreakdown.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-teal-50/40 transition-colors">
+                            <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
+                            <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[1fr_80px] bg-teal-600 text-white">
+                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
+                          <div className="py-2 px-3 text-right text-[10px] font-black">
+                            {selectedArticle.sizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {Array.isArray(selectedArticle.colorBreakdown) && selectedArticle.colorBreakdown.length > 0 && (
+                    <div className="rounded-2xl border border-violet-100 overflow-hidden mt-3">
+                      <div className="bg-violet-700 px-4 py-2.5">
+                        <span className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Detail Couleurs</span>
+                      </div>
+                      <div className="divide-y divide-violet-50 bg-white">
+                        <div className="grid grid-cols-[1fr_80px] bg-violet-50">
+                          <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest">Couleur</div>
+                          <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest text-right">Qté</div>
+                        </div>
+                        {selectedArticle.colorBreakdown.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-violet-50/40 transition-colors">
+                            <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
+                            <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[1fr_80px] bg-violet-600 text-white">
+                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
+                          <div className="py-2 px-3 text-right text-[10px] font-black">
+                            {selectedArticle.colorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                  <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm grid grid-cols-2 gap-4 mt-2 text-center ring-1 ring-indigo-50">
                    <div className="flex flex-col justify-center">
                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</span>
