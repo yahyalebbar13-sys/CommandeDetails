@@ -26,6 +26,7 @@ interface FacturesViewProps {
   selectedFactureId: string | null;
   setSelectedFactureId: (id: string | null) => void;
   onNavigateToCategory: (categoryName: string) => void;
+  onBack?: () => void;
 }
 
 export default function FacturesView({ 
@@ -34,7 +35,8 @@ export default function FacturesView({
   subCategories,
   selectedFactureId, 
   setSelectedFactureId,
-  onNavigateToCategory 
+  onNavigateToCategory,
+  onBack
 }: FacturesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -130,7 +132,7 @@ export default function FacturesView({
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => setSelectedFactureId(null)} 
+            onClick={() => onBack ? onBack() : setSelectedFactureId(null)} 
             className="text-stone-500 hover:text-stone-900 font-bold uppercase text-[10px] tracking-widest gap-2 bg-white shadow-sm border border-stone-100 rounded-full px-4 h-9"
           >
             <ChevronLeft className="w-4 h-4" /> Retour au Registre

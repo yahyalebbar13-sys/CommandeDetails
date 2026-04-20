@@ -49,6 +49,7 @@ interface CategoriesViewProps {
   setSelectedCategory: (category: string | null) => void;
   selectedGeneralCategoryId: string | null;
   onSelectGeneralCategory: (id: string | null) => void;
+  onBackToGroupes?: () => void;
 }
 
 const UI_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
@@ -66,7 +67,8 @@ export default function CategoriesView({
   selectedCategory,
   setSelectedCategory,
   selectedGeneralCategoryId,
-  onSelectGeneralCategory
+  onSelectGeneralCategory,
+  onBackToGroupes
 }: CategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -475,7 +477,10 @@ export default function CategoriesView({
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setSelectedCategory(null)}
+                  onClick={() => {
+                    if (onBackToGroupes) onBackToGroupes();
+                    else setSelectedCategory(null);
+                  }}
                   className="h-12 w-12 rounded-2xl bg-white/5 border-white/10 text-white hover:bg-white/10 transition-all shadow-xl shrink-0 mt-1"
                 >
                   <ChevronLeft className="w-5 h-5" />

@@ -246,6 +246,7 @@ function AdminApp() {
   const { user } = useUser();
   const { auth, firestore } = useFirebase();
   const [activeTab, setActiveTab] = useState<ViewType>('dashboard');
+  const [previousTab, setPreviousTab] = useState<ViewType | null>(null);
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
   const [selectedGeneralCategoryId, setSelectedGeneralCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
@@ -297,7 +298,7 @@ function AdminApp() {
       {navItems.map(({ id, label, icon: Icon }) => (
         <Button key={id} variant={activeTab === id ? "secondary" : "ghost"}
           className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'} ${vertical ? 'w-full h-12' : ''}`}
-          onClick={() => { setActiveTab(id); if (id === 'factures') setSelectedFactureId(null); if (id === 'general-categories') setSelectedGeneralCategoryId(null); setIsMobileMenuOpen(false); }}>
+          onClick={() => { setPreviousTab(null); setActiveTab(id); if (id === 'factures') setSelectedFactureId(null); if (id === 'general-categories') setSelectedGeneralCategoryId(null); setIsMobileMenuOpen(false); }}>
           <Icon className={vertical ? 'w-5 h-5' : 'w-3.5 h-3.5'} />
           <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{label}</span>
         </Button>
@@ -347,17 +348,39 @@ function AdminApp() {
           </div>
         ) : (
           <div className="fade-in">
-            {activeTab === 'dashboard' && <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} onNavigate={setActiveTab} onNavigateToFacture={(id) => { setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />}
-            {activeTab === 'to-order' && <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />}
-            {activeTab === 'pending' && <PendingOrdersView articles={articles} factures={factures} onEdit={setEditingArticle} />}
-            {activeTab === 'transit' && <TransitOrdersView articles={articles} onEdit={setEditingArticle} />}
-            {activeTab === 'timeline' && <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />}
-            {activeTab === 'factures' && <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setSelectedCategoryName(c); setActiveTab('categories'); }} />}
-            {activeTab === 'general-categories' && <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />}
-            {activeTab === 'categories' && <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />}
-            {activeTab === 'cost-analysis' && <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />}
-            {activeTab === 'suppliers' && <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />}
-            {activeTab === 'data' && <DataView articles={articles} onEdit={setEditingArticle} />}
+            <div className={activeTab === 'dashboard' ? 'block animate-in fade-in' : 'hidden'}>
+              <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} onNavigate={setActiveTab} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
+            </div>
+            <div className={activeTab === 'to-order' ? 'block animate-in fade-in' : 'hidden'}>
+              <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
+            </div>
+            <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
+              <PendingOrdersView articles={articles} factures={factures} onEdit={setEditingArticle} />
+            </div>
+            <div className={activeTab === 'transit' ? 'block animate-in fade-in' : 'hidden'}>
+              <TransitOrdersView articles={articles} onEdit={setEditingArticle} />
+            </div>
+            <div className={activeTab === 'timeline' ? 'block animate-in fade-in' : 'hidden'}>
+              <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />
+            </div>
+            <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
+              <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} />
+            </div>
+            <div className={activeTab === 'general-categories' ? 'block animate-in fade-in' : 'hidden'}>
+              <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
+            </div>
+            <div className={activeTab === 'categories' ? 'block animate-in fade-in' : 'hidden'}>
+              <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />
+            </div>
+            <div className={activeTab === 'cost-analysis' ? 'block animate-in fade-in' : 'hidden'}>
+              <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />
+            </div>
+            <div className={activeTab === 'suppliers' ? 'block animate-in fade-in' : 'hidden'}>
+              <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
+            </div>
+            <div className={activeTab === 'data' ? 'block animate-in fade-in' : 'hidden'}>
+              <DataView articles={articles} onEdit={setEditingArticle} />
+            </div>
           </div>
         )}
 
