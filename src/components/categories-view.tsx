@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import type { ReactNode } from 'react';
 import { 
   ChevronLeft, 
   Truck, 
@@ -421,91 +422,192 @@ export default function CategoriesView({
     return result.filter(g => g.items.length > 0);
   }, [groupStats]);
 
+  // Active tab for the manifeste tabs
+  const [activeManifeste, setActiveManifeste] = useState<'production' | 'transit' | 'stock'>('transit');
+
   if (selectedCategory && groupedData && detailedAnalytics) {
+    const manifesteTabs = [
+      {
+        key: 'production' as const,
+        label: 'Production',
+        count: groupedData.production.length,
+        icon: Factory,
+        activeColor: 'bg-amber-500',
+        activeBg: 'bg-amber-50 text-amber-800',
+        inactiveBg: 'bg-white text-stone-500',
+        dot: 'bg-amber-500',
+      },
+      {
+        key: 'transit' as const,
+        label: 'Transit',
+        count: groupedData.transit.length,
+        icon: Truck,
+        activeColor: 'bg-blue-500',
+        activeBg: 'bg-blue-50 text-blue-800',
+        inactiveBg: 'bg-white text-stone-500',
+        dot: 'bg-blue-500',
+      },
+      {
+        key: 'stock' as const,
+        label: 'En Stock',
+        count: groupedData.arrived.length,
+        icon: CheckCircle2,
+        activeColor: 'bg-emerald-500',
+        activeBg: 'bg-emerald-50 text-emerald-800',
+        inactiveBg: 'bg-white text-stone-500',
+        dot: 'bg-emerald-500',
+      },
+    ];
+
+    const activeTab = manifesteTabs.find(t => t.key === activeManifeste)!;
+
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
-          <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative">
-            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
-            
-            <div className="flex items-center gap-5 relative z-10 lg:w-1/3">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={() => setSelectedCategory(null)} 
-                className="h-12 w-12 rounded-2xl bg-white/5 border-white/10 text-white hover:bg-white/10 transition-all shadow-xl"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-              <div>
-                <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">{selectedCategory}</h2>
-                  {currentCategoryObj && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="h-8 border-stone-700 bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white rounded-lg px-3 space-x-2 text-[10px] uppercase font-bold"
-                      onClick={() => setIsCustomsModalOpen(true)}
-                    >
-                      <span>HS: {currentCategoryObj.hsCode || 'NON DÉFINI'}</span>
-                      <Pencil className="w-3 h-3 text-amber-500" />
-                    </Button>
-                  )}
-                </div>
-                {currentCategoryObj && (currentCategoryObj.customsValuePerKg != null || currentCategoryObj.importDutyRate != null || currentCategoryObj.tpiRate != null || currentCategoryObj.tvaRate != null) && (
-                  <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-bold text-stone-400 bg-stone-800/50 p-2 rounded-lg max-w-fit leading-tight border border-stone-800">
-                    {currentCategoryObj.customsValuePerKg != null && <span>VAL LÉGALE: <span className="text-stone-300">{currentCategoryObj.customsValuePerKg} dh/kg</span></span>}
-                    {currentCategoryObj.importDutyRate != null && <span>DI: <span className="text-stone-300">{currentCategoryObj.importDutyRate}%</span></span>}
-                    {currentCategoryObj.tpiRate != null && <span>TPI: <span className="text-stone-300">{currentCategoryObj.tpiRate}%</span></span>}
-                    {currentCategoryObj.tvaRate != null && <span>TVA: <span className="text-stone-300">{currentCategoryObj.tvaRate}%</span></span>}
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {/* ── Premium Header ── */}
+        <header className="bg-stone-900 rounded-[2rem] overflow-hidden shadow-2xl relative">
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px] pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/5 rounded-full translate-y-1/2 -translate-x-1/4 blur-[80px] pointer-events-none" />
+
+          <div className="relative z-10 p-8">
+            {/* Top row: back + title + HS button */}
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-start gap-8">
+              <div className="flex items-start gap-5">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSelectedCategory(null)}
+                  className="h-12 w-12 rounded-2xl bg-white/5 border-white/10 text-white hover:bg-white/10 transition-all shadow-xl shrink-0 mt-1"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <div>
+                  <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.3em] mb-1">Audit Analytique Produit</p>
+                  <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none mb-3">{selectedCategory}</h2>
+
+                  {/* Customs data row */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {currentCategoryObj && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 border-stone-700 bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white rounded-lg px-3 gap-2 text-[10px] uppercase font-bold"
+                        onClick={() => setIsCustomsModalOpen(true)}
+                      >
+                        <span>HS: {currentCategoryObj.hsCode || 'NON DÉFINI'}</span>
+                        <Pencil className="w-3 h-3 text-amber-500" />
+                      </Button>
+                    )}
+                    {currentCategoryObj && (currentCategoryObj.customsValuePerKg != null || currentCategoryObj.importDutyRate != null) && (
+                      <div className="flex flex-wrap gap-2">
+                        {currentCategoryObj.customsValuePerKg != null && (
+                          <span className="text-[9px] font-black text-stone-400 bg-stone-800/60 border border-stone-700 px-2 py-1 rounded-lg">
+                            Val: <span className="text-stone-200">{currentCategoryObj.customsValuePerKg} dh/kg</span>
+                          </span>
+                        )}
+                        {currentCategoryObj.importDutyRate != null && (
+                          <span className="text-[9px] font-black text-stone-400 bg-stone-800/60 border border-stone-700 px-2 py-1 rounded-lg">
+                            DI: <span className="text-stone-200">{currentCategoryObj.importDutyRate}%</span>
+                          </span>
+                        )}
+                        {currentCategoryObj.tpiRate != null && (
+                          <span className="text-[9px] font-black text-stone-400 bg-stone-800/60 border border-stone-700 px-2 py-1 rounded-lg">
+                            TPI: <span className="text-stone-200">{currentCategoryObj.tpiRate}%</span>
+                          </span>
+                        )}
+                        {currentCategoryObj.tvaRate != null && (
+                          <span className="text-[9px] font-black text-stone-400 bg-stone-800/60 border border-stone-700 px-2 py-1 rounded-lg">
+                            TVA: <span className="text-stone-200">{currentCategoryObj.tvaRate}%</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
+
+              {/* KPI cards */}
+              {headerStats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full xl:w-auto xl:min-w-[500px]">
+                  {[
+                    { label: 'Valeur Totale', value: `${Number(headerStats.totalVal).toLocaleString('en-US', { maximumFractionDigits: 0 })} $`, color: 'text-amber-400' },
+                    { label: 'Qté Totale', value: Number(headerStats.totalQty).toLocaleString('en-US', { maximumFractionDigits: 0 }), color: 'text-white' },
+                    { label: 'Prochaine Arrivée', value: headerStats.nextArrival, color: 'text-blue-400' },
+                    { label: 'Dernière Cmd', value: headerStats.lastOrder, color: 'text-stone-300' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
+                      <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">{label}</p>
+                      <p className={`text-sm font-black ${color} leading-none`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10 w-full xl:w-2/3">
-              {headerStats && (
-                <>
-                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
-                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Valeur Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{Number(headerStats.totalVal).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
-                  </div>
-                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
-                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Quantité Totale CMD</p>
-                    <p className="text-lg font-black text-white leading-none">{Number(headerStats.totalQty).toLocaleString('en-US', { maximumFractionDigits: 3 })}</p>
-                  </div>
-                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
-                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Prochaine Arrivée</p>
-                    <p className="text-lg font-black text-blue-400 leading-none">{headerStats.nextArrival}</p>
-                  </div>
-                  <div className="px-5 py-3 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
-                    <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mb-1.5">Dernière Commande</p>
-                    <p className="text-lg font-black text-stone-200 leading-none">{headerStats.lastOrder}</p>
-                  </div>
-                </>
-              )}
+            {/* Status summary bar */}
+            <div className="mt-6 pt-5 border-t border-stone-800 flex flex-wrap gap-3">
+              {manifesteTabs.map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveManifeste(tab.key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border ${
+                    activeManifeste === tab.key
+                      ? 'bg-white/10 border-white/20 text-white'
+                      : 'bg-transparent border-transparent text-stone-500 hover:text-stone-300'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${tab.dot} ${activeManifeste === tab.key ? 'animate-pulse' : 'opacity-40'}`} />
+                  <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                    activeManifeste === tab.key ? 'bg-white/20 text-white' : 'bg-stone-800 text-stone-400'
+                  }`}>{tab.count}</span>
+                </button>
+              ))}
             </div>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 gap-10">
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-500/10 rounded-xl">
-                  <Factory className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-black text-stone-900 uppercase text-xs tracking-[0.2em]">Manifeste de Production (PI)</h3>
-                  <p className="text-[10px] text-stone-400 font-bold uppercase">Commandes lancées en cours de fabrication</p>
-                </div>
+        {/* ── Tabbed Manifeste Section ── */}
+        <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden">
+          {/* Tab bar */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+            <div className="flex items-center gap-3">
+              {(() => {
+                const Icon = activeTab.icon;
+                return (
+                  <div className={`p-2 rounded-xl ${
+                    activeManifeste === 'production' ? 'bg-amber-100' :
+                    activeManifeste === 'transit' ? 'bg-blue-100' : 'bg-emerald-100'
+                  }`}>
+                    <Icon className={`w-4 h-4 ${
+                      activeManifeste === 'production' ? 'text-amber-600' :
+                      activeManifeste === 'transit' ? 'text-blue-600' : 'text-emerald-600'
+                    }`} />
+                  </div>
+                );
+              })()}
+              <div>
+                <h3 className="font-black text-stone-900 uppercase text-xs tracking-[0.2em]">
+                  {activeManifeste === 'production' ? 'Manifeste de Production (PI)' :
+                   activeManifeste === 'transit' ? 'Manifeste de Transit' : 'Inventaire Réceptionné'}
+                </h3>
+                <p className="text-[10px] text-stone-400 font-bold uppercase">
+                  {activeManifeste === 'production' ? 'Commandes lancées en cours de fabrication' :
+                   activeManifeste === 'transit' ? 'Flux logistiques en cours d\'acheminement' : 'Stock physique certifié disponible'}
+                </p>
               </div>
-              <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-100 font-black text-[10px]">
-                {groupedData.production.length} LIGNES EN PRODUCTION
-              </Badge>
             </div>
-            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
+            <Badge variant="secondary" className={`font-black text-[10px] border ${
+              activeManifeste === 'production' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+              activeManifeste === 'transit' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+            }`}>
+              {activeManifeste === 'production' ? groupedData.production.length :
+               activeManifeste === 'transit' ? groupedData.transit.length : groupedData.arrived.length} LIGNES
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto">
+            {/* Production table */}
+            {activeManifeste === 'production' && (
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
@@ -524,412 +626,297 @@ export default function CategoriesView({
                   {groupedData.production.length > 0 ? groupedData.production.map(a => {
                     const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
-                      <TableRow key={a.id} className="hover:bg-amber-50/20 transition-colors">
-                        <TableCell className="py-3 px-6 align-top">
+                      <TableRow key={a.id} className="hover:bg-amber-50/30 transition-colors border-stone-50">
+                        <TableCell className="py-3.5 px-6 align-top">
                           <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
                             <span>{a.name}</span>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" 
-                              onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}
-                            >
+                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
                               <Pencil className="w-3 h-3" />
                             </Button>
                           </div>
-
                         </TableCell>
-                        <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
-                        </TableCell>
-                        <TableCell className="py-3">
+                        <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                        <TableCell className="py-3.5">
                           {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
                             <div className="flex items-center gap-1.5">
                               <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
-                              <button
-                                onClick={() => setColorDetailArticle(a)}
-                                className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"
-                              >
-                                <Palette className="w-2.5 h-2.5" /> Détail
-                              </button>
+                              <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
+                            <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-[10px] py-3">
+                        <TableCell className="text-[10px] py-3.5">
                           {isTechnical ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
-                          ) : (
-                            <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
-                          )}
+                          ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
                         </TableCell>
-                        <TableCell className="text-stone-400 font-black text-[10px] py-3 uppercase">{a.supplierId}</TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          <div>
-                            {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
-                          </div>
+                        <TableCell className="py-3.5">
+                          <span className="text-[9px] font-black text-stone-600 bg-stone-50 border border-stone-100 px-2 py-1 rounded uppercase">{a.supplierId}</span>
+                        </TableCell>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-3.5">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="text-right py-3.5">
+                          <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                          <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                           {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
-                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
-                              {(Number(a.netWeight) / Number(a.quantity)).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg/{a.unitOfMeasure || 'U'}
-                            </div>
+                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-3">
-                          {Number(a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
-                        </TableCell>
-                        <TableCell className="text-right font-black text-amber-600 text-[11px] py-3 px-6">
-                          {Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
+                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-3.5">{Number(a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                        <TableCell className="text-right py-3.5 px-6">
+                          <span className="font-black text-amber-600 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
                         </TableCell>
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucune commande en production détectée</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucune commande en production</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
-            </Card>
-          </section>
+            )}
 
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/10 rounded-xl">
-                  <Truck className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-black text-stone-900 uppercase text-xs tracking-[0.2em]">Manifeste de Transit</h3>
-                  <p className="text-[10px] text-stone-400 font-bold uppercase">Flux logistiques en cours d'acheminement</p>
-                </div>
-              </div>
-              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-[10px]">
-                {groupedData.transit.length} LIGNES ACTIVES
-              </Badge>
-            </div>
-            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
+            {/* Transit table */}
+            {activeManifeste === 'transit' && (
               <Table>
                 <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
                   <TableRow>
                     <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique / Spécifications</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique</TableHead>
                     <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Partenaire</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">N° Dossier</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">ETA</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Dossier</TableHead>
                     <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur Totale</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {groupedData.transit.length > 0 ? groupedData.transit.map(a => {
                     const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
-                      <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors">
-                        <TableCell className="py-3 px-6 align-top">
+                      <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors border-stone-50">
+                        <TableCell className="py-3.5 px-6 align-top">
                           <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
                             <span>{a.name}</span>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" 
-                              onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </Button>
+                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}><Pencil className="w-3 h-3" /></Button>
                           </div>
-
                         </TableCell>
-                        <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
-                        </TableCell>
-                        <TableCell className="py-3">
+                        <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                        <TableCell className="py-3.5">
                           {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
                             <div className="flex items-center gap-1.5">
                               <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
-                              <button
-                                onClick={() => setColorDetailArticle(a)}
-                                className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"
-                              >
-                                <Palette className="w-2.5 h-2.5" /> Détail
-                              </button>
+                              <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
                             </div>
-                          ) : (
-                            <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
-                          )}
+                          ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
                         </TableCell>
-                        <TableCell className="text-[10px] py-3">
+                        <TableCell className="text-[10px] py-3.5">
                           {isTechnical ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
-                          ) : (
-                            <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
-                          )}
+                          ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
                         </TableCell>
-                        <TableCell className="text-stone-400 font-black text-[10px] py-3 uppercase">{a.supplierId}</TableCell>
-                        <TableCell className="text-blue-600 font-black text-[10px] py-3">{a.arrivalDate || '-'}</TableCell>
-                        <TableCell className="py-3">
-                          <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
+                        <TableCell className="py-3.5">
+                          <span className="text-[9px] font-black text-stone-600 bg-stone-50 border border-stone-100 px-2 py-1 rounded uppercase">{a.supplierId}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          <div>
-                            {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
-                          </div>
+                        <TableCell className="py-3.5">
+                          {a.arrivalDate ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                              <Truck className="w-2.5 h-2.5" />{a.arrivalDate}
+                            </span>
+                          ) : <span className="text-stone-300 text-[10px]">-</span>}
+                        </TableCell>
+                        <TableCell className="py-3.5">
+                          <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-full border border-blue-100 uppercase">{a.factureId}</span>
+                        </TableCell>
+                        <TableCell className="text-right py-3.5">
+                          <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                          <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                           {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
-                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
-                              {(Number(a.netWeight) / Number(a.quantity)).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg/{a.unitOfMeasure || 'U'}
-                            </div>
+                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-black text-blue-700 text-[11px] py-3 px-6">
-                          {Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
+                        <TableCell className="text-right py-3.5 px-6">
+                          <span className="font-black text-blue-700 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
                         </TableCell>
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Aucun mouvement en transit détecté</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucun flux en transit</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
-            </Card>
-          </section>
+            )}
 
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/10 rounded-xl">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-black text-stone-900 uppercase text-xs tracking-[0.2em]">Inventaire Réceptionné</h3>
-                  <p className="text-[10px] text-stone-400 font-bold uppercase">Stock physique certifié disponible</p>
-                </div>
-              </div>
-              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-100 font-black text-[10px]">
-                {groupedData.arrived.length} LIGNES EN STOCK
-              </Badge>
-            </div>
-            <Card className="border-stone-200 shadow-xl rounded-2xl overflow-hidden">
+            {/* Stock table */}
+            {activeManifeste === 'stock' && (
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
                     <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique / Spécifications</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Cmd</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Entrée Stock</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur Totale</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => {
                     const isTechnical = isTechnicalZipper(a.categoryId);
                     return (
-                      <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors">
-                        <TableCell className="py-3 px-6 align-top">
+                      <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors border-stone-50">
+                        <TableCell className="py-3.5 px-6 align-top">
                           <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
                             <span>{a.name}</span>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" 
-                              onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </Button>
+                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}><Pencil className="w-3 h-3" /></Button>
                           </div>
                         </TableCell>
-                        <TableCell className="py-3">
-                          <span className="text-[10px] text-stone-600 uppercase">{a.size || '-'}</span>
-                        </TableCell>
-                        <TableCell className="py-3">
+                        <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                        <TableCell className="py-3.5">
                           {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
                             <div className="flex items-center gap-1.5">
                               <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
-                              <button
-                                onClick={() => setColorDetailArticle(a)}
-                                className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"
-                              >
-                                <Palette className="w-2.5 h-2.5" /> Détail
-                              </button>
+                              <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
                             </div>
-                          ) : (
-                            <span className="text-[10px] text-stone-900 uppercase">{a.color || '-'}</span>
-                          )}
+                          ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
                         </TableCell>
-                        <TableCell className="text-[10px] py-3">
+                        <TableCell className="text-[10px] py-3.5">
                           {isTechnical ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {a.zipperType || '-'}</span>
+                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
-                          ) : (
-                            <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>
-                          )}
+                          ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
                         </TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-3">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="text-emerald-700 font-black text-[10px] py-3 uppercase">{a.stockEntryDate || a.arrivalDate}</TableCell>
-                        <TableCell className="text-right font-black text-stone-900 text-[11px] py-3">
-                          <div>
-                            {Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 3 })} <span className="text-[8px] text-stone-400 font-normal uppercase ml-1">{a.unitOfMeasure}</span>
-                          </div>
+                        <TableCell className="text-stone-500 font-bold text-[10px] py-3.5">{a.orderDate || '-'}</TableCell>
+                        <TableCell className="py-3.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
+                            <CheckCircle2 className="w-2.5 h-2.5" />{a.stockEntryDate || a.arrivalDate}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right py-3.5">
+                          <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                          <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
                           {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
-                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5" title="Moyenne de kg par quantité">
-                              {(Number(a.netWeight) / Number(a.quantity)).toLocaleString('en-US', { maximumFractionDigits: 3 })} kg/{a.unitOfMeasure || 'U'}
-                            </div>
+                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-black text-emerald-700 text-[11px] py-3 px-6">
-                          {Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $
+                        <TableCell className="text-right py-3.5 px-6">
+                          <span className="font-black text-emerald-700 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
                         </TableCell>
                       </TableRow>
                     );
                   }) : (
-                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 text-[10px] uppercase font-black tracking-widest bg-stone-50/20">Rupture de stock physique</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
-            </Card>
-          </section>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-10 border-t border-stone-200">
-          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
-            <div className="h-1.5 w-full bg-stone-900" />
+        {/* ── Analytics Charts ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+            <div className="h-1.5 w-full bg-amber-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
                 <Box className="w-3 h-3 text-amber-500" /> Volumes Mensuels Commandés
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px] p-4">
+            <CardContent className="h-[280px] p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={detailedAnalytics.quantityData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 3 })} style={{ fontSize: '9px', fontWeight: '900' }} />
-                  <RechartsTooltip 
-                    formatter={(val: number) => [Number(val).toLocaleString('en-US', { maximumFractionDigits: 3 })]}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 })} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <RechartsTooltip
+                    formatter={(val: number) => [Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 })]}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
                   />
-                  <Bar dataKey="value" fill="#CC8626" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" fill="#F59E0B" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
+          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution du Prix par Variante ($)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution Prix par Variante ($)
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px] p-6">
+            <CardContent className="h-[280px] p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={detailedAnalytics.priceData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase' }} />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tickFormatter={(v) => v.toLocaleString('en-US', { maximumFractionDigits: 3 })} 
-                    style={{ fontSize: '9px', fontWeight: '900' }} 
-                  />
-                  <RechartsTooltip 
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => v.toLocaleString('en-US', { maximumFractionDigits: 3 })} style={{ fontSize: '9px', fontWeight: '900' }} />
+                  <RechartsTooltip
                     formatter={(val: number) => [`${val.toLocaleString('en-US', { maximumFractionDigits: 3 })} $`]}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }} 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
                   />
-                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '8px', fontVariantCaps: 'all-small-caps', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '20px' }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', paddingBottom: '16px' }} />
                   {detailedAnalytics.uniqueProducts.map((product, idx) => (
-                    <Line 
-                      key={product} 
-                      type="monotone" 
-                      dataKey={product} 
-                      name={product}
-                      stroke={UI_COLORS[idx % UI_COLORS.length]} 
-                      strokeWidth={3} 
-                      dot={{ r: 4, fill: UI_COLORS[idx % UI_COLORS.length], strokeWidth: 0 }} 
-                      activeDot={{ r: 6 }} 
-                      connectNulls={true}
-                    />
+                    <Line key={product} type="monotone" dataKey={product} name={product} stroke={UI_COLORS[idx % UI_COLORS.length]} strokeWidth={2.5} dot={{ r: 4, fill: UI_COLORS[idx % UI_COLORS.length], strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls={true} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden group">
+          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
             <div className="h-1.5 w-full bg-emerald-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <Users className="w-3 h-3 text-emerald-500" /> Répartition par Fournisseur (%)
+                <Users className="w-3 h-3 text-emerald-500" /> Répartition par Fournisseur
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-[300px] p-6">
+            <CardContent className="h-[280px] p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={detailedAnalytics.supplierDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
+                  <Pie data={detailedAnalytics.supplierDistribution} cx="50%" cy="45%" innerRadius={55} outerRadius={75} paddingAngle={4} dataKey="value">
                     {detailedAnalytics.supplierDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={UI_COLORS[index % UI_COLORS.length]} />
                     ))}
                   </Pie>
-                  <RechartsTooltip formatter={(val: number) => [`${Number(val).toLocaleString('en-US', { maximumFractionDigits: 3 })} $`]} />
+                  <RechartsTooltip formatter={(val: number) => [`${Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 })} $`]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
+
         {editingArticle && (
-          <EditOrderModal 
-            article={editingArticle} 
-            onOpenChange={(open) => !open && setEditingArticle(null)} 
-            factures={factures} 
-          />
+          <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
         )}
 
-        {/* Color Breakdown Detail Dialog */}
         {colorDetailArticle && (
           <Dialog open={!!colorDetailArticle} onOpenChange={(open) => !open && setColorDetailArticle(null)}>
             <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
               <div className="bg-violet-700 p-5 flex items-center gap-3 text-white">
-                <div className="p-2 bg-white/10 rounded-lg">
-                  <Palette className="w-5 h-5" />
-                </div>
+                <div className="p-2 bg-white/10 rounded-lg"><Palette className="w-5 h-5" /></div>
                 <div>
-                  <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
-                    Détail Multi-Couleurs
-                  </DialogTitle>
-                  <p className="text-[9px] font-bold text-violet-300 uppercase tracking-widest mt-0.5">
-                    {colorDetailArticle.name} · {colorDetailArticle.size || ''}
-                  </p>
+                  <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">Détail Multi-Couleurs</DialogTitle>
+                  <p className="text-[9px] font-bold text-violet-300 uppercase tracking-widest mt-0.5">{colorDetailArticle.name} · {colorDetailArticle.size || ''}</p>
                 </div>
               </div>
               <div className="p-4">
                 <div className="rounded-xl overflow-hidden border border-violet-100">
                   <div className="grid grid-cols-[1fr_100px] bg-violet-100/60">
-                    <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest flex items-center gap-1">
-                      <Hash className="w-2.5 h-2.5" /> N° Couleur
-                    </div>
-                    <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right">
-                      Rouleaux
-                    </div>
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest flex items-center gap-1"><Hash className="w-2.5 h-2.5" /> N° Couleur</div>
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right">Rouleaux</div>
                   </div>
                   <div className="divide-y divide-violet-50">
                     {(colorDetailArticle.colorBreakdown || []).map((row: any, i: number) => (
@@ -941,21 +928,19 @@ export default function CategoriesView({
                   </div>
                   <div className="grid grid-cols-[1fr_100px] bg-violet-600 text-white">
                     <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest">TOTAL</div>
-                    <div className="py-2.5 px-3 text-right text-[11px] font-black">
-                      {(colorDetailArticle.colorBreakdown || []).reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString('en-US')} rolls
-                    </div>
+                    <div className="py-2.5 px-3 text-right text-[11px] font-black">{(colorDetailArticle.colorBreakdown || []).reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString('en-US')} rolls</div>
                   </div>
                 </div>
               </div>
             </DialogContent>
           </Dialog>
         )}
-        
+
         <Dialog open={isCustomsModalOpen} onOpenChange={setIsCustomsModalOpen}>
           <DialogContent className="max-w-md rounded-[1.5rem] p-0 border-none overflow-hidden">
             <div className="bg-amber-600 p-6 text-white">
               <DialogTitle className="text-lg font-black uppercase tracking-tight">Informations Douanières</DialogTitle>
-              <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">Audit Analytique Produit - {selectedCategory}</p>
+              <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">Audit Analytique Produit — {selectedCategory}</p>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -989,7 +974,6 @@ export default function CategoriesView({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
       </div>
     );
   }
