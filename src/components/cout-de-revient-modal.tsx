@@ -83,23 +83,20 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
     // Valeur FOB de l'article ($)
     const valeurFOB = qty * prix;
 
-    // ─── Freight computation ─────────────────────────────────────────────
-    let fretTotal$: number; // total fret du conteneur en $
-    let cbmTotal: number;   // CBM total du conteneur
-    let fraisFixesMad: number; // Frais non-fret (change + transit + divers) en MAD
+    // ─── Freight & container computation ────────────────────────────────
+    let fretTotal$: number;
+    let cbmTotal: number;
+    let fraisFixesMad: number;
+    let dosArticles: any[] = [];
 
     if (isLinked && linkedFacture) {
-      // Real data from linked dossier
       fretTotal$ = Number(linkedFacture.freightCost) || Number(linkedFacture.freight) || 0;
-      // CBM total du dossier
-      const dosArticles = articles.filter(a => a.factureId === linkedFacture.id);
+      dosArticles = articles.filter(a => a.factureId === linkedFacture.id);
       cbmTotal = dosArticles.reduce((s: number, a: any) => s + (a.cubicMeasurement || 0), 0) || CBM_CONTAINER_STD;
-      // Frais supplémentaires du dossier (si disponibles) ou fixes
       fraisFixesMad = (Number(linkedFacture.supplierInvoiceAmount) || 0) > 0
         ? Number(linkedFacture.supplierInvoiceAmount)
         : TOTAL_FRAIS_FIXES_MAD;
     } else {
-      // Estimated mode
       fretTotal$ = avgFreightPerCbm * CBM_CONTAINER_STD;
       cbmTotal = CBM_CONTAINER_STD;
       fraisFixesMad = TOTAL_FRAIS_FIXES_MAD;
@@ -108,15 +105,35 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
     // Part de fret de cet article ($) proportionnelle au CBM
     const partFret$ = cbmTotal > 0 && cbmArticle > 0
       ? (cbmArticle / cbmTotal) * fretTotal$
-      : (fretTotal$ / cbmTotal) * cbmArticle || 0;
+      : 0;
 
     // Part des frais fixes de ce article (MAD), proratisée au CBM
     const partFraisMad = cbmTotal > 0 && cbmArticle > 0
       ? (cbmArticle / cbmTotal) * fraisFixesMad
       : 0;
 
-    // Valeur douane = FOB + fret part (Article 30 de la réglementation marocaine)
-    const valeurDouane$ = valeurFOB + partFret$;
+    // ─── Valeur douane ───────────────────────────────────────────────────
+    // ⚡ Si l'audit analytique (dossier lié) mentionne une valeur déclarée en douane,
+    //    on l'utilise directement (proratisée par la part FOB de cet article)
+    //    sinon on calcule FOB + part fret (méthode CAF standard)
+    const dossierDeclaredValue = isLinked && linkedFacture
+      ? Number(linkedFacture.declaredValue) || 0
+      : 0;
+
+    let valeurDouane$: number;
+    let douaneSource: 'declared' | 'calculated';
+
+    if (dossierDeclaredValue > 0 && dosArticles.length > 0) {
+      // Proratiser par la valeur FOB de l'article vs total FOB du dossier
+      const totalFOBDossier = dosArticles.reduce((s: number, a: any) => s + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
+      const artFobShare = totalFOBDossier > 0 ? valeurFOB / totalFOBDossier : 0;
+      valeurDouane$ = dossierDeclaredValue * artFobShare;
+      douaneSource = 'declared';
+    } else {
+      // Calcul standard CAF = FOB + part fret
+      valeurDouane$ = valeurFOB + partFret$;
+      douaneSource = 'calculated';
+    }
 
     // Taux
     const importDutyRate = (article.importDutyRate ?? 0) / 100;
@@ -149,7 +166,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       qty, prix, valeurFOB,
       cbmArticle, cbmTotal, fretTotal$,
       partFret$, partFraisMad,
-      valeurDouane$,
+      valeurDouane$, douaneSource, dossierDeclaredValue,
       di$, tpi$, tic$, tva$, totalTaxes$,
       totalTaxesMad,
       coutAchatMad, fretPartMad,
@@ -164,6 +181,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       isEstimated: !isLinked,
     };
   }, [article, tauxChange, isLinked, linkedFacture, avgFreightPerCbm, articles]);
+
 
   const fmt = (n: number, d = 2) => n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
   const fmtMAD = (n: number) => n.toLocaleString('fr-MA', { maximumFractionDigits: 0 });
@@ -298,7 +316,35 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <FileText className="w-3 h-3" /> Douanes & Taxes
                 </p>
-                <SummaryLine label="Valeur en douane (FOB+Fret)" value={`$${fmt(computed.valeurDouane$)}`} bold />
+
+                {/* Source badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  {computed.douaneSource === 'declared' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-[8px] font-black text-emerald-700 uppercase tracking-widest">
+                      <CheckCircle className="w-2.5 h-2.5" /> Valeur déclarée (Audit Analytique)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-[8px] font-black text-amber-700 uppercase tracking-widest">
+                      <AlertCircle className="w-2.5 h-2.5" /> Calculée (FOB + Fret — aucune valeur déclarée saisie)
+                    </span>
+                  )}
+                </div>
+
+                {computed.douaneSource === 'declared' && (
+                  <SummaryLine
+                    label="Valeur déclarée dossier (total)"
+                    value={`$${fmt(computed.dossierDeclaredValue)}`}
+                    accent="text-stone-400"
+                  />
+                )}
+                <SummaryLine
+                  label={computed.douaneSource === 'declared'
+                    ? `Valeur douane article (part proratisée)`
+                    : `Valeur en douane (FOB + Fret)`}
+                  value={`$${fmt(computed.valeurDouane$)}`}
+                  bold
+                />
+
 
                 {/* Tax lines */}
                 <div className="mt-2 space-y-0.5">
