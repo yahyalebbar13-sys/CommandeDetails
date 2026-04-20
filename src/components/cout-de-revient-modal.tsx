@@ -19,6 +19,7 @@ interface CoutDeRevientModalProps {
   article: any;
   factures: any[];
   articles: any[];
+  categories: any[];
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ function SummaryLine({ label, value, sub = '', bold = false, accent = '' }: { la
   );
 }
 
-export default function CoutDeRevientModal({ open, onOpenChange, article, factures, articles }: CoutDeRevientModalProps) {
+export default function CoutDeRevientModal({ open, onOpenChange, article, factures, articles, categories }: CoutDeRevientModalProps) {
   const [tauxChange, setTauxChange] = useState<string>('10.5');
 
   // ─── Detect if article is linked to a real facture/dossier ────────────────
@@ -113,15 +114,25 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       : 0;
 
     // ─── Valeur douane ───────────────────────────────────────────────────
-    // ⚡ Si l'audit analytique (dossier lié) mentionne une valeur déclarée en douane,
-    //    on l'utilise directement (proratisée par la part FOB de cet article)
-    //    sinon on calcule FOB + part fret (méthode CAF standard)
+    // ⚡ Hiérarchie de calcul de la base douanière :
+    // 1. Priorité 1 : Valeur déclarée (Audit Analytique) si saisie dans le dossier lié.
+    // 2. Priorité 2 : Poids Net * Valeur fixe/kg (Réglementation Maroc) si dispo dans catégorie.
+    // 3. Fallback : Valeur des produits (FOB).
+
+    const category = categories.find(c => 
+      c.name === article.categoryId || c.id === article.categoryId
+    );
+
     const dossierDeclaredValue = isLinked && linkedFacture
       ? Number(linkedFacture.declaredValue) || 0
       : 0;
 
+    const netWeight = Number(article.netWeight) || 0;
+    const customsValuePerKg = Number(category?.customsValuePerKg) || 0;
+    const weightBaseDouane$ = (netWeight > 0 && customsValuePerKg > 0) ? netWeight * customsValuePerKg : 0;
+
     let valeurDouane$: number;
-    let douaneSource: 'declared' | 'calculated';
+    let douaneSource: 'declared' | 'weight' | 'calculated';
 
     if (dossierDeclaredValue > 0 && dosArticles.length > 0) {
       // Proratiser par la valeur FOB de l'article vs total FOB du dossier
@@ -129,8 +140,12 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       const artFobShare = totalFOBDossier > 0 ? valeurFOB / totalFOBDossier : 0;
       valeurDouane$ = dossierDeclaredValue * artFobShare;
       douaneSource = 'declared';
+    } else if (weightBaseDouane$ > 0) {
+      // Calcul basé sur le poids (Réglementation Maroc)
+      valeurDouane$ = weightBaseDouane$;
+      douaneSource = 'weight';
     } else {
-      // Pas de valeur déclarée saisie: On prend simplement la valeur des produits (FOB)
+      // Pas de valeur déclarée ni de base poids: On prend simplement la valeur des produits (FOB)
       valeurDouane$ = valeurFOB;
       douaneSource = 'calculated';
     }
@@ -167,6 +182,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       cbmArticle, cbmTotal, fretTotal$,
       partFret$, partFraisMad,
       valeurDouane$, douaneSource, dossierDeclaredValue,
+      netWeight, customsValuePerKg, weightBaseDouane$,
       di$, tpi$, tic$, tva$, totalTaxes$,
       totalTaxesMad,
       coutAchatMad, fretPartMad,
@@ -323,6 +339,10 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-[8px] font-black text-emerald-700 uppercase tracking-widest">
                       <CheckCircle className="w-2.5 h-2.5" /> Valeur déclarée (Audit Analytique)
                     </span>
+                  ) : computed.douaneSource === 'weight' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-full text-[8px] font-black text-blue-700 uppercase tracking-widest">
+                      <CheckCircle className="w-2.5 h-2.5" /> Basé sur le Poids (Maroc)
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-[8px] font-black text-amber-700 uppercase tracking-widest">
                       <AlertCircle className="w-2.5 h-2.5" /> Valeur Produit (FOB — non déclaré)
@@ -337,9 +357,27 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                     accent="text-stone-400"
                   />
                 )}
+
+                {computed.douaneSource === 'weight' && (
+                  <div className="space-y-0.5 mb-2 bg-blue-50/30 p-2 rounded-xl border border-blue-100/50">
+                    <SummaryLine
+                      label="Poids Net Article"
+                      value={`${fmt(computed.netWeight)} kg`}
+                      accent="text-blue-600"
+                    />
+                    <SummaryLine
+                      label="Valeur Douane / Kg"
+                      value={`$${fmt(computed.customsValuePerKg)} / kg`}
+                      accent="text-blue-600"
+                    />
+                  </div>
+                )}
+
                 <SummaryLine
                   label={computed.douaneSource === 'declared'
                     ? `Valeur douane article (part proratisée)`
+                    : computed.douaneSource === 'weight'
+                    ? `Valeur base calcul douane (Poids * Taux)`
                     : `Valeur base calcul taxes (valeur FOB)`}
                   value={`$${fmt(computed.valeurDouane$)}`}
                   bold

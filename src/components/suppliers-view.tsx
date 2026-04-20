@@ -188,6 +188,7 @@ export default function SuppliersView({ articles, factures, payments, categories
         articles={articles} 
         factures={factures}
         payments={payments}
+        categories={categories}
         onBack={() => setSelectedSupplier(null)}
         onNavigateToFacture={onNavigateToFacture}
       />
