@@ -16,6 +16,13 @@ const PRIORITY_LABEL: Record<string, string> = {
   todo: "À FAIRE",
 };
 
+// Lebtex Branding Colors
+const LEBTEX_NAVY = [18, 33, 49] as [number, number, number];    // #122131
+const LEBTEX_GOLD = [196, 160, 98] as [number, number, number];  // #C4A062
+const LEBTEX_WHITE = [255, 255, 255] as [number, number, number];
+const LEBTEX_LIGHT = [245, 247, 249] as [number, number, number];
+const LEBTEX_MID = [100, 110, 120] as [number, number, number];
+
 function formatQty(qty: number, unit: string) {
   return `${Number(qty).toLocaleString("fr-FR")} ${unit || ""}`.trim();
 }
@@ -36,7 +43,7 @@ function formatTotal(qty: number, price: number | string | undefined) {
 }
 
 export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!article) return;
 
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -48,57 +55,71 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       year: "numeric",
     });
 
-    // ── Couleurs ──────────────────────────────────────────────────────────────
-    const COLOR_DARK = [30, 27, 24] as [number, number, number];       // stone-900
-    const COLOR_AMBER = [217, 119, 6] as [number, number, number];     // amber-600
-    const COLOR_LIGHT = [245, 243, 240] as [number, number, number];   // stone-100
-    const COLOR_MID = [120, 113, 108] as [number, number, number];     // stone-500
-    const COLOR_WHITE = [255, 255, 255] as [number, number, number];
-
     // ── Header principal ──────────────────────────────────────────────────────
-    doc.setFillColor(...COLOR_DARK);
+    doc.setFillColor(...LEBTEX_NAVY);
     doc.rect(0, 0, pageW, 42, "F");
 
-    // Barre accent amber
-    doc.setFillColor(...COLOR_AMBER);
+    // Barre accent gold
+    doc.setFillColor(...LEBTEX_GOLD);
     doc.rect(0, 0, 5, 42, "F");
 
-    // Titre
-    doc.setTextColor(...COLOR_WHITE);
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text("BON DE COMMANDE", marginX + 4, 16);
+    // Logo Text or Image
+    const tryAddLogo = () => {
+      return new Promise<void>((resolve) => {
+        const img = new Image();
+        img.src = '/logo.png';
+        img.onload = () => {
+          // Add logo image if exists
+          doc.addImage(img, 'PNG', marginX + 4, 8, 30, 15);
+          resolve();
+        };
+        img.onerror = () => {
+          // Fallback to text logo if image fails
+          doc.setTextColor(...LEBTEX_WHITE);
+          doc.setFontSize(22);
+          doc.setFont("helvetica", "bold");
+          doc.text("LEBTEX", marginX + 4, 18);
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(...LEBTEX_GOLD);
+          doc.text("TEXTILE IMPORT", marginX + 4, 25);
+          resolve();
+        };
+      });
+    };
 
-    // Sous-titre
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...COLOR_AMBER);
-    doc.text("PURCHASE ORDER / PROFORMA", marginX + 4, 23);
+    await tryAddLogo();
 
-    // Date + ref
-    doc.setTextColor(180, 170, 160);
-    doc.setFontSize(7.5);
-    const ref = `BC-${Date.now().toString().slice(-6)}`;
-    doc.text(`Réf : ${ref}`, marginX + 4, 30);
-    doc.text(`Date : ${today}`, marginX + 4, 36);
-
-    // Supplier info à droite
-    const supplier = (article.supplierId || "NON SPÉCIFIÉ").toUpperCase();
-    doc.setTextColor(...COLOR_WHITE);
+    // Bon de Commande Title
+    doc.setTextColor(...LEBTEX_WHITE);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text(supplier, pageW - marginX - 2, 20, { align: "right" });
+    doc.text("BON DE COMMANDE", pageW - marginX - 2, 16, { align: "right" });
+
+    // Date + ref
+    doc.setTextColor(180, 190, 200);
     doc.setFontSize(7.5);
+    const ref = `BC-${Date.now().toString().slice(-6)}`;
+    doc.text(`Réf : ${ref}`, pageW - marginX - 2, 23, { align: "right" });
+    doc.text(`Émis le : ${today}`, pageW - marginX - 2, 28, { align: "right" });
+
+    // Supplier info
+    const supplier = (article.supplierId || "NON SPÉCIFIÉ").toUpperCase();
+    doc.setTextColor(...LEBTEX_WHITE);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text(supplier, pageW - marginX - 2, 36, { align: "right" });
+    doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(...COLOR_AMBER);
-    doc.text("FOURNISSEUR", pageW - marginX - 2, 25, { align: "right" });
+    doc.setTextColor(...LEBTEX_GOLD);
+    doc.text("FOURNISSEUR", pageW - marginX - 2, 39, { align: "right" });
 
     let yPos = 55;
 
     // ── Détails Article ─────────────────────────────────────────────────────
-    doc.setFillColor(...COLOR_DARK);
+    doc.setFillColor(...LEBTEX_NAVY);
     doc.roundedRect(marginX, yPos, pageW - marginX * 2, 10, 2, 2, "F");
-    doc.setTextColor(...COLOR_WHITE);
+    doc.setTextColor(...LEBTEX_WHITE);
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.text("DÉTAILS DE LA COMMANDE", marginX + 4, yPos + 6.5);
@@ -135,13 +156,13 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
         fontSize: 8.5,
         cellPadding: 5,
         font: "helvetica",
-        textColor: COLOR_DARK,
-        lineColor: [230, 225, 220],
+        textColor: [18, 33, 49],
+        lineColor: [220, 225, 230],
         lineWidth: 0.2,
       },
       headStyles: {
-        fillColor: COLOR_LIGHT,
-        textColor: COLOR_MID,
+        fillColor: [240, 242, 245],
+        textColor: LEBTEX_MID,
         fontSize: 7,
         fontStyle: "bold",
         halign: "center",
@@ -174,42 +195,42 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     // ── Total ──────────────────────────────────────────────────────────────
     const total = Number(article.quantity) * Number(article.purchasePricePerUnit || 0);
 
-    doc.setFillColor(...COLOR_DARK);
+    doc.setFillColor(...LEBTEX_NAVY);
     doc.roundedRect(pageW - marginX - 70, yPos, 70, 15, 2, 2, "F");
-    doc.setFillColor(...COLOR_AMBER);
+    doc.setFillColor(...LEBTEX_GOLD);
     doc.rect(pageW - marginX - 70, yPos, 3, 15, "F");
 
-    doc.setTextColor(...COLOR_WHITE);
+    doc.setTextColor(...LEBTEX_WHITE);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text("TOTAL À PAYER", pageW - marginX - 62, yPos + 6);
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...COLOR_AMBER);
+    doc.setTextColor(...LEBTEX_GOLD);
     doc.text(`$${total.toFixed(2)}`, pageW - marginX - 5, yPos + 10.5, { align: "right" });
 
     yPos += 30;
 
     // ── Notes & Conditions ────────────────────────────────────────────────
-    doc.setDrawColor(...COLOR_LIGHT);
+    doc.setDrawColor(...LEBTEX_GOLD);
     doc.setLineWidth(0.5);
     doc.line(marginX, yPos, pageW - marginX, yPos);
     yPos += 10;
-    doc.setTextColor(...COLOR_MID);
+    doc.setTextColor(...LEBTEX_MID);
     doc.setFontSize(8);
     doc.setFont("helvetica", "italic");
-    doc.text("Ce document est un bon de commande officiel. Merci de confirmer la réception.", marginX, yPos);
+    doc.text("Ce document est un bon de commande officiel de LEBTEX TEXTILE IMPORT. Merci de confirmer la réception.", marginX, yPos);
 
     // ── Footer ─────────────────────────────────────────────────────────────
     const todayStr = new Date().toISOString().slice(0, 10);
     doc.setFontSize(7);
-    doc.setTextColor(180, 170, 160);
+    doc.setTextColor(180, 190, 200);
     doc.text(`PI-${ref} · Généré le ${todayStr}`, marginX, 285);
-    doc.text(`Document généré par CommandeDetails`, pageW - marginX, 285, { align: "right" });
+    doc.text(`LEBTEX TEXTILE IMPORT · Document système`, pageW - marginX, 285, { align: "right" });
 
     // ── Export ─────────────────────────────────────────────────────────────
-    const fileName = `${supplier}-${article.name}-${todayStr}.pdf`.replace(/\s+/g, "_");
+    const fileName = `LEBTEX-${supplier}-${article.name}-${todayStr}.pdf`.replace(/\s+/g, "_");
     doc.save(fileName);
   };
 
@@ -218,8 +239,8 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       variant="ghost"
       size="icon"
       onClick={handleExport}
-      className="h-7 w-7 text-stone-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
-      title="Exporter PDF pour fournisseur"
+      className="h-7 w-7 text-stone-300 hover:text-[#122131] hover:bg-[#C4A062]/10 rounded-lg"
+      title="Exporter PDF (Branding Lebtex)"
     >
       <Send className="w-3.5 h-3.5" />
     </Button>
