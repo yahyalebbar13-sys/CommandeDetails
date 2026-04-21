@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Calculator, Package, TrendingUp, Truck, FileText,
   AlertCircle, CheckCircle, Warehouse, DollarSign,
-  Boxes, ArrowRight, Info, RefreshCw
+  Boxes, ArrowRight, Info, RefreshCw, Pencil
 } from 'lucide-react';
 
 interface CoutDeRevientModalProps {
@@ -22,34 +22,11 @@ interface CoutDeRevientModalProps {
   categories: any[];
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants (defaults when no dossier linked) ─────────────────────────────
 const CBM_CONTAINER_STD = 68; // CBM d'un conteneur standard
-const FRAIS_CHANGE_FIXE = 6500;    // MAD — bureau de change
-const FRAIS_TRANSIT_FIXE = 6000;   // MAD — facture transitaire
-const FRAIS_SUPP_FIXE = 1500;      // MAD — divers
-const TOTAL_FRAIS_FIXES_MAD = FRAIS_CHANGE_FIXE + FRAIS_TRANSIT_FIXE + FRAIS_SUPP_FIXE; // = 14 000
-
-// ─── Row: DI / TPI / TIC / TVA ────────────────────────────────────────────────
-interface TaxLine { label: string; key: string; color: string; }
-const TAX_LINES: TaxLine[] = [
-  { label: "Droit Import (DI)", key: "importDutyRate", color: "text-blue-600" },
-  { label: "Taxes Parafiscales (TPI)", key: "tpiRate", color: "text-violet-600" },
-  { label: "TIC", key: "ticRate", color: "text-orange-600" },
-];
-
-// Formatting utilities
-const fmt = (v: any, decimals = 2) => {
-  if (v == null || isNaN(Number(v))) return '0.00';
-  return Number(v).toLocaleString('fr-FR', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  });
-};
-
-const fmtMAD = (v: any) => {
-  if (v == null || isNaN(Number(v))) return '0';
-  return Math.round(Number(v)).toLocaleString('fr-FR');
-};
+const DEFAULT_FRAIS_CHANGE = 6500;    // MAD — bureau de change
+const DEFAULT_FRAIS_TRANSIT = 6000;   // MAD — facture transitaire
+const DEFAULT_FRAIS_SUPP = 1500;      // MAD — divers
 
 function SummaryLine({ label, value, sub = '', bold = false, accent = '' }: { label: string; value: string; sub?: string; bold?: boolean; accent?: string }) {
   return (
@@ -63,6 +40,11 @@ function SummaryLine({ label, value, sub = '', bold = false, accent = '' }: { la
 export default function CoutDeRevientModal({ open, onOpenChange, article, factures, articles, categories }: CoutDeRevientModalProps) {
   const [tauxChange, setTauxChange] = useState<string>('10.5');
 
+  // ─── Editable cost fields (MAD) ────────────────────────────────────────────
+  const [fraisTransitaire, setFraisTransitaire] = useState<string>(String(DEFAULT_FRAIS_TRANSIT));
+  const [fraisChange, setFraisChange] = useState<string>(String(DEFAULT_FRAIS_CHANGE));
+  const [fraisSupp, setFraisSupp] = useState<string>(String(DEFAULT_FRAIS_SUPP));
+
   // Ensure categories is always an array
   const safeCategories = useMemo(() => Array.isArray(categories) ? categories : [], [categories]);
 
@@ -73,6 +55,22 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
   }, [article, factures]);
 
   const isLinked = !!linkedFacture;
+
+  // ─── Pre-populate editable fields from linked facture ─────────────────────
+  useEffect(() => {
+    if (isLinked && linkedFacture) {
+      const transit = Number(linkedFacture.supplierInvoiceAmount) || 0;
+      const change = Number(linkedFacture.exchangeInvoiceAmount) || 0;
+      const supp = Number(linkedFacture.additionalCostsAmount) || 0;
+      setFraisTransitaire(String(transit > 0 ? transit : DEFAULT_FRAIS_TRANSIT));
+      setFraisChange(String(change > 0 ? change : DEFAULT_FRAIS_CHANGE));
+      setFraisSupp(String(supp > 0 ? supp : DEFAULT_FRAIS_SUPP));
+    } else {
+      setFraisTransitaire(String(DEFAULT_FRAIS_TRANSIT));
+      setFraisChange(String(DEFAULT_FRAIS_CHANGE));
+      setFraisSupp(String(DEFAULT_FRAIS_SUPP));
+    }
+  }, [isLinked, linkedFacture]);
 
   // ─── Compute average freight per CBM from historical data ────────────────
   const avgFreightPerCbm = useMemo(() => {
@@ -98,26 +96,27 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
     const cbmArticle = Number(article.cubicMeasurement) || 0;
     const tc = Number(tauxChange) || 10.5;
 
+    // Parsed editable values
+    const fraisTransitMad = Number(fraisTransitaire) || 0;
+    const fraisChangeMad = Number(fraisChange) || 0;
+    const fraisSuppMad = Number(fraisSupp) || 0;
+    const totalFraisFixesMad = fraisTransitMad + fraisChangeMad + fraisSuppMad;
+
     // Valeur FOB de l'article ($)
     const valeurFOB = qty * prix;
 
     // ─── Freight & container computation ────────────────────────────────
     let fretTotal$: number;
     let cbmTotal: number;
-    let fraisFixesMad: number;
     let dosArticles: any[] = [];
 
     if (isLinked && linkedFacture) {
       fretTotal$ = Number(linkedFacture.freightCost) || Number(linkedFacture.freight) || 0;
       dosArticles = articles.filter(a => a.factureId === linkedFacture.id);
       cbmTotal = dosArticles.reduce((s: number, a: any) => s + (a.cubicMeasurement || 0), 0) || CBM_CONTAINER_STD;
-      fraisFixesMad = (Number(linkedFacture.supplierInvoiceAmount) || 0) > 0
-        ? Number(linkedFacture.supplierInvoiceAmount)
-        : TOTAL_FRAIS_FIXES_MAD;
     } else {
       fretTotal$ = avgFreightPerCbm * CBM_CONTAINER_STD;
       cbmTotal = CBM_CONTAINER_STD;
-      fraisFixesMad = TOTAL_FRAIS_FIXES_MAD;
     }
 
     // Part de fret de cet article ($) proportionnelle au CBM
@@ -127,14 +126,14 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
 
     // Part des frais fixes de ce article (MAD), proratisée au CBM
     const partFraisMad = cbmTotal > 0 && cbmArticle > 0
-      ? (cbmArticle / cbmTotal) * fraisFixesMad
+      ? (cbmArticle / cbmTotal) * totalFraisFixesMad
       : 0;
 
     // ─── Valeur douane ───────────────────────────────────────────────────
     // ⚡ Hiérarchie de calcul de la base douanière :
-    // 1. Priorité 1 : Valeur déclarée (Audit Analytique) si saisie dans le dossier lié.
-    // 2. Priorité 2 : Poids Net * Valeur fixe/kg (Réglementation Maroc) si dispo dans catégorie.
-    // 3. Fallback : Valeur des produits (FOB).
+    // 1. Priorité 1 : Poids Net * Valeur fixe/kg (Audit Analytique catégorie) — DÉJÀ EN MAD.
+    // 2. Priorité 2 : Valeur déclarée (Audit Analytique dossier) si saisie.
+    // 3. Fallback : Valeur des produits (FOB) en dollars.
 
     const category = safeCategories.find(c => 
       c.name === article.categoryId || c.id === article.categoryId
@@ -145,50 +144,81 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       : 0;
 
     const netWeight = Number(article.netWeight) || 0;
-    const customsValuePerKg = Number(category?.customsValuePerKg) || 0;
-    const weightBaseDouane$ = (netWeight > 0 && customsValuePerKg > 0) ? netWeight * customsValuePerKg : 0;
+    const customsValuePerKg = Number(category?.customsValuePerKg) || 0; // EN DH/KG !
 
+    // ─── Weight-based customs value is IN MAD (customsValuePerKg is dh/kg) ──
+    const weightBaseDouaneMad = (netWeight > 0 && customsValuePerKg > 0) ? netWeight * customsValuePerKg : 0;
+
+    // Taux — tirés de la catégorie (Audit Analytique Produit), pas de l'article
+    const importDutyRate = (category?.importDutyRate ?? 0) / 100;
+    const tpiRate = (category?.tpiRate ?? 0) / 100;
+    const ticRate = (category?.ticRate ?? 0) / 100;
+    const tvaRate = (category?.tvaRate ?? 20) / 100;
+
+    let valeurDouaneMad: number;
     let valeurDouane$: number;
-    let douaneSource: 'declared' | 'weight' | 'calculated';
+    let douaneSource: 'weight' | 'declared' | 'calculated';
+    let totalTaxesMad: number;
+    let diMad: number, tpiMad: number, ticMad: number, tvaMad: number;
 
-    if (dossierDeclaredValue > 0 && dosArticles.length > 0) {
-      // Proratiser par la valeur FOB de l'article vs total FOB du dossier
+    if (weightBaseDouaneMad > 0) {
+      // ⚡ Priorité 1 : Calcul basé sur le poids — valeur directement en MAD
+      valeurDouaneMad = weightBaseDouaneMad;
+      valeurDouane$ = valeurDouaneMad / tc; // pour affichage info seulement
+      douaneSource = 'weight';
+
+      // Droits & Taxes calculés directement en MAD
+      diMad = valeurDouaneMad * importDutyRate;
+      tpiMad = valeurDouaneMad * tpiRate;
+      ticMad = valeurDouaneMad * ticRate;
+      const baseTvaMad = valeurDouaneMad + diMad + tpiMad + ticMad;
+      tvaMad = baseTvaMad * tvaRate;
+      totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
+
+    } else if (dossierDeclaredValue > 0 && dosArticles.length > 0) {
+      // Priorité 2 : Valeur déclarée du dossier (en $), proratisée par FOB
       const totalFOBDossier = dosArticles.reduce((s: number, a: any) => s + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
       const artFobShare = totalFOBDossier > 0 ? valeurFOB / totalFOBDossier : 0;
       valeurDouane$ = dossierDeclaredValue * artFobShare;
+      valeurDouaneMad = valeurDouane$ * tc;
       douaneSource = 'declared';
-    } else if (weightBaseDouane$ > 0) {
-      // Calcul basé sur le poids (Réglementation Maroc)
-      valeurDouane$ = weightBaseDouane$;
-      douaneSource = 'weight';
+
+      // Droits & Taxes calculés en $ puis convertis en MAD
+      const di$ = valeurDouane$ * importDutyRate;
+      const tpi$ = valeurDouane$ * tpiRate;
+      const tic$ = valeurDouane$ * ticRate;
+      const baseTVA$ = valeurDouane$ + di$ + tpi$ + tic$;
+      const tva$ = baseTVA$ * tvaRate;
+      diMad = di$ * tc;
+      tpiMad = tpi$ * tc;
+      ticMad = tic$ * tc;
+      tvaMad = tva$ * tc;
+      totalTaxesMad = (di$ + tpi$ + tic$ + tva$) * tc;
+
     } else {
-      // Pas de valeur déclarée ni de base poids: On prend simplement la valeur des produits (FOB)
+      // Fallback : Valeur FOB en $
       valeurDouane$ = valeurFOB;
+      valeurDouaneMad = valeurDouane$ * tc;
       douaneSource = 'calculated';
+
+      // Droits & Taxes calculés en $ puis convertis en MAD
+      const di$ = valeurDouane$ * importDutyRate;
+      const tpi$ = valeurDouane$ * tpiRate;
+      const tic$ = valeurDouane$ * ticRate;
+      const baseTVA$ = valeurDouane$ + di$ + tpi$ + tic$;
+      const tva$ = baseTVA$ * tvaRate;
+      diMad = di$ * tc;
+      tpiMad = tpi$ * tc;
+      ticMad = tic$ * tc;
+      tvaMad = tva$ * tc;
+      totalTaxesMad = (di$ + tpi$ + tic$ + tva$) * tc;
     }
-
-    // Taux
-    const importDutyRate = (article.importDutyRate ?? 0) / 100;
-    const tpiRate = (article.tpiRate ?? 0) / 100;
-    const ticRate = (article.ticRate ?? 0) / 100;
-    const tvaRate = (article.tvaRate ?? 20) / 100;
-
-    // Droits & Taxes ($)
-    const di$ = valeurDouane$ * importDutyRate;
-    const tpi$ = valeurDouane$ * tpiRate;
-    const tic$ = valeurDouane$ * ticRate;
-    const baseTVA$ = valeurDouane$ + di$ + tpi$ + tic$;
-    const tva$ = baseTVA$ * tvaRate;
-    const totalTaxes$ = di$ + tpi$ + tic$ + tva$;
-
-    // Total taxes en MAD
-    const totalTaxesMad = totalTaxes$ * tc;
 
     // Coût total de revient MAD
     const coutAchatMad = valeurFOB * tc;
     const fretPartMad = partFret$ * tc;
-    const coutTotal$ = valeurFOB + partFret$ + totalTaxes$;
     const coutTotalMad = coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad;
+    const coutTotal$ = coutTotalMad / tc;
 
     // Unitaires
     const coutUnite$ = qty > 0 ? coutTotal$ / qty : 0;
@@ -198,14 +228,13 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       qty, prix, valeurFOB,
       cbmArticle, cbmTotal, fretTotal$,
       partFret$, partFraisMad,
-      valeurDouane$, douaneSource, dossierDeclaredValue,
-      netWeight, customsValuePerKg, weightBaseDouane$,
-      di$, tpi$, tic$, tva$, totalTaxes$,
-      totalTaxesMad,
+      valeurDouaneMad, valeurDouane$, douaneSource, dossierDeclaredValue,
+      netWeight, customsValuePerKg, weightBaseDouaneMad,
+      diMad, tpiMad, ticMad, tvaMad, totalTaxesMad,
       coutAchatMad, fretPartMad,
       coutTotal$, coutTotalMad,
       coutUnite$, coutUniteMad,
-      fraisFixesMad,
+      fraisTransitMad, fraisChangeMad, fraisSuppMad, totalFraisFixesMad,
       importDutyRate: importDutyRate * 100,
       tpiRate: tpiRate * 100,
       ticRate: ticRate * 100,
@@ -213,7 +242,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       cbmPct: cbmTotal > 0 && cbmArticle > 0 ? (cbmArticle / cbmTotal) * 100 : 0,
       isEstimated: !isLinked,
     };
-  }, [article, tauxChange, isLinked, linkedFacture, avgFreightPerCbm, articles]);
+  }, [article, tauxChange, fraisTransitaire, fraisChange, fraisSupp, isLinked, linkedFacture, avgFreightPerCbm, articles, safeCategories]);
 
 
   const fmt = (n: number, d = 2) => n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
@@ -321,18 +350,54 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                 {computed.cbmPct > 0 && <SummaryLine label="Part dans le conteneur" value={`${fmt(computed.cbmPct, 1)}%`} accent="text-indigo-600" />}
               </div>
 
-              {/* ─── Frais de fret ──────────────────────────────────────────────── */}
+              {/* ─── Frais de fret & dossier (ÉDITABLES) ─────────────────────────── */}
               <div className="bg-white rounded-2xl border border-stone-100 p-4 shadow-sm space-y-0.5">
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <Truck className="w-3 h-3" /> Frais de Transport & Dossier
                 </p>
                 <SummaryLine label={`Fret total (${isLinked ? 'réel' : 'estimé moy.'})`} value={`$${fmt(computed.fretTotal$)}`} />
                 {computed.cbmPct > 0 && <SummaryLine label="Part fret article" value={`$${fmt(computed.partFret$)}`} />}
-                <div className="mt-2 pt-2 border-t border-stone-50 space-y-0.5">
-                  <SummaryLine label="Frais Bureau de Change" value={`${fmtMAD(FRAIS_CHANGE_FIXE)} MAD`} />
-                  <SummaryLine label="Facture Transitaire" value={`${fmtMAD(FRAIS_TRANSIT_FIXE)} MAD`} />
-                  <SummaryLine label="Frais Supplémentaires" value={`${fmtMAD(FRAIS_SUPP_FIXE)} MAD`} />
-                  <SummaryLine label="Total frais fixes CTR" value={`${fmtMAD(computed.fraisFixesMad)} MAD`} bold />
+                <div className="mt-3 pt-3 border-t border-stone-100 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Pencil className="w-3 h-3 text-amber-500" />
+                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Frais de dossier modifiables (MAD)</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[8px] font-black text-stone-400 uppercase tracking-wider">Transitaire</Label>
+                      <Input
+                        type="number"
+                        step="100"
+                        min={0}
+                        value={fraisTransitaire}
+                        onChange={e => setFraisTransitaire(e.target.value)}
+                        className="h-9 border-stone-200 font-black text-[11px] text-stone-900 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[8px] font-black text-stone-400 uppercase tracking-wider">Bureau Change</Label>
+                      <Input
+                        type="number"
+                        step="100"
+                        min={0}
+                        value={fraisChange}
+                        onChange={e => setFraisChange(e.target.value)}
+                        className="h-9 border-stone-200 font-black text-[11px] text-stone-900 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[8px] font-black text-stone-400 uppercase tracking-wider">Frais Supp.</Label>
+                      <Input
+                        type="number"
+                        step="100"
+                        min={0}
+                        value={fraisSupp}
+                        onChange={e => setFraisSupp(e.target.value)}
+                        className="h-9 border-stone-200 font-black text-[11px] text-stone-900 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <SummaryLine label="Total frais fixes CTR" value={`${fmtMAD(computed.totalFraisFixesMad)} MAD`} bold />
                   {computed.partFraisMad > 0 ? (
                     <SummaryLine label="Part frais article" value={`${fmtMAD(computed.partFraisMad)} MAD`} accent="text-indigo-600" />
                   ) : (
@@ -352,13 +417,13 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
 
                 {/* Source badge */}
                 <div className="flex items-center gap-2 mb-3">
-                  {computed.douaneSource === 'declared' ? (
+                  {computed.douaneSource === 'weight' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-full text-[8px] font-black text-blue-700 uppercase tracking-widest">
+                      <CheckCircle className="w-2.5 h-2.5" /> Valeur Douane Catégorie (DH/Kg)
+                    </span>
+                  ) : computed.douaneSource === 'declared' ? (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-[8px] font-black text-emerald-700 uppercase tracking-widest">
                       <CheckCircle className="w-2.5 h-2.5" /> Valeur déclarée (Audit Analytique)
-                    </span>
-                  ) : computed.douaneSource === 'weight' ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-full text-[8px] font-black text-blue-700 uppercase tracking-widest">
-                      <CheckCircle className="w-2.5 h-2.5" /> Basé sur le Poids (Maroc)
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-[8px] font-black text-amber-700 uppercase tracking-widest">
@@ -383,44 +448,44 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                       accent="text-blue-600"
                     />
                     <SummaryLine
-                      label="Valeur Douane / Kg"
-                      value={`$${fmt(computed.customsValuePerKg)} / kg`}
+                      label="Valeur Douane / Kg (Audit Catégorie)"
+                      value={`${fmt(computed.customsValuePerKg)} DH / kg`}
                       accent="text-blue-600"
                     />
                   </div>
                 )}
 
                 <SummaryLine
-                  label={computed.douaneSource === 'declared'
+                  label={computed.douaneSource === 'weight'
+                    ? `Base douane (Poids × Taux DH/Kg)`
+                    : computed.douaneSource === 'declared'
                     ? `Valeur douane article (part proratisée)`
-                    : computed.douaneSource === 'weight'
-                    ? `Valeur base calcul douane (Poids * Taux)`
                     : `Valeur base calcul taxes (valeur FOB)`}
-                  value={`$${fmt(computed.valeurDouane$)}`}
+                  value={`${fmtMAD(computed.valeurDouaneMad)} MAD`}
                   bold
                 />
 
 
-                {/* Tax lines */}
+                {/* Tax lines — all in MAD */}
                 <div className="mt-2 space-y-0.5">
                   <SummaryLine
                     label={`DI (${fmt(computed.importDutyRate, 1)}%)`}
-                    value={computed.importDutyRate > 0 ? `$${fmt(computed.di$)}` : '—'}
+                    value={computed.importDutyRate > 0 ? `${fmtMAD(computed.diMad)} MAD` : '—'}
                     accent={computed.importDutyRate > 0 ? "text-blue-600" : "text-stone-300"}
                   />
                   <SummaryLine
                     label={`TPI (${fmt(computed.tpiRate, 1)}%)`}
-                    value={computed.tpiRate > 0 ? `$${fmt(computed.tpi$)}` : '—'}
+                    value={computed.tpiRate > 0 ? `${fmtMAD(computed.tpiMad)} MAD` : '—'}
                     accent={computed.tpiRate > 0 ? "text-violet-600" : "text-stone-300"}
                   />
                   <SummaryLine
                     label={`TIC (${fmt(computed.ticRate, 1)}%)`}
-                    value={computed.ticRate > 0 ? `$${fmt(computed.tic$)}` : '—'}
+                    value={computed.ticRate > 0 ? `${fmtMAD(computed.ticMad)} MAD` : '—'}
                     accent={computed.ticRate > 0 ? "text-orange-600" : "text-stone-300"}
                   />
                   <SummaryLine
                     label={`TVA (${fmt(computed.tvaRate, 1)}%)`}
-                    value={`$${fmt(computed.tva$)}`}
+                    value={`${fmtMAD(computed.tvaMad)} MAD`}
                     accent="text-red-600"
                   />
                 </div>
@@ -428,11 +493,11 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                 {(computed.importDutyRate === 0 && computed.tpiRate === 0 && computed.ticRate === 0) && (
                   <div className="flex items-center gap-1.5 mt-2">
                     <Info className="w-3 h-3 text-stone-300 shrink-0" />
-                    <span className="text-[8px] font-bold text-stone-400 uppercase">Taux DI/TPI/TIC non définis sur cet article — vérifiez la catégorie</span>
+                    <span className="text-[8px] font-bold text-stone-400 uppercase">Taux DI/TPI/TIC non définis — vérifiez l'Audit Analytique de la catégorie «{article.categoryId}»</span>
                   </div>
                 )}
 
-                <SummaryLine label="Total taxes import" value={`$${fmt(computed.totalTaxes$)} · ${fmtMAD(computed.totalTaxesMad)} MAD`} bold accent="text-red-600" />
+                <SummaryLine label="Total taxes import" value={`${fmtMAD(computed.totalTaxesMad)} MAD`} bold accent="text-red-600" />
               </div>
 
               {/* ─── Prix de revient final ──────────────────────────────────────── */}
@@ -479,7 +544,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                     <div className="mt-4 flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                       <p className="text-[8px] font-bold text-amber-300 uppercase leading-relaxed">
-                        Simulation basée sur les hypothèses : CBM={CBM_CONTAINER_STD}m³, Fret moyen+frais fixes {fmtMAD(TOTAL_FRAIS_FIXES_MAD)} MAD.
+                        Simulation basée sur les hypothèses : CBM={CBM_CONTAINER_STD}m³, Fret moyen. Frais de dossier modifiables ci-dessus.
                         {computed.cbmArticle === 0 ? ' ⚠ CBM article non défini — les frais de dossier ne sont pas répartis.' : ''}
                       </p>
                     </div>
