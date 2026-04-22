@@ -1800,6 +1800,7 @@ export function ClientDetailView({
   }, [isPortal, user, firestore, clientName, articles, categories]);
   const clientArticles = useMemo(() => {
     const nameLower = (clientName || '').trim().toLowerCase();
+    const todayStr = new Date().toISOString().split('T')[0];
     return articles
       .filter(a => {
         if (!a.isPreorder) return false;
@@ -1810,16 +1811,30 @@ export function ClientDetailView({
         const facture = factures.find(f => f.id === a.factureId);
         let derivedStatus = a.status;
         const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
+
         if (facture) {
           const now = new Date();
           const isArrived = arrivalDate ? new Date(arrivalDate) <= now : false;
-          if (facture.inStock) {
+          // A facture indicates a real shipment dossier exists.
+          // Only escalate beyond PI if the facture has real shipping data (noBL or shippingLine)
+          // or if the facture is already in stock/customs phase.
+          const hasShippingInfo = !!(facture.noBL || facture.shippingLine);
+          if (facture.inStock || facture.stockEntryDate) {
             derivedStatus = 'STOCK';
           } else if (isArrived) {
             derivedStatus = 'CUSTOMS';
+          } else if (hasShippingInfo) {
+            // Real BL exists → it's genuinely in transit
+            derivedStatus = 'TRANSIT';
+          } else if (a.status === 'PI') {
+            // Facture exists but no BL yet → still in production
+            derivedStatus = 'PI';
           } else {
             derivedStatus = 'TRANSIT';
           }
+        } else if (!a.factureId) {
+          // No facture linked → use raw article status (PI, TO_ORDER, etc.)
+          derivedStatus = a.status;
         }
         
         let orderDate = '-';
@@ -1847,6 +1862,15 @@ export function ClientDetailView({
         return tA - tB;
       });
   }, [clientName, articles, factures]);
+
+  const nextArrival = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const future = clientArticles
+      .map(a => a.arrivalDate)
+      .filter((d): d is string => !!d && d >= todayStr)
+      .sort();
+    return future.length > 0 ? future[0] : null;
+  }, [clientArticles]);
 
   const selectedArticle = useMemo(() => clientArticles.find(a => a.id === selectedArticleId), [clientArticles, selectedArticleId]);
   const selectedCategory = useMemo(() => {
@@ -1900,9 +1924,15 @@ export function ClientDetailView({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 w-full xl:w-auto relative z-10">
+          <div className="grid grid-cols-3 gap-4 w-full xl:w-auto relative z-10">
             <SummaryBlock label="Articles" value={String(clientArticles.length)} sub="" color="text-white" />
             <SummaryBlock label="Familles" value={String(new Set(clientArticles.map(a => a.categoryId)).size)} sub="" color="text-indigo-400" />
+            <SummaryBlock
+              label="Prochaine Arrivée"
+              value={nextArrival ?? '—'}
+              sub=""
+              color={nextArrival ? 'text-emerald-400' : 'text-stone-500'}
+            />
           </div>
         </div>
       </header>
