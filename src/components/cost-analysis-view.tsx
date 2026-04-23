@@ -28,9 +28,10 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     [factures, selectedFactureId]
   );
 
-  // Articles linked to this dossier with status SHIPPED
   const dossierArticles = useMemo(
-    () => articles.filter(a => a.factureId === selectedFactureId),
+    () => articles
+      .filter(a => a.factureId === selectedFactureId)
+      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || '')),
     [articles, selectedFactureId]
   );
 
@@ -306,8 +307,11 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
                     >
                       {/* Article */}
                       <TableCell className="py-4 px-6">
-                        <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{row.name}</div>
-                        <div className="text-[9px] text-stone-400 font-bold uppercase mt-0.5">{row.categoryId}</div>
+                        <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{row.name || row.categoryId}</div>
+                        <div className="text-[9px] text-stone-400 font-bold uppercase mt-0.5 flex items-center gap-1">
+                          {row.categoryId} 
+                          {row.size && row.size !== 'various' && <span className="bg-stone-100 text-stone-500 px-1 py-0.5 rounded text-[8px]">Taille: {row.size}</span>}
+                        </div>
                         {row.missingData ? (
                           <span className="inline-flex items-center gap-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded mt-1 uppercase">
                             <AlertTriangle className="w-2.5 h-2.5" /> Sans données douane
