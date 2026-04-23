@@ -16,6 +16,7 @@ import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 import ExportBonCommande from './export-bon-commande';
+import ExportClientCommande from './export-client-commande';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -236,6 +237,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                         {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
                       </div>
                       <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
+                        {o.clientName && <ExportClientCommande article={o} />}
                         <ExportBonCommande article={o} />
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
