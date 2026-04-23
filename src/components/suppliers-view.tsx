@@ -1857,6 +1857,21 @@ export function ClientDetailView({
         };
       })
       .sort((a, b) => {
+        const STATUS_WEIGHT: Record<string, number> = {
+          'STOCK': 1,
+          'CUSTOMS': 2,
+          'TRANSIT': 3,
+          'SHIPPED': 4,
+          'PI': 5,
+          'TO_ORDER': 6,
+        };
+        const weightA = STATUS_WEIGHT[a.status] || 99;
+        const weightB = STATUS_WEIGHT[b.status] || 99;
+        
+        if (weightA !== weightB) {
+          return weightA - weightB;
+        }
+
         const tA = a.arrivalDate ? new Date(a.arrivalDate).getTime() : Infinity;
         const tB = b.arrivalDate ? new Date(b.arrivalDate).getTime() : Infinity;
         return tA - tB;
