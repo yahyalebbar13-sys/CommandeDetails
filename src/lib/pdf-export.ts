@@ -207,8 +207,13 @@ export async function exportCostAnalysisPDF(
       'DI (MAD)', 'TPI (MAD)', 'TVA (MAD)', 'Tot. Douane\n(MAD)',
       'MT Total\n(MAD)', 'P.A.U TTC\n(MAD/U)'
     ]],
-    body: rows.map(r => [
-      (r.name || '').toUpperCase(),
+    body: rows.map(r => {
+      let articleName = (r.name || r.categoryId || '').toUpperCase();
+      if (r.size && r.size !== 'various') {
+        articleName += `\n(Taille: ${r.size})`;
+      }
+      return [
+        articleName,
       r.categoryId || '-',
       Number(r.qty).toLocaleString('fr-MA'),
       r.nw > 0 ? r.nw.toFixed(2) : '—',
@@ -221,7 +226,8 @@ export async function exportCostAnalysisPDF(
       r.hasCustData && r.nw > 0 ? r.totalDouane.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
       r.mtTotal > 0 ? r.mtTotal.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
       r.pauTtc > 0 ? r.pauTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—',
-    ]),
+      ];
+    }),
     headStyles: { fillColor: [28, 25, 23], textColor: 255, fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.5, halign: 'center' },
     bodyStyles: { fontSize: 6.5, cellPadding: 2 },
     alternateRowStyles: { fillColor: [250, 250, 249] },
