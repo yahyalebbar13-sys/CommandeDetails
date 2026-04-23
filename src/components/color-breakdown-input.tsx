@@ -17,6 +17,7 @@ export interface ColorBreakdownRow {
 interface ColorBreakdownInputProps {
   value: ColorBreakdownRow[] | null;
   onChange: (rows: ColorBreakdownRow[] | null, total: number) => void;
+  unit?: string;
 }
 
 /**
@@ -54,7 +55,7 @@ function parsePastedTable(raw: string): ColorBreakdownRow[] {
   return rows;
 }
 
-export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownInputProps) {
+export default function ColorBreakdownInput({ value, onChange, unit }: ColorBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<ColorBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
@@ -135,7 +136,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
           </span>
           {enabled && rows.length > 0 && (
             <span className="text-[9px] font-bold bg-violet-200 text-violet-800 px-2 py-0.5 rounded-full">
-              {rows.length} couleurs · {total.toLocaleString()} rolls
+              {rows.length} couleurs · {total.toLocaleString()} {unit || 'rolls'}
             </span>
           )}
         </div>
@@ -147,7 +148,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
 
       {!enabled && (
         <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic px-4">
-          Activer pour saisir les couleurs et quantités par rouleau
+          Activer pour saisir les couleurs et quantités par {unit || 'unité'}
         </p>
       )}
 
@@ -168,7 +169,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
           {showPasteArea && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <Label className="text-[9px] font-black text-violet-500 uppercase tracking-widest">
-                Coller ici (format : N°Couleur[TAB]Rouleaux[TAB]Prix optionnel)
+                Coller ici (format : N°Couleur[TAB]Quantité[TAB]Prix optionnel)
               </Label>
               <textarea
                 className="w-full h-28 text-[11px] font-mono border border-violet-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white placeholder:text-stone-300"
@@ -224,7 +225,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
                   Prix Opt ($)
                 </div>
                 <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right flex items-center justify-end gap-1">
-                  <Package className="w-2.5 h-2.5" /> Rouleaux
+                  <Package className="w-2.5 h-2.5" /> {unit || 'Qté'}
                 </div>
                 <div />
               </div>
@@ -282,7 +283,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
                   TOTAL
                 </div>
                 <div className="py-2.5 px-3 text-right text-[11px] font-black">
-                  {total.toLocaleString('en-US')} rolls
+                  {total.toLocaleString('en-US')} {unit || 'rolls'}
                 </div>
                 <div />
               </div>
@@ -302,7 +303,7 @@ export default function ColorBreakdownInput({ value, onChange }: ColorBreakdownI
 
           {rows.length > 0 && (
             <p className="text-[9px] font-bold text-violet-600 uppercase bg-violet-100 px-3 py-2 rounded-lg">
-              ✓ Quantité totale calculée : <span className="font-black">{total.toLocaleString('en-US')} rolls</span> — sera enregistrée dans le champ Quantité
+              ✓ Quantité totale calculée : <span className="font-black">{total.toLocaleString('en-US')} {unit || 'rolls'}</span> — sera enregistrée dans le champ Quantité
             </p>
           )}
         </div>

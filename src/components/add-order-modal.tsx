@@ -79,7 +79,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   const handleColorBreakdownChange = useCallback((rows: ColorBreakdownRow[] | null, total: number) => {
     setColorBreakdown(rows);
     if (rows && rows.length > 0) {
-      setFormData((p: any) => ({ ...p, quantity: total, color: 'various', unitOfMeasure: 'rolls' }));
+      setFormData((p: any) => ({ ...p, quantity: total, color: 'various' }));
     }
   }, []);
 
@@ -468,7 +468,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} />
 
           {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
-          <ColorBreakdownInput value={colorBreakdown} onChange={handleColorBreakdownChange} />
+          <ColorBreakdownInput value={colorBreakdown} onChange={handleColorBreakdownChange} unit={formData.unitOfMeasure} />
 
           {/* ── Section 4: Commande ───────────────────────────────────────── */}
           <SectionLabel icon={<Ruler className="w-3 h-3" />} label="Commande & Prix" />
@@ -480,7 +480,6 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               <Select
                 value={formData.unitOfMeasure}
                 onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
-                disabled={!!colorBreakdown && colorBreakdown.length > 0}
               >
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />

@@ -53,7 +53,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
     setColorBreakdown(rows);
     if (rows && rows.length > 0) {
-      setFormData((p: any) => p ? { ...p, quantity: total, color: 'various', unitOfMeasure: 'rolls' } : p);
+      setFormData((p: any) => p ? { ...p, quantity: total, color: 'various' } : p);
     }
   };
 
@@ -386,7 +386,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               <Select
                 value={formData.unitOfMeasure}
                 onValueChange={v => setFormData((p: any) => ({ ...p, unitOfMeasure: v }))}
-                disabled={!!colorBreakdown && colorBreakdown.length > 0}
               >
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
                   <SelectValue />
@@ -402,7 +401,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
                 {colorBreakdown && colorBreakdown.length > 0 ? (
                   <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
-                    <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} rolls</span>
+                    <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} {formData.unitOfMeasure}</span>
                     <span className="text-[9px] font-bold text-violet-400 uppercase">calculé auto</span>
                   </div>
                 ) : (
@@ -450,6 +449,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <ColorBreakdownInput
                   value={colorBreakdown}
                   onChange={handleColorBreakdownChange}
+                  unit={formData.unitOfMeasure}
                 />
               </div>
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
