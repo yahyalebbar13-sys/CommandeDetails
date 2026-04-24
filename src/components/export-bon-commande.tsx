@@ -218,7 +218,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
         startY: yPos,
         head: [["#", "Désignation Couleur", "Quantité Demandée"]],
         body: colorRows,
-        margin: { left: marginX, right: marginX },
+        margin: { left: marginX, right: marginX, bottom: 30 },
         styles: {
           fontSize: 9,
           cellPadding: 5,
@@ -273,7 +273,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
         startY: yPos,
         head: [["#", "Désignation Taille", "Quantité Demandée"]],
         body: sizeRows,
-        margin: { left: marginX, right: marginX },
+        margin: { left: marginX, right: marginX, bottom: 30 },
         styles: {
           fontSize: 9,
           cellPadding: 5,
@@ -320,7 +320,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
         startY: yPos,
         head: [["Taille", "Couleur", "Quantité Demandée"]],
         body: singleRow,
-        margin: { left: marginX, right: marginX },
+        margin: { left: marginX, right: marginX, bottom: 30 },
         styles: { fontSize: 9, cellPadding: 6, font: "helvetica", textColor: TEXT_MAIN, lineColor: BORDER_COLOR, lineWidth: 0.2 },
         headStyles: { fillColor: LIGHT_BG, textColor: TEXT_MUTED, fontSize: 8, fontStyle: "bold", halign: "center" },
         columnStyles: {
@@ -394,6 +394,19 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       
+      // Informations de l'entreprise
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...TEXT_MUTED);
+      
+      const companyInfoLine1 = "LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc";
+      const companyInfoLine2 = "Tel : 05 22 25 77 78 / 05 22 31 62 88 - Fax : 05 22 58 03 46 - Portable : 06 61 10 15 60 - Email : Contact.lebtex@gmail.com";
+      const companyInfoLine3 = "Patente : 34011181 - R.C : 704617 - I.F : 68814237 - ICE : 003823212000094";
+      
+      doc.text(companyInfoLine1, pageW / 2, pageH - 24, { align: "center" });
+      doc.text(companyInfoLine2, pageW / 2, pageH - 20, { align: "center" });
+      doc.text(companyInfoLine3, pageW / 2, pageH - 16, { align: "center" });
+
       // Gray bottom border
       doc.setFillColor(...NAVY);
       doc.rect(0, pageH - 12, pageW, 12, "F");
