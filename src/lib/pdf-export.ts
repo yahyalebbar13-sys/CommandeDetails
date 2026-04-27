@@ -270,6 +270,149 @@ export async function exportCostAnalysisPDF(
   doc.save(`CoutRevient_${facture.id || 'Dossier'}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
+export async function exportCostSalePDF(
+  facture: any,
+  rows: any[],
+  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; exchange: number; transitaire: number; fraisSupp: number; fretMad: number; totalMarge: number; totalTVA: number }
+) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  // ── Header ──
+  doc.setFillColor(28, 25, 23);
+  doc.rect(0, 0, pageW, 32, 'F');
+  doc.setFillColor(16, 185, 129); // emerald stripe
+  doc.rect(0, 30, pageW, 2, 'F');
+
+  doc.setTextColor(16, 185, 129);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('COÛT DE VENTE TTC — ANALYSE FINANCIÈRE', 14, 10);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.text(`Dossier : ${facture.id || ''}`, 14, 22);
+
+  doc.setFontSize(8);
+  doc.setTextColor(161, 161, 170);
+  doc.text(`ETA: ${facture.arrivalDate || '—'}   |   Fournisseur: ${facture.supplierId || '—'}   |   Taux de change: ${analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'} MAD/$   |   Marge: 5%`, 14, 29);
+
+  doc.setFontSize(7);
+  doc.setTextColor(113, 113, 122);
+  doc.text(`Exporté le ${new Date().toLocaleDateString('fr-MA')} à ${new Date().toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' })}`, pageW - 14, 10, { align: 'right' });
+
+  // ── Synthèse frais ──
+  const synBlocks: [string, string][] = [
+    ['Taux de Change', analysis.tauxChange > 0 ? `${analysis.tauxChange.toFixed(4)} MAD/$` : '—'],
+    ['Fret → MAD (HT)', `${analysis.fretMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+    ['Fact. Échange (TTC)', `${analysis.exchange.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+    ['Fact. Transitaire (TTC)', `${analysis.transitaire.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+    ['Frais Supp. (TTC)', `${analysis.fraisSupp.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+    ['CBM Total', `${analysis.cbmTotal.toFixed(3)} m³`],
+    ['TOTAL MARGE (5%)', `${analysis.totalMarge.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+    ['TOTAL TVA', `${analysis.totalTVA.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+  ];
+
+  let bx = 14;
+  const by = 37;
+  const bw = (pageW - 28) / synBlocks.length;
+
+  synBlocks.forEach(([label, value], i) => {
+    const isLast = i === synBlocks.length - 1;
+    const isMargin = label.startsWith('TOTAL MARGE');
+    if (isLast) doc.setFillColor(251, 191, 36);
+    else if (isMargin) doc.setFillColor(16, 185, 129);
+    else doc.setFillColor(245, 245, 244);
+    doc.roundedRect(bx, by, bw - 2, 16, 2, 2, 'F');
+    doc.setTextColor(isLast || isMargin ? 255 : 161, isLast || isMargin ? 255 : 161, isLast || isMargin ? 255 : 170);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text(label.toUpperCase(), bx + 3, by + 5);
+    doc.setTextColor(isMargin ? 255 : 28, isMargin ? 255 : 25, isMargin ? 255 : 23);
+    doc.setFontSize(isLast ? 9 : 8);
+    doc.text(value, bx + 3, by + 12);
+    bx += bw;
+  });
+
+  // ── Tableau ──
+  autoTable(doc, {
+    startY: 58,
+    head: [[
+      'Article', 'Pôle',
+      'QTÉ', 'NW (kg)', 'CBM',
+      'Val. Achat\n(MAD)', 'Frais Log.\n(MAD)',
+      'DI (MAD)', 'TPI (MAD)', 'TIC (MAD)',
+      'Total HT\n(MAD)', 'Marge 5%\n(MAD)', 'Base TVA\n(MAD)', 'TVA\n(MAD)',
+      'P.V.U TTC\n(MAD/U)'
+    ]],
+    body: rows.map(r => {
+      let articleName = (r.name || r.categoryId || '').toUpperCase();
+      if (r.size && r.size !== 'various') articleName += `\n(Taille: ${r.size})`;
+      return [
+        articleName,
+        r.categoryId || '-',
+        Number(r.qty).toLocaleString('fr-MA'),
+        r.nw > 0 ? r.nw.toFixed(2) : '—',
+        r.cbm > 0 ? r.cbm.toFixed(4) : '—',
+        r.valAchatMad > 0 ? r.valAchatMad.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.cbm > 0 ? r.fraisCmd.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.hasCustData && r.nw > 0 ? r.di.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.hasCustData && r.nw > 0 ? r.tpi.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.hasCustData && r.nw > 0 ? r.tic.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.totalHT > 0 ? r.totalHT.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.marge > 0 ? r.marge.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.baseTva > 0 ? r.baseTva.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.hasCustData && r.tvaRate != null ? r.tva.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
+        r.pauVenteTtc > 0 ? r.pauVenteTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—',
+      ];
+    }),
+    headStyles: { fillColor: [28, 25, 23], textColor: 255, fontStyle: 'bold', fontSize: 6, cellPadding: 2, halign: 'center' },
+    bodyStyles: { fontSize: 6, cellPadding: 2 },
+    alternateRowStyles: { fillColor: [250, 250, 249] },
+    columnStyles: {
+      0: { cellWidth: 30, fontStyle: 'bold' },
+      1: { cellWidth: 18 },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+      4: { halign: 'right' },
+      5: { halign: 'right', textColor: [14, 116, 144] },
+      6: { halign: 'right', textColor: [79, 70, 229] },
+      7: { halign: 'right', textColor: [194, 65, 12] },
+      8: { halign: 'right', textColor: [194, 65, 12] },
+      9: { halign: 'right', textColor: [194, 65, 12] },
+      10: { halign: 'right', fontStyle: 'bold' },
+      11: { halign: 'right', textColor: [5, 150, 105], fontStyle: 'bold' },
+      12: { halign: 'right', textColor: [4, 120, 87] },
+      13: { halign: 'right', textColor: [180, 100, 0] },
+      14: { halign: 'right', fontStyle: 'bold', textColor: [4, 120, 87] },
+    },
+    margin: { left: 14, right: 14 },
+    theme: 'grid',
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 4;
+  doc.setFontSize(6.5);
+  doc.setTextColor(113, 113, 122);
+  doc.text(
+    'Formule: Total_HT = (Qté×PA$×Taux) + Frais_Log(HT) + DI + TPI + TIC  —  Marge = HT×5%  —  Base_TVA = HT+Marge  —  PVU_TTC = (HT+Marge+TVA) ÷ Qté',
+    14, Math.min(finalY, doc.internal.pageSize.getHeight() - 14)
+  );
+
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(161, 161, 170);
+    doc.text(`Page ${i} / ${pageCount}  —  STOCKVUE LOGISTICS`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
+  }
+
+  doc.save(`CoutVente_${facture.id || 'Dossier'}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+
 // ─────────────────────────────────────────────
 //  PARTENAIRES — helpers
 // ─────────────────────────────────────────────

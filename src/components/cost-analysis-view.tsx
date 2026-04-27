@@ -48,14 +48,13 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
 
     // ── Frais logistiques totaux du dossier (MAD) ──
-    // exchange, transitaire et fraisSupp sont saisis TTC (TVA 20% incluse)
-    // → on ramène en HT en divisant par 1.20 avant d'additionner le fret (déjà HT)
+    // Tous les frais sont saisis TTC (TVA 20% incluse), y compris le fret
+    // → on divise l'ensemble par 1.20 pour obtenir le montant HT
     const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
     const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
     const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
     const fretMad = (Number(selectedFacture.freightCost) || 0) * tauxChange;
-    const fraisHorsFretHT = (exchange + transitaire + fraisSupp) / 1.20;
-    const mtFraisTotal = fraisHorsFretHT + fretMad;
+    const mtFraisTotal = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
 
     // ── CBM total du dossier ──
     const cbmTotal = dossierArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);

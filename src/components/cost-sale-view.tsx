@@ -7,8 +7,9 @@ import {
 } from '@/components/ui/table';
 import {
   ShoppingCart, ChevronDown, AlertTriangle, CheckCircle2,
-  FileText, Truck, Package, DollarSign, TrendingUp, Info, Percent
+  FileText, Truck, Package, DollarSign, TrendingUp, Info, Percent, FileDown
 } from 'lucide-react';
+import { exportCostSalePDF } from '@/lib/pdf-export';
 
 const MARGE_RATE = 0.05; // 5% marge fixe
 
@@ -43,14 +44,13 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
 
     // ── Frais logistiques totaux du dossier (MAD) ──
-    // exchange, transitaire et fraisSupp sont saisis TTC (TVA 20% incluse)
-    // → on ramène en HT en divisant par 1.20 avant d'additionner le fret (déjà HT)
+    // Tous les frais sont saisis TTC (TVA 20% incluse), y compris le fret
+    // → on divise l'ensemble par 1.20 pour obtenir le montant HT
     const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
     const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
     const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
     const fretMad = (Number(selectedFacture.freightCost) || 0) * tauxChange;
-    const fraisHorsFretHT = (exchange + transitaire + fraisSupp) / 1.20;
-    const mtFraisTotal = fraisHorsFretHT + fretMad;
+    const mtFraisTotal = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
 
     const cbmTotal = dossierArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
 
@@ -134,19 +134,29 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
 
           <div className="flex flex-col gap-2 w-full lg:w-auto">
             <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Sélectionner un Dossier</label>
-            <div className="relative flex-1 lg:w-72">
-              <select
-                value={selectedFactureId || ''}
-                onChange={e => setSelectedFactureId(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-emerald-500 transition-colors"
-              >
-                {factures.map(f => (
-                  <option key={f.id} value={f.id} className="text-stone-900 bg-white">
-                    {f.id} — {f.arrivalDate}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+            <div className="flex gap-3">
+              <div className="relative flex-1 lg:w-72">
+                <select
+                  value={selectedFactureId || ''}
+                  onChange={e => setSelectedFactureId(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-emerald-500 transition-colors"
+                >
+                  {factures.map(f => (
+                    <option key={f.id} value={f.id} className="text-stone-900 bg-white">
+                      {f.id} — {f.arrivalDate}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
+              </div>
+              {selectedFacture && analysis && (
+                <button
+                  onClick={() => exportCostSalePDF(selectedFacture, analysis.rows, analysis)}
+                  className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
+                >
+                  <FileDown className="w-4 h-4" /> PDF
+                </button>
+              )}
             </div>
           </div>
         </div>
