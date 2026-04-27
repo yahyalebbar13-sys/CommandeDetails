@@ -551,3 +551,208 @@ export async function exportForwarderPDF(
   pageFooter(doc, pageW);
   doc.save(`Transitaire_${forwarderName}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
+
+// ─────────────────────────────────────────────
+//  5. DOSSIER CLIENT (PRÉCOMMANDES)
+// ─────────────────────────────────────────────
+export async function exportClientDossierPDF(
+  clientName: string,
+  articles: any[]
+) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+  
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 16;
+  const contentW = pageW - marginX * 2;
+
+  const NAVY: [number, number, number] = [15, 23, 42];
+  const GOLD: [number, number, number] = [196, 160, 98];
+  const TEXT_MAIN: [number, number, number] = [30, 41, 59];
+  const TEXT_MUTED: [number, number, number] = [100, 116, 139];
+  const LIGHT_BG: [number, number, number] = [248, 250, 252];
+  const BORDER_COLOR: [number, number, number] = [226, 232, 240];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFr = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const ref = `DOSSIER-${Date.now().toString().slice(-8)}`;
+
+  let yPos = 16;
+
+  // 1. Header
+  await new Promise<void>((resolve) => {
+    const img = new Image();
+    img.src = "/logo.png";
+    img.onload = () => {
+      doc.addImage(img, "PNG", marginX, yPos, 36, 18);
+      resolve();
+    };
+    img.onerror = () => {
+      doc.setTextColor(...NAVY);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("LEBTEX", marginX, yPos + 8);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...GOLD);
+      doc.text("TEXTILE IMPORT", marginX, yPos + 13);
+      resolve();
+    };
+  });
+
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("DOSSIER CLIENT - PRÉCOMMANDES", pageW - marginX, yPos + 8, { align: "right" });
+
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.6);
+  doc.line(pageW - marginX - 70, yPos + 11, pageW - marginX, yPos + 11);
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...TEXT_MAIN);
+  doc.text(`Client : ${clientName.toUpperCase()}`, pageW - marginX, yPos + 17, { align: "right" });
+  
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text(`Date : ${todayFr}`, pageW - marginX, yPos + 22, { align: "right" });
+
+  yPos += 35;
+
+  // 2. Table des articles
+  const tableRows = articles.map((a, i) => [
+    String(i + 1),
+    (a.categoryId || a.name || "—").toUpperCase(),
+    a.size && a.size !== "various" ? a.size.toUpperCase() : (a.sizeBreakdown?.length ? "MULTIPLE" : "—"),
+    a.color && a.color !== "various" ? a.color.toUpperCase() : (a.colorBreakdown?.length ? "MULTIPLE" : "—"),
+    `${Number(a.quantity).toLocaleString("fr-MA")} ${a.unitOfMeasure || "U"}`,
+    a.arrivalDate ? a.arrivalDate : "—",
+    a.status === "STOCK" ? "En Stock" : a.status === "CUSTOMS" ? "Dédouanement" : a.status === "TRANSIT" ? "En Transit" : a.status === "SHIPPED" ? "Expédié" : a.status === "PI" ? "En Prod." : "À Commander"
+  ]);
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [["#", "Type Produit", "Taille", "Couleur", "Quantité", "Arrivée Prévue", "Statut"]],
+    body: tableRows,
+    margin: { left: marginX, right: marginX, bottom: 40 },
+    styles: {
+      fontSize: 8,
+      cellPadding: 4,
+      font: "helvetica",
+      textColor: TEXT_MAIN,
+      lineColor: BORDER_COLOR,
+      lineWidth: 0.2,
+    },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: 255,
+      fontSize: 8,
+      fontStyle: "bold",
+    },
+    columnStyles: {
+      0: { cellWidth: 10, textColor: TEXT_MUTED },
+      1: { fontStyle: "bold" },
+      4: { halign: "right", fontStyle: "bold", textColor: NAVY },
+    },
+  });
+
+  yPos = (doc as any).lastAutoTable.finalY + 12;
+
+  // 3. Conditions de Vente
+  if (yPos > pageH - 85) {
+    doc.addPage();
+    yPos = 20;
+  }
+
+  doc.setFillColor(...LIGHT_BG);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, yPos, contentW, 22, 1.5, 1.5, "FD");
+
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...NAVY);
+  doc.text("CONDITIONS DE VENTE :", marginX + 4, yPos + 6);
+  
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...TEXT_MAIN);
+  doc.text("• Condition de paiement : solde à la livraison ou à la réception.", marginX + 4, yPos + 11);
+  doc.text("• Les délais sont donnés à titre indicatif et peuvent varier selon les conditions d'importation.", marginX + 4, yPos + 15);
+  doc.text("• Clause non-annulation : toute commande validée accompagnée d'un acompte est ferme, définitive, non annulable et non remboursable.", marginX + 4, yPos + 19);
+
+  yPos += 28;
+
+  // 4. Signatures
+  if (yPos > pageH - 45) {
+    doc.addPage();
+    yPos = 20;
+  }
+
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.4);
+  doc.line(marginX, yPos, pageW - marginX, yPos);
+  yPos += 8;
+
+  const sigBoxW = (contentW - 12) / 2;
+
+  doc.setFillColor(...LIGHT_BG);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, yPos, sigBoxW, 28, 1.5, 1.5, "FD");
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...NAVY);
+  doc.text("ÉMIS PAR LEBTEX TEXTILE IMPORT", marginX + 6, yPos + 7);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text("Service Commercial", marginX + 6, yPos + 11);
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(marginX + 6, yPos + 22, marginX + sigBoxW - 6, yPos + 22);
+
+  doc.setFillColor(...LIGHT_BG);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX + sigBoxW + 12, yPos, sigBoxW, 28, 1.5, 1.5, "FD");
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...NAVY);
+  doc.text("ACCUSÉ DE RÉCEPTION CLIENT", marginX + sigBoxW + 18, yPos + 7);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text("Lu et approuvé (Cachet et signature)", marginX + sigBoxW + 18, yPos + 11);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineDashPattern([1, 1], 0);
+  doc.line(marginX + sigBoxW + 18, yPos + 22, marginX + contentW - 6, yPos + 22);
+  doc.setLineDashPattern([], 0);
+
+  // 5. Footer
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text("LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc", pageW / 2, pageH - 24, { align: "center" });
+    doc.text("Tel : 05 22 25 77 78 / 05 22 31 62 88 - Fax : 05 22 58 03 46 - Portable : 06 61 10 15 60 - Email : Contact.lebtex@gmail.com", pageW / 2, pageH - 20, { align: "center" });
+    doc.text("Patente : 34011181 - R.C : 704617 - I.F : 68814237 - ICE : 003823212000094", pageW / 2, pageH - 16, { align: "center" });
+
+    doc.setFillColor(...NAVY);
+    doc.rect(0, pageH - 12, pageW, 12, "F");
+    doc.setFillColor(...GOLD);
+    doc.rect(0, pageH - 12, 4, 12, "F");
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Document Officiel LEBTEX  |  Réf. ${ref}  |  Généré le ${todayStr}`, marginX + 4, pageH - 5);
+    doc.text(`Page ${i} sur ${pageCount}`, pageW - marginX, pageH - 5, { align: "right" });
+  }
+
+  const cleanName = clientName.replace(/\s+/g, "_").toUpperCase();
+  doc.save(`DOSSIER_CLIENT_${cleanName}_${todayStr}.pdf`);
+}

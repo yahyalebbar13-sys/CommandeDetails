@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF } from '@/lib/pdf-export';
+import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF, exportClientDossierPDF } from '@/lib/pdf-export';
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
@@ -1748,6 +1748,247 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   );
 }
 
+// ── STATUS GROUP CONFIG ─────────────────────────────────────────────────────
+const STATUS_GROUPS = [
+  {
+    key: 'STOCK',
+    label: 'En Stock',
+    description: 'Disponible à la livraison',
+    icon: '✅',
+    headerBg: 'linear-gradient(135deg, #065f46, #047857)',
+    badgeBg: '#d1fae5', badgeText: '#065f46',
+    borderColor: '#6ee7b7',
+    dotColor: '#10b981',
+  },
+  {
+    key: 'CUSTOMS',
+    label: 'En Dédouanement',
+    description: '7 à 15 jours ouvrés',
+    icon: '🛃',
+    headerBg: 'linear-gradient(135deg, #581c87, #7e22ce)',
+    badgeBg: '#f3e8ff', badgeText: '#581c87',
+    borderColor: '#d8b4fe',
+    dotColor: '#a855f7',
+  },
+  {
+    key: 'TRANSIT',
+    label: 'En Transit',
+    description: 'Acheminement maritime en cours',
+    icon: '🚢',
+    headerBg: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)',
+    badgeBg: '#eff6ff', badgeText: '#1e3a8a',
+    borderColor: '#93c5fd',
+    dotColor: '#3b82f6',
+  },
+  {
+    key: 'SHIPPED',
+    label: 'Expédié',
+    description: 'Départ usine effectué',
+    icon: '✈️',
+    headerBg: 'linear-gradient(135deg, #075985, #0284c7)',
+    badgeBg: '#e0f2fe', badgeText: '#075985',
+    borderColor: '#7dd3fc',
+    dotColor: '#0ea5e9',
+  },
+  {
+    key: 'PI',
+    label: 'En Production',
+    description: 'Fabrication en cours',
+    icon: '🏭',
+    headerBg: 'linear-gradient(135deg, #78350f, #b45309)',
+    badgeBg: '#fff7ed', badgeText: '#78350f',
+    borderColor: '#fcd34d',
+    dotColor: '#f59e0b',
+  },
+  {
+    key: 'TO_ORDER',
+    label: 'À Commander',
+    description: 'En attente de validation',
+    icon: '📋',
+    headerBg: 'linear-gradient(135deg, #292524, #44403c)',
+    badgeBg: '#f5f5f4', badgeText: '#44403c',
+    borderColor: '#d6d3d1',
+    dotColor: '#a8a29e',
+  },
+];
+
+// ── GroupedArticleList ──────────────────────────────────────────────────────
+function GroupedArticleList({
+  articles,
+  statusLabel,
+  onSelect,
+}: {
+  articles: any[];
+  statusLabel: (s: string) => { label: string; cls: string; dot: string; icon: string };
+  onSelect: (id: string) => void;
+}) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    STATUS_GROUPS.forEach(g => s.add(g.key));
+    return s;
+  });
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  if (articles.length === 0) {
+    return (
+      <div className="text-center py-20 text-stone-300 font-bold uppercase text-[10px] tracking-widest">
+        Aucun article précommandé pour ce client
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {STATUS_GROUPS.map(group => {
+        const groupArticles = articles.filter(a => a.status === group.key);
+        if (groupArticles.length === 0) return null;
+        const isOpen = openGroups.has(group.key);
+        const now = new Date();
+
+        return (
+          <div key={group.key} className="rounded-2xl overflow-hidden shadow-sm border border-white/60">
+            {/* Group header — collapsible */}
+            <button
+              onClick={() => toggleGroup(group.key)}
+              className="w-full flex items-center justify-between px-5 py-3.5 transition-opacity hover:opacity-90"
+              style={{ background: group.headerBg }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl leading-none">{group.icon}</span>
+                <div className="text-left">
+                  <p className="text-white font-black text-sm uppercase tracking-wider leading-tight">{group.label}</p>
+                  <p className="text-white/50 text-[9px] font-bold uppercase tracking-widest leading-none mt-0.5">{group.description}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Count badge */}
+                <span className="font-black text-xs rounded-full px-3 py-1" style={{ background: group.badgeBg, color: group.badgeText }}>
+                  {groupArticles.length} article{groupArticles.length !== 1 ? 's' : ''}
+                </span>
+                {/* Chevron */}
+                <svg
+                  width="16" height="16" viewBox="0 0 16 16" fill="none"
+                  className="text-white/60 transition-transform duration-200"
+                  style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                >
+                  <path d="M3 6l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </button>
+
+            {/* Group body */}
+            {isOpen && (
+              <div className="bg-stone-50 border-t" style={{ borderColor: group.borderColor }}>
+                <div className="p-3 space-y-2">
+                  {groupArticles.map(a => {
+                    const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
+                    return (
+                      <div
+                        key={a.id}
+                        className="bg-white rounded-xl border border-stone-100 shadow-sm hover:shadow-md transition-all overflow-hidden"
+                        style={{ borderLeftWidth: 3, borderLeftColor: group.dotColor }}
+                      >
+                        {/* Desktop layout */}
+                        <div className="hidden sm:flex items-center gap-4 px-4 py-3">
+                          {/* Article info */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
+                            <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{a.categoryId || '—'}</p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {a.size && a.size !== 'various' && (
+                                <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.size}</span>
+                              )}
+                              {a.color && (
+                                <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.color}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Qty */}
+                          <div className="shrink-0 text-center px-4 border-l border-stone-100">
+                            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
+                            <p className="text-lg font-black text-stone-900 leading-none">{Number(a.quantity).toLocaleString('en-US')}</p>
+                            <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">{a.unitOfMeasure || ''}</p>
+                          </div>
+
+                          {/* Arrival date */}
+                          <div className="shrink-0 text-center px-4 border-l border-stone-100">
+                            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Arrivée Prévue</p>
+                            {a.arrivalDate ? (
+                              <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                                isArrived ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'
+                              }`}>
+                                {isArrived ? '✅ ' : '📅 '}{a.arrivalDate}
+                              </span>
+                            ) : (
+                              <span className="text-stone-300 text-[10px] font-bold">Non définie</span>
+                            )}
+                          </div>
+
+                          {/* Action */}
+                          <div className="shrink-0 pl-4 border-l border-stone-100">
+                            <button
+                              onClick={() => onSelect(a.id)}
+                              className="h-9 px-3 text-white font-black uppercase text-[9px] tracking-widest rounded-lg transition-all flex items-center gap-1.5"
+                              style={{ background: group.headerBg }}
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                              Détails
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Mobile layout */}
+                        <div className="sm:hidden p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
+                              <p className="text-sm font-black text-stone-900 uppercase">{a.categoryId || '—'}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
+                              <p className="text-sm font-black text-stone-900">{Number(a.quantity).toLocaleString('en-US')} <span className="text-[10px] text-stone-400">{a.unitOfMeasure}</span></p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex gap-1 flex-wrap">
+                              {a.size && a.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.size}</span>}
+                              {a.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.color}</span>}
+                            </div>
+                            {a.arrivalDate && (
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg ${isArrived ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                📅 {a.arrivalDate}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => onSelect(a.id)}
+                            className="w-full h-9 text-white font-black uppercase text-[9px] tracking-widest rounded-lg flex items-center justify-center gap-1.5"
+                            style={{ background: group.headerBg }}
+                          >
+                            <Info className="w-3.5 h-3.5" /> Voir Détails
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ClientDetailView({
   clientName,
   articles,
@@ -1898,17 +2139,22 @@ export function ClientDetailView({
   }, [selectedArticle, categories]);
 
   const statusLabel = (status: string) => {
-    if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200' };
-    if (status === 'PI') return { label: 'En Production', cls: 'bg-amber-50 text-amber-700 border-amber-100' };
-    if (status === 'SHIPPED') return { label: 'Expédié', cls: 'bg-blue-50 text-blue-700 border-blue-100' };
-    if (status === 'TRANSIT') return { label: 'En Transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-100' };
-    if (status === 'CUSTOMS') return { label: 'En Dédouanement', cls: 'bg-purple-50 text-purple-700 border-purple-100' };
-    if (status === 'STOCK') return { label: 'En Stock', cls: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-    return { label: status, cls: 'bg-stone-100 text-stone-600 border-stone-200' };
+    if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200', dot: 'bg-stone-400', icon: '📋' };
+    if (status === 'PI') return { label: 'En Production', cls: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400', icon: '🏭' };
+    if (status === 'SHIPPED') return { label: 'Expédié', cls: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-400', icon: '✈️' };
+    if (status === 'TRANSIT') return { label: 'En Transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-400', icon: '🚢' };
+    if (status === 'CUSTOMS') return { label: 'En Dédouanement', cls: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500', icon: '🛃' };
+    if (status === 'STOCK') return { label: 'En Stock', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', icon: '✅' };
+    return { label: status, cls: 'bg-stone-100 text-stone-600 border-stone-200', dot: 'bg-stone-400', icon: '📦' };
   };
 
+  // ── computed stats ──
+  const inStockCount = clientArticles.filter(a => a.status === 'STOCK').length;
+  const inTransitCount = clientArticles.filter(a => ['TRANSIT','SHIPPED','CUSTOMS'].includes(a.status)).length;
+  const inProductionCount = clientArticles.filter(a => ['PI','TO_ORDER'].includes(a.status)).length;
+
   return (
-    <div className="space-y-8 fade-in">
+    <div className="space-y-6 fade-in">
       {!isPortal && onBack && (
         <div className="flex items-center justify-between gap-3">
           <Button
@@ -1919,207 +2165,78 @@ export function ClientDetailView({
           >
             <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
           </Button>
+          <Button
+            size="sm"
+            onClick={() => exportClientDossierPDF(clientName, clientArticles)}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-indigo-100 gap-2"
+          >
+            <Download className="w-3.5 h-3.5" /> Exporter PDF
+          </Button>
         </div>
       )}
 
-      <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
-        <div className="bg-stone-900 p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-[120px]" />
-          <div className="flex items-center gap-6 relative z-10">
-            <div className="p-4 bg-stone-800 rounded-2xl shadow-lg border border-white/5">
-              <UserCircle2 className="w-8 h-8 text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-1">Dossier Client — Précommandes</p>
-              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{clientName}</h2>
-              <div className="flex gap-4 mt-4 flex-wrap">
-                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/20 px-3 py-1 text-[10px] font-bold uppercase">
-                  {clientArticles.length} Articles Précommandés
-                </Badge>
-              </div>
+      {/* ── STAT CARDS ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total articles */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm flex flex-col justify-between" style={{ minHeight: 100 }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Total Articles</p>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(15,23,42,0.08)' }}>
+              <Package className="w-4 h-4" style={{ color: '#0f172a' }} />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4 w-full xl:w-auto relative z-10">
-            <SummaryBlock label="Articles" value={String(clientArticles.length)} sub="" color="text-white" />
-            <SummaryBlock label="Familles" value={String(new Set(clientArticles.map(a => a.categoryId)).size)} sub="" color="text-indigo-400" />
-            <SummaryBlock
-              label="Prochaine Arrivée"
-              value={nextArrival ?? '—'}
-              sub=""
-              color={nextArrival ? 'text-emerald-400' : 'text-stone-500'}
-            />
-          </div>
+          <p className="text-3xl font-black text-stone-900 leading-none">{clientArticles.length}</p>
+          <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-1">précommandes suivies</p>
         </div>
-      </header>
-
-      <section className="space-y-4">
-        <div className="flex items-center gap-3 px-2">
-          <div className="p-2 bg-indigo-100 rounded-lg">
-            <Package className="w-4 h-4 text-indigo-600" />
-          </div>
-          <h3 className="text-xs font-black text-stone-900 uppercase tracking-widest">Commandes de {clientName}</h3>
-        </div>
-
-        {/* ── MOBILE: Cards (< md) ── */}
-        <div className="flex flex-col gap-4 md:hidden">
-          {clientArticles.length === 0 ? (
-            <div className="text-center py-16 text-stone-300 font-bold uppercase text-[10px] tracking-widest">
-              Aucun article précommandé pour ce client
+        {/* In stock */}
+        <div className="bg-white rounded-2xl border border-emerald-100 p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">En Stock</p>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <span className="text-base">✅</span>
             </div>
-          ) : clientArticles.map((a) => {
-            const { label, cls } = statusLabel(a.status);
-            const now = new Date();
-            const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
-            return (
-              <div key={a.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                {/* Card header: status + date */}
-                <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-stone-50">
-                  <Badge className={`${cls} text-[9px] font-black uppercase px-3 py-1`}>{label}</Badge>
-                  {a.arrivalDate ? (
-                    <span className={`text-[11px] font-black ${isArrived ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                      📅 {a.arrivalDate}
-                    </span>
-                  ) : (
-                    <span className="text-stone-300 text-[10px] font-bold">Date non définie</span>
-                  )}
-                </div>
-                {/* Card body: product info grid */}
-                <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
-                  <div>
-                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
-                    <p className="text-[13px] font-black text-stone-900 leading-tight">{a.categoryId || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
-                    <p className="text-[13px] font-black text-stone-900 leading-tight">
-                      {Number(a.quantity).toLocaleString('en-US')}
-                      <span className="text-[10px] font-bold text-stone-400 ml-1">{a.unitOfMeasure || ''}</span>
-                    </p>
-                  </div>
-                  {a.size && (
-                    <div>
-                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taille</p>
-                      <p className="text-[12px] font-bold text-stone-700">{a.size}</p>
-                    </div>
-                  )}
-                  {a.color && (
-                    <div>
-                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Couleur</p>
-                      <p className="text-[12px] font-bold text-stone-700 uppercase">{a.color}</p>
-                    </div>
-                  )}
-                  <div className="col-span-2 pt-3 border-t border-stone-50 mt-1">
-                    <button
-                      onClick={() => setSelectedArticleId(a.id)}
-                      className="w-full h-11 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Info className="w-3.5 h-3.5" />
-                      Voir Détails
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          </div>
+          <p className="text-3xl font-black text-emerald-600 leading-none">{inStockCount}</p>
+          <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mt-1">article{inStockCount !== 1 ? 's' : ''} disponible{inStockCount !== 1 ? 's' : ''}</p>
+        </div>
+        {/* In transit */}
+        <div className="bg-white rounded-2xl border border-indigo-100 p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">En Route</p>
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <span className="text-base">🚢</span>
+            </div>
+          </div>
+          <p className="text-3xl font-black text-indigo-600 leading-none">{inTransitCount}</p>
+          <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mt-1">transit & douanes</p>
+        </div>
+        {/* Next arrival */}
+        <div className="rounded-2xl p-5 shadow-sm flex flex-col justify-between" style={{ background: 'linear-gradient(135deg, #0f172a, #1e1b4b)', minHeight: 100 }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Prochaine Arrivée</p>
+            <span className="text-base">📅</span>
+          </div>
+          <p className="font-black text-white leading-tight" style={{ fontSize: nextArrival ? '1rem' : '1.5rem' }}>{nextArrival ?? '—'}</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: 'rgba(196,160,98,0.7)' }}>date estimée</p>
+        </div>
+      </div>
+
+      {/* ── SECTION HEADER ── */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-1 h-5 rounded-full" style={{ background: '#c4a062' }} />
+            <h3 className="text-sm font-black text-stone-900 uppercase tracking-widest">Vos Commandes</h3>
+          </div>
+          <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest bg-white border border-stone-200 rounded-full px-3 py-1">{clientArticles.length} article{clientArticles.length !== 1 ? 's' : ''}</span>
         </div>
 
-        {/* ── DESKTOP: Table (≥ md) ── */}
-        <Card className="hidden md:block border-stone-200 shadow-xl rounded-2xl overflow-hidden bg-white">
-          <Table>
-            <TableHeader className="bg-stone-50/80">
-              <TableRow>
-                <TableHead className="text-[9px] font-black uppercase py-4">Statut</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Arrivée Prévue</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Type Produit</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Taille</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Couleur</TableHead>
-                <TableHead className="text-right text-[9px] font-black uppercase py-4">Qté</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-4">Unité</TableHead>
-                <TableHead className="w-24"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clientArticles.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-12 text-stone-300 font-bold uppercase text-[10px]">Aucun article précommandé pour ce client</TableCell></TableRow>
-              ) : clientArticles.map((a) => {
-                const { label, cls } = statusLabel(a.status);
-                const now = new Date();
-                const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
-                return (
-                  <TableRow key={a.id} className="hover:bg-indigo-50/20 transition-colors group border-stone-50">
-                    <TableCell className="py-3">
-                      <Badge className={`${cls} text-[8px] font-black uppercase`}>{label}</Badge>
-                    </TableCell>
-                    <TableCell className="py-3">
-                      {a.arrivalDate ? (
-                        <span className={`text-[10px] font-bold ${isArrived ? 'text-emerald-600' : 'text-blue-600'}`}>
-                          {a.arrivalDate}
-                        </span>
-                      ) : (
-                        <span className="text-stone-300 text-[10px]">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-3 font-black text-stone-900 text-[11px]">{a.categoryId || '—'}</TableCell>
-                    <TableCell className="py-3 font-bold text-stone-500 text-[10px]">{a.size || '—'}</TableCell>
-                    <TableCell className="py-3 font-bold text-stone-500 text-[10px] uppercase">{a.color || '—'}</TableCell>
-                    <TableCell className="py-3 text-right font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US')}</TableCell>
-                    <TableCell className="py-3 font-bold text-stone-400 text-[10px] uppercase">{a.unitOfMeasure || '—'}</TableCell>
-                    <TableCell className="py-3 pr-4">
-                      <button
-                        onClick={() => setSelectedArticleId(a.id)}
-                        className="w-full h-9 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black uppercase text-[9px] tracking-widest rounded-xl shadow-sm shadow-indigo-200 transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Info className="w-3 h-3" />
-                        Voir Détails
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
-
-      <div className="bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/60 rounded-2xl p-5 flex items-start gap-4 mt-8 shadow-sm">
-          <div className="bg-amber-100 p-2 rounded-xl shrink-0 mt-0.5">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <h4 className="text-amber-900 font-black text-[11px] uppercase tracking-widest mb-1.5 flex items-center gap-2">
-              Information Délais de Traitement <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-            </h4>
-            <p className="text-amber-800/80 font-bold text-[10px] uppercase tracking-widest leading-relaxed">
-              Si le conteneur ou l'article affiche le statut <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-[4px] font-black border border-purple-200 mx-1">EN DÉDOUANEMENT</span>, la durée prévisionnelle de traitement est de <span className="font-black underline decoration-amber-400 underline-offset-4 decoration-2 px-1">7 à 15 jours</span> ouvrés.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mt-6">
-          <div className="p-3 bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-stone-100 text-stone-600 border-stone-200 text-[8px] uppercase font-black tracking-widest mb-2">À Commander</Badge>
-            <p className="text-[9px] text-stone-400 font-bold uppercase tracking-widest leading-tight">Attente de validation usine</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-amber-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[8px] uppercase font-black tracking-widest mb-2">En Production</Badge>
-            <p className="text-[9px] text-amber-600/70 font-bold uppercase tracking-widest leading-tight">Fabrication en cours</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-blue-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] uppercase font-black tracking-widest mb-2">Expédié</Badge>
-            <p className="text-[9px] text-blue-600/70 font-bold uppercase tracking-widest leading-tight">Départ usine effectué</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-indigo-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-[8px] uppercase font-black tracking-widest mb-2">En Transit</Badge>
-            <p className="text-[9px] text-indigo-600/70 font-bold uppercase tracking-widest leading-tight">En cours d'acheminement</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-purple-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-purple-50 text-purple-700 border-purple-100 text-[8px] uppercase font-black tracking-widest mb-2">Dédouanement</Badge>
-            <p className="text-[9px] text-purple-600/70 font-bold uppercase tracking-widest leading-tight">Procédures douanières</p>
-          </div>
-          <div className="p-3 bg-white rounded-2xl border border-emerald-100 shadow-sm flex flex-col items-center text-center">
-            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] uppercase font-black tracking-widest mb-2">En Stock</Badge>
-            <p className="text-[9px] text-emerald-600/70 font-bold uppercase tracking-widest leading-tight">Arrivé à destination</p>
-          </div>
-        </div>
+        {/* ── GROUPED BY STATUS ── */}
+        <GroupedArticleList
+          articles={clientArticles}
+          statusLabel={statusLabel}
+          onSelect={setSelectedArticleId}
+        />
       </section>
 
       <Dialog open={!!selectedArticleId} onOpenChange={(o) => { if (!o) setSelectedArticleId(null); }}>
@@ -2140,72 +2257,80 @@ export function ClientDetailView({
 
             return (
               <div className="flex flex-col relative w-full max-h-[85vh] overflow-y-auto custom-scrollbar">
-                <div className="bg-indigo-900 p-8 pt-10 text-center relative overflow-hidden shrink-0">
-                  <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl" />
-                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/20 rounded-full translate-y-1/2 -translate-x-1/4 blur-xl" />
+                {/* Premium header */}
+                <div className="relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
+                  <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #c4a062, transparent)', transform: 'translate(30%, -30%)' }} />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #6366f1, transparent)', transform: 'translate(-30%, 30%)' }} />
                   
-                  <div className="relative z-10 flex flex-col items-center">
-                    <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-800 rounded-2xl mb-4 shadow-xl border border-indigo-700/50">
-                      <Package className="w-7 h-7 text-indigo-200" />
-                    </div>
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tight leading-none mb-2">{selectedArticle.categoryId}</h2>
-                    <div className="flex justify-center gap-2 mb-4 mt-2">
-                      <span className="inline-flex items-center justify-center px-4 py-1.5 bg-white/10 rounded-full border border-white/10 backdrop-blur-md">
-                        <span className="text-[11px] font-black text-white uppercase tracking-widest">
-                          {Number(selectedArticle.quantity).toLocaleString('en-US')} {selectedArticle.unitOfMeasure || 'U'}
-                        </span>
-                      </span>
-                    </div>
+                  {/* Close button */}
+                  <button
+                    onClick={() => setSelectedArticleId(null)}
+                    className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </button>
+
+                  <div className="relative z-10 p-7 pb-6">
+                    {/* Status badge */}
+                    {(() => { const s = statusLabel(selectedArticle.status); return (
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-lg">{s.icon}</span>
+                        <span className={`${s.cls} text-[9px] font-black uppercase tracking-widest border px-2.5 py-1 rounded-full`}>{s.label}</span>
+                      </div>
+                    ); })()}
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tight leading-tight mb-1">{selectedArticle.categoryId}</h2>
+                    <p className="font-black uppercase tracking-widest" style={{ color: '#c4a062', fontSize: '1.1rem' }}>
+                      {Number(selectedArticle.quantity).toLocaleString('en-US')} <span className="text-sm" style={{ color: 'rgba(196,160,98,0.6)' }}>{selectedArticle.unitOfMeasure || 'U'}</span>
+                    </p>
                   </div>
+                  {/* Gold separator */}
+                  <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #c4a062 0%, transparent 100%)' }} />
                 </div>
                 
-                <div className="p-6 space-y-4 relative z-10 shrink-0">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Code HS</span>
-                      <span className="text-sm font-black text-stone-900">{selectedArticle.hsCode || selectedCategory?.hsCode || '—'}</span>
-                    </div>
-                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">CBM</span>
-                      <span className="text-sm font-black text-stone-900">{selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—'}</span>
-                    </div>
-                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Taille</span>
-                      <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
-                    </div>
-                    <div className="bg-white p-4 py-5 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1.5 group-hover:text-indigo-400 transition-colors">Couleur</span>
-                      <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
-                    </div>
-                    <div className="bg-white p-4 py-3 rounded-2xl border border-stone-100 shadow-sm flex flex-col items-center justify-center text-center group hover:border-indigo-100 hover:shadow-md transition-all col-span-2">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 group-hover:text-indigo-400 transition-colors flex items-center gap-1">
-                        <ClipboardList className="w-2.5 h-2.5" /> Technique / Spécifications
+                <div className="p-5 space-y-4 shrink-0" style={{ background: '#f8f9fa' }}>
+                  {/* Spec grid */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { label: 'Code HS', value: selectedArticle.hsCode || selectedCategory?.hsCode || '—' },
+                      { label: 'CBM', value: selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—' },
+                      { label: 'Taille', value: selectedArticle.size || '—' },
+                      { label: 'Couleur', value: selectedArticle.color || '—', upper: true },
+                    ].map((spec, i) => (
+                      <div key={i} className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
+                        <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">{spec.label}</span>
+                        <span className={`text-sm font-black text-stone-900 ${spec.upper ? 'uppercase' : ''}`}>{spec.value}</span>
+                      </div>
+                    ))}
+                    <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 col-span-2 flex flex-col items-center text-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                        <ClipboardList className="w-2.5 h-2.5" /> Spécifications Techniques
                       </span>
-                      <span className="text-[11px] font-bold text-stone-600 leading-tight">
+                      <span className="text-[11px] font-bold text-stone-600 leading-snug">
                         {selectedArticle.specs || (selectedArticle.zipperType ? `${selectedArticle.zipperType} ${selectedArticle.slider || ''}` : '—')}
                       </span>
                     </div>
                   </div>
 
-                  <div className="bg-stone-900 p-5 rounded-2xl text-white shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-                    <div className="grid grid-cols-4 gap-1.5 relative z-10">
-                      <div className="flex flex-col">
-                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">DI</span>
-                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) != null ? `${selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate}%` : '—'}</span>
-                      </div>
-                      <div className="flex flex-col border-l border-stone-800 pl-2">
-                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TPI</span>
-                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.tpiRate ?? selectedCategory?.tpiRate) != null ? `${selectedArticle.tpiRate ?? selectedCategory?.tpiRate}%` : '—'}</span>
-                      </div>
-                      <div className="flex flex-col border-l border-stone-800 pl-2">
-                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TIC</span>
-                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.ticRate ?? selectedCategory?.ticRate) != null ? `${selectedArticle.ticRate ?? selectedCategory?.ticRate}%` : '-'}</span>
-                      </div>
-                      <div className="flex flex-col border-l border-stone-800 pl-2">
-                        <span className="text-[7px] font-black text-stone-500 uppercase tracking-widest block mb-1">TVA</span>
-                        <span className="text-sm font-black text-emerald-400">{(selectedArticle.tvaRate ?? selectedCategory?.tvaRate) != null ? `${selectedArticle.tvaRate ?? selectedCategory?.tvaRate}%` : '—'}</span>
-                      </div>
+                  {/* Tax rates */}
+                  <div className="rounded-xl overflow-hidden border border-stone-200">
+                    <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: '#0f172a' }}>
+                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Taux Douaniers</span>
+                      <span className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Info tarifaire</span>
+                    </div>
+                    <div className="bg-white grid grid-cols-4 divide-x divide-stone-100">
+                      {[
+                        { label: 'D.I', value: (selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) },
+                        { label: 'TPI', value: (selectedArticle.tpiRate ?? selectedCategory?.tpiRate) },
+                        { label: 'TIC', value: (selectedArticle.ticRate ?? selectedCategory?.ticRate) },
+                        { label: 'TVA', value: (selectedArticle.tvaRate ?? selectedCategory?.tvaRate) },
+                      ].map((t, i) => (
+                        <div key={i} className="flex flex-col items-center justify-center py-3 px-2">
+                          <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">{t.label}</span>
+                          <span className="text-sm font-black" style={{ color: t.value != null ? '#059669' : '#d1d5db' }}>
+                            {t.value != null ? `${t.value}%` : '—'}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -2219,66 +2344,77 @@ export function ClientDetailView({
                     </div>
                   )}
 
+                  {/* Breakdowns */}
                   {safeSizeBreakdown.length > 0 && (
-                     <div className="rounded-2xl border border-teal-100 overflow-hidden mt-3">
-                       <div className="bg-teal-700 px-4 py-2.5">
-                         <span className="text-[9px] font-black text-teal-200 uppercase tracking-widest">Detail Tailles</span>
-                       </div>
-                       <div className="divide-y divide-teal-50 bg-white">
-                         <div className="grid grid-cols-[1fr_80px] bg-teal-50">
-                           <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest">Taille</div>
-                           <div className="py-1.5 px-3 text-[8px] font-black text-teal-500 uppercase tracking-widest text-right">Qté</div>
-                         </div>
-                         {safeSizeBreakdown.map((row: any, i: number) => (
-                           <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-teal-50/40 transition-colors">
-                             <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
-                             <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
-                           </div>
-                         ))}
-                         <div className="grid grid-cols-[1fr_80px] bg-teal-600 text-white">
-                           <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
-                           <div className="py-2 px-3 text-right text-[10px] font-black">
-                             {safeSizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()}
-                           </div>
-                         </div>
-                       </div>
-                     </div>
-                   )}
-
-                   {safeColorBreakdown.length > 0 && (
-                     <div className="rounded-2xl border border-violet-100 overflow-hidden mt-3">
-                       <div className="bg-violet-700 px-4 py-2.5">
-                         <span className="text-[9px] font-black text-violet-200 uppercase tracking-widest">Detail Couleurs</span>
-                       </div>
-                       <div className="divide-y divide-violet-50 bg-white">
-                         <div className="grid grid-cols-[1fr_80px] bg-violet-50">
-                           <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest">Couleur</div>
-                           <div className="py-1.5 px-3 text-[8px] font-black text-violet-500 uppercase tracking-widest text-right">Qté</div>
-                         </div>
-                         {safeColorBreakdown.map((row: any, i: number) => (
-                           <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-violet-50/40 transition-colors">
-                             <div className="py-2 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
-                             <div className="py-2 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
-                           </div>
-                         ))}
-                         <div className="grid grid-cols-[1fr_80px] bg-violet-600 text-white">
-                           <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest">TOTAL</div>
-                           <div className="py-2 px-3 text-right text-[10px] font-black">
-                             {safeColorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}
-                           </div>
-                         </div>
-                       </div>
-                     </div>
-                   )}
-
-                  <div className="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm grid grid-cols-2 gap-4 mt-2 text-center ring-1 ring-indigo-50">
-                    <div className="flex flex-col justify-center">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</span>
-                      <span className="text-xs font-black text-stone-900 bg-stone-50 py-1.5 rounded-lg border border-stone-100">{selectedArticle.orderDate || '—'}</span>
+                    <div className="rounded-xl border border-stone-200 overflow-hidden">
+                      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#0f172a' }}>
+                        <span className="text-base">📐</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Détail Tailles</span>
+                      </div>
+                      <div className="bg-white divide-y divide-stone-50">
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-50">
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Taille</div>
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest text-right">Qté</div>
+                        </div>
+                        {safeSizeBreakdown.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-stone-50 transition-colors">
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-900 text-white">
+                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>TOTAL</div>
+                          <div className="py-2 px-3 text-right text-[10px] font-black">{safeSizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="pl-4 border-l border-stone-100 flex flex-col justify-center">
-                      <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1.5 flex items-center justify-center gap-1"><Clock className="w-3 h-3" /> Date Arrivée</span>
-                      <span className="text-xs font-black text-indigo-700 bg-indigo-50 py-1.5 rounded-lg border border-indigo-100">{selectedArticle.arrivalDate || '—'}</span>
+                  )}
+
+                  {safeColorBreakdown.length > 0 && (
+                    <div className="rounded-xl border border-stone-200 overflow-hidden">
+                      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#0f172a' }}>
+                        <span className="text-base">🎨</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Détail Couleurs</span>
+                      </div>
+                      <div className="bg-white divide-y divide-stone-50">
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-50">
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Couleur</div>
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest text-right">Qté</div>
+                        </div>
+                        {safeColorBreakdown.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-stone-50 transition-colors">
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-900 text-white">
+                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>TOTAL</div>
+                          <div className="py-2 px-3 text-right text-[10px] font-black">{safeColorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dossier ref */}
+                  {selectedArticle.factureId && (
+                    <div className="bg-white rounded-xl border border-stone-200 p-4">
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2">Réf. Dossier</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N Facture</p><p className="text-[12px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p></div>
+                        {selectedArticle.factureNoBL && (<div className="text-right"><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N BL</p><p className="text-[12px] font-black uppercase" style={{ color: '#c4a062' }}>{selectedArticle.factureNoBL}</p></div>)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-xl border border-stone-200 p-4 text-center">
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</p>
+                      <p className="text-xs font-black text-stone-900">{selectedArticle.orderDate || '—'}</p>
+                    </div>
+                    <div className="rounded-xl p-4 text-center" style={{ background: 'linear-gradient(135deg, #0f172a, #1e1b4b)' }}>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-2 flex items-center justify-center gap-1" style={{ color: 'rgba(196,160,98,0.7)' }}><Clock className="w-3 h-3" /> Date Arrivée</p>
+                      <p className="text-xs font-black" style={{ color: '#c4a062' }}>{selectedArticle.arrivalDate || '—'}</p>
                     </div>
                   </div>
                 </div>

@@ -40,7 +40,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     const marginX = 16;
     const contentW = pageW - marginX * 2;
 
-    const today = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
     const todayStr = new Date().toISOString().slice(0, 10);
     const ref = `BC-${Date.now().toString().slice(-8)}`;
 
@@ -72,7 +72,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     doc.setTextColor(...NAVY);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.text("BON DE COMMANDE", pageW - marginX, yPos + 8, { align: "right" });
+    doc.text("PURCHASE ORDER", pageW - marginX, yPos + 8, { align: "right" });
 
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.6);
@@ -81,7 +81,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...TEXT_MAIN);
-    doc.text(`Réf: ${ref}`, pageW - marginX, yPos + 17, { align: "right" });
+    doc.text(`Ref: ${ref}`, pageW - marginX, yPos + 17, { align: "right" });
     
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...TEXT_MUTED);
@@ -99,7 +99,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       doc.setTextColor(79, 70, 229); // indigo-600
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
-      doc.text(`COMMANDE SPÉCIALE CLIENT : ${(article.clientName).toUpperCase()}`, pageW / 2, yPos + 6.5, { align: "center" });
+      doc.text(`SPECIAL CLIENT ORDER: ${(article.clientName).toUpperCase()}`, pageW / 2, yPos + 6.5, { align: "center" });
       yPos += 16;
     }
 
@@ -122,7 +122,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    doc.text("SPÉCIFICATIONS DE LA COMMANDE", marginX, yPos);
+    doc.text("ORDER SPECIFICATIONS", marginX, yPos);
     
     yPos += 4;
     
@@ -154,15 +154,15 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       doc.text(lines[0] || "—", x, y + 5);
     };
 
-    drawSpecItem(marginX + 4, yPos + 6, "Catégorie", (article.categoryId || "—").toUpperCase());
-    drawSpecItem(marginX + 4 + specW, yPos + 6, "Taille", article.size && article.size !== "various" ? article.size.toUpperCase() : "VARIOUS");
-    drawSpecItem(marginX + 4 + specW * 2, yPos + 6, "Couleur", colorLabel);
+    drawSpecItem(marginX + 4, yPos + 6, "Category", (article.categoryId || "—").toUpperCase());
+    drawSpecItem(marginX + 4 + specW, yPos + 6, "Size", article.size && article.size !== "various" ? article.size.toUpperCase() : "VARIOUS");
+    drawSpecItem(marginX + 4 + specW * 2, yPos + 6, "Color", colorLabel);
     
     // Highlight Quantity
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...TEXT_MUTED);
-    doc.text("QUANTITÉ TOTALE", marginX + 4 + specW * 3, yPos + 6);
+    doc.text("TOTAL QTY", marginX + 4 + specW * 3, yPos + 6);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
@@ -174,11 +174,11 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       doc.line(marginX + 4, yPos + 16, pageW - marginX - 4, yPos + 16);
       
       if (article.zipperType) {
-        drawSpecItem(marginX + 4, yPos + 22, "Type Fermeture", article.zipperType.toUpperCase());
-        drawSpecItem(marginX + 4 + specW, yPos + 22, "Curseur (Slider)", (article.slider || "—").toUpperCase());
-        drawSpecItem(marginX + 4 + specW * 2, yPos + 22, "Type Slider", (article.sliderType || "—").toUpperCase());
+        drawSpecItem(marginX + 4, yPos + 22, "Zipper Type", article.zipperType.toUpperCase());
+        drawSpecItem(marginX + 4 + specW, yPos + 22, "Slider", (article.slider || "—").toUpperCase());
+        drawSpecItem(marginX + 4 + specW * 2, yPos + 22, "Slider Type", (article.sliderType || "—").toUpperCase());
       } else if (article.specs) {
-        drawSpecItem(marginX + 4, yPos + 22, "Spécifications Techniques / Notes", article.specs);
+        drawSpecItem(marginX + 4, yPos + 22, "Technical Specifications / Notes", article.specs);
       }
     }
 
@@ -203,7 +203,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     };
 
     if (colorBreakdown.length > 0) {
-      yPos = drawSectionTitle("Détail par Couleur", `${colorBreakdown.length} référence(s)`, yPos);
+      yPos = drawSectionTitle("Color Breakdown", `${colorBreakdown.length} color(s)`, yPos);
 
       const colorRows = colorBreakdown.map((r: any, i: number) => [
         String(i + 1),
@@ -212,43 +212,43 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       ]);
 
       const totalRolls = colorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
-      colorRows.push(["", "TOTAL GÉNÉRAL", fmtQty(totalRolls, article.unitOfMeasure)]);
+      colorRows.push(["", "GRAND TOTAL", fmtQty(totalRolls, article.unitOfMeasure)]);
 
       autoTable(doc, {
         startY: yPos,
-        head: [["#", "Désignation Couleur", "Quantité Demandée"]],
+        head: [["#", "Color Reference", "Qty Ordered"]],
         body: colorRows,
-        margin: { left: marginX, right: marginX, bottom: 30 },
+        margin: { left: marginX, right: marginX, bottom: 20 },
         styles: {
-          fontSize: 9,
-          cellPadding: 5,
+          fontSize: 8,
+          cellPadding: 2.5,
           font: "helvetica",
           textColor: TEXT_MAIN,
           lineColor: BORDER_COLOR,
-          lineWidth: 0.2,
+          lineWidth: 0.15,
         },
         headStyles: {
-          fillColor: LIGHT_BG,
-          textColor: TEXT_MUTED,
-          fontSize: 8,
+          fillColor: [240, 240, 240],
+          textColor: [80, 80, 80],
+          fontSize: 7,
           fontStyle: "bold",
           halign: "left",
         },
         columnStyles: {
-          0: { cellWidth: 15, textColor: TEXT_MUTED },
+          0: { cellWidth: 12, textColor: TEXT_MUTED },
           1: { cellWidth: "auto", fontStyle: "bold" },
-          2: { halign: "right", cellWidth: 50, fontStyle: "bold", textColor: NAVY },
+          2: { halign: "right", cellWidth: 45, fontStyle: "bold", textColor: NAVY },
         },
         didParseCell: (data) => {
           if (data.row.index === colorRows.length - 1 && data.section === "body") {
-            data.cell.styles.fillColor = [241, 245, 249]; // slate-100
+            data.cell.styles.fillColor = [235, 240, 248];
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.textColor = NAVY;
           }
         },
       });
 
-      yPos = (doc as any).lastAutoTable.finalY + 12;
+      yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
     if (sizeBreakdown.length > 0) {
@@ -258,7 +258,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
         yPos = 20;
       }
 
-      yPos = drawSectionTitle("Détail par Taille", `${sizeBreakdown.length} taille(s)`, yPos);
+      yPos = drawSectionTitle("Size Breakdown", `${sizeBreakdown.length} size(s)`, yPos);
 
       const sizeRows = sizeBreakdown.map((r: any, i: number) => [
         String(i + 1),
@@ -267,48 +267,48 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       ]);
 
       const totalSizeQty = sizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
-      sizeRows.push(["", "TOTAL GÉNÉRAL", fmtQty(totalSizeQty, article.unitOfMeasure)]);
+      sizeRows.push(["", "GRAND TOTAL", fmtQty(totalSizeQty, article.unitOfMeasure)]);
 
       autoTable(doc, {
         startY: yPos,
-        head: [["#", "Désignation Taille", "Quantité Demandée"]],
+        head: [["#", "Size", "Qty Ordered"]],
         body: sizeRows,
-        margin: { left: marginX, right: marginX, bottom: 30 },
+        margin: { left: marginX, right: marginX, bottom: 20 },
         styles: {
-          fontSize: 9,
-          cellPadding: 5,
+          fontSize: 8,
+          cellPadding: 2.5,
           font: "helvetica",
           textColor: TEXT_MAIN,
           lineColor: BORDER_COLOR,
-          lineWidth: 0.2,
+          lineWidth: 0.15,
         },
         headStyles: {
-          fillColor: LIGHT_BG,
-          textColor: TEXT_MUTED,
-          fontSize: 8,
+          fillColor: [240, 240, 240],
+          textColor: [80, 80, 80],
+          fontSize: 7,
           fontStyle: "bold",
           halign: "left",
         },
         columnStyles: {
-          0: { cellWidth: 15, textColor: TEXT_MUTED },
+          0: { cellWidth: 12, textColor: TEXT_MUTED },
           1: { cellWidth: "auto", fontStyle: "bold" },
-          2: { halign: "right", cellWidth: 50, fontStyle: "bold", textColor: NAVY },
+          2: { halign: "right", cellWidth: 45, fontStyle: "bold", textColor: NAVY },
         },
         didParseCell: (data) => {
           if (data.row.index === sizeRows.length - 1 && data.section === "body") {
-            data.cell.styles.fillColor = [241, 245, 249];
+            data.cell.styles.fillColor = [235, 240, 248];
             data.cell.styles.fontStyle = "bold";
             data.cell.styles.textColor = NAVY;
           }
         },
       });
 
-      yPos = (doc as any).lastAutoTable.finalY + 12;
+      yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
     // Single summary row if no breakdowns
     if (colorBreakdown.length === 0 && sizeBreakdown.length === 0) {
-      yPos = drawSectionTitle("Récapitulatif", "1 ligne", yPos);
+      yPos = drawSectionTitle("Summary", "1 line", yPos);
 
       const singleRow = [[
         article.size && article.size !== "various" ? article.size.toUpperCase() : "—",
@@ -318,11 +318,11 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
 
       autoTable(doc, {
         startY: yPos,
-        head: [["Taille", "Couleur", "Quantité Demandée"]],
+        head: [["Size", "Color", "Qty Ordered"]],
         body: singleRow,
-        margin: { left: marginX, right: marginX, bottom: 30 },
-        styles: { fontSize: 9, cellPadding: 6, font: "helvetica", textColor: TEXT_MAIN, lineColor: BORDER_COLOR, lineWidth: 0.2 },
-        headStyles: { fillColor: LIGHT_BG, textColor: TEXT_MUTED, fontSize: 8, fontStyle: "bold", halign: "center" },
+        margin: { left: marginX, right: marginX, bottom: 20 },
+        styles: { fontSize: 8, cellPadding: 3, font: "helvetica", textColor: TEXT_MAIN, lineColor: BORDER_COLOR, lineWidth: 0.15 },
+        headStyles: { fillColor: [240, 240, 240], textColor: [80, 80, 80], fontSize: 7, fontStyle: "bold", halign: "center" },
         columnStyles: {
           0: { halign: "center", fontStyle: "bold" },
           1: { halign: "center", fontStyle: "bold" },
@@ -330,7 +330,7 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
         },
       });
 
-      yPos = (doc as any).lastAutoTable.finalY + 12;
+      yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
     // ── 6. SIGNATURE BLOCK ────────────────────────────────────────────────────
@@ -357,17 +357,17 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    doc.text("ACCUSÉ DE RÉCEPTION FOURNISSEUR", marginX + 6, yPos + 7);
+    doc.text("SUPPLIER ACKNOWLEDGEMENT", marginX + 6, yPos + 7);
     
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...TEXT_MUTED);
-    doc.text("Cachet et signature obligatoire pour validation", marginX + 6, yPos + 11);
+    doc.text("Stamp and signature required for validation", marginX + 6, yPos + 11);
     
-    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.setDrawColor(203, 213, 225);
     doc.setLineDashPattern([1, 1], 0);
     doc.line(marginX + 6, yPos + 22, marginX + sigBoxW - 6, yPos + 22);
-    doc.setLineDashPattern([], 0); // reset
+    doc.setLineDashPattern([], 0);
 
     // Lebtex signature (Right)
     doc.setFillColor(...LIGHT_BG);
@@ -378,12 +378,12 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    doc.text("ÉMIS PAR LEBTEX TEXTILE IMPORT", marginX + sigBoxW + 18, yPos + 7);
+    doc.text("ISSUED BY LEBTEX TEXTILE IMPORT", marginX + sigBoxW + 18, yPos + 7);
     
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...TEXT_MUTED);
-    doc.text("Service Achats & Logistique", marginX + sigBoxW + 18, yPos + 11);
+    doc.text("Purchasing & Logistics Department", marginX + sigBoxW + 18, yPos + 11);
     
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.5);
@@ -399,15 +399,14 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...TEXT_MUTED);
       
-      const companyInfoLine1 = "LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc";
-      const companyInfoLine2 = "Tel : 05 22 25 77 78 / 05 22 31 62 88 - Fax : 05 22 58 03 46 - Portable : 06 61 10 15 60 - Email : Contact.lebtex@gmail.com";
-      const companyInfoLine3 = "Patente : 34011181 - R.C : 704617 - I.F : 68814237 - ICE : 003823212000094";
+      const companyInfoLine1 = "LEBTEX TEXTILE IMPORT - 31 Rue 65, Lotissement Al Hamd Ain-Chock, Casablanca, Morocco";
+      const companyInfoLine2 = "Tel: +212 5 22 25 77 78 / +212 5 22 31 62 88 - Fax: +212 5 22 58 03 46 - Mobile: +212 6 61 10 15 60 - Email: Contact.lebtex@gmail.com";
+      const companyInfoLine3 = "Tax ID: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094";
       
       doc.text(companyInfoLine1, pageW / 2, pageH - 24, { align: "center" });
       doc.text(companyInfoLine2, pageW / 2, pageH - 20, { align: "center" });
       doc.text(companyInfoLine3, pageW / 2, pageH - 16, { align: "center" });
 
-      // Gray bottom border
       doc.setFillColor(...NAVY);
       doc.rect(0, pageH - 12, pageW, 12, "F");
       doc.setFillColor(...GOLD);
@@ -415,15 +414,15 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
       
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor(148, 163, 184); // slate-400
-      doc.text(`Document Officiel LEBTEX  |  Réf. ${ref}  |  Généré le ${todayStr}`, marginX + 4, pageH - 5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Official LEBTEX Document  |  Ref. ${ref}  |  Generated on ${todayStr}`, marginX + 4, pageH - 5);
       
-      doc.text(`Page ${i} sur ${pageCount}`, pageW - marginX, pageH - 5, { align: "right" });
+      doc.text(`Page ${i} of ${pageCount}`, pageW - marginX, pageH - 5, { align: "right" });
     }
 
     // ── SAVE ──────────────────────────────────────────────────────────────────
     const artName = (article.name || "article").replace(/\s+/g, "_").toUpperCase();
-    const fileName = `BC-LEBTEX-${artName}-${todayStr}.pdf`;
+    const fileName = `PO-LEBTEX-${artName}-${todayStr}.pdf`;
     doc.save(fileName);
   };
 

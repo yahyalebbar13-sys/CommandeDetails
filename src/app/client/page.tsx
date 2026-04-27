@@ -2,23 +2,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ClientDetailView } from '@/components/suppliers-view';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Loader2, Lock, LogOut, Package } from 'lucide-react';
+import { Loader2, Lock, LogOut, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
-// ── Isolated Firebase app — completely separate from admin session ──────────
 function getClientApp() {
   const name = 'clientPortal';
   return getApps().find(a => a.name === name) || initializeApp(firebaseConfig, name);
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────
 type PortalState =
   | { status: 'loading' }
   | { status: 'login' }
@@ -26,7 +22,6 @@ type PortalState =
   | { status: 'portal'; clientName: string; adminUid: string }
   | { status: 'error'; message: string };
 
-// ── Main component ─────────────────────────────────────────────────────────
 export default function ClientPortalPage() {
   const [state, setState] = useState<PortalState>({ status: 'loading' });
   const [email, setEmail] = useState('');
@@ -42,7 +37,6 @@ export default function ClientPortalPage() {
   const authRef = useRef<ReturnType<typeof getAuth> | null>(null);
   const dbRef = useRef<ReturnType<typeof getFirestore> | null>(null);
 
-  // Init isolated Firebase + watch auth state
   useEffect(() => {
     const app = getClientApp();
     const auth = getAuth(app);
@@ -51,20 +45,13 @@ export default function ClientPortalPage() {
     dbRef.current = db;
 
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setState({ status: 'login' });
-        return;
-      }
+      if (!user) { setState({ status: 'login' }); return; }
       setState({ status: 'checking' });
       try {
         const snap = await getDoc(doc(db, 'clientAccess', user.uid));
         if (snap.exists()) {
           const data = snap.data();
-          setState({
-            status: 'portal',
-            clientName: data.clientName,
-            adminUid: data.adminUid,
-          });
+          setState({ status: 'portal', clientName: data.clientName, adminUid: data.adminUid });
         } else {
           await signOut(auth);
           setState({ status: 'error', message: "Ce compte n'est pas autorisé pour le portail client." });
@@ -74,16 +61,13 @@ export default function ClientPortalPage() {
         setState({ status: 'error', message: "Erreur de vérification. Veuillez réessayer." });
       }
     });
-
     return () => unsub();
   }, []);
 
-  // Load client data once authenticated
   useEffect(() => {
     if (state.status !== 'portal' || !dbRef.current) return;
     const { adminUid } = state as { status: 'portal'; clientName: string; adminUid: string };
     const db = dbRef.current;
-    // Security: validate adminUid looks like a real Firebase UID before using it as a Firestore path
     if (!adminUid || adminUid.length < 10 || adminUid.includes('/')) {
       setState({ status: 'error', message: 'Configuration invalide. Contactez votre administrateur.' });
       return;
@@ -101,10 +85,7 @@ export default function ClientPortalPage() {
         setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setDataLoading(false);
       })
-      .catch(() => {
-        setDataLoading(false);
-        setDataError(true);
-      });
+      .catch(() => { setDataLoading(false); setDataError(true); });
   }, [state.status]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -123,165 +104,279 @@ export default function ClientPortalPage() {
 
   const handleLogout = () => { if (authRef.current) signOut(authRef.current); };
 
-  // ── Loading / checking ────────────────────────────────────────────────
+  // ── LOADING ────────────────────────────────────────────────────────────────
   if (state.status === 'loading' || state.status === 'checking') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9F6F0]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin text-indigo-500 w-10 h-10" />
-          <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">
-            {state.status === 'checking' ? 'Vérification...' : 'Chargement...'}
-          </p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)' }}>
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <rect x="2" y="8" width="24" height="16" rx="2" fill="none" stroke="#c4a062" strokeWidth="1.5"/>
+                <path d="M9 8V6a5 5 0 0 1 10 0v2" stroke="#c4a062" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="14" cy="16" r="2" fill="#c4a062"/>
+              </svg>
+            </div>
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-[#0f172a] animate-pulse" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-black text-lg tracking-widest uppercase">LEBTEX</p>
+            <p className="text-white/40 text-[10px] font-bold uppercase tracking-[0.3em] mt-1">
+              {state.status === 'checking' ? 'Vérification en cours...' : 'Connexion...'}
+            </p>
+          </div>
+          <div className="flex gap-1.5">
+            {[0,1,2].map(i => (
+              <div key={i} className="w-2 h-2 bg-[#c4a062] rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── Login form ────────────────────────────────────────────────────────
+  // ── LOGIN ──────────────────────────────────────────────────────────────────
   if (state.status === 'login' || state.status === 'error') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9F6F0] p-4">
-        <div className="w-full max-w-md">
+      <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)' }}>
+        {/* Left panel — branding */}
+        <div className="hidden lg:flex flex-1 flex-col justify-between p-16 relative overflow-hidden">
+          {/* Decorative circles */}
+          <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #c4a062, transparent)' }} />
+          <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full opacity-5" style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
+
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl shadow-2xl shadow-indigo-200 mb-4">
-              <Package className="w-8 h-8 text-white" />
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-[#c4a062]/30" style={{ background: 'rgba(196,160,98,0.15)' }}>
+              <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+                <rect x="2" y="8" width="24" height="16" rx="2" fill="none" stroke="#c4a062" strokeWidth="1.5"/>
+                <path d="M9 8V6a5 5 0 0 1 10 0v2" stroke="#c4a062" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="14" cy="16" r="2" fill="#c4a062"/>
+              </svg>
             </div>
-            <h1 className="text-2xl font-black tracking-tighter text-stone-900 uppercase">
-              STOCK<span className="text-indigo-600">VUE</span>
-            </h1>
-            <p className="text-stone-400 text-[11px] font-bold uppercase tracking-widest mt-1">
-              Portail Client
-            </p>
+            <div>
+              <p className="text-white font-black text-lg tracking-wider">LEBTEX</p>
+              <p className="text-[#c4a062] text-[9px] font-bold uppercase tracking-[0.25em]">Textile Import</p>
+            </div>
           </div>
 
-          {/* Card */}
-          <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
-            <div className="bg-indigo-900 p-6 text-center">
-              <div className="inline-flex items-center justify-center w-10 h-10 bg-indigo-700 rounded-xl mb-3">
-                <Lock className="w-5 h-5 text-indigo-200" />
-              </div>
-              <h2 className="text-lg font-black text-white uppercase tracking-tight">
-                Accès Espace Client
-              </h2>
-              <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest mt-1">
-                Consultez vos précommandes en temps réel
+          {/* Center content */}
+          <div className="relative z-10 space-y-8">
+            <div>
+              <p className="text-[#c4a062] text-[11px] font-black uppercase tracking-[0.3em] mb-4">Portail Client Exclusif</p>
+              <h1 className="text-5xl font-black text-white leading-tight">
+                Suivez vos<br/>
+                <span style={{ color: '#c4a062' }}>commandes</span><br/>
+                en temps réel.
+              </h1>
+              <p className="text-white/40 mt-6 font-medium leading-relaxed max-w-sm">
+                Accédez à l'ensemble de vos précommandes, statuts de livraison et informations logistiques depuis un espace sécurisé et dédié.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="p-8 space-y-5">
-              {(state.status === 'error' || loginError) && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-[10px] text-red-600 font-bold text-center uppercase tracking-wide">
-                  {loginError || (state.status === 'error' ? state.message : '')}
+            {/* Feature pills */}
+            <div className="flex flex-col gap-3">
+              {[
+                { icon: '🚢', label: 'Suivi en transit & douanes' },
+                { icon: '📦', label: 'Statut de vos articles en temps réel' },
+                { icon: '📅', label: 'Dates d\'arrivée prévisionnelles' },
+              ].map((f, i) => (
+                <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 backdrop-blur-sm">
+                  <span className="text-lg">{f.icon}</span>
+                  <span className="text-white/70 text-[11px] font-bold uppercase tracking-widest">{f.label}</span>
                 </div>
-              )}
+              ))}
+            </div>
+          </div>
 
+          {/* Bottom */}
+          <div className="relative z-10 flex items-center gap-2 text-white/20 text-[10px] font-bold uppercase tracking-[0.2em]">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Accès sécurisé & confidentiel</span>
+          </div>
+        </div>
+
+        {/* Right panel — form */}
+        <div className="flex-1 lg:max-w-md flex items-center justify-center p-8">
+          <div className="w-full max-w-sm space-y-8">
+            {/* Mobile logo */}
+            <div className="lg:hidden text-center">
+              <p className="text-white font-black text-2xl tracking-wider">LEBTEX</p>
+              <p className="text-[#c4a062] text-[10px] font-bold uppercase tracking-[0.25em] mt-1">Portail Client</p>
+            </div>
+
+            <div>
+              <h2 className="text-white font-black text-2xl tracking-tight">Connexion</h2>
+              <p className="text-white/40 text-sm mt-1 font-medium">Entrez vos identifiants pour accéder à votre espace.</p>
+            </div>
+
+            {(state.status === 'error' || loginError) && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-red-400 text-xs font-black">!</span>
+                </div>
+                <p className="text-red-300 text-[11px] font-bold leading-relaxed">
+                  {loginError || (state.status === 'error' ? state.message : '')}
+                </p>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                <label className="text-white/50 text-[10px] font-black uppercase tracking-[0.2em]">
                   Adresse Email
-                </Label>
+                </label>
                 <Input
                   type="email"
                   required
                   placeholder="votre@email.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="h-12 border-stone-200 font-bold rounded-xl"
                   autoFocus
+                  className="h-13 border-0 text-white placeholder:text-white/20 font-medium rounded-xl text-sm"
+                  style={{ background: 'rgba(255,255,255,0.07)', outline: 'none' }}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
+                <label className="text-white/50 text-[10px] font-black uppercase tracking-[0.2em]">
                   Mot de Passe
-                </Label>
+                </label>
                 <Input
                   type="password"
                   required
                   placeholder="••••••••"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="h-12 border-stone-200 font-bold rounded-xl"
+                  className="h-13 border-0 text-white placeholder:text-white/20 font-medium rounded-xl text-sm"
+                  style={{ background: 'rgba(255,255,255,0.07)' }}
                 />
               </div>
 
-              <Button
+              <button
                 type="submit"
                 disabled={loginLoading}
-                className="w-full h-12 bg-indigo-700 hover:bg-indigo-800 text-white font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-indigo-200"
+                className="w-full h-13 rounded-xl font-black uppercase text-sm tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #c4a062, #a8845a)', color: '#0f172a' }}
               >
                 {loginLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  'Accéder à Mon Espace'
+                  <>Accéder à Mon Espace <ArrowRight className="w-4 h-4" /></>
                 )}
-              </Button>
-
-              <p className="text-center text-[9px] text-stone-300 uppercase tracking-widest font-bold pt-2">
-                Accès sécurisé — Données confidentielles
-              </p>
+              </button>
             </form>
+
+            <p className="text-center text-white/20 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+              <Lock className="w-3 h-3" /> Connexion chiffrée — Données confidentielles
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Portal view ───────────────────────────────────────────────────────
+  // ── PORTAL ────────────────────────────────────────────────────────────────
   const { clientName } = state as { status: 'portal'; clientName: string; adminUid: string };
+  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+    <div className="min-h-screen flex flex-col" style={{ background: '#f4f5f7' }}>
+      {/* ── NAVBAR ─────────────────────────────────────────────────────── */}
+      <nav className="bg-white border-b border-stone-200/80 sticky top-0 z-50" style={{ boxShadow: '0 1px 20px rgba(0,0,0,0.06)' }}>
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center justify-center w-8 h-8 bg-indigo-600 rounded-lg">
-              <Package className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-[#c4a062]/30" style={{ background: 'rgba(196,160,98,0.12)' }}>
+                <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+                  <rect x="2" y="8" width="24" height="16" rx="2" fill="none" stroke="#c4a062" strokeWidth="2"/>
+                  <path d="M9 8V6a5 5 0 0 1 10 0v2" stroke="#c4a062" strokeWidth="2" strokeLinecap="round"/>
+                  <circle cx="14" cy="16" r="2" fill="#c4a062"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-stone-900 font-black text-sm tracking-wider leading-none">LEBTEX</p>
+                <p className="text-[#c4a062] text-[8px] font-black uppercase tracking-widest leading-none mt-0.5">Textile Import</p>
+              </div>
             </div>
-            <span className="text-lg font-black tracking-tighter text-stone-900 uppercase">
-              STOCK<span className="text-indigo-600">VUE</span>
-            </span>
-            <div className="h-5 w-px bg-stone-200 mx-2" />
-            <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
-              Espace Client
-            </span>
+            <div className="hidden sm:block h-5 w-px bg-stone-200" />
+            <div className="hidden sm:flex items-center gap-1.5 bg-stone-50 border border-stone-200 rounded-full px-3 py-1">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-stone-500 text-[9px] font-black uppercase tracking-widest">Portail Client</span>
+            </div>
           </div>
+
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-full px-4 py-1.5">
-              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">
-                {clientName}
-              </span>
+            {/* Client badge */}
+            <div className="flex items-center gap-2 bg-slate-900 rounded-full px-4 py-2">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0" style={{ background: '#c4a062' }}>
+                {clientName.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-white text-[10px] font-black uppercase tracking-widest hidden sm:block">{clientName}</span>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
+            {/* Logout */}
+            <button
               onClick={handleLogout}
-              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors"
+              className="h-9 w-9 rounded-xl flex items-center justify-center text-stone-400 hover:text-red-500 hover:bg-red-50 transition-all"
               title="Déconnexion"
             >
               <LogOut className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         </div>
       </nav>
 
-      {/* Data */}
+      {/* ── HERO BANNER ────────────────────────────────────────────────── */}
+      <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }} className="relative overflow-hidden">
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 right-0 w-[600px] h-[300px] rounded-full blur-[100px]" style={{ background: 'radial-gradient(circle, #6366f1, transparent)' }} />
+          <div className="absolute bottom-0 left-1/3 w-[400px] h-[200px] rounded-full blur-[80px]" style={{ background: 'radial-gradient(circle, #c4a062, transparent)' }} />
+        </div>
+        <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div>
+              <p className="text-[#c4a062] text-[10px] font-black uppercase tracking-[0.3em] mb-2">Bienvenue sur votre espace</p>
+              <h1 className="text-white font-black text-4xl uppercase tracking-tight leading-none">
+                {clientName}
+              </h1>
+              <p className="text-white/40 text-xs font-medium mt-2 capitalize">{today}</p>
+            </div>
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 backdrop-blur-sm shrink-0">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+              <span className="text-white/60 text-[10px] font-black uppercase tracking-widest">Données synchronisées</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MAIN CONTENT ───────────────────────────────────────────────── */}
       <main className="flex-grow max-w-[1400px] mx-auto px-6 py-8 w-full">
         {dataLoading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
-            <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
-            <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">
-              Chargement de vos commandes...
-            </p>
+            <div className="relative">
+              <div className="w-20 h-20 rounded-3xl bg-white border border-stone-200 flex items-center justify-center shadow-xl">
+                <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#c4a062' }} />
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-stone-700 font-black text-sm uppercase tracking-widest">Chargement de vos commandes</p>
+              <p className="text-stone-400 text-xs font-medium mt-1">Récupération des données en cours...</p>
+            </div>
           </div>
         ) : dataError ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-4">
-            <div className="bg-red-50 border border-red-100 rounded-2xl p-8 text-center max-w-sm">
-              <p className="text-red-700 font-black uppercase text-[11px] tracking-widest">Erreur de chargement</p>
-              <p className="text-red-500 text-[10px] font-bold mt-2">Vérifiez votre connexion et rechargez la page.</p>
-              <button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-red-600 text-white font-black text-[10px] uppercase rounded-xl hover:bg-red-700 transition-colors">
-                Recharger
+            <div className="bg-white border border-red-100 rounded-3xl p-10 text-center max-w-sm shadow-xl">
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <p className="text-stone-900 font-black text-sm uppercase tracking-widest mb-2">Erreur de chargement</p>
+              <p className="text-stone-400 text-xs font-medium leading-relaxed">Vérifiez votre connexion et rechargez la page.</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-6 w-full h-11 rounded-xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 text-white transition-all"
+                style={{ background: '#0f172a' }}
+              >
+                <RefreshCw className="w-4 h-4" /> Recharger
               </button>
             </div>
           </div>
@@ -298,10 +393,23 @@ export default function ClientPortalPage() {
         )}
       </main>
 
-      <footer className="border-t border-stone-200 bg-white py-4">
-        <div className="max-w-[1400px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
-          <p>© 2024 STOCKVUE — PORTAIL CLIENT PRIVÉ</p>
-          <span className="text-stone-300">Accès Sécurisé</span>
+      {/* ── FOOTER ─────────────────────────────────────────────────────── */}
+      <footer className="border-t border-stone-200 bg-white mt-8">
+        <div className="max-w-[1400px] mx-auto px-6 py-5 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-md flex items-center justify-center border border-[#c4a062]/30" style={{ background: 'rgba(196,160,98,0.1)' }}>
+              <svg width="12" height="12" viewBox="0 0 28 28" fill="none">
+                <rect x="2" y="8" width="24" height="16" rx="2" fill="none" stroke="#c4a062" strokeWidth="2"/>
+                <path d="M9 8V6a5 5 0 0 1 10 0v2" stroke="#c4a062" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="14" cy="16" r="2" fill="#c4a062"/>
+              </svg>
+            </div>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest">© 2025 LEBTEX Textile Import</p>
+          </div>
+          <div className="flex items-center gap-2 text-stone-300 text-[10px] font-bold uppercase tracking-widest">
+            <Lock className="w-3 h-3" />
+            <span>Portail Privé — Accès Sécurisé</span>
+          </div>
         </div>
       </footer>
     </div>
