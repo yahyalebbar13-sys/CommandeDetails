@@ -8,17 +8,17 @@ import { Button } from "@/components/ui/button";
 interface ExportClientCommandeProps { article: any; }
 
 // ── Brand ────────────────────────────────────────────────────────────────────
-const NAVY:   [number,number,number] = [15, 23, 42];
-const GOLD:   [number,number,number] = [196, 160, 98];
-const WHITE:  [number,number,number] = [255, 255, 255];
-const MUTED:  [number,number,number] = [100, 116, 139];
-const BORDER: [number,number,number] = [226, 232, 240];
-const BG:     [number,number,number] = [248, 250, 252];
+const NAVY:       [number,number,number] = [15, 23, 42];
+const GOLD:       [number,number,number] = [196, 160, 98];
+const WHITE:      [number,number,number] = [255, 255, 255];
+const MUTED:      [number,number,number] = [100, 116, 139];
+const BORDER:     [number,number,number] = [226, 232, 240];
+const BG:         [number,number,number] = [248, 250, 252];
 const GOLD_LIGHT: [number,number,number] = [254, 249, 240];
 
 function fmtNum(n: number) {
   if (n == null || isNaN(n)) return "0";
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 function fmtQty(qty: number, unit: string) {
   return `${fmtNum(Number(qty))} ${unit || ""}`.trim();
@@ -36,7 +36,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
 
     const today = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
     const todayStr = new Date().toISOString().slice(0, 10);
-    const ref = `CONF-LBX-${Date.now().toString().slice(-8)}`;
+    const ref = `CC-LBX-${Date.now().toString().slice(-8)}`;
     let y = 0;
 
     // ════════════════════════════════════════════════════════════════════════
@@ -87,15 +87,14 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     // ════════════════════════════════════════════════════════════════════════
     const colW = (CW - 6) / 2;
 
-    // FROM — LEBTEX
+    // FROM — LEBTEX (left)
     doc.setFillColor(...BG);
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.3);
     doc.roundedRect(MX, y, colW, 34, 1, 1, "FD");
-    // Gold top bar
     doc.setFillColor(...GOLD);
     doc.roundedRect(MX, y, colW, 6, 1, 1, "F");
-    doc.rect(MX, y + 3, colW, 3, "F"); // fill corners
+    doc.rect(MX, y + 3, colW, 3, "F");
     doc.setTextColor(...NAVY);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
@@ -110,10 +109,10 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.setTextColor(...MUTED);
     doc.text("31 Rue 65, Lot. Al Hamd Ain-Chock", MX + 4, y + 17);
     doc.text("Casablanca, Maroc", MX + 4, y + 21.5);
-    doc.text("Tél: 06 61 10 15 60", MX + 4, y + 26);
+    doc.text("Tél : +212 6 61 10 15 60", MX + 4, y + 26);
     doc.text("Contact.lebtex@gmail.com", MX + 4, y + 30);
 
-    // TO — Client
+    // TO — Client (right)
     const toX = MX + colW + 6;
     doc.setFillColor(...BG);
     doc.setDrawColor(...BORDER);
@@ -124,17 +123,19 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.setTextColor(...WHITE);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text("CLIENT DESTINATAIRE", toX + 4, y + 4.5);
+    doc.text("CLIENT", toX + 4, y + 4.5);
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    const clientName = (article.clientName || "CLIENT NON SPÉCIFIÉ").toUpperCase();
-    doc.text(clientName, toX + 4, y + 12);
+    doc.text((article.clientName || "NOM DU CLIENT").toUpperCase(), toX + 4, y + 12);
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...MUTED);
-    doc.text("Concerne l'article commandé ci-dessous", toX + 4, y + 17);
+    doc.text(article.clientAddress  || "Adresse : ________________________", toX + 4, y + 17);
+    doc.text(article.clientCity     || "Ville / Pays : ____________________", toX + 4, y + 21.5);
+    doc.text(article.clientTel      || "Tél : _____________________________", toX + 4, y + 26);
+    doc.text(article.clientEmail    || "Email : ___________________________", toX + 4, y + 30);
 
     y += 40;
 
@@ -152,28 +153,26 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.setFont("helvetica", "bold");
     doc.text((article.name || article.categoryId || "ARTICLE").toUpperCase(), MX + 10, y + 9.5);
 
-    // Qty badge (top right of banner)
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...GOLD);
-    doc.text(`QUANTITÉ TOTALE: ${fmtQty(article.quantity, article.unitOfMeasure)}`, W - MX - 2, y + 5.5, { align: "right" });
+    doc.text(`QTÉ TOTALE : ${fmtQty(article.quantity, article.unitOfMeasure)}`, W - MX - 2, y + 5.5, { align: "right" });
     doc.setTextColor(148, 163, 184);
     doc.setFontSize(7);
-    doc.text(`Unité: ${article.unitOfMeasure || "—"}`, W - MX - 2, y + 10.5, { align: "right" });
+    doc.text(`Unité : ${article.unitOfMeasure || "—"}`, W - MX - 2, y + 10.5, { align: "right" });
 
     y += 20;
 
     // ════════════════════════════════════════════════════════════════════════
-    // ORDER SPECIFICATIONS GRID
+    // SPÉCIFICATIONS
     // ════════════════════════════════════════════════════════════════════════
-    // Label + divider
     doc.setFontSize(8.5);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    doc.text("SPÉCIFICATIONS DÉTAILLÉES", MX, y);
+    doc.text("SPÉCIFICATIONS DE LA COMMANDE", MX, y);
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.5);
-    doc.line(MX + 50, y - 1, W - MX, y - 1);
+    doc.line(MX + 65, y - 1, W - MX, y - 1);
     y += 4;
 
     const colorLabel = (() => {
@@ -182,11 +181,13 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       return (article.color && article.color !== "various") ? article.color.toUpperCase() : "—";
     })();
 
-    const specs: [string,string][] = [
-      ["Catégorie / Produit",  (article.categoryId || "—").toUpperCase()],
-      ["Taille",               article.size && article.size !== "various" ? article.size.toUpperCase() : "VARIOUS"],
-      ["Couleur",              colorLabel],
-      ["Quantité Demandée",    fmtQty(article.quantity, article.unitOfMeasure)],
+    const specs: [string, string][] = [
+      ["Désignation / Catégorie", (article.categoryId || "—").toUpperCase()],
+      ["Taille",                  article.size && article.size !== "various" ? article.size.toUpperCase() : "DIVERSES"],
+      ["Couleur",                 colorLabel],
+      ["Quantité commandée",      fmtQty(article.quantity, article.unitOfMeasure)],
+      ["Date de commande",        article.orderDate || todayStr],
+      ["Date d'arrivée estimée",  article.arrivalDate || "À confirmer"],
     ];
     if (article.zipperType) {
       specs.push(["Type Fermeture", article.zipperType.toUpperCase()]);
@@ -195,12 +196,11 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     if (article.specs) specs.push(["Notes Techniques", article.specs]);
 
     // 2-column spec grid
-    const specCols = 2;
-    const cellW = CW / specCols;
+    const cellW = CW / 2;
     const cellH = 10;
     specs.forEach((s, i) => {
-      const col = i % specCols;
-      const row = Math.floor(i / specCols);
+      const col = i % 2;
+      const row = Math.floor(i / 2);
       const cx = MX + col * cellW;
       const cy = y + row * cellH;
 
@@ -221,11 +221,10 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       doc.text(lines[0], cx + 3, cy + 8);
     });
 
-    const specRows = Math.ceil(specs.length / specCols);
-    y += specRows * cellH + 10;
+    y += Math.ceil(specs.length / 2) * cellH + 10;
 
     // ════════════════════════════════════════════════════════════════════════
-    // BREAKDOWN TABLES
+    // TABLEAUX DE DÉTAIL
     // ════════════════════════════════════════════════════════════════════════
     const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
@@ -237,7 +236,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       doc.text(title, MX, y);
       doc.setDrawColor(...GOLD);
       doc.setLineWidth(0.4);
-      doc.line(MX + title.length * 1.6, y - 1, W - MX, y - 1);
+      doc.line(MX + title.length * 1.55, y - 1, W - MX, y - 1);
       y += 3;
 
       body.push(totalRow);
@@ -287,7 +286,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
         fmtQty(Number(r.rolls || 0), article.unitOfMeasure),
       ]);
       const total = colorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
-      drawTable("DÉTAIL PAR COULEUR", [["#", "Réf. Couleur", "Description", "Quantité"]], rows, ["", "TOTAL GÉNÉRAL", "", fmtQty(total, article.unitOfMeasure)]);
+      drawTable("DÉTAIL PAR COULEUR", [["#", "Référence Couleur", "Description", "Quantité"]], rows, ["", "TOTAL GÉNÉRAL", "", fmtQty(total, article.unitOfMeasure)]);
     }
 
     if (sizeBreakdown.length > 0) {
@@ -311,17 +310,16 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // TERMS & CONDITIONS
+    // CONDITIONS DE VENTE
     // ════════════════════════════════════════════════════════════════════════
     if (y > H - 80) { doc.addPage(); y = 20; }
 
     doc.setFillColor(...GOLD_LIGHT);
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.3);
-    doc.roundedRect(MX, y, CW, 22, 1, 1, "FD");
-    // Gold left border
+    doc.roundedRect(MX, y, CW, 28, 1, 1, "FD");
     doc.setFillColor(...GOLD);
-    doc.rect(MX, y, 3, 22, "F");
+    doc.rect(MX, y, 3, 28, "F");
 
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
@@ -329,18 +327,19 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.text("CONDITIONS DE VENTE", MX + 7, y + 5.5);
 
     const terms = [
-      "1. Condition de paiement : solde à la livraison ou à la réception.",
-      "2. Les délais sont donnés à titre indicatif et peuvent varier selon les conditions d'importation.",
-      "3. Clause non-annulation : toute commande validée accompagnée d'un acompte est ferme, définitive, non annulable et non remboursable.",
+      "1. Toute commande validée accompagnée d'un acompte est ferme, définitive, non annulable et non remboursable.",
+      "2. Conditions de paiement : solde intégral exigible à la livraison ou à réception de la marchandise.",
+      "3. Les délais d'arrivée sont donnés à titre indicatif et peuvent varier selon les conditions d'importation.",
+      "4. Toute réclamation relative à la qualité ou aux quantités doit être formulée dans les 48h suivant la livraison.",
     ];
     doc.setFontSize(6.8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(60, 60, 80);
-    terms.forEach((t, i) => doc.text(t, MX + 7, y + 10 + i * 3.5));
-    y += 28;
+    terms.forEach((t, i) => doc.text(t, MX + 7, y + 10 + i * 4));
+    y += 34;
 
     // ════════════════════════════════════════════════════════════════════════
-    // SIGNATURE BLOCK
+    // BLOC SIGNATURES
     // ════════════════════════════════════════════════════════════════════════
     if (y > H - 55) { doc.addPage(); y = 20; }
 
@@ -351,7 +350,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
 
     const sigW = (CW - 8) / 2;
 
-    // LEBTEX box
+    // LEBTEX box (left)
     doc.setFillColor(...BG);
     doc.setDrawColor(...BORDER);
     doc.roundedRect(MX, y, sigW, 30, 1, 1, "FD");
@@ -366,41 +365,40 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...MUTED);
     doc.text("Service Commercial", MX + 4, y + 12);
-    doc.text("Signature Autorisée :", MX + 4, y + 17);
+    doc.text("Cachet et signature :", MX + 4, y + 17);
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.5);
     doc.line(MX + 6, y + 27, MX + sigW - 4, y + 27);
 
-    // Client box
-    const leX = MX + sigW + 8;
+    // Client box (right)
+    const clX = MX + sigW + 8;
     doc.setFillColor(...BG);
     doc.setDrawColor(...BORDER);
-    doc.roundedRect(leX, y, sigW, 30, 1, 1, "FD");
+    doc.roundedRect(clX, y, sigW, 30, 1, 1, "FD");
     doc.setFillColor(...BORDER);
-    doc.roundedRect(leX, y, sigW, 6, 1, 1, "F");
-    doc.rect(leX, y + 3, sigW, 3, "F");
+    doc.roundedRect(clX, y, sigW, 6, 1, 1, "F");
+    doc.rect(clX, y + 3, sigW, 3, "F");
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...MUTED);
-    doc.text("ACCUSÉ DE RÉCEPTION CLIENT", leX + 4, y + 4.5);
+    doc.text("BON POUR ACCORD — CLIENT", clX + 4, y + 4.5);
     doc.setFontSize(6.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...MUTED);
-    doc.text(`Nom : ${clientName}`, leX + 4, y + 12);
-    doc.text("Lu et approuvé (Cachet & Signature) :", leX + 4, y + 17);
+    doc.text("Nom : ___________________________", clX + 4, y + 12);
+    doc.text("Lu et approuvé (cachet & signature) :", clX + 4, y + 17);
     doc.setDrawColor(203, 213, 225);
     doc.setLineDashPattern([1, 1], 0);
-    doc.line(leX + 6, y + 27, leX + sigW - 4, y + 27);
+    doc.line(clX + 6, y + 27, clX + sigW - 4, y + 27);
     doc.setLineDashPattern([], 0);
 
     // ════════════════════════════════════════════════════════════════════════
-    // FOOTER (all pages)
+    // FOOTER (toutes les pages)
     // ════════════════════════════════════════════════════════════════════════
     const pages = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
       doc.setPage(i);
 
-      // Thin gold separator
       doc.setDrawColor(...GOLD);
       doc.setLineWidth(0.4);
       doc.line(MX, H - 18, W - MX, H - 18);
@@ -409,7 +407,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...MUTED);
       doc.text("LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc", W / 2, H - 14.5, { align: "center" });
-      doc.text("Tél : 06 61 10 15 60  |  Email : Contact.lebtex@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094", W / 2, H - 11, { align: "center" });
+      doc.text("Tél : +212 6 61 10 15 60  |  Email : Contact.lebtex@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094", W / 2, H - 11, { align: "center" });
 
       doc.setFillColor(...NAVY);
       doc.rect(0, H - 8, W, 8, "F");
@@ -419,11 +417,11 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       doc.setFontSize(6.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(148, 163, 184);
-      doc.text(`Confirmation de Commande  |  ${ref}  |  ${todayStr}`, MX + 5, H - 3.5);
+      doc.text(`Confirmation de Commande  |  ${ref}  |  ${todayStr}  |  CONFIDENTIEL`, MX + 5, H - 3.5);
       doc.text(`Page ${i} / ${pages}`, W - MX, H - 3.5, { align: "right" });
     }
 
-    const name = (article.name || article.categoryId || "CONF").replace(/\s+/g, "_").toUpperCase();
+    const name = (article.name || article.categoryId || "CMD").replace(/\s+/g, "_").toUpperCase();
     doc.save(`CONF-CLIENT-LEBTEX-${name}-${todayStr}.pdf`);
   };
 
