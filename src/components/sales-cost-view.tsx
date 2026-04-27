@@ -13,13 +13,13 @@ import {
 import { exportCostAnalysisPDF } from '@/lib/pdf-export';
 import ArticleOverrideModal, { ArticleOverride } from './article-override-modal';
 
-interface CostAnalysisViewProps {
+interface SalesCostViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
 }
 
-export default function CostAnalysisView({ articles, factures, subCategories }: CostAnalysisViewProps) {
+export default function SalesCostView({ articles, factures, subCategories }: SalesCostViewProps) {
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
     factures.length > 0 ? factures[0].id : null
   );
@@ -48,14 +48,11 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
 
     // ── Frais logistiques totaux du dossier (MAD) ──
-    // exchange, transitaire et fraisSupp sont saisis TTC (TVA 20% incluse)
-    // → on ramène en HT en divisant par 1.20 avant d'additionner le fret (déjà HT)
     const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
     const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
     const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
     const fretMad = (Number(selectedFacture.freightCost) || 0) * tauxChange;
-    const fraisHorsFretHT = (exchange + transitaire + fraisSupp) / 1.20;
-    const mtFraisTotal = fraisHorsFretHT + fretMad;
+    const mtFraisTotal = exchange + transitaire + fraisSupp + fretMad;
 
     // ── CBM total du dossier ──
     const cbmTotal = dossierArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
@@ -103,7 +100,16 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       const pauDollar = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(a.purchasePricePerUnit)) || 0;
       const valAchatMad = qty * pauDollar * tauxChange;
 
-      const mtTotal = valAchatMad + fraisCmd + totalDouane;
+      const mtTotalSansTva = valAchatMad + fraisCmd + di + tpi + tic;
+      const marge = mtTotalSansTva * 0.05;
+      const baseTva = mtTotalSansTva + marge;
+      const tvaVente = tvaRate != null ? baseTva * tvaRate : 0;
+      
+      // We override tva for display if needed, but let's keep them separate
+      const tva = tvaVente;
+      const totalDouaneVente = di + tpi + tic + tvaVente;
+
+      const mtTotal = baseTva + tvaVente;
       const pauTtc = qty > 0 ? mtTotal / qty : 0;
 
       return {
@@ -117,6 +123,8 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
         valDouane, di, tpi, tic, tva, totalDouane,
         mtTotal, pauTtc,
         missingData: !hasCustData,
+        marge,
+        baseTva,
         hasOverride,
         _ov: ov
       };
@@ -144,11 +152,11 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
               </div>
               <div>
                 <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Calcul Automatique</p>
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Coût de Revient TTC</h2>
+                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Coût de Vente TTC</h2>
               </div>
             </div>
             <p className="text-stone-400 text-sm font-medium max-w-lg">
-              Prix d'achat unitaire TTC par article, incluant frais logistiques (répartis par CBM) et droits de douane.
+              Prix de vente unitaire TTC par article, incluant frais logistiques (répartis par CBM) et droits de douane.
             </p>
           </div>
 
@@ -172,7 +180,7 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
               </div>
               {selectedFacture && analysis && (
                 <button
-                  onClick={() => exportCostAnalysisPDF(selectedFacture, analysis.rows, analysis)}
+                  onClick={() => alert("Export PDF en cours de développement")}
                   className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
                 >
                   <FileDown className="w-4 h-4" /> PDF
@@ -310,6 +318,7 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">Val. Douane (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">DI (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">TPI (MAD)</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-pink-400 py-4 text-right bg-pink-50/30">Marge 5% (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">TVA (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">Tot. Douane (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 text-right">MT Total (MAD)</TableHead>
@@ -407,6 +416,10 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
                       {/* TPI */}
                       <MontantCell value={row.tpi} hasData={row.hasCustData && row.nw > 0} rate={row.tpiRate} />
 
+                      {/* Marge */}
+                      <TableCell className="text-right font-bold text-[10px] text-pink-600 py-4 bg-pink-50/20">
+                        {row.marge > 0 ? row.marge.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—'}
+                      </TableCell>
                       {/* TVA */}
                       <MontantCell value={row.tva} hasData={row.hasCustData && row.nw > 0} rate={row.tvaRate} />
 
