@@ -53,6 +53,32 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
 
+  // Group articles by category for selected facture
+  const categoryLines = useMemo(() => {
+    if (!selectedFactureId) return [];
+    const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
+
+    const map: Record<string, { qty: number; nw: number; unit: string }> = {};
+    for (const a of dossierArticles) {
+      const cat = a.categoryId || '—';
+      if (!map[cat]) map[cat] = { qty: 0, nw: 0, unit: a.unitOfMeasure || 'U' };
+      map[cat].qty += Number(a.quantity) || 0;
+      map[cat].nw += Number(a.netWeight) || 0;
+    }
+
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([categoryId, { qty, nw, unit }]) => {
+        const cat = subCategories.find(c => c.name === categoryId);
+        const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
+        // suggestedPU en MAD/unité — référence interne uniquement (pas de taux connu à ce stade)
+        const suggestedPU = (customsValuePerKg !== null && qty > 0)
+          ? (nw * customsValuePerKg) / qty
+          : null;
+        return { categoryId, totalQty: qty, totalNW: nw, unit, customsValuePerKg, suggestedPU };
+      });
+  }, [articles, selectedFactureId, subCategories]);
+
   // ── Save to Firebase ──
   const handleSave = useCallback(async () => {
     if (!selectedFactureId || !firestore || !user) return;
@@ -92,31 +118,6 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
     }
   }, [selectedFactureId, firestore, user, puMap, categoryLines]);
 
-  // Group articles by category for selected facture
-  const categoryLines = useMemo(() => {
-    if (!selectedFactureId) return [];
-    const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
-
-    const map: Record<string, { qty: number; nw: number; unit: string }> = {};
-    for (const a of dossierArticles) {
-      const cat = a.categoryId || '—';
-      if (!map[cat]) map[cat] = { qty: 0, nw: 0, unit: a.unitOfMeasure || 'U' };
-      map[cat].qty += Number(a.quantity) || 0;
-      map[cat].nw += Number(a.netWeight) || 0;
-    }
-
-    return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([categoryId, { qty, nw, unit }]) => {
-        const cat = subCategories.find(c => c.name === categoryId);
-        const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-        // suggestedPU en MAD/unité — référence interne uniquement (pas de taux connu à ce stade)
-        const suggestedPU = (customsValuePerKg !== null && qty > 0)
-          ? (nw * customsValuePerKg) / qty
-          : null;
-        return { categoryId, totalQty: qty, totalNW: nw, unit, customsValuePerKg, suggestedPU };
-      });
-  }, [articles, selectedFactureId, subCategories]);
 
   const lines = categoryLines.map(line => ({
     ...line,
