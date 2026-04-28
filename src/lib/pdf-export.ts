@@ -511,7 +511,6 @@ export async function exportDPPDF(
     ['ARRIVAL DATE', facture.arrivalDate || '—'],
     ['SUPPLIER', (facture.supplierId || '—').toUpperCase()],
     ['B/L NUMBER', facture.noBL || '—'],
-    ['FORWARDER', (facture.forwarder || '—').toUpperCase()],
   ];
   const colW = (contentW - 52) / infoCols.length;
   let cx = marginX + 52;
@@ -557,13 +556,13 @@ export async function exportDPPDF(
       lineWidth: 0.2,
     },
     headStyles: {
-      fillColor: NAVY,
+      fillColor: BLUE,
       textColor: [255, 255, 255],
       fontSize: 8.5,
       fontStyle: 'bold',
     },
     footStyles: {
-      fillColor: NAVY,
+      fillColor: BLUE,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 10,
