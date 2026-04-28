@@ -413,7 +413,7 @@ export async function exportCostSalePDF(
 }
 
 // ─────────────────────────────────────────────
-//  DÉCLARATION PROVISOIRE (DP)
+//  CUSTOMS DECLARATION (OFFICIAL)
 // ─────────────────────────────────────────────
 export async function exportDPPDF(
   facture: any,
@@ -444,16 +444,16 @@ export async function exportDPPDF(
   const BORDER_COLOR: [number, number, number] = [226, 232, 240];
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todayFr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const ref = `DP-${(facture.id || 'X').toUpperCase()}-${Date.now().toString().slice(-6)}`;
+  const todayEn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const ref = `DECL-${(facture.id || 'X').toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
   const totalQty = lines.reduce((s, l) => s + l.totalQty, 0);
-  const totalNW = lines.reduce((s, l) => s + l.totalNW, 0);
-  const totalMT = lines.reduce((s, l) => s + l.mt, 0);
+  const totalMT  = lines.reduce((s, l) => s + l.mt, 0);
+  const validLines = lines.filter(l => l.puNum > 0);
 
   let yPos = 16;
 
-  // ── Logo / En-tête ──
+  // ── Logo ──
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
@@ -471,52 +471,51 @@ export async function exportDPPDF(
     };
   });
 
-  // Titre à droite
+  // ── Title (right) ──
   doc.setTextColor(...NAVY);
-  doc.setFontSize(18);
+  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('DÉCLARATION PROVISOIRE', pageW - marginX, yPos + 6, { align: 'right' });
+  doc.text('CUSTOMS DECLARATION', pageW - marginX, yPos + 6, { align: 'right' });
 
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(0.6);
-  doc.line(pageW - marginX - 80, yPos + 9, pageW - marginX, yPos + 9);
+  doc.line(pageW - marginX - 85, yPos + 9, pageW - marginX, yPos + 9);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_MAIN);
-  doc.text(`Réf. : ${ref}`, pageW - marginX, yPos + 15, { align: 'right' });
+  doc.text(`Ref. : ${ref}`, pageW - marginX, yPos + 15, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text(`Date : ${todayFr}`, pageW - marginX, yPos + 20, { align: 'right' });
+  doc.text(`Date : ${todayEn}`, pageW - marginX, yPos + 20, { align: 'right' });
 
   yPos += 32;
 
-  // ── Bloc infos dossier ──
+  // ── Shipment info block ──
   doc.setFillColor(...LIGHT_BG);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.3);
-  doc.roundedRect(marginX, yPos, contentW, 24, 1.5, 1.5, 'FD');
+  doc.roundedRect(marginX, yPos, contentW, 26, 1.5, 1.5, 'FD');
 
-  // Left col
+  // Shipment ID
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('N° DOSSIER', marginX + 4, yPos + 6);
-  doc.setFontSize(11);
+  doc.text('SHIPMENT NO.', marginX + 4, yPos + 6);
+  doc.setFontSize(12);
   doc.setTextColor(...NAVY);
-  doc.text((facture.id || '—').toUpperCase(), marginX + 4, yPos + 13);
+  doc.text((facture.id || '—').toUpperCase(), marginX + 4, yPos + 14);
 
-  // Mid cols
-  const cols = [
-    ['DATE ARRIVÉE', facture.arrivalDate || '—'],
-    ['FOURNISSEUR', (facture.supplierId || '—').toUpperCase()],
-    ['N° BL', facture.noBL || '—'],
-    ['TRANSITAIRE', (facture.forwarder || '—').toUpperCase()],
+  const infoCols: [string, string][] = [
+    ['ARRIVAL DATE', facture.arrivalDate || '—'],
+    ['SUPPLIER', (facture.supplierId || '—').toUpperCase()],
+    ['B/L NUMBER', facture.noBL || '—'],
+    ['FORWARDER', (facture.forwarder || '—').toUpperCase()],
   ];
-  const colW = (contentW - 50) / cols.length;
-  let cx = marginX + 50;
-  cols.forEach(([label, value]) => {
+  const colW = (contentW - 52) / infoCols.length;
+  let cx = marginX + 52;
+  infoCols.forEach(([label, value]) => {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...TEXT_MUTED);
@@ -524,38 +523,34 @@ export async function exportDPPDF(
     doc.setFontSize(8.5);
     doc.setTextColor(...TEXT_MAIN);
     doc.setFont('helvetica', 'bold');
-    doc.text(value.length > 18 ? value.slice(0, 17) + '…' : value, cx, yPos + 13);
+    doc.text(value.length > 18 ? value.slice(0, 17) + '…' : value, cx, yPos + 14);
     cx += colW;
   });
 
-  yPos += 32;
+  yPos += 34;
 
-  // ── Tableau ──
+  // ── Table — NO NW column ──
   autoTable(doc, {
     startY: yPos,
-    head: [['Désignation', 'Quantité', 'Unité', 'Poids Net (kg)', 'P.U. Déclaré (MAD)', 'Montant Total (MAD)']],
-    body: lines
-      .filter(l => l.puNum > 0)
-      .map(l => [
-        l.categoryId.toUpperCase(),
-        l.totalQty.toLocaleString('fr-MA'),
-        l.unit,
-        l.totalNW > 0 ? l.totalNW.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
-        l.puNum.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
-        l.mt.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      ]),
+    head: [['Description', 'Quantity', 'Unit', 'Unit Price (MAD)', 'Total Amount (MAD)']],
+    body: validLines.map(l => [
+      l.categoryId.toUpperCase(),
+      l.totalQty.toLocaleString('fr-MA'),
+      l.unit.toUpperCase(),
+      l.puNum.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+      l.mt.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    ]),
     foot: [[
-      `TOTAL — ${lines.filter(l => l.puNum > 0).length} désignation(s)`,
+      `TOTAL — ${validLines.length} item(s)`,
       totalQty.toLocaleString('fr-MA'),
       '',
-      totalNW > 0 ? totalNW.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
       '',
       totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     ]],
-    margin: { left: marginX, right: marginX, bottom: 60 },
+    margin: { left: marginX, right: marginX, bottom: 65 },
     styles: {
-      fontSize: 9,
-      cellPadding: 4,
+      fontSize: 9.5,
+      cellPadding: 5,
       font: 'helvetica',
       textColor: TEXT_MAIN,
       lineColor: BORDER_COLOR,
@@ -564,47 +559,46 @@ export async function exportDPPDF(
     headStyles: {
       fillColor: NAVY,
       textColor: [255, 255, 255],
-      fontSize: 8,
+      fontSize: 8.5,
       fontStyle: 'bold',
     },
     footStyles: {
       fillColor: NAVY,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: 10,
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 60 },
+      0: { fontStyle: 'bold', cellWidth: 70 },
       1: { halign: 'right' },
       2: { halign: 'center' },
-      3: { halign: 'right' },
-      4: { halign: 'right', textColor: BLUE },
-      5: { halign: 'right', fontStyle: 'bold', textColor: [5, 100, 60] },
+      3: { halign: 'right', textColor: BLUE },
+      4: { halign: 'right', fontStyle: 'bold', textColor: [5, 100, 60] },
     },
     alternateRowStyles: { fillColor: LIGHT_BG },
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
-  // ── Bloc montant total en lettres (cadre) ──
+  // ── Total declared amount bar ──
   if (yPos > pageH - 90) { doc.addPage(); yPos = 20; }
 
-  doc.setFillColor(37, 99, 235);
-  doc.roundedRect(marginX, yPos, contentW, 14, 1.5, 1.5, 'F');
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(marginX, yPos, contentW, 16, 1.5, 1.5, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('MONTANT TOTAL DÉCLARÉ', marginX + 4, yPos + 5.5);
-  doc.setFontSize(11);
+  doc.text('TOTAL DECLARED VALUE', marginX + 5, yPos + 6.5);
+  doc.setFontSize(12);
   doc.text(
     `${totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`,
-    pageW - marginX - 4, yPos + 9, { align: 'right' }
+    pageW - marginX - 5, yPos + 10.5, { align: 'right' }
   );
 
-  yPos += 22;
+  yPos += 26;
 
   // ── Signatures ──
-  if (yPos > pageH - 55) { doc.addPage(); yPos = 20; }
+  if (yPos > pageH - 58) { doc.addPage(); yPos = 20; }
 
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.4);
@@ -613,42 +607,42 @@ export async function exportDPPDF(
 
   const sigBoxW = (contentW - 12) / 2;
 
-  // Sig 1 — Émetteur
+  // Sig 1 — Issuer
   doc.setFillColor(...LIGHT_BG);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.3);
-  doc.roundedRect(marginX, yPos, sigBoxW, 30, 1.5, 1.5, 'FD');
+  doc.roundedRect(marginX, yPos, sigBoxW, 32, 1.5, 1.5, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...NAVY);
-  doc.text('ÉMIS PAR LEBTEX TEXTILE IMPORT', marginX + 5, yPos + 7);
+  doc.text('ISSUED BY — LEBTEX TEXTILE IMPORT', marginX + 5, yPos + 7);
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('Service Importation', marginX + 5, yPos + 12);
+  doc.text('Import Department', marginX + 5, yPos + 12);
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(0.5);
-  doc.line(marginX + 5, yPos + 24, marginX + sigBoxW - 5, yPos + 24);
+  doc.line(marginX + 5, yPos + 26, marginX + sigBoxW - 5, yPos + 26);
 
-  // Sig 2 — Transitaire
+  // Sig 2 — Customs / Forwarder
   doc.setFillColor(...LIGHT_BG);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.3);
-  doc.roundedRect(marginX + sigBoxW + 12, yPos, sigBoxW, 30, 1.5, 1.5, 'FD');
+  doc.roundedRect(marginX + sigBoxW + 12, yPos, sigBoxW, 32, 1.5, 1.5, 'FD');
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...NAVY);
-  doc.text('TRANSITAIRE / DOUANE', marginX + sigBoxW + 17, yPos + 7);
+  doc.text('CUSTOMS AGENT / FORWARDER', marginX + sigBoxW + 17, yPos + 7);
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('Cachet et signature', marginX + sigBoxW + 17, yPos + 12);
+  doc.text('Stamp and signature', marginX + sigBoxW + 17, yPos + 12);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineDashPattern([1, 1], 0);
-  doc.line(marginX + sigBoxW + 17, yPos + 24, marginX + contentW - 5, yPos + 24);
+  doc.line(marginX + sigBoxW + 17, yPos + 26, marginX + contentW - 5, yPos + 26);
   doc.setLineDashPattern([], 0);
 
-  // ── Footer ──
+  // ── Page footer ──
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -656,8 +650,8 @@ export async function exportDPPDF(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
     doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 24, { align: 'center' });
-    doc.text('Tel : 05 22 25 77 78 / 05 22 31 62 88 - Fax : 05 22 58 03 46 - Portable : 06 61 10 15 60 - Email : Contact.lebtex@gmail.com', pageW / 2, pageH - 20, { align: 'center' });
-    doc.text('Patente : 34011181 - R.C : 704617 - I.F : 68814237 - ICE : 003823212000094', pageW / 2, pageH - 16, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 20, { align: 'center' });
+    doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 16, { align: 'center' });
 
     doc.setFillColor(...NAVY);
     doc.rect(0, pageH - 12, pageW, 12, 'F');
@@ -665,11 +659,11 @@ export async function exportDPPDF(
     doc.rect(0, pageH - 12, 4, 12, 'F');
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text(`DÉCLARATION PROVISOIRE OFFICIELLE  |  Réf. ${ref}  |  ${todayStr}`, marginX + 4, pageH - 5);
-    doc.text(`Page ${i} sur ${pageCount}`, pageW - marginX, pageH - 5, { align: 'right' });
+    doc.text(`OFFICIAL CUSTOMS DECLARATION  |  Ref. ${ref}  |  ${todayStr}`, marginX + 4, pageH - 5);
+    doc.text(`Page ${i} of ${pageCount}`, pageW - marginX, pageH - 5, { align: 'right' });
   }
 
-  doc.save(`DP_${(facture.id || 'Dossier').toUpperCase()}_${todayStr}.pdf`);
+  doc.save(`CUSTOMS_DECL_${(facture.id || 'Shipment').toUpperCase()}_${todayStr}.pdf`);
 }
 
 
