@@ -59,12 +59,28 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
     setSaving(true);
     setSaveError(null);
     try {
-      // Path: /users/{uid}/dp_declarations/{factureId} — matches security rules
+      // Compute totalMT from current puMap + categoryLines at save time
+      const computedTotalMT = categoryLines.reduce((sum, line) => {
+        const pu = parseFloat(puMap[line.categoryId] ?? '') || 0;
+        return sum + pu * line.totalQty;
+      }, 0);
+
+      // 1. Save declaration PU map
       await setDoc(
         doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
         { puMap, savedAt: new Date().toISOString(), factureId: selectedFactureId },
         { merge: true }
       );
+
+      // 2. Update declaredValue on the facture so the dossier reflects the new declared total
+      if (computedTotalMT > 0) {
+        await setDoc(
+          doc(firestore, 'users', user.uid, 'factures', selectedFactureId),
+          { declaredValue: computedTotalMT },
+          { merge: true }
+        );
+      }
+
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
     } catch (err: any) {
@@ -74,7 +90,7 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
     } finally {
       setSaving(false);
     }
-  }, [selectedFactureId, firestore, user, puMap]);
+  }, [selectedFactureId, firestore, user, puMap, categoryLines]);
 
   // Group articles by category for selected facture
   const categoryLines = useMemo(() => {
