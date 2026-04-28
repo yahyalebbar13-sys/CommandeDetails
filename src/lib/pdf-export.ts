@@ -599,6 +599,30 @@ export async function exportDPPDF(
 
   yPos += 24;
 
+  // ── CFR + Freight note ──
+  const freightCost = Number(facture.freightCost) || 0;
+  doc.setFillColor(239, 246, 255); // light blue bg
+  doc.setDrawColor(147, 197, 253); // blue-300
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, yPos, contentW, 14, 1.5, 1.5, 'FD');
+
+  // Left — Incoterm CFR
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(37, 99, 235); // blue-600
+  doc.text('INCOTERM: CFR', marginX + 5, yPos + 9);
+
+  // Right — Freight Included
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105); // slate-600
+  const freightLabel = freightCost > 0
+    ? `Freight Included: ${freightCost.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD  (not added to declared value)`
+    : 'Freight Included  (not added to declared value)';
+  doc.text(freightLabel, pageW - marginX - 5, yPos + 9, { align: 'right' });
+
+  yPos += 20;
+
   // ── TO: Supplier block ──
   doc.setFillColor(...LIGHT_BG);
   doc.setDrawColor(...BORDER_COLOR);
@@ -618,6 +642,7 @@ export async function exportDPPDF(
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
   doc.text('This document is issued for customs declaration purposes only.', pageW - marginX - 5, yPos + 14, { align: 'right' });
+
 
   // ── Page footer ──
   const pageCount = (doc as any).internal.getNumberOfPages();
