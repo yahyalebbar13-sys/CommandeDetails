@@ -448,6 +448,7 @@ export async function exportDPPDF(
   const ref = `DECL-${(facture.id || 'X').toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
   const totalQty = lines.reduce((s, l) => s + l.totalQty, 0);
+  const totalMT = lines.filter(l => l.puNum > 0).reduce((s, l) => s + l.mt, 0);
   const validLines = lines.filter(l => l.puNum > 0);
   // Valeur déclarée en douane depuis le dossier ($)
   const declaredValueDollar = Number(facture.declaredValue) || 0;
@@ -532,7 +533,7 @@ export async function exportDPPDF(
   // ── Table — NO NW column ──
   autoTable(doc, {
     startY: yPos,
-    head: [['Description', 'Quantity', 'Unit', 'Unit Price (MAD)', 'Total Amount (MAD)']],
+    head: [['Description', 'Quantity', 'Unit', 'Unit Price (USD)', 'Total Amount (USD)']],
     body: validLines.map(l => [
       l.categoryId.toUpperCase(),
       l.totalQty.toLocaleString('fr-MA'),

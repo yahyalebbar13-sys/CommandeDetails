@@ -93,6 +93,7 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
       .map(([categoryId, { qty, nw, unit }]) => {
         const cat = subCategories.find(c => c.name === categoryId);
         const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
+        // suggestedPU en MAD/unité — référence interne uniquement (pas de taux connu à ce stade)
         const suggestedPU = (customsValuePerKg !== null && qty > 0)
           ? (nw * customsValuePerKg) / qty
           : null;
@@ -107,7 +108,8 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
   }));
 
   const totalQty = lines.reduce((s, l) => s + l.totalQty, 0);
-  // MT Total = declaredValue ($) from the dossier
+  const totalMT = lines.reduce((s, l) => s + l.mt, 0);
+  // Valeur déclarée en douane (USD) depuis le dossier
   const declaredValueDollar = Number(selectedFacture?.declaredValue) || 0;
 
   const setPU = (categoryId: string, val: string) => {
@@ -251,11 +253,11 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
                           <span className="flex items-center gap-1 justify-end">
                             <Lightbulb className="w-3 h-3" /> Val. Suggérée (MAD/U)
                           </span>
-                          <div className="text-[7px] font-bold text-amber-400 normal-case mt-0.5">(NW × val.douane/kg) ÷ QTÉ — interne</div>
+                          <div className="text-[7px] font-bold text-amber-400 normal-case mt-0.5">(NW × val.douane/kg) ÷ QTÉ — référence interne</div>
                         </TableHead>
                       )}
-                      <TableHead className="text-[9px] font-black uppercase text-blue-500 py-4 text-right bg-blue-50/30 min-w-[160px]">PU Déclaré (MAD)</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-emerald-600 py-4 text-right bg-emerald-50/40 pr-6">MT (MAD)</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-blue-500 py-4 text-right bg-blue-50/30 min-w-[160px]">PU Déclaré (USD)</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-emerald-600 py-4 text-right bg-emerald-50/40 pr-6">MT (USD)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -304,13 +306,8 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
                               placeholder="0.00"
                               value={puMap[line.categoryId] ?? ''}
                               onChange={e => setPU(line.categoryId, e.target.value)}
-                              step="0.01"
+                              step="0.0001"
                             />
-                            {line.puNum > 0 && line.suggestedPU != null && (
-                              <div className={`text-[8px] font-black text-right px-1 ${line.puNum < line.suggestedPU * 0.9 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                {line.puNum < line.suggestedPU * 0.9 ? '⚠ En dessous suggéré' : '✓ OK'}
-                              </div>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right py-4 pr-6 bg-emerald-50/30">
@@ -319,7 +316,7 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
                               <div className="font-black text-[15px] text-emerald-700 leading-none">
                                 {line.mt.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
-                              <div className="text-[8px] font-black text-emerald-500 uppercase mt-0.5">MAD</div>
+                              <div className="text-[8px] font-black text-emerald-500 uppercase mt-0.5">USD</div>
                             </div>
                           ) : (
                             <span className="text-stone-300 font-normal text-[9px]">Saisir le PU</span>
@@ -340,9 +337,17 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
                   <p className="text-lg font-black text-white">{totalQty.toLocaleString('fr-MA')}</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  {/* Valeur Déclarée en Douane ($) from the dossier */}
+                  {totalMT > 0 && (
+                    <div className="text-right bg-emerald-500/20 rounded-xl px-5 py-3">
+                      <p className="text-[8px] font-black text-emerald-300 uppercase tracking-widest">MT Total Déclaré</p>
+                      <p className="text-2xl font-black text-emerald-200 leading-none">
+                        {totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[8px] font-black text-emerald-400 uppercase mt-0.5">USD (Σ PU × QTÉ)</p>
+                    </div>
+                  )}
                   <div className="text-right bg-blue-500/20 rounded-xl px-5 py-3">
-                    <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest">Valeur Déclarée en Douane</p>
+                    <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest">Valeur Déclarée Dossier</p>
                     <p className="text-2xl font-black text-blue-200 leading-none">
                       {declaredValueDollar > 0
                         ? declaredValueDollar.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -356,10 +361,10 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
 
             {/* Note */}
             <div className="px-6 py-3 bg-stone-50 border-t border-stone-100 flex flex-wrap gap-4 text-[9px] font-bold text-stone-500 uppercase">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-200 inline-block" /> PU déclaré (saisie manuelle)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-200 inline-block" /> MT = PU × QTÉ (MAD)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" /> Valeur déclarée = champ du dossier ($)</span>
-              {showSuggested && <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-200 inline-block" /> Valeur suggérée — usage interne</span>}
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-200 inline-block" /> PU déclaré en USD (saisie manuelle)</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-200 inline-block" /> MT = PU × QTÉ (USD)</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" /> Valeur déclarée = champ du dossier (USD)</span>
+              {showSuggested && <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-200 inline-block" /> Valeur suggérée en MAD — référence interne</span>}
               <span className="ml-auto italic normal-case text-stone-400 flex items-center gap-1">
                 <Info className="w-3 h-3" /> Les valeurs saisies sont sauvegardées en Firebase
               </span>
