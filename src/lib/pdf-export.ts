@@ -448,8 +448,9 @@ export async function exportDPPDF(
   const ref = `DECL-${(facture.id || 'X').toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
   const totalQty = lines.reduce((s, l) => s + l.totalQty, 0);
-  const totalMT  = lines.reduce((s, l) => s + l.mt, 0);
   const validLines = lines.filter(l => l.puNum > 0);
+  // Valeur déclarée en douane depuis le dossier ($)
+  const declaredValueDollar = Number(facture.declaredValue) || 0;
 
   let yPos = 16;
 
@@ -587,10 +588,12 @@ export async function exportDPPDF(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('TOTAL DECLARED VALUE', marginX + 5, yPos + 6.5);
+  doc.text('TOTAL DECLARED VALUE (CUSTOMS)', marginX + 5, yPos + 6.5);
   doc.setFontSize(12);
   doc.text(
-    `${totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`,
+    declaredValueDollar > 0
+      ? `${declaredValueDollar.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+      : '— USD',
     pageW - marginX - 5, yPos + 10.5, { align: 'right' }
   );
 
