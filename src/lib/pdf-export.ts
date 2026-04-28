@@ -581,7 +581,7 @@ export async function exportDPPDF(
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
   // ── Total declared amount bar ──
-  if (yPos > pageH - 90) { doc.addPage(); yPos = 20; }
+  if (yPos > pageH - 70) { doc.addPage(); yPos = 20; }
 
   doc.setFillColor(...BLUE);
   doc.roundedRect(marginX, yPos, contentW, 16, 1.5, 1.5, 'F');
@@ -595,52 +595,27 @@ export async function exportDPPDF(
     pageW - marginX - 5, yPos + 10.5, { align: 'right' }
   );
 
-  yPos += 26;
+  yPos += 24;
 
-  // ── Signatures ──
-  if (yPos > pageH - 58) { doc.addPage(); yPos = 20; }
-
-  doc.setDrawColor(...BORDER_COLOR);
-  doc.setLineWidth(0.4);
-  doc.line(marginX, yPos, pageW - marginX, yPos);
-  yPos += 8;
-
-  const sigBoxW = (contentW - 12) / 2;
-
-  // Sig 1 — Issuer
+  // ── TO: Supplier block ──
   doc.setFillColor(...LIGHT_BG);
   doc.setDrawColor(...BORDER_COLOR);
   doc.setLineWidth(0.3);
-  doc.roundedRect(marginX, yPos, sigBoxW, 32, 1.5, 1.5, 'FD');
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...NAVY);
-  doc.text('ISSUED BY — LEBTEX TEXTILE IMPORT', marginX + 5, yPos + 7);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...TEXT_MUTED);
-  doc.text('Import Department', marginX + 5, yPos + 12);
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.5);
-  doc.line(marginX + 5, yPos + 26, marginX + sigBoxW - 5, yPos + 26);
+  doc.roundedRect(marginX, yPos, contentW, 22, 1.5, 1.5, 'FD');
 
-  // Sig 2 — Customs / Forwarder
-  doc.setFillColor(...LIGHT_BG);
-  doc.setDrawColor(...BORDER_COLOR);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(marginX + sigBoxW + 12, yPos, sigBoxW, 32, 1.5, 1.5, 'FD');
-  doc.setFontSize(8);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text('TO / SUPPLIER', marginX + 5, yPos + 6);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...NAVY);
-  doc.text('CUSTOMS AGENT / FORWARDER', marginX + sigBoxW + 17, yPos + 7);
+  doc.text((facture.supplierId || '—').toUpperCase(), marginX + 5, yPos + 14);
+
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('Stamp and signature', marginX + sigBoxW + 17, yPos + 12);
-  doc.setDrawColor(...BORDER_COLOR);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(marginX + sigBoxW + 17, yPos + 26, marginX + contentW - 5, yPos + 26);
-  doc.setLineDashPattern([], 0);
+  doc.text('This document is issued for customs declaration purposes only.', pageW - marginX - 5, yPos + 14, { align: 'right' });
 
   // ── Page footer ──
   const pageCount = (doc as any).internal.getNumberOfPages();
@@ -665,6 +640,7 @@ export async function exportDPPDF(
 
   doc.save(`CUSTOMS_DECL_${(facture.id || 'Shipment').toUpperCase()}_${todayStr}.pdf`);
 }
+
 
 
 // ─────────────────────────────────────────────
