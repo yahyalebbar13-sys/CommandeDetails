@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck
 } from 'lucide-react';
 import { exportFacturePDF } from '@/lib/pdf-export';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
+import DossierChecklistModal from './dossier-checklist-modal';
 
 interface FacturesViewProps {
   articles: any[];
@@ -45,6 +46,7 @@ export default function FacturesView({
   const [modalInitialData, setModalInitialData] = useState<any>(null);
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
+  const [checklistFacture, setChecklistFacture] = useState<any>(null);
 
   const { declaredFactures, orphanedFactureIds } = useMemo(() => {
     const declaredIds = new Set((factures || []).map(f => f.id));
@@ -367,6 +369,13 @@ export default function FacturesView({
           >
             <FileDown className="w-4 h-4" /> Exporter PDF
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setChecklistFacture(selectedFacture)}
+            className="h-10 text-[10px] font-black uppercase tracking-widest border-emerald-200 rounded-xl px-6 gap-2 text-emerald-700 hover:bg-emerald-50"
+          >
+            <ClipboardCheck className="w-4 h-4" /> Vérifier le Dossier
+          </Button>
            <Button 
             variant="outline" 
             onClick={() => { setModalInitialData(selectedFacture); setIsEditModalOpen(true); }}
@@ -391,6 +400,12 @@ export default function FacturesView({
             factures={factures} 
           />
         )}
+
+        <DossierChecklistModal
+          open={!!checklistFacture}
+          onOpenChange={(open) => !open && setChecklistFacture(null)}
+          facture={checklistFacture}
+        />
 
         {/* Color Breakdown Detail Dialog */}
         {colorDetailArticle && (
