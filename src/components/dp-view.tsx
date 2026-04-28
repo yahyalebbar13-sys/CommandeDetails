@@ -9,7 +9,7 @@ import {
   FileCheck, ChevronDown, Info, FileDown, Eye, EyeOff, Lightbulb, Save, CheckCircle2, Loader2
 } from 'lucide-react';
 import { exportDPPDF } from '@/lib/pdf-export';
-import { useUser, useFirestore } from '@/firebase';
+import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface DPViewProps {
@@ -19,8 +19,7 @@ interface DPViewProps {
 }
 
 export default function DPView({ articles, factures, subCategories }: DPViewProps) {
-  const { user } = useUser();
-  const firestore = useFirestore();
+  const { user, firestore } = useFirebase();
 
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
     factures.length > 0 ? factures[0].id : null
@@ -29,6 +28,7 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
   const [showSuggested, setShowSuggested] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const selectedFacture = useMemo(
@@ -38,35 +38,42 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
 
   // ── Load saved PU from Firebase when dossier changes ──
   useEffect(() => {
-    if (!selectedFactureId || !firestore || !user) return;
+    if (!selectedFactureId || !firestore) return;
     setLoading(true);
     setPuMap({});
-    getDoc(doc(firestore, 'users', user.uid, 'dp', selectedFactureId))
+    // Use top-level collection matching the app's pattern
+    getDoc(doc(firestore, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.puMap) setPuMap(data.puMap);
         }
       })
+      .catch(err => console.error('DP load error:', err))
       .finally(() => setLoading(false));
-  }, [selectedFactureId, firestore, user]);
+  }, [selectedFactureId, firestore]);
 
   // ── Save to Firebase ──
   const handleSave = useCallback(async () => {
-    if (!selectedFactureId || !firestore || !user) return;
+    if (!selectedFactureId || !firestore) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await setDoc(
-        doc(firestore, 'users', user.uid, 'dp', selectedFactureId),
+        doc(firestore, 'dp_declarations', selectedFactureId),
         { puMap, savedAt: new Date().toISOString(), factureId: selectedFactureId },
         { merge: true }
       );
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
+    } catch (err: any) {
+      console.error('DP save error:', err);
+      setSaveError(err?.message || 'Erreur de sauvegarde');
+      setTimeout(() => setSaveError(null), 4000);
     } finally {
       setSaving(false);
     }
-  }, [selectedFactureId, firestore, user, puMap]);
+  }, [selectedFactureId, firestore, puMap]);
 
   // Group articles by category for selected facture
   const categoryLines = useMemo(() => {
@@ -153,18 +160,27 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
                 onClick={handleSave}
                 disabled={saving || !selectedFacture}
                 className={`h-12 px-4 font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shrink-0 ${
-                  savedOk
+                  saveError
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
+                    : savedOk
                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                     : 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20'
                 } disabled:opacity-50`}
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedOk ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {savedOk ? 'Sauvegardé' : 'Sauvegarder'}
+                {saveError ? 'Erreur!' : savedOk ? 'Sauvegardé' : 'Sauvegarder'}
               </button>
               {/* PDF export */}
               {selectedFacture && lines.length > 0 && (
                 <button
-                  onClick={() => exportDPPDF(selectedFacture, lines)}
+                  onClick={() => {
+                    const validLines = lines.filter(l => l.puNum > 0);
+                    if (validLines.length === 0) {
+                      alert('Veuillez saisir au moins un PU déclaré avant d\'exporter le PDF.');
+                      return;
+                    }
+                    exportDPPDF(selectedFacture, lines);
+                  }}
                   className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
                 >
                   <FileDown className="w-4 h-4" /> PDF

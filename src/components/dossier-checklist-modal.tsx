@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CheckCircle2, Circle, Loader2, Save, ShieldCheck, AlertTriangle } from 'lucide-react';
-import { useUser, useFirestore } from '@/firebase';
+import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 // ── Définition des points de contrôle ──
@@ -30,8 +30,7 @@ interface DossierChecklistModalProps {
 }
 
 export default function DossierChecklistModal({ open, onOpenChange, facture }: DossierChecklistModalProps) {
-  const { user } = useUser();
-  const firestore = useFirestore();
+  const { firestore } = useFirebase();
   const [checks, setChecks] = useState<ChecklistState>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,15 +38,16 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: D
 
   // Load from Firebase
   useEffect(() => {
-    if (!open || !facture?.id || !firestore || !user) return;
+    if (!open || !facture?.id || !firestore) return;
     setLoading(true);
-    getDoc(doc(firestore, 'users', user.uid, 'checklists', facture.id))
+    getDoc(doc(firestore, 'checklists', facture.id))
       .then(snap => {
         if (snap.exists()) setChecks(snap.data().checks || {});
         else setChecks({});
       })
+      .catch(err => console.error('Checklist load error:', err))
       .finally(() => setLoading(false));
-  }, [open, facture?.id, firestore, user]);
+  }, [open, facture?.id, firestore]);
 
   const toggle = (id: string) => {
     setChecks(prev => ({ ...prev, [id]: !prev[id] }));
@@ -55,20 +55,22 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: D
   };
 
   const handleSave = useCallback(async () => {
-    if (!facture?.id || !firestore || !user) return;
+    if (!facture?.id || !firestore) return;
     setSaving(true);
     try {
       await setDoc(
-        doc(firestore, 'users', user.uid, 'checklists', facture.id),
+        doc(firestore, 'checklists', facture.id),
         { checks, savedAt: new Date().toISOString(), factureId: facture.id },
         { merge: true }
       );
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
+    } catch (err) {
+      console.error('Checklist save error:', err);
     } finally {
       setSaving(false);
     }
-  }, [facture?.id, firestore, user, checks]);
+  }, [facture?.id, firestore, checks]);
 
   const total = CHECKLIST_ITEMS.length;
   const done = CHECKLIST_ITEMS.filter(i => checks[i.id]).length;
