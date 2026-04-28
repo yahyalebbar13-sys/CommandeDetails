@@ -337,25 +337,14 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
                   <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">QTÉ Totale</p>
                   <p className="text-lg font-black text-white">{totalQty.toLocaleString('fr-MA')}</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  {totalMT > 0 && (
-                    <div className="text-right bg-emerald-500/20 rounded-xl px-5 py-3">
-                      <p className="text-[8px] font-black text-emerald-300 uppercase tracking-widest">MT Total Déclaré</p>
-                      <p className="text-2xl font-black text-emerald-200 leading-none">
-                        {totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-[8px] font-black text-emerald-400 uppercase mt-0.5">USD (Σ PU × QTÉ)</p>
-                    </div>
-                  )}
-                  <div className="text-right bg-blue-500/20 rounded-xl px-5 py-3">
-                    <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest">Valeur Déclarée Dossier</p>
-                    <p className="text-2xl font-black text-blue-200 leading-none">
-                      {declaredValueDollar > 0
-                        ? declaredValueDollar.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : '—'}
-                    </p>
-                    <p className="text-[8px] font-black text-blue-400 uppercase mt-0.5">USD (depuis le dossier)</p>
-                  </div>
+                <div className="text-right bg-emerald-500/30 border border-emerald-500/40 rounded-xl px-6 py-4">
+                  <p className="text-[8px] font-black text-emerald-300 uppercase tracking-widest mb-1">Valeur Totale Déclarée en Douane</p>
+                  <p className="text-3xl font-black text-emerald-100 leading-none">
+                    {totalMT > 0
+                      ? totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '—'}
+                  </p>
+                  <p className="text-[8px] font-black text-emerald-400 uppercase mt-1">USD  ·  Σ (PU × QTÉ)</p>
                 </div>
               </div>
             )}
@@ -363,8 +352,7 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
             {/* Note */}
             <div className="px-6 py-3 bg-stone-50 border-t border-stone-100 flex flex-wrap gap-4 text-[9px] font-bold text-stone-500 uppercase">
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-200 inline-block" /> PU déclaré en USD (saisie manuelle)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-200 inline-block" /> MT = PU × QTÉ (USD)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" /> Valeur déclarée = champ du dossier (USD)</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-300 inline-block" /> Valeur déclarée = Σ (PU × QTÉ) en USD</span>
               {showSuggested && <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-200 inline-block" /> Valeur suggérée en MAD — référence interne</span>}
               <span className="ml-auto italic normal-case text-stone-400 flex items-center gap-1">
                 <Info className="w-3 h-3" /> Les valeurs saisies sont sauvegardées en Firebase

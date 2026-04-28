@@ -613,8 +613,8 @@ export async function exportDPPDF(
   doc.text('TOTAL DECLARED VALUE (CUSTOMS)', marginX + 5, yPos + 6.5);
   doc.setFontSize(12);
   doc.text(
-    declaredValueDollar > 0
-      ? `${declaredValueDollar.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+    totalMT > 0
+      ? `${totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
       : '— USD',
     pageW - marginX - 5, yPos + 10.5, { align: 'right' }
   );
