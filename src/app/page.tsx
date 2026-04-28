@@ -18,13 +18,14 @@ import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
 import CostSaleView from '@/components/cost-sale-view';
+import DPView from '@/components/dp-view';
 
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -289,6 +290,7 @@ function AdminApp() {
     { id: 'general-categories', label: 'Groupes', icon: Layers },
     { id: 'cost-analysis', label: 'Coût Revient', icon: Calculator },
     { id: 'cost-sale', label: 'Coût Vente', icon: ShoppingCart },
+    { id: 'dp', label: 'Décl. Provisoire', icon: FileCheck },
     { id: 'suppliers', label: 'Partenaires', icon: UserCheck },
     { id: 'data', label: 'Data Lab', icon: Database },
   ] as const;
@@ -375,6 +377,9 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'cost-sale' ? 'block animate-in fade-in' : 'hidden'}>
               <CostSaleView articles={articles} factures={factures} subCategories={subCategories} />
+            </div>
+            <div className={activeTab === 'dp' ? 'block animate-in fade-in' : 'hidden'}>
+              <DPView articles={articles} factures={factures} subCategories={subCategories} />
             </div>
             <div className={activeTab === 'suppliers' ? 'block animate-in fade-in' : 'hidden'}>
               <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
