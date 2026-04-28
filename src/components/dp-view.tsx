@@ -38,11 +38,11 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
 
   // ── Load saved PU from Firebase when dossier changes ──
   useEffect(() => {
-    if (!selectedFactureId || !firestore) return;
+    if (!selectedFactureId || !firestore || !user) return;
     setLoading(true);
     setPuMap({});
-    // Use top-level collection matching the app's pattern
-    getDoc(doc(firestore, 'dp_declarations', selectedFactureId))
+    // Path: /users/{uid}/dp_declarations/{factureId} — matches security rules
+    getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
@@ -51,16 +51,17 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
       })
       .catch(err => console.error('DP load error:', err))
       .finally(() => setLoading(false));
-  }, [selectedFactureId, firestore]);
+  }, [selectedFactureId, firestore, user]);
 
   // ── Save to Firebase ──
   const handleSave = useCallback(async () => {
-    if (!selectedFactureId || !firestore) return;
+    if (!selectedFactureId || !firestore || !user) return;
     setSaving(true);
     setSaveError(null);
     try {
+      // Path: /users/{uid}/dp_declarations/{factureId} — matches security rules
       await setDoc(
-        doc(firestore, 'dp_declarations', selectedFactureId),
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
         { puMap, savedAt: new Date().toISOString(), factureId: selectedFactureId },
         { merge: true }
       );
@@ -73,7 +74,7 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
     } finally {
       setSaving(false);
     }
-  }, [selectedFactureId, firestore, puMap]);
+  }, [selectedFactureId, firestore, user, puMap]);
 
   // Group articles by category for selected facture
   const categoryLines = useMemo(() => {

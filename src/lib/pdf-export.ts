@@ -531,6 +531,11 @@ export async function exportDPPDF(
   yPos += 34;
 
   // ── Table — NO NW column ──
+  const freightCost = Number(facture.freightCost) || 0;
+  const freightNote = freightCost > 0
+    ? `Incoterm: CFR  |  Freight Included: ${freightCost.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+    : 'Incoterm: CFR  |  Freight Included';
+
   autoTable(doc, {
     startY: yPos,
     head: [['Description', 'Quantity', 'Unit', 'Unit Price (USD)', 'Total Amount (USD)']],
@@ -541,13 +546,29 @@ export async function exportDPPDF(
       l.puNum.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
       l.mt.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     ]),
-    foot: [[
-      `TOTAL — ${validLines.length} item(s)`,
-      totalQty.toLocaleString('fr-MA'),
-      '',
-      '',
-      totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    ]],
+    foot: [
+      [
+        `TOTAL — ${validLines.length} item(s)`,
+        totalQty.toLocaleString('fr-MA'),
+        '',
+        '',
+        totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ],
+      [
+        {
+          content: freightNote,
+          colSpan: 5,
+          styles: {
+            halign: 'left' as const,
+            fontSize: 7,
+            fontStyle: 'italic' as const,
+            fillColor: [240, 240, 235] as [number, number, number],
+            textColor: [80, 80, 80] as [number, number, number],
+            cellPadding: 3,
+          },
+        },
+      ],
+    ],
     margin: { left: marginX, right: marginX, bottom: 65 },
     styles: {
       fontSize: 9.5,
@@ -558,13 +579,13 @@ export async function exportDPPDF(
       lineWidth: 0.2,
     },
     headStyles: {
-      fillColor: BLUE,
+      fillColor: NAVY,
       textColor: [255, 255, 255],
       fontSize: 8.5,
       fontStyle: 'bold',
     },
     footStyles: {
-      fillColor: BLUE,
+      fillColor: NAVY,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 10,
@@ -573,7 +594,7 @@ export async function exportDPPDF(
       0: { fontStyle: 'bold', cellWidth: 70 },
       1: { halign: 'right' },
       2: { halign: 'center' },
-      3: { halign: 'right', textColor: BLUE },
+      3: { halign: 'right' },
       4: { halign: 'right', fontStyle: 'bold', textColor: [5, 100, 60] },
     },
     alternateRowStyles: { fillColor: LIGHT_BG },
@@ -584,7 +605,7 @@ export async function exportDPPDF(
   // ── Total declared amount bar ──
   if (yPos > pageH - 70) { doc.addPage(); yPos = 20; }
 
-  doc.setFillColor(...BLUE);
+  doc.setFillColor(...NAVY);
   doc.roundedRect(marginX, yPos, contentW, 16, 1.5, 1.5, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8.5);
@@ -599,30 +620,6 @@ export async function exportDPPDF(
   );
 
   yPos += 24;
-
-  // ── CFR + Freight note ──
-  const freightCost = Number(facture.freightCost) || 0;
-  doc.setFillColor(239, 246, 255); // light blue bg
-  doc.setDrawColor(147, 197, 253); // blue-300
-  doc.setLineWidth(0.3);
-  doc.roundedRect(marginX, yPos, contentW, 14, 1.5, 1.5, 'FD');
-
-  // Left — Incoterm CFR
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(37, 99, 235); // blue-600
-  doc.text('INCOTERM: CFR', marginX + 5, yPos + 9);
-
-  // Right — Freight Included
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105); // slate-600
-  const freightLabel = freightCost > 0
-    ? `Freight Included: ${freightCost.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD  (not added to declared value)`
-    : 'Freight Included  (not added to declared value)';
-  doc.text(freightLabel, pageW - marginX - 5, yPos + 9, { align: 'right' });
-
-  yPos += 20;
 
   // ── TO: Supplier block ──
   doc.setFillColor(...LIGHT_BG);

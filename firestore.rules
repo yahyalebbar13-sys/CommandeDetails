@@ -56,6 +56,11 @@ service cloud.firestore {
       match /supplierPayments/{id} {
         allow read, write: if isOwner(userId);
       }
+
+      // dp_declarations: customs declarations, owner only
+      match /dp_declarations/{id} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ── Client Access mapping ──────────────────────────────────────────────────
