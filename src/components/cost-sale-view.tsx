@@ -1,17 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
-} from '@/components/ui/table';
-import {
-  ShoppingCart, ChevronDown, AlertTriangle, CheckCircle2,
-  FileText, Truck, Package, DollarSign, TrendingUp, Info, Percent, FileDown
+  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, Truck, DollarSign, FileText, Package
 } from 'lucide-react';
 import { exportCostSalePDF } from '@/lib/pdf-export';
+import { useFirebase } from '@/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-const MARGE_RATE = 0.05; // 5% marge fixe
+const MARGE_RATE = 0.05;
 
 interface CostSaleViewProps {
   articles: any[];
@@ -20,48 +19,80 @@ interface CostSaleViewProps {
 }
 
 export default function CostSaleView({ articles, factures, subCategories }: CostSaleViewProps) {
+  const { user, firestore } = useFirebase();
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
     factures.length > 0 ? factures[0].id : null
   );
+  const [puMap, setPuMap] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
 
   const selectedFacture = useMemo(
     () => factures.find(f => f.id === selectedFactureId) || null,
     [factures, selectedFactureId]
   );
 
-  const dossierArticles = useMemo(
-    () => articles
-      .filter(a => a.factureId === selectedFactureId)
-      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || '')),
-    [articles, selectedFactureId]
-  );
+  // Load saved DP puMap from Firebase when dossier changes
+  useEffect(() => {
+    if (!selectedFactureId || !firestore || !user) return;
+    setLoading(true);
+    setPuMap({});
+    getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
+      .then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.puMap) setPuMap(data.puMap);
+        }
+      })
+      .catch(err => console.error('DP load error:', err))
+      .finally(() => setLoading(false));
+  }, [selectedFactureId, firestore, user]);
+
+  // Group articles by category (same logic as dp-view)
+  const categoryLines = useMemo(() => {
+    if (!selectedFactureId) return [];
+    const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
+    const map: Record<string, { qty: number; nw: number; cbm: number; unit: string }> = {};
+    for (const a of dossierArticles) {
+      const cat = a.categoryId || '—';
+      if (!map[cat]) map[cat] = { qty: 0, nw: 0, cbm: 0, unit: a.unitOfMeasure || 'U' };
+      map[cat].qty += Number(a.quantity) || 0;
+      map[cat].nw += Number(a.netWeight) || 0;
+      map[cat].cbm += Number(a.cubicMeasurement) || 0;
+    }
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([categoryId, { qty, nw, cbm, unit }]) => {
+        const cat = subCategories.find(c => c.name === categoryId);
+        return { categoryId, totalQty: qty, totalNW: nw, totalCBM: cbm, unit, cat };
+      });
+  }, [articles, selectedFactureId, subCategories]);
 
   const analysis = useMemo(() => {
-    if (!selectedFacture) return null;
+    if (!selectedFacture || categoryLines.length === 0) return null;
 
     const invoicePaidDhs = Number(selectedFacture.invoicePaidDhs) || 0;
     const declaredValue = Number(selectedFacture.declaredValue) || 0;
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
 
-    // ── Frais logistiques totaux du dossier (MAD) ──
-    // Tous les frais sont saisis TTC (TVA 20% incluse), y compris le fret
-    // → on divise l'ensemble par 1.20 pour obtenir le montant HT
     const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
     const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
     const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
     const fretMad = (Number(selectedFacture.freightCost) || 0) * tauxChange;
     const mtFraisTotal = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
 
-    const cbmTotal = dossierArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
+    const cbmTotal = categoryLines.reduce((s, l) => s + l.totalCBM, 0);
 
-    const rows = dossierArticles.map(a => {
-      const cbm = Number(a.cubicMeasurement) || 0;
-      const nw = Number(a.netWeight) || 0;
-      const qty = Number(a.quantity) || 0;
+    const rows = categoryLines.map(line => {
+      const { categoryId, totalQty: qty, totalNW: nw, totalCBM: cbm, unit, cat } = line;
 
+      // PU from DP declaration (USD)
+      const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
+      const valAchatMad = qty * puDollar * tauxChange;
+
+      // Logistics prorated by CBM
       const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
-      const cat = subCategories.find(c => c.name === a.categoryId);
+      // Customs
       const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
       const importDutyRate = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
       const tpiRate = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
@@ -74,42 +105,31 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
       const tpi = tpiRate != null ? valDouane * tpiRate : 0;
       const tic = ticRate != null ? valDouane * ticRate : 0;
 
-      const pauDollar = Number(a.purchasePricePerUnit) || 0;
-      const valAchatMad = qty * pauDollar * tauxChange;
-
-      // ── Coût de vente : marge avant TVA ──
-      // 1. Total HT (sans TVA) = valAchat + fraisLog + DI + TPI + TIC
       const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
-      // 2. Marge = totalHT × 5%
       const marge = totalHT * MARGE_RATE;
-      // 3. Base TVA = totalHT + marge
       const baseTva = totalHT + marge;
-      // 4. TVA = baseTva × taux TVA
       const tva = tvaRate != null ? baseTva * tvaRate : 0;
-      // 5. Total vente TTC
       const totalVenteTtc = baseTva + tva;
-      const pauVenteTtc = qty > 0 ? totalVenteTtc / qty : 0;
+      const pvuTtc = qty > 0 ? totalVenteTtc / qty : 0;
 
       return {
-        ...a,
-        cbm, nw, qty, pauDollar,
-        valAchatMad, fraisCmd, cat,
+        categoryId, qty, nw, cbm, unit, cat,
+        puDollar, valAchatMad, fraisCmd,
         customsValuePerKg, importDutyRate, tpiRate, ticRate, tvaRate,
-        hasCustData,
-        valDouane, di, tpi, tic,
-        totalHT, marge, baseTva, tva,
-        totalVenteTtc, pauVenteTtc,
-        missingData: !hasCustData,
+        hasCustData, valDouane, di, tpi, tic,
+        totalHT, marge, baseTva, tva, totalVenteTtc, pvuTtc,
+        missingDP: puDollar === 0,
+        missingCust: !hasCustData,
       };
     });
 
-    const totalTVA = rows.reduce((s, r) => s + (r.tva || 0), 0);
-    const totalMarge = rows.reduce((s, r) => s + (r.marge || 0), 0);
+    const totalMarge = rows.reduce((s, r) => s + r.marge, 0);
+    const totalTVA = rows.reduce((s, r) => s + r.tva, 0);
 
-    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, totalTVA, totalMarge, rows };
-  }, [selectedFacture, dossierArticles, subCategories]);
+    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, totalMarge, totalTVA, rows };
+  }, [selectedFacture, categoryLines, subCategories, puMap]);
 
-  const missingCount = analysis?.rows.filter(r => r.missingData).length || 0;
+  const missingDPCount = analysis?.rows.filter(r => r.missingDP).length || 0;
 
   return (
     <div className="space-y-8 fade-in">
@@ -123,15 +143,14 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
                 <ShoppingCart className="w-6 h-6 text-white" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Calcul Automatique</p>
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Depuis Déclaration Provisoire</p>
                 <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Coût de Vente TTC</h2>
               </div>
             </div>
             <p className="text-stone-400 text-sm font-medium max-w-lg">
-              Prix de vente unitaire TTC par article : coût de revient HT + marge 5% + TVA appliquée sur la base majorée.
+              Prix de vente par catégorie · PU issu de la Déclaration Provisoire · Marge 5% + TVA
             </p>
           </div>
-
           <div className="flex flex-col gap-2 w-full lg:w-auto">
             <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Sélectionner un Dossier</label>
             <div className="flex gap-3">
@@ -168,16 +187,23 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
         </div>
       )}
 
-      {selectedFacture && analysis && (
+      {selectedFacture && loading && (
+        <div className="flex items-center justify-center py-20 gap-3">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+          <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Chargement de la Déclaration Provisoire...</span>
+        </div>
+      )}
+
+      {selectedFacture && !loading && analysis && (
         <>
           {/* Synthèse */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            <SyntheseCard label="Taux de Change" value={analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'} sub="MAD/$" color="text-blue-600" bgColor="bg-blue-50" icon={<TrendingUp className="w-4 h-4" />} />
-            <SyntheseCard label="Fret Maritime" value={analysis.fretMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-indigo-600" bgColor="bg-indigo-50" icon={<Truck className="w-4 h-4" />} />
-            <SyntheseCard label="Fact. Échange" value={analysis.exchange.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-violet-600" bgColor="bg-violet-50" icon={<DollarSign className="w-4 h-4" />} />
-            <SyntheseCard label="Fact. Transitaire" value={analysis.transitaire.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-purple-600" bgColor="bg-purple-50" icon={<FileText className="w-4 h-4" />} />
-            <SyntheseCard label="Frais Supp." value={analysis.fraisSupp.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-rose-600" bgColor="bg-rose-50" icon={<Package className="w-4 h-4" />} />
-            <SyntheseCard label="CBM Total" value={analysis.cbmTotal.toLocaleString('fr-MA', { maximumFractionDigits: 3 })} sub="m³" color="text-sky-600" bgColor="bg-sky-50" icon={<Package className="w-4 h-4" />} />
+            <SCard label="Taux de Change" value={analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'} sub="MAD/$" color="text-blue-600" bg="bg-blue-50" icon={<TrendingUp className="w-4 h-4" />} />
+            <SCard label="Fret Maritime" value={analysis.fretMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-indigo-600" bg="bg-indigo-50" icon={<Truck className="w-4 h-4" />} />
+            <SCard label="Fact. Échange" value={analysis.exchange.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-violet-600" bg="bg-violet-50" icon={<DollarSign className="w-4 h-4" />} />
+            <SCard label="Fact. Transitaire" value={analysis.transitaire.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-purple-600" bg="bg-purple-50" icon={<FileText className="w-4 h-4" />} />
+            <SCard label="Frais Supp." value={analysis.fraisSupp.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-rose-600" bg="bg-rose-50" icon={<Package className="w-4 h-4" />} />
+            <SCard label="CBM Total" value={analysis.cbmTotal.toLocaleString('fr-MA', { maximumFractionDigits: 3 })} sub="m³" color="text-sky-600" bg="bg-sky-50" icon={<Package className="w-4 h-4" />} />
             <div className="col-span-1 bg-emerald-600 rounded-2xl p-4 flex flex-col justify-between shadow-lg shadow-emerald-600/20">
               <p className="text-[9px] font-black text-emerald-100 uppercase tracking-widest">Total Marge (5%)</p>
               <div>
@@ -194,29 +220,29 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
             </div>
           </div>
 
-          {missingCount > 0 && (
+          {missingDPCount > 0 && (
             <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-[11px] font-black text-amber-800 uppercase tracking-tight">
-                  {missingCount} article{missingCount > 1 ? 's' : ''} sans données douanières
+                  {missingDPCount} catégorie{missingDPCount > 1 ? 's' : ''} sans PU dans la Déclaration Provisoire
                 </p>
                 <p className="text-[10px] font-bold text-amber-600 mt-0.5">
-                  Ces articles n'ont pas de valeur en douane par kg. La TVA sera à zéro.
+                  Veuillez saisir les PU déclarés dans l'onglet "Décl. Provisoire" puis revenir ici.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Tableau */}
+          {/* Table */}
           <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
             <div className="bg-stone-900 px-8 py-5 flex items-center justify-between">
               <div>
                 <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Dossier {selectedFacture.id}</p>
-                <h3 className="text-lg font-black text-white uppercase tracking-tight">Détail Prix de Vente TTC par Article</h3>
+                <h3 className="text-lg font-black text-white uppercase tracking-tight">Coût de Vente TTC par Catégorie</h3>
               </div>
               <Badge className="bg-emerald-500 text-white border-none text-[9px] font-black uppercase tracking-widest px-3 py-1">
-                {analysis.rows.length} articles
+                {analysis.rows.length} catégories
               </Badge>
             </div>
 
@@ -224,18 +250,16 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
               <Table>
                 <TableHeader>
                   <TableRow className="bg-stone-50 border-b border-stone-100">
-                    <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 px-6 min-w-[180px]">Article</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 px-6 min-w-[180px]">Catégorie</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 text-right">QTÉ</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 text-right">NW (kg)</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 text-right">CBM</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-sky-500 py-4 text-right bg-sky-50/30">Val. Achat (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-indigo-400 py-4 text-right bg-indigo-50/30">Frais Log. (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">DI (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">TPI (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-orange-400 py-4 text-right bg-orange-50/30">TIC (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-stone-500 py-4 text-right bg-stone-50">Total HT (MAD)</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-emerald-500 py-4 text-right bg-emerald-50/40">Marge 5% (MAD)</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-emerald-600 py-4 text-right bg-emerald-50/40">Base TVA (MAD)</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-emerald-500 py-4 text-right bg-emerald-50/40">Marge 5%</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-amber-500 py-4 text-right bg-amber-50/30">TVA (MAD)</TableHead>
                     <TableHead className="text-[9px] font-black uppercase text-emerald-700 py-4 text-right bg-emerald-50/60 pr-6">P.V.U TTC (MAD)</TableHead>
                   </TableRow>
@@ -243,86 +267,49 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
                 <TableBody>
                   {analysis.rows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center py-16 text-stone-300 font-black uppercase text-[10px] tracking-widest">
+                      <TableCell colSpan={12} className="text-center py-16 text-stone-300 font-black uppercase text-[10px] tracking-widest">
                         Aucun article lié à ce dossier
                       </TableCell>
                     </TableRow>
                   )}
                   {analysis.rows.map(row => (
-                    <TableRow key={row.id} className={`border-stone-50 hover:bg-stone-50/50 transition-colors ${row.missingData ? 'bg-amber-50/20' : ''}`}>
-                      {/* Article */}
+                    <TableRow key={row.categoryId} className={`border-stone-50 hover:bg-stone-50/50 transition-colors ${row.missingDP ? 'bg-amber-50/20' : ''}`}>
                       <TableCell className="py-4 px-6">
-                        <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{row.name || row.categoryId}</div>
-                        <div className="text-[9px] text-stone-400 font-bold uppercase mt-0.5 flex items-center gap-1">
-                          {row.categoryId}
-                          {row.size && row.size !== 'various' && <span className="bg-stone-100 text-stone-500 px-1 py-0.5 rounded text-[8px]">Taille: {row.size}</span>}
-                        </div>
-                        {row.missingData ? (
+                        <div className="font-black text-[12px] text-stone-900 uppercase">{row.categoryId}</div>
+                        {row.missingDP ? (
                           <span className="inline-flex items-center gap-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded mt-1 uppercase">
-                            <AlertTriangle className="w-2.5 h-2.5" /> Sans données douane
+                            <AlertTriangle className="w-2.5 h-2.5" /> PU manquant (DP)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded mt-1 uppercase">
-                            <CheckCircle2 className="w-2.5 h-2.5" /> {row.cat?.hsCode || 'HS défini'}
+                          <span className="inline-flex items-center gap-1 text-[8px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-1 uppercase">
+                            {row.puDollar.toFixed(4)} USD/u · DP
                           </span>
                         )}
                       </TableCell>
-
-                      {/* QTÉ */}
                       <TableCell className="text-right font-black text-[11px] text-stone-900 py-4">
-                        {Number(row.qty).toLocaleString('fr-MA')}
-                        <div className="text-[8px] text-stone-400 font-bold uppercase">{row.unitOfMeasure}</div>
+                        {row.qty.toLocaleString('fr-MA')}
+                        <div className="text-[8px] text-stone-400 font-bold uppercase">{row.unit}</div>
                       </TableCell>
-
-                      {/* NW */}
                       <TableCell className="text-right font-bold text-[10px] text-stone-600 py-4">
                         {row.nw > 0 ? row.nw.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300">—</span>}
                       </TableCell>
-
-                      {/* CBM */}
-                      <TableCell className="text-right font-bold text-[10px] text-stone-600 py-4">
-                        {row.cbm > 0 ? row.cbm.toLocaleString('fr-MA', { maximumFractionDigits: 4 }) : <span className="text-stone-300">—</span>}
-                      </TableCell>
-
-                      {/* Val. Achat MAD */}
                       <TableCell className="text-right font-black text-[11px] text-sky-700 py-4 bg-sky-50/20">
-                        {row.pauDollar > 0 ? row.valAchatMad.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300 font-normal text-[9px]">—</span>}
-                        {row.pauDollar > 0 && (
-                          <div className="text-[8px] text-sky-400 font-bold">{row.pauDollar.toFixed(4)} $ × {analysis.tauxChange.toFixed(4)}</div>
-                        )}
+                        {row.puDollar > 0 ? row.valAchatMad.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300 font-normal text-[9px]">—</span>}
+                        {row.puDollar > 0 && <div className="text-[8px] text-sky-400 font-bold">{row.puDollar.toFixed(4)} $ × {analysis.tauxChange.toFixed(4)}</div>}
                       </TableCell>
-
-                      {/* Frais Log */}
                       <TableCell className="text-right font-black text-[11px] text-indigo-700 py-4 bg-indigo-50/20">
                         {row.cbm > 0 ? row.fraisCmd.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300 font-normal text-[9px]">CBM manquant</span>}
                       </TableCell>
-
-                      {/* DI */}
-                      <MontantCell value={row.di} hasData={row.hasCustData && row.nw > 0} rate={row.importDutyRate} />
-
-                      {/* TPI */}
-                      <MontantCell value={row.tpi} hasData={row.hasCustData && row.nw > 0} rate={row.tpiRate} />
-
-                      {/* TIC */}
-                      <MontantCell value={row.tic} hasData={row.hasCustData && row.nw > 0} rate={row.ticRate} />
-
-                      {/* Total HT */}
+                      <MCell value={row.di} ok={row.hasCustData && row.nw > 0} rate={row.importDutyRate} />
+                      <MCell value={row.tpi} ok={row.hasCustData && row.nw > 0} rate={row.tpiRate} />
+                      <MCell value={row.tic} ok={row.hasCustData && row.nw > 0} rate={row.ticRate} />
                       <TableCell className="text-right font-black text-[11px] text-stone-700 py-4 bg-stone-50/60">
                         {row.totalHT > 0 ? row.totalHT.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300 font-normal text-[9px]">—</span>}
                       </TableCell>
-
-                      {/* Marge 5% */}
                       <TableCell className="text-right py-4 bg-emerald-50/30">
                         <div className="font-black text-[11px] text-emerald-600">{row.marge > 0 ? row.marge.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300 font-normal text-[9px]">—</span>}</div>
                         {row.marge > 0 && <div className="text-[8px] text-emerald-400 font-bold">5%</div>}
                       </TableCell>
-
-                      {/* Base TVA */}
-                      <TableCell className="text-right font-black text-[11px] text-emerald-700 py-4 bg-emerald-50/30">
-                        {row.baseTva > 0 ? row.baseTva.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : <span className="text-stone-300 font-normal text-[9px]">—</span>}
-                      </TableCell>
-
-                      {/* TVA */}
                       <TableCell className="text-right py-4 bg-amber-50/20">
                         {row.hasCustData && row.tvaRate != null ? (
                           <div>
@@ -331,15 +318,13 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
                           </div>
                         ) : <span className="text-stone-300 font-normal text-[9px]">—</span>}
                       </TableCell>
-
-                      {/* PVU TTC */}
                       <TableCell className="text-right py-4 pr-6 bg-emerald-50/60">
-                        {row.pauVenteTtc > 0 ? (
+                        {row.pvuTtc > 0 ? (
                           <div>
                             <p className="font-black text-base text-emerald-700 leading-none">
-                              {row.pauVenteTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                              {row.pvuTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                             </p>
-                            <p className="text-[8px] font-black text-emerald-500 uppercase mt-0.5">MAD / {row.unitOfMeasure || 'U'}</p>
+                            <p className="text-[8px] font-black text-emerald-500 uppercase mt-0.5">MAD / {row.unit}</p>
                           </div>
                         ) : (
                           <span className="text-stone-300 font-normal text-[9px]">Données manquantes</span>
@@ -351,15 +336,14 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
               </Table>
             </div>
 
-            {/* Légende */}
+            {/* Legend */}
             <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex flex-wrap gap-6 text-[9px] font-bold text-stone-500 uppercase">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-sky-200 inline-block" /> Valeur achat (qty × PA$ × taux)</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-200 inline-block" /> PU issu de la Déclaration Provisoire (USD)</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-indigo-200 inline-block" /> Frais logistiques (CBM)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-200 inline-block" /> Droits douane (DI+TPI+TIC)</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-200 inline-block" /> Marge 5% sur total HT</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-200 inline-block" /> TVA sur (HT + Marge)</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-200 inline-block" /> Droits douane</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-200 inline-block" /> Marge 5% + TVA</span>
               <span className="ml-auto flex items-center gap-1.5 italic normal-case text-stone-400">
-                <Info className="w-3 h-3" /> PVU_TTC = (HT + Marge + TVA) ÷ Qté — Marge = HT × 5% — TVA = (HT + Marge) × taux
+                <Info className="w-3 h-3" /> PVU_TTC = (HT + Marge + TVA) ÷ Qté
               </span>
             </div>
           </div>
@@ -369,12 +353,9 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
   );
 }
 
-function SyntheseCard({ label, value, sub, color, bgColor, icon }: {
-  label: string; value: string; sub: string;
-  color: string; bgColor: string; icon: React.ReactNode;
-}) {
+function SCard({ label, value, sub, color, bg, icon }: { label: string; value: string; sub: string; color: string; bg: string; icon: React.ReactNode }) {
   return (
-    <div className={`${bgColor} rounded-2xl p-4 border border-white flex flex-col gap-2`}>
+    <div className={`${bg} rounded-2xl p-4 border border-white flex flex-col gap-2`}>
       <div className={`${color} flex items-center gap-1.5`}>
         {icon}
         <p className={`text-[8px] font-black uppercase tracking-widest ${color}`}>{label}</p>
@@ -387,8 +368,8 @@ function SyntheseCard({ label, value, sub, color, bgColor, icon }: {
   );
 }
 
-function MontantCell({ value, hasData, rate }: { value: number; hasData: boolean; rate: number | null }) {
-  if (!hasData) return <TableCell className="text-right text-stone-300 text-[9px] font-normal py-4 bg-orange-50/20">—</TableCell>;
+function MCell({ value, ok, rate }: { value: number; ok: boolean; rate: number | null }) {
+  if (!ok) return <TableCell className="text-right text-stone-300 text-[9px] font-normal py-4 bg-orange-50/20">—</TableCell>;
   return (
     <TableCell className="text-right font-bold text-[10px] text-orange-600 py-4 bg-orange-50/20">
       <div>{value.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}</div>
