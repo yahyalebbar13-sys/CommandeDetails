@@ -105,12 +105,16 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
       const tpi = tpiRate != null ? valDouane * tpiRate : 0;
       const tic = ticRate != null ? valDouane * ticRate : 0;
 
+      // Total HT = Valeur Achat + Frais Log + DI + TPI + TIC
       const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
       const marge = totalHT * MARGE_RATE;
-      // TVA = (Total HT + Marge) × taux TVA
-      const baseTva = totalHT + marge;
+
+      // Base TVA = Valeur Douane + DI + TPI + Frais Log (sans valeur d'achat)
+      const baseTva = valDouane + di + tpi + fraisCmd;
       const tva = tvaRate != null ? baseTva * tvaRate : 0;
-      const totalVenteTtc = baseTva + tva;
+
+      // Total Vente TTC = Total HT + Marge + TVA
+      const totalVenteTtc = totalHT + marge + tva;
       const pvuTtc = qty > 0 ? totalVenteTtc / qty : 0;
 
       return {
