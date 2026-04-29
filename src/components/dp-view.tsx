@@ -16,9 +16,10 @@ interface DPViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
+  generalCategories: any[];
 }
 
-export default function DPView({ articles, factures, subCategories }: DPViewProps) {
+export default function DPView({ articles, factures, subCategories, generalCategories }: DPViewProps) {
   const { user, firestore } = useFirebase();
 
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
@@ -53,45 +54,43 @@ export default function DPView({ articles, factures, subCategories }: DPViewProp
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
 
-  // ── Pole grouping helper
-  const getZipperPole = (catName: string): string | null => {
-    const upper = catName.toUpperCase();
-    if (upper.includes('SLIDER')) return 'SLIDER';
-    if (upper.includes('ZIPPER')) return 'ZIPPER';
-    return null;
-  };
-
-  // Group articles by category (with zipper/slider pole merging)
+  // ── Pole grouping: group by generalCategoryId when multiple sub-cats share same parent
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
 
-    const map: Record<string, { qty: number; nw: number; unit: string; isPole: boolean; firstCatName: string }> = {};
+    type MapEntry = { qty: number; nw: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean };
+    const map: Record<string, MapEntry> = {};
+
     for (const a of dossierArticles) {
       const rawCat = a.categoryId || '—';
-      const pole = getZipperPole(rawCat);
-      const key = pole || rawCat;
-      const isPole = !!pole;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, unit: isPole ? 'KG' : (a.unitOfMeasure || 'U'), isPole, firstCatName: rawCat };
+      const subCat = subCategories.find((c: any) => c.name === rawCat);
+      const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
+      // Use generalCategoryId as key only when meaningful (has a parent)
+      const key = genCatId ? `GEN:${genCatId}` : rawCat;
+      const isGrouped = !!genCatId;
+      if (!map[key]) map[key] = { qty: 0, nw: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId, isGrouped };
       map[key].qty += Number(a.quantity) || 0;
       map[key].nw += Number(a.netWeight) || 0;
     }
 
     return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([categoryId, { qty, nw, unit, isPole, firstCatName }]) => {
-        // For poles: use NW as the effective qty; for normal: use qty
-        const effectiveQty = isPole ? nw : qty;
-        const catLookup = isPole ? firstCatName : categoryId;
-        const cat = subCategories.find(c => c.name === catLookup);
+      .sort(([, a], [, b]) => {
+        const aName = a.genCatId ? (generalCategories.find((g: any) => g.id === a.genCatId)?.name || a.firstCatName) : a.firstCatName;
+        const bName = b.genCatId ? (generalCategories.find((g: any) => g.id === b.genCatId)?.name || b.firstCatName) : b.firstCatName;
+        return aName.localeCompare(bName);
+      })
+      .map(([, { qty, nw, unit, firstCatName, genCatId, isGrouped }]) => {
+        const effectiveQty = isGrouped ? nw : qty;
+        const displayId = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId) : firstCatName;
+        const cat = subCategories.find((c: any) => c.name === firstCatName);
         const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-        // suggestedPU: for pole (NW-based), PU per KG = customsValuePerKg
         const suggestedPU = (customsValuePerKg !== null && effectiveQty > 0)
-          ? isPole ? customsValuePerKg : (nw * customsValuePerKg) / effectiveQty
+          ? isGrouped ? customsValuePerKg : (nw * customsValuePerKg) / effectiveQty
           : null;
-        return { categoryId, totalQty: effectiveQty, totalNW: nw, unit, customsValuePerKg, suggestedPU, isPole };
+        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, unit, customsValuePerKg, suggestedPU, isPole: isGrouped };
       });
-  }, [articles, selectedFactureId, subCategories]);
+  }, [articles, selectedFactureId, subCategories, generalCategories]);
 
   // ── Save to Firebase ──
   const handleSave = useCallback(async () => {

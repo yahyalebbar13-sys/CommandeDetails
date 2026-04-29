@@ -376,10 +376,10 @@ function AdminApp() {
               <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />
             </div>
             <div className={activeTab === 'cost-sale' ? 'block animate-in fade-in' : 'hidden'}>
-              <CostSaleView articles={articles} factures={factures} subCategories={subCategories} />
+              <CostSaleView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'dp' ? 'block animate-in fade-in' : 'hidden'}>
-              <DPView articles={articles} factures={factures} subCategories={subCategories} />
+              <DPView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'suppliers' ? 'block animate-in fade-in' : 'hidden'}>
               <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />

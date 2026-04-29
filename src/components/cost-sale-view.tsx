@@ -16,9 +16,10 @@ interface CostSaleViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
+  generalCategories: any[];
 }
 
-export default function CostSaleView({ articles, factures, subCategories }: CostSaleViewProps) {
+export default function CostSaleView({ articles, factures, subCategories, generalCategories }: CostSaleViewProps) {
   const { user, firestore } = useFirebase();
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
     factures.length > 0 ? factures[0].id : null
@@ -47,38 +48,36 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
 
-  // ── Pole grouping helper
-  const getZipperPole = (catName: string): string | null => {
-    const upper = catName.toUpperCase();
-    if (upper.includes('SLIDER')) return 'SLIDER';
-    if (upper.includes('ZIPPER')) return 'ZIPPER';
-    return null;
-  };
-
-  // Group articles by category (with zipper/slider pole merging)
+  // ── Group by generalCategoryId (real parent category = the pole)
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
-    const map: Record<string, { qty: number; nw: number; cbm: number; unit: string; isPole: boolean; firstCatName: string }> = {};
+    type MapEntry = { qty: number; nw: number; cbm: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean };
+    const map: Record<string, MapEntry> = {};
     for (const a of dossierArticles) {
       const rawCat = a.categoryId || '—';
-      const pole = getZipperPole(rawCat);
-      const key = pole || rawCat;
-      const isPole = !!pole;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isPole ? 'KG' : (a.unitOfMeasure || 'U'), isPole, firstCatName: rawCat };
+      const subCat = subCategories.find((c: any) => c.name === rawCat);
+      const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
+      const key = genCatId ? `GEN:${genCatId}` : rawCat;
+      const isGrouped = !!genCatId;
+      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId, isGrouped };
       map[key].qty += Number(a.quantity) || 0;
       map[key].nw += Number(a.netWeight) || 0;
       map[key].cbm += Number(a.cubicMeasurement) || 0;
     }
     return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([categoryId, { qty, nw, cbm, unit, isPole, firstCatName }]) => {
-        const effectiveQty = isPole ? nw : qty;
-        const catLookup = isPole ? firstCatName : categoryId;
-        const cat = subCategories.find(c => c.name === catLookup);
-        return { categoryId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole };
+      .sort(([, a], [, b]) => {
+        const aName = a.genCatId ? (generalCategories.find((g: any) => g.id === a.genCatId)?.name || a.firstCatName) : a.firstCatName;
+        const bName = b.genCatId ? (generalCategories.find((g: any) => g.id === b.genCatId)?.name || b.firstCatName) : b.firstCatName;
+        return aName.localeCompare(bName);
+      })
+      .map(([, { qty, nw, cbm, unit, firstCatName, genCatId, isGrouped }]) => {
+        const effectiveQty = isGrouped ? nw : qty;
+        const displayId = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId) : firstCatName;
+        const cat = subCategories.find((c: any) => c.name === firstCatName);
+        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped };
       });
-  }, [articles, selectedFactureId, subCategories]);
+  }, [articles, selectedFactureId, subCategories, generalCategories]);
 
   const analysis = useMemo(() => {
     if (!selectedFacture || categoryLines.length === 0) return null;
