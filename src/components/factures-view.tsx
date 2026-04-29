@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, collection, getDocs } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
@@ -47,6 +47,97 @@ export default function FacturesView({
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
   const [checklistFacture, setChecklistFacture] = useState<any>(null);
+  const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+    getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
+      .then(snap => {
+        const result: Record<string, Record<string, string>> = {};
+        snap.docs.forEach(d => { if (d.data().puMap) result[d.id] = d.data().puMap; });
+        setDpDeclarations(result);
+      }).catch(() => {});
+  }, [firestore, user]);
+
+  // Coût de Revient et Coût de Vente par dossier
+  const costsPerFacture = useMemo(() => {
+    const MARGE_RATE = 0.05;
+    const result: Record<string, { revient: number; vente: number; hasDp: boolean }> = {};
+
+    (factures || []).forEach(facture => {
+      const fArticles = articles.filter(a => a.factureId === facture.id);
+      const puMap = dpDeclarations[facture.id] || {};
+      const hasDp = Object.values(puMap).some(v => parseFloat(v as string) > 0);
+      if (fArticles.length === 0) { result[facture.id] = { revient: 0, vente: 0, hasDp }; return; }
+
+      const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
+      const declaredValue = Number(facture.declaredValue) || 0;
+      const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
+      const exchange = Number(facture.exchangeInvoiceAmount) || 0;
+      const transitaire = Number(facture.supplierInvoiceAmount) || 0;
+      const fraisSupp = Number(facture.additionalCostsAmount) || 0;
+      const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
+      const mtFraisRevient = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
+      const mtFraisVente = (exchange + transitaire + fraisSupp) / 1.20;
+      const cbmTotal = fArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
+
+      let dosRevient = 0;
+      fArticles.forEach(a => {
+        const cbm = Number(a.cubicMeasurement) || 0;
+        const nw = Number(a.netWeight) || 0;
+        const qty = Number(a.quantity) || 0;
+        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisRevient : 0;
+        const valAchatMad = qty * (Number(a.purchasePricePerUnit) || 0) * tauxChange;
+        const cat = subCategories.find((c: any) => c.name === a.categoryId);
+        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
+        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
+        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
+        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
+        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
+        const vd = cvk != null ? nw * cvk : 0;
+        const di = idr != null ? vd * idr : 0;
+        const tpi = tpr != null ? vd * tpr : 0;
+        const tic = ticr != null ? vd * ticr : 0;
+        const tva = tvar != null ? (vd + di + tpi) * tvar : 0;
+        dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
+      });
+
+      const catMap: Record<string, { qty: number; nw: number; cbm: number }> = {};
+      fArticles.forEach(a => {
+        const catId = a.categoryId || '—';
+        if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0 };
+        catMap[catId].qty += Number(a.quantity) || 0;
+        catMap[catId].nw += Number(a.netWeight) || 0;
+        catMap[catId].cbm += Number(a.cubicMeasurement) || 0;
+      });
+
+      let dosVente = 0;
+      Object.entries(catMap).forEach(([categoryId, { qty, nw, cbm }]) => {
+        const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
+        if (puDollar === 0) return;
+        const valAchatMad = qty * puDollar * tauxChange;
+        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisVente : 0;
+        const cat = subCategories.find((c: any) => c.name === categoryId);
+        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
+        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
+        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
+        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
+        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
+        const vd = cvk != null ? nw * cvk : 0;
+        const di = idr != null ? vd * idr : 0;
+        const tpi = tpr != null ? vd * tpr : 0;
+        const tic = ticr != null ? vd * ticr : 0;
+        const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
+        const marge = totalHT * MARGE_RATE;
+        const baseTva = vd + di + tpi + fraisCmd;
+        const tva = tvar != null ? baseTva * tvar : 0;
+        dosVente += totalHT + marge + tva;
+      });
+
+      result[facture.id] = { revient: dosRevient, vente: dosVente, hasDp };
+    });
+    return result;
+  }, [factures, articles, subCategories, dpDeclarations]);
 
   const { declaredFactures, orphanedFactureIds } = useMemo(() => {
     const declaredIds = new Set((factures || []).map(f => f.id));
@@ -576,6 +667,37 @@ export default function FacturesView({
                   <ArrowUpRight className="w-4 h-4" />
                 </div>
               </div>
+
+              {/* Coûts calculés */}
+              {costsPerFacture[f.id] && costsPerFacture[f.id].revient > 0 && (
+                <div className="mt-4 pt-4 border-t border-stone-100 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Coût Revient TTC</span>
+                    <span className="text-[11px] font-black text-stone-700">{(costsPerFacture[f.id].revient / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD</span>
+                  </div>
+                  {costsPerFacture[f.id].hasDp && costsPerFacture[f.id].vente > 0 && (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Coût Vente TTC</span>
+                        <span className="text-[11px] font-black text-sky-600">{(costsPerFacture[f.id].vente / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1.5 border-t border-stone-100">
+                        <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Différence</span>
+                        <span className={`text-sm font-black ${
+                          (costsPerFacture[f.id].revient - costsPerFacture[f.id].vente) >= 0
+                            ? 'text-emerald-600' : 'text-red-500'
+                        }`}>
+                          {(costsPerFacture[f.id].revient - costsPerFacture[f.id].vente) >= 0 ? '+' : ''}
+                          {((costsPerFacture[f.id].revient - costsPerFacture[f.id].vente) / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {!costsPerFacture[f.id].hasDp && (
+                    <p className="text-[8px] font-bold text-amber-500 uppercase tracking-widest">⚠ DP non remplie</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
