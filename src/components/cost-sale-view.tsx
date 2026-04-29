@@ -47,23 +47,36 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
 
-  // Group articles by category (same logic as dp-view)
+  // ── Pole grouping helper
+  const getZipperPole = (catName: string): string | null => {
+    const upper = catName.toUpperCase();
+    if (upper.includes('SLIDER')) return 'SLIDER';
+    if (upper.includes('ZIPPER')) return 'ZIPPER';
+    return null;
+  };
+
+  // Group articles by category (with zipper/slider pole merging)
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
-    const map: Record<string, { qty: number; nw: number; cbm: number; unit: string }> = {};
+    const map: Record<string, { qty: number; nw: number; cbm: number; unit: string; isPole: boolean; firstCatName: string }> = {};
     for (const a of dossierArticles) {
-      const cat = a.categoryId || '—';
-      if (!map[cat]) map[cat] = { qty: 0, nw: 0, cbm: 0, unit: a.unitOfMeasure || 'U' };
-      map[cat].qty += Number(a.quantity) || 0;
-      map[cat].nw += Number(a.netWeight) || 0;
-      map[cat].cbm += Number(a.cubicMeasurement) || 0;
+      const rawCat = a.categoryId || '—';
+      const pole = getZipperPole(rawCat);
+      const key = pole || rawCat;
+      const isPole = !!pole;
+      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isPole ? 'KG' : (a.unitOfMeasure || 'U'), isPole, firstCatName: rawCat };
+      map[key].qty += Number(a.quantity) || 0;
+      map[key].nw += Number(a.netWeight) || 0;
+      map[key].cbm += Number(a.cubicMeasurement) || 0;
     }
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([categoryId, { qty, nw, cbm, unit }]) => {
-        const cat = subCategories.find(c => c.name === categoryId);
-        return { categoryId, totalQty: qty, totalNW: nw, totalCBM: cbm, unit, cat };
+      .map(([categoryId, { qty, nw, cbm, unit, isPole, firstCatName }]) => {
+        const effectiveQty = isPole ? nw : qty;
+        const catLookup = isPole ? firstCatName : categoryId;
+        const cat = subCategories.find(c => c.name === catLookup);
+        return { categoryId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole };
       });
   }, [articles, selectedFactureId, subCategories]);
 
