@@ -148,41 +148,38 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .catch(() => {});
   }, [firestore, user, safeFactures.length]);
 
-  // ── Margin calculation per dossier ────────────────────────────────────────
+  const COMPANIES = ['New fournitures', 'Lebtex', 'Robe in box'] as const;
+
+  // ── Margin calculation per dossier, grouped by declaringCompany ──────────
   const marginData = useMemo(() => {
     const MARGE_RATE = 0.05;
     let totalRevient = 0;
     let totalVente = 0;
 
-    const perDossier = safeFactures.map(facture => {
+    const calcDossier = (facture: any) => {
       const fArticles = safeArticles.filter(a => a.factureId === facture.id);
-      if (fArticles.length === 0) return { id: facture.id, revient: 0, vente: 0, diff: 0 };
+      const puMap = dpDeclarations[facture.id] || {};
+      // Condition : DP doit avoir au moins un PU rempli
+      const dpFilled = Object.values(puMap).some(v => parseFloat(v as string) > 0);
+      if (!dpFilled || fArticles.length === 0) return null;
 
       const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
       const declaredValue = Number(facture.declaredValue) || 0;
       const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
-
       const exchange = Number(facture.exchangeInvoiceAmount) || 0;
       const transitaire = Number(facture.supplierInvoiceAmount) || 0;
       const fraisSupp = Number(facture.additionalCostsAmount) || 0;
       const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
-
-      // Frais pour coût de revient (avec fret)
       const mtFraisRevient = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
-      // Frais pour coût de vente (sans fret)
       const mtFraisVente = (exchange + transitaire + fraisSupp) / 1.20;
+      const cbmTotal = fArticles.reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0);
 
-      const cbmTotal = fArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
-      const puMap = dpDeclarations[facture.id] || {};
-
-      // ─ Coût de Revient (par article) ─
       let dosRevient = 0;
-      fArticles.forEach(a => {
+      fArticles.forEach((a: any) => {
         const cbm = Number(a.cubicMeasurement) || 0;
         const nw = Number(a.netWeight) || 0;
         const qty = Number(a.quantity) || 0;
-        const pauDollar = Number(a.purchasePricePerUnit) || 0;
-        const valAchatMad = qty * pauDollar * tauxChange;
+        const valAchatMad = qty * (Number(a.purchasePricePerUnit) || 0) * tauxChange;
         const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisRevient : 0;
         const cat = subCategories.find((c: any) => c.name === a.categoryId);
         const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
@@ -190,19 +187,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
         const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
         const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
-        const valDouane = cvk != null ? nw * cvk : 0;
-        const di = idr != null ? valDouane * idr : 0;
-        const tpi = tpr != null ? valDouane * tpr : 0;
-        const tic = ticr != null ? valDouane * ticr : 0;
-        const tva = tvar != null ? (valDouane + di + tpi) * tvar : 0;
+        const vd = cvk != null ? nw * cvk : 0;
+        const di = idr != null ? vd * idr : 0;
+        const tpi = tpr != null ? vd * tpr : 0;
+        const tic = ticr != null ? vd * ticr : 0;
+        const tva = tvar != null ? (vd + di + tpi) * tvar : 0;
         dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
       });
 
-      // ─ Coût de Vente (par catégorie, depuis DP) ─
-      const catMap: Record<string, { qty: number; nw: number; cbm: number; unit: string }> = {};
-      fArticles.forEach(a => {
+      const catMap: Record<string, { qty: number; nw: number; cbm: number }> = {};
+      fArticles.forEach((a: any) => {
         const catId = a.categoryId || '—';
-        if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0, unit: a.unitOfMeasure || 'U' };
+        if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0 };
         catMap[catId].qty += Number(a.quantity) || 0;
         catMap[catId].nw += Number(a.netWeight) || 0;
         catMap[catId].cbm += Number(a.cubicMeasurement) || 0;
@@ -220,24 +216,34 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
         const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
         const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
-        const valDouane = cvk != null ? nw * cvk : 0;
-        const di = idr != null ? valDouane * idr : 0;
-        const tpi = tpr != null ? valDouane * tpr : 0;
-        const tic = ticr != null ? valDouane * ticr : 0;
+        const vd = cvk != null ? nw * cvk : 0;
+        const di = idr != null ? vd * idr : 0;
+        const tpi = tpr != null ? vd * tpr : 0;
+        const tic = ticr != null ? vd * ticr : 0;
         const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
         const marge = totalHT * MARGE_RATE;
-        const baseTva = valDouane + di + tpi + fraisCmd;
+        const baseTva = vd + di + tpi + fraisCmd;
         const tva = tvar != null ? baseTva * tvar : 0;
         dosVente += totalHT + marge + tva;
       });
 
-      const diff = dosRevient - dosVente;
-      totalRevient += dosRevient;
-      totalVente += dosVente;
-      return { id: facture.id, revient: dosRevient, vente: dosVente, diff };
+      return { id: facture.id, revient: dosRevient, vente: dosVente, diff: dosRevient - dosVente };
+    };
+
+    // Grouper par société
+    const byCompany = ['New fournitures', 'Lebtex', 'Robe in box'].map(company => {
+      const dossiers = safeFactures
+        .filter(f => f.declaringCompany === company)
+        .map(calcDossier)
+        .filter(Boolean) as { id: string; revient: number; vente: number; diff: number }[];
+      const totalRevient = dossiers.reduce((s, d) => s + d.revient, 0);
+      const totalVente = dossiers.reduce((s, d) => s + d.vente, 0);
+      return { company, dossiers, totalRevient, totalVente, diff: totalRevient - totalVente };
     });
 
-    return { perDossier, totalRevient, totalVente, totalDiff: totalRevient - totalVente };
+    const grandRevient = byCompany.reduce((s, c) => s + c.totalRevient, 0);
+    const grandVente = byCompany.reduce((s, c) => s + c.totalVente, 0);
+    return { byCompany, grandRevient, grandVente, grandDiff: grandRevient - grandVente };
   }, [safeFactures, safeArticles, subCategories, dpDeclarations]);
 
   // ── KPI Stats ──────────────────────────────────────────────────────────────
@@ -445,67 +451,57 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         />
       </div>
 
-      {/* ── Marge Brute (Coût Revient - Coût Vente) ───────────────────────── */}
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-stone-900 to-stone-800 shadow-2xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-amber-500/10 rounded-full translate-y-1/2 blur-2xl pointer-events-none" />
-        <div className="relative p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2.5 bg-emerald-500/20 rounded-xl">
-              <Percent className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.2em]">Tous Arrivages Confondus</p>
-              <p className="text-sm font-black text-white uppercase tracking-tight">Coût Revient vs Coût de Vente</p>
-            </div>
+      {/* ── Coût Revient vs Coût Vente — par Société ──────────────────────── */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-stone-900 rounded-xl"><Percent className="w-4 h-4 text-emerald-400" /></div>
+          <div>
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Arrivages avec DP remplie uniquement</p>
+            <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Coût Revient vs Coût de Vente — par Société</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
-              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Total Coût de Revient TTC</p>
-              <p className="text-2xl font-black text-white leading-none">
-                {(marginData.totalRevient / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
-              </p>
-              <p className="text-[9px] font-bold text-stone-400 mt-1 uppercase">MAD</p>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
-              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Total Coût de Vente TTC</p>
-              <p className="text-2xl font-black text-sky-300 leading-none">
-                {(marginData.totalVente / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
-              </p>
-              <p className="text-[9px] font-bold text-stone-400 mt-1 uppercase">MAD</p>
-            </div>
-            <div className={`rounded-2xl px-5 py-4 border ${
-              marginData.totalDiff >= 0
-                ? 'bg-emerald-500/20 border-emerald-500/30'
-                : 'bg-red-500/20 border-red-500/30'
-            }`}>
-              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2">Différence (Revient − Vente)</p>
-              <p className={`text-2xl font-black leading-none ${
-                marginData.totalDiff >= 0 ? 'text-emerald-300' : 'text-red-300'
-              }`}>
-                {marginData.totalDiff >= 0 ? '+' : ''}{(marginData.totalDiff / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
-              </p>
-              <p className="text-[9px] font-bold text-stone-400 mt-1 uppercase">MAD · {marginData.perDossier.length} dossiers</p>
-            </div>
-          </div>
-          {/* Par dossier */}
-          {marginData.perDossier.some(d => d.revient > 0 || d.vente > 0) && (
-            <div className="mt-4 pt-4 border-t border-white/5">
-              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-3">Détail par Dossier</p>
-              <div className="flex flex-wrap gap-2">
-                {marginData.perDossier.filter(d => d.revient > 0 || d.vente > 0).map(d => (
-                  <div key={d.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-                    <p className="text-[8px] font-black text-stone-400 uppercase mb-1">{d.id}</p>
-                    <p className={`text-[11px] font-black ${
-                      d.diff >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
-                      {d.diff >= 0 ? '+' : ''}{(d.diff / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD
-                    </p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {marginData.byCompany.map(({ company, dossiers, totalRevient, totalVente, diff }) => (
+            <div key={company} className="relative rounded-2xl overflow-hidden bg-stone-900 shadow-xl">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+              <div className="relative p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-[10px] font-black text-white uppercase tracking-tight">{company}</p>
+                  <span className="text-[8px] font-black text-stone-500 uppercase">{dossiers.length} dossier{dossiers.length > 1 ? 's' : ''}</span>
+                </div>
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Coût Revient</span>
+                    <span className="text-[11px] font-black text-white">{(totalRevient / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD</span>
                   </div>
-                ))}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Coût Vente</span>
+                    <span className="text-[11px] font-black text-sky-300">{(totalVente / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD</span>
+                  </div>
+                  <div className={`flex justify-between items-center pt-2 border-t border-white/10`}>
+                    <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Différence</span>
+                    <span className={`text-base font-black ${diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {diff >= 0 ? '+' : ''}{(diff / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
+                    </span>
+                  </div>
+                </div>
+                {dossiers.length > 0 && (
+                  <div className="pt-2 border-t border-white/5">
+                    <div className="flex flex-wrap gap-1">
+                      {dossiers.map(d => (
+                        <span key={d.id} className={`text-[8px] font-black px-2 py-0.5 rounded-full ${
+                          d.diff >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                        }`}>{d.id}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {dossiers.length === 0 && (
+                  <p className="text-[9px] text-stone-600 font-bold uppercase">Aucun arrivage avec DP remplie</p>
+                )}
               </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
 
