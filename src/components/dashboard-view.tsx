@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useFirebase } from '@/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +36,7 @@ import {
   Circle,
   Clock,
   RefreshCw,
+  Percent,
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
 
@@ -41,6 +44,7 @@ interface DashboardViewProps {
   articles: any[];
   factures: any[];
   generalCategories: GeneralCategory[];
+  subCategories: any[];
   onNavigate: (view: ViewType) => void;
   onNavigateToFacture?: (factureId: string) => void;
 }
@@ -125,10 +129,116 @@ const QuickAction = ({ label, count, sub, icon: Icon, color, onClick }: {
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], generalCategories = [], onNavigate, onNavigateToFacture }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures = [], generalCategories = [], subCategories = [], onNavigate, onNavigateToFacture }) => {
+  const { user, firestore } = useFirebase();
   const safeArticles = articles || [];
   const safeFactures = factures || [];
   const [chartMode, setChartMode] = useState<'value' | 'volume'>('value');
+  const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
+
+  // Load all dp_declarations for all factures
+  useEffect(() => {
+    if (!firestore || !user || safeFactures.length === 0) return;
+    getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
+      .then(snap => {
+        const result: Record<string, Record<string, string>> = {};
+        snap.docs.forEach(d => { if (d.data().puMap) result[d.id] = d.data().puMap; });
+        setDpDeclarations(result);
+      })
+      .catch(() => {});
+  }, [firestore, user, safeFactures.length]);
+
+  // ── Margin calculation per dossier ────────────────────────────────────────
+  const marginData = useMemo(() => {
+    const MARGE_RATE = 0.05;
+    let totalRevient = 0;
+    let totalVente = 0;
+
+    const perDossier = safeFactures.map(facture => {
+      const fArticles = safeArticles.filter(a => a.factureId === facture.id);
+      if (fArticles.length === 0) return { id: facture.id, revient: 0, vente: 0, diff: 0 };
+
+      const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
+      const declaredValue = Number(facture.declaredValue) || 0;
+      const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
+
+      const exchange = Number(facture.exchangeInvoiceAmount) || 0;
+      const transitaire = Number(facture.supplierInvoiceAmount) || 0;
+      const fraisSupp = Number(facture.additionalCostsAmount) || 0;
+      const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
+
+      // Frais pour coût de revient (avec fret)
+      const mtFraisRevient = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
+      // Frais pour coût de vente (sans fret)
+      const mtFraisVente = (exchange + transitaire + fraisSupp) / 1.20;
+
+      const cbmTotal = fArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
+      const puMap = dpDeclarations[facture.id] || {};
+
+      // ─ Coût de Revient (par article) ─
+      let dosRevient = 0;
+      fArticles.forEach(a => {
+        const cbm = Number(a.cubicMeasurement) || 0;
+        const nw = Number(a.netWeight) || 0;
+        const qty = Number(a.quantity) || 0;
+        const pauDollar = Number(a.purchasePricePerUnit) || 0;
+        const valAchatMad = qty * pauDollar * tauxChange;
+        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisRevient : 0;
+        const cat = subCategories.find((c: any) => c.name === a.categoryId);
+        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
+        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
+        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
+        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
+        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
+        const valDouane = cvk != null ? nw * cvk : 0;
+        const di = idr != null ? valDouane * idr : 0;
+        const tpi = tpr != null ? valDouane * tpr : 0;
+        const tic = ticr != null ? valDouane * ticr : 0;
+        const tva = tvar != null ? (valDouane + di + tpi) * tvar : 0;
+        dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
+      });
+
+      // ─ Coût de Vente (par catégorie, depuis DP) ─
+      const catMap: Record<string, { qty: number; nw: number; cbm: number; unit: string }> = {};
+      fArticles.forEach(a => {
+        const catId = a.categoryId || '—';
+        if (!catMap[catId]) catMap[catId] = { qty: 0, nw: 0, cbm: 0, unit: a.unitOfMeasure || 'U' };
+        catMap[catId].qty += Number(a.quantity) || 0;
+        catMap[catId].nw += Number(a.netWeight) || 0;
+        catMap[catId].cbm += Number(a.cubicMeasurement) || 0;
+      });
+
+      let dosVente = 0;
+      Object.entries(catMap).forEach(([categoryId, { qty, nw, cbm }]) => {
+        const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
+        if (puDollar === 0) return;
+        const valAchatMad = qty * puDollar * tauxChange;
+        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisVente : 0;
+        const cat = subCategories.find((c: any) => c.name === categoryId);
+        const cvk = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
+        const idr = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
+        const tpr = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
+        const ticr = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
+        const tvar = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
+        const valDouane = cvk != null ? nw * cvk : 0;
+        const di = idr != null ? valDouane * idr : 0;
+        const tpi = tpr != null ? valDouane * tpr : 0;
+        const tic = ticr != null ? valDouane * ticr : 0;
+        const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
+        const marge = totalHT * MARGE_RATE;
+        const baseTva = valDouane + di + tpi + fraisCmd;
+        const tva = tvar != null ? baseTva * tvar : 0;
+        dosVente += totalHT + marge + tva;
+      });
+
+      const diff = dosRevient - dosVente;
+      totalRevient += dosRevient;
+      totalVente += dosVente;
+      return { id: facture.id, revient: dosRevient, vente: dosVente, diff };
+    });
+
+    return { perDossier, totalRevient, totalVente, totalDiff: totalRevient - totalVente };
+  }, [safeFactures, safeArticles, subCategories, dpDeclarations]);
 
   // ── KPI Stats ──────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -333,6 +443,70 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           color="#6366f1"
           onClick={() => onNavigate('factures')}
         />
+      </div>
+
+      {/* ── Marge Brute (Coût Revient - Coût Vente) ───────────────────────── */}
+      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-stone-900 to-stone-800 shadow-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-amber-500/10 rounded-full translate-y-1/2 blur-2xl pointer-events-none" />
+        <div className="relative p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2.5 bg-emerald-500/20 rounded-xl">
+              <Percent className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.2em]">Tous Arrivages Confondus</p>
+              <p className="text-sm font-black text-white uppercase tracking-tight">Coût Revient vs Coût de Vente</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
+              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Total Coût de Revient TTC</p>
+              <p className="text-2xl font-black text-white leading-none">
+                {(marginData.totalRevient / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
+              </p>
+              <p className="text-[9px] font-bold text-stone-400 mt-1 uppercase">MAD</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
+              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Total Coût de Vente TTC</p>
+              <p className="text-2xl font-black text-sky-300 leading-none">
+                {(marginData.totalVente / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
+              </p>
+              <p className="text-[9px] font-bold text-stone-400 mt-1 uppercase">MAD</p>
+            </div>
+            <div className={`rounded-2xl px-5 py-4 border ${
+              marginData.totalDiff >= 0
+                ? 'bg-emerald-500/20 border-emerald-500/30'
+                : 'bg-red-500/20 border-red-500/30'
+            }`}>
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2">Différence (Revient − Vente)</p>
+              <p className={`text-2xl font-black leading-none ${
+                marginData.totalDiff >= 0 ? 'text-emerald-300' : 'text-red-300'
+              }`}>
+                {marginData.totalDiff >= 0 ? '+' : ''}{(marginData.totalDiff / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
+              </p>
+              <p className="text-[9px] font-bold text-stone-400 mt-1 uppercase">MAD · {marginData.perDossier.length} dossiers</p>
+            </div>
+          </div>
+          {/* Par dossier */}
+          {marginData.perDossier.some(d => d.revient > 0 || d.vente > 0) && (
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-3">Détail par Dossier</p>
+              <div className="flex flex-wrap gap-2">
+                {marginData.perDossier.filter(d => d.revient > 0 || d.vente > 0).map(d => (
+                  <div key={d.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                    <p className="text-[8px] font-black text-stone-400 uppercase mb-1">{d.id}</p>
+                    <p className={`text-[11px] font-black ${
+                      d.diff >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {d.diff >= 0 ? '+' : ''}{(d.diff / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Incoming Shipment Alert ────────────────────────────────────────── */}

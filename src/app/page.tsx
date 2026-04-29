@@ -352,7 +352,7 @@ function AdminApp() {
         ) : (
           <div className="fade-in">
             <div className={activeTab === 'dashboard' ? 'block animate-in fade-in' : 'hidden'}>
-              <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} onNavigate={setActiveTab} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
+              <DashboardView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} onNavigate={setActiveTab} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
             </div>
             <div className={activeTab === 'to-order' ? 'block animate-in fade-in' : 'hidden'}>
               <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
