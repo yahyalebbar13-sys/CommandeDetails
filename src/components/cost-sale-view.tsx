@@ -48,7 +48,13 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       .finally(() => setLoading(false));
   }, [selectedFactureId, firestore, user]);
 
-  // ── Group by generalCategoryId (real parent category = the pole)
+  // ── Only Zipper and Slider are grouped by generalCategoryId (pole).
+  // All other categories stay as individual sub-categories (PS).
+  const isPoleCategory = (catName: string, genCatName: string): boolean => {
+    const upper = (catName + ' ' + genCatName).toUpperCase();
+    return upper.includes('ZIPPER') || upper.includes('SLIDER');
+  };
+
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
@@ -58,9 +64,12 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       const rawCat = a.categoryId || '—';
       const subCat = subCategories.find((c: any) => c.name === rawCat);
       const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
-      const key = genCatId ? `GEN:${genCatId}` : rawCat;
-      const isGrouped = !!genCatId;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId, isGrouped };
+      const genCatName = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || '') : '';
+      // Only group by pole if the category is Zipper or Slider
+      const shouldGroup = !!genCatId && isPoleCategory(rawCat, genCatName);
+      const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
+      const isGrouped = shouldGroup;
+      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped };
       map[key].qty += Number(a.quantity) || 0;
       map[key].nw += Number(a.netWeight) || 0;
       map[key].cbm += Number(a.cubicMeasurement) || 0;
