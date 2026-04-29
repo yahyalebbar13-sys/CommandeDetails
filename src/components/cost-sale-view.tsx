@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, Truck, DollarSign, FileText, Package
+  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package
 } from 'lucide-react';
 import { exportCostSalePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
@@ -77,8 +77,8 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
     const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
     const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
     const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
-    const fretMad = (Number(selectedFacture.freightCost) || 0) * tauxChange;
-    const mtFraisTotal = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
+    // Fret maritime exclu du coût de vente
+    const mtFraisTotal = (exchange + transitaire + fraisSupp) / 1.20;
 
     const cbmTotal = categoryLines.reduce((s, l) => s + l.totalCBM, 0);
 
@@ -107,6 +107,7 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
 
       const totalHT = valAchatMad + fraisCmd + di + tpi + tic;
       const marge = totalHT * MARGE_RATE;
+      // TVA = (Total HT + Marge) × taux TVA
       const baseTva = totalHT + marge;
       const tva = tvaRate != null ? baseTva * tvaRate : 0;
       const totalVenteTtc = baseTva + tva;
@@ -126,7 +127,7 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
     const totalMarge = rows.reduce((s, r) => s + r.marge, 0);
     const totalTVA = rows.reduce((s, r) => s + r.tva, 0);
 
-    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, totalMarge, totalTVA, rows };
+    return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, totalMarge, totalTVA, rows };
   }, [selectedFacture, categoryLines, subCategories, puMap]);
 
   const missingDPCount = analysis?.rows.filter(r => r.missingDP).length || 0;
@@ -197,9 +198,8 @@ export default function CostSaleView({ articles, factures, subCategories }: Cost
       {selectedFacture && !loading && analysis && (
         <>
           {/* Synthèse */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
             <SCard label="Taux de Change" value={analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'} sub="MAD/$" color="text-blue-600" bg="bg-blue-50" icon={<TrendingUp className="w-4 h-4" />} />
-            <SCard label="Fret Maritime" value={analysis.fretMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-indigo-600" bg="bg-indigo-50" icon={<Truck className="w-4 h-4" />} />
             <SCard label="Fact. Échange" value={analysis.exchange.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-violet-600" bg="bg-violet-50" icon={<DollarSign className="w-4 h-4" />} />
             <SCard label="Fact. Transitaire" value={analysis.transitaire.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-purple-600" bg="bg-purple-50" icon={<FileText className="w-4 h-4" />} />
             <SCard label="Frais Supp." value={analysis.fraisSupp.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} sub="MAD" color="text-rose-600" bg="bg-rose-50" icon={<Package className="w-4 h-4" />} />
