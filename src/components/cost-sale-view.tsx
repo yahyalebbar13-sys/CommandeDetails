@@ -21,15 +21,22 @@ interface CostSaleViewProps {
 
 export default function CostSaleView({ articles, factures, subCategories, generalCategories }: CostSaleViewProps) {
   const { user, firestore } = useFirebase();
+
+  // ── Only show factures with "Facture Payée MAD" filled ──
+  const paidFactures = useMemo(
+    () => factures.filter(f => (Number(f.invoicePaidDhs) || 0) > 0),
+    [factures]
+  );
+
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
-    factures.length > 0 ? factures[0].id : null
+    paidFactures.length > 0 ? paidFactures[0].id : null
   );
   const [puMap, setPuMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const selectedFacture = useMemo(
-    () => factures.find(f => f.id === selectedFactureId) || null,
-    [factures, selectedFactureId]
+    () => paidFactures.find(f => f.id === selectedFactureId) || null,
+    [paidFactures, selectedFactureId]
   );
 
   // Load saved DP puMap from Firebase when dossier changes
@@ -186,7 +193,12 @@ export default function CostSaleView({ articles, factures, subCategories, genera
                   onChange={e => setSelectedFactureId(e.target.value)}
                   className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-emerald-500 transition-colors"
                 >
-                  {factures.map(f => (
+                  {paidFactures.length === 0 && (
+                    <option value="" disabled className="text-stone-400 bg-white">
+                      Aucune facture payée MAD
+                    </option>
+                  )}
+                  {paidFactures.map(f => (
                     <option key={f.id} value={f.id} className="text-stone-900 bg-white">
                       {f.id} — {f.arrivalDate}
                     </option>

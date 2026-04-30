@@ -502,12 +502,22 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 </div>
               ) : (
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="decimal"
                   placeholder="0"
                   className={`h-11 border font-black rounded-xl text-center text-stone-900 ${errors.quantity ? 'border-red-300 bg-red-50' : 'border-stone-200'}`}
                   value={formData.quantity === 0 ? '' : formData.quantity}
-                  onChange={e => setFormData((p: any) => ({ ...p, quantity: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 }))}
+                  onChange={e => {
+                    const raw = e.target.value.replace(',', '.');
+                    if (raw === '' || raw === '.') { setFormData((p: any) => ({ ...p, quantity: raw === '' ? '' : raw })); return; }
+                    const num = parseFloat(raw);
+                    setFormData((p: any) => ({ ...p, quantity: isNaN(num) ? p.quantity : e.target.value }));
+                  }}
+                  onBlur={e => {
+                    const raw = e.target.value.replace(',', '.');
+                    const num = parseFloat(raw);
+                    setFormData((p: any) => ({ ...p, quantity: isNaN(num) ? '' : num }));
+                  }}
                 />
               )}
             </div>
@@ -517,13 +527,22 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <DollarSign className="w-3 h-3" /> PA ($)
               </Label>
               <Input
-                type="number"
-                step="0.0001"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 placeholder="0.00"
                 className="h-11 border-stone-200 font-black rounded-xl text-center text-amber-700"
                 value={formData.purchasePricePerUnit === 0 ? '' : formData.purchasePricePerUnit}
-                onChange={e => setFormData((p: any) => ({ ...p, purchasePricePerUnit: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 }))}
+                onChange={e => {
+                  const raw = e.target.value.replace(',', '.');
+                  if (raw === '' || raw === '.') { setFormData((p: any) => ({ ...p, purchasePricePerUnit: raw === '' ? '' : raw })); return; }
+                  const num = parseFloat(raw);
+                  setFormData((p: any) => ({ ...p, purchasePricePerUnit: isNaN(num) ? p.purchasePricePerUnit : e.target.value }));
+                }}
+                onBlur={e => {
+                  const raw = e.target.value.replace(',', '.');
+                  const num = parseFloat(raw);
+                  setFormData((p: any) => ({ ...p, purchasePricePerUnit: isNaN(num) ? '' : num }));
+                }}
               />
             </div>
           </div>

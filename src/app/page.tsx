@@ -30,8 +30,10 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
 } from '@/components/ui/sheet';
@@ -39,6 +41,43 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Only this email sees the admin dashboard — enforced ALSO by Firestore rules
 const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
+// Employee with limited access — can only see the Coût de Vente page
+const STAFF_EMAIL = 'lebtexsarlau@gmail.com';
+const STAFF_PASSWORD = 'Lebtex2026';
+
+// ─── Auto-provision staff account ────────────────────────────────────────────
+// Called silently when admin logs in. Creates the staff Firebase Auth account
+// and their clientAccess Firestore document automatically (fire-and-forget).
+async function autoProvisionStaff(adminUid: string, firestore: any) {
+  try {
+    const appName = 'staffProvision_' + Date.now();
+    const secondaryApp = initializeApp(firebaseConfig, appName);
+    const secondaryAuth = getAuth(secondaryApp);
+    let staffUid: string;
+    try {
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, STAFF_EMAIL, STAFF_PASSWORD);
+      staffUid = cred.user.uid;
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        // Account already exists — sign in to get UID
+        const cred = await signInWithEmailAndPassword(secondaryAuth, STAFF_EMAIL, STAFF_PASSWORD);
+        staffUid = cred.user.uid;
+      } else {
+        throw err;
+      }
+    }
+    await deleteApp(secondaryApp);
+    // Write/update clientAccess doc for the staff user
+    await setDoc(
+      doc(firestore, 'clientAccess', staffUid),
+      { adminUid, email: STAFF_EMAIL, role: 'staff', createdAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch (e) {
+    // Silent fail — staff can still log in next time admin connects
+    console.warn('[autoProvisionStaff] skipped:', e);
+  }
+}
 
 // Parse client role from Firebase Auth displayName
 // Format set by modal: "CLIENT:{clientName}:{adminUid}"
@@ -59,6 +98,7 @@ function parseClientDisplayName(displayName: string | null | undefined) {
 type Role =
   | { kind: 'loading' }
   | { kind: 'admin' }
+  | { kind: 'staff'; adminUid: string }
   | { kind: 'client'; clientName: string; adminUid: string }
   | { kind: 'noAccess' };
 
@@ -74,6 +114,24 @@ export default function StockVueApp() {
     // ① Admin by email — fast-path; ALSO enforced server-side by Firestore rules
     if (user.email === ADMIN_EMAIL) {
       setRole({ kind: 'admin' });
+      // Auto-provision staff account silently in background
+      if (firestore) autoProvisionStaff(user.uid, firestore);
+      return;
+    }
+
+    // ② Staff (limited employee) — detected by email; reads admin data via clientAccess doc
+    if (user.email === STAFF_EMAIL) {
+      // Look up their clientAccess document to get the adminUid
+      getDoc(doc(firestore, 'clientAccess', user.uid))
+        .then(snap => {
+          if (snap.exists()) {
+            const adminUid = (snap.data().adminUid || '').trim();
+            if (adminUid) { setRole({ kind: 'staff', adminUid }); return; }
+          }
+          // Fallback: no clientAccess doc yet — show noAccess
+          setRole({ kind: 'noAccess' });
+        })
+        .catch(() => setRole({ kind: 'noAccess' }));
       return;
     }
 
@@ -113,6 +171,9 @@ export default function StockVueApp() {
 
   if (!user) return <AuthView />;
   if (role.kind === 'admin') return <AdminApp />;
+  if (role.kind === 'staff') return (
+    <StaffCostSaleApp adminUid={role.adminUid} auth={auth} firestore={firestore} />
+  );
   if (role.kind === 'client') {
     return (
       <ClientPortalView
@@ -154,6 +215,88 @@ function NoAccessView({ auth }: { auth: any }) {
           Se déconnecter
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ─── Staff Cost-Sale Portal ──────────────────────────────────────────────────
+function StaffCostSaleApp({ adminUid, auth, firestore }: { adminUid: string; auth: any; firestore: any }) {
+  const [articles, setArticles] = useState<any[]>([]);
+  const [factures, setFactures] = useState<any[]>([]);
+  const [subCategories, setSubCategories] = useState<any[]>([]);
+  const [generalCategories, setGeneralCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!firestore || !adminUid || adminUid.length < 10) return;
+    setLoading(true);
+    Promise.all([
+      getDocs(collection(firestore, 'users', adminUid, 'articles')),
+      getDocs(collection(firestore, 'users', adminUid, 'factures')),
+      getDocs(collection(firestore, 'users', adminUid, 'categories')),
+      getDocs(collection(firestore, 'users', adminUid, 'generalCategories')),
+    ])
+      .then(([artSnap, facSnap, catSnap, genCatSnap]) => {
+        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setSubCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setGeneralCategories(genCatSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [adminUid, firestore]);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#F9F6F0] font-sans">
+      <nav className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-[1400px] mx-auto px-6 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-600 rounded-lg">
+              <ShoppingCart className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-lg font-black tracking-tighter text-stone-900 uppercase">
+              STOCK<span className="text-emerald-600">VUE</span>
+            </span>
+            <div className="h-5 w-px bg-stone-200 mx-2" />
+            <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Coût de Vente</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-full px-4 py-1.5">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Employé</span>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => signOut(auth)}
+              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 transition-colors">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </nav>
+
+      <main className="flex-grow max-w-[1400px] mx-auto px-6 py-8 w-full">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-40 space-y-6">
+            <Loader2 className="animate-spin text-emerald-500 w-12 h-12" />
+            <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Chargement des données...</p>
+          </div>
+        ) : (
+          <div className="fade-in">
+            <CostSaleView
+              articles={articles}
+              factures={factures}
+              subCategories={subCategories}
+              generalCategories={generalCategories}
+            />
+          </div>
+        )}
+      </main>
+
+      <footer className="border-t border-stone-200 bg-white py-4">
+        <div className="max-w-[1400px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
+          <p>© 2024 STOCKVUE — ACCÈS EMPLOYÉ</p>
+          <span className="text-stone-300">Coût de Vente Uniquement</span>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -273,7 +273,7 @@ export async function exportCostAnalysisPDF(
 export async function exportCostSalePDF(
   facture: any,
   rows: any[],
-  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; exchange: number; transitaire: number; fraisSupp: number; fretMad: number; totalMarge: number; totalTVA: number }
+  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; exchange: number; transitaire: number; fraisSupp: number; fretMad?: number; totalMarge: number; totalTVA: number }
 ) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -307,7 +307,7 @@ export async function exportCostSalePDF(
   // ── Synthèse frais ──
   const synBlocks: [string, string][] = [
     ['Taux de Change', analysis.tauxChange > 0 ? `${analysis.tauxChange.toFixed(4)} MAD/$` : '—'],
-    ['Fret → MAD (HT)', `${analysis.fretMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+    ['Fret → MAD (HT)', `${(analysis.fretMad ?? 0).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
     ['Fact. Échange (TTC)', `${analysis.exchange.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
     ['Fact. Transitaire (TTC)', `${analysis.transitaire.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
     ['Frais Supp. (TTC)', `${analysis.fraisSupp.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
