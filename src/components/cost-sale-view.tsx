@@ -43,33 +43,19 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       .finally(() => setChecklistsLoaded(true));
   }, [firestore]);
 
-  // A dossier is "validated" when all 4 required checklist items are manually confirmed,
-  // PLUS its auto-detectable conditions pass.
+  // A dossier is visible in Coût de Vente ONLY when the user has manually checked all 4 items
   const isFactureValidated = (f: any): boolean => {
-    const checks = checklists[f.id] || {};
-    const dossierArticles = articles.filter((a: any) => a.factureId === f.id);
-
-    // 1. Douane: customsPaidDhs > 0 (auto)
-    const douaneOk = (Number(f.customsPaidDhs) || 0) > 0;
-    // 2. Facture payée MAD (auto)
-    const factureOk = (Number(f.invoicePaidDhs) || 0) > 0;
-    // 3. NW + CBM + montant facture (auto + manual fallback)
-    const allNW = dossierArticles.length > 0 && dossierArticles.every((a: any) => (Number(a.netWeight) || 0) > 0);
-    const allCBM = dossierArticles.length > 0 && dossierArticles.every((a: any) => (Number(a.cubicMeasurement) || 0) > 0);
-    const hasDeclaredValue = (Number(f.declaredValue) || 0) > 0;
-    const nwCbmOk = (allNW && allCBM && hasDeclaredValue) || !!checks['nw_cbm_ok'];
-    // 4. DP ok: loaded later per dossier, use manual check as gate
-    const dpOk = !!checks['dp_ok'];
-
-    return douaneOk && factureOk && nwCbmOk && dpOk;
+    const c = checklists[f.id] || {};
+    return !!c['douane_ok'] && !!c['facture_mad_ok'] && !!c['nw_cbm_ok'] && !!c['dp_ok'];
   };
 
   // ── Only show validated factures ──
   const validatedFactures = useMemo(
     () => checklistsLoaded ? factures.filter(isFactureValidated) : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [factures, checklists, checklistsLoaded, articles]
+    [factures, checklists, checklistsLoaded]
   );
+
 
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
 

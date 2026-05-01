@@ -3,109 +3,77 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
-  CheckCircle2, XCircle, Circle, Loader2, Save, ShieldCheck,
+  CheckCircle2, Circle, Loader2, Save, ShieldCheck,
   AlertTriangle, Scale, Banknote, Package, FileSearch
 } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// ── The 4 mandatory check items ──
+// ── The 4 mandatory check items — all 100% manual ──
 type CheckItem = {
   id: string;
   label: string;
   desc: string;
   icon: React.ReactNode;
   color: string;
-  // autoFn returns true/false if detectable automatically, null if manual
-  autoFn?: (facture: any, dp: Record<string, string>, articles: any[]) => boolean | null;
 };
 
 const CHECK_ITEMS: CheckItem[] = [
   {
     id: 'douane_ok',
     label: 'Montant de la douane correct',
-    desc: 'Les droits de douane payés (DI + TPI + TVA) sont renseignés et corrects.',
+    desc: 'Les droits de douane payés (DI + TPI + TVA) sont corrects.',
     icon: <Scale className="w-5 h-5" />,
     color: '#ef4444',
-    autoFn: (f) => (Number(f.customsPaidDhs) || 0) > 0,
   },
   {
     id: 'facture_mad_ok',
     label: 'Facture Payée (MAD) correcte',
-    desc: 'Le montant de la facture payée en MAD est saisi et validé.',
+    desc: 'Le montant de la facture payée en MAD est correct.',
     icon: <Banknote className="w-5 h-5" />,
     color: '#f59e0b',
-    autoFn: (f) => (Number(f.invoicePaidDhs) || 0) > 0,
   },
   {
     id: 'nw_cbm_ok',
     label: 'Net Weight, CBM et montant facture corrects',
-    desc: 'Les poids nets, volumes CBM et montant de facture des articles sont tous renseignés.',
+    desc: 'Les poids nets, volumes CBM et le montant de la facture sont corrects.',
     icon: <Package className="w-5 h-5" />,
     color: '#0ea5e9',
-    autoFn: (f, _dp, articles) => {
-      if (!articles || articles.length === 0) return null;
-      const dossierArticles = articles.filter((a: any) => a.factureId === f.id);
-      if (dossierArticles.length === 0) return null;
-      const allHaveNW = dossierArticles.every((a: any) => (Number(a.netWeight) || 0) > 0);
-      const allHaveCBM = dossierArticles.every((a: any) => (Number(a.cubicMeasurement) || 0) > 0);
-      const hasInvoiceAmount = (Number(f.declaredValue) || 0) > 0;
-      return allHaveNW && allHaveCBM && hasInvoiceAmount;
-    },
   },
   {
     id: 'dp_ok',
     label: 'DP créée et montant DP correct',
-    desc: 'La Déclaration Provisoire existe et les prix unitaires (PU) sont renseignés.',
+    desc: 'La Déclaration Provisoire existe et les prix unitaires (PU) sont corrects.',
     icon: <FileSearch className="w-5 h-5" />,
     color: '#10b981',
-    autoFn: (_f, dp) => {
-      if (Object.keys(dp).length === 0) return false;
-      return Object.values(dp).some(v => parseFloat(v) > 0);
-    },
   },
 ];
 
-export const CHECKLIST_ITEM_IDS = CHECK_ITEMS.map(i => i.id);
-
-export default function DossierChecklistModal({ open, onOpenChange, facture, articles = [] }: {
+export default function DossierChecklistModal({ open, onOpenChange, facture }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   facture: any;
-  articles?: any[];
 }) {
-  const { firestore, user } = useFirebase();
-  const [manualChecks, setManualChecks] = useState<Record<string, boolean>>({});
+  const { firestore } = useFirebase();
+  const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
-  const [dpMap, setDpMap] = useState<Record<string, string>>({});
 
+  // Load saved checks from Firebase
   useEffect(() => {
-    if (!open || !facture?.id || !firestore || !user) return;
+    if (!open || !facture?.id || !firestore) return;
     setLoading(true);
-    Promise.all([
-      getDoc(doc(firestore, 'checklists', facture.id)),
-      getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', facture.id)),
-    ]).then(([checkSnap, dpSnap]) => {
-      setManualChecks(checkSnap.exists() ? checkSnap.data().checks || {} : {});
-      setDpMap(dpSnap.exists() ? dpSnap.data().puMap || {} : {});
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [open, facture?.id, firestore, user]);
+    getDoc(doc(firestore, 'checklists', facture.id))
+      .then(snap => {
+        setChecks(snap.exists() ? snap.data().checks || {} : {});
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [open, facture?.id, firestore]);
 
-  const getStatus = (item: CheckItem): boolean => {
-    if (item.autoFn) {
-      const result = item.autoFn(facture || {}, dpMap, articles);
-      if (result !== null) return result;
-    }
-    return !!manualChecks[item.id];
-  };
-
-  const isAuto = (item: CheckItem): boolean => !!item.autoFn && item.autoFn(facture || {}, dpMap, articles) !== null;
-
-  const toggle = (item: CheckItem) => {
-    if (isAuto(item)) return;
-    setManualChecks(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+  const toggle = (id: string) => {
+    setChecks(prev => ({ ...prev, [id]: !prev[id] }));
     setSavedOk(false);
   };
 
@@ -115,16 +83,16 @@ export default function DossierChecklistModal({ open, onOpenChange, facture, art
     try {
       await setDoc(
         doc(firestore, 'checklists', facture.id),
-        { checks: manualChecks, savedAt: new Date().toISOString(), factureId: facture.id },
+        { checks, savedAt: new Date().toISOString(), factureId: facture.id },
         { merge: true }
       );
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
     } finally { setSaving(false); }
-  }, [facture?.id, firestore, manualChecks]);
+  }, [facture?.id, firestore, checks]);
 
-  const allOk = CHECK_ITEMS.every(i => getStatus(i));
-  const doneCount = CHECK_ITEMS.filter(i => getStatus(i)).length;
+  const allOk = CHECK_ITEMS.every(i => !!checks[i.id]);
+  const doneCount = CHECK_ITEMS.filter(i => !!checks[i.id]).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -151,7 +119,7 @@ export default function DossierChecklistModal({ open, onOpenChange, facture, art
             </div>
 
             {/* Score pill */}
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-black text-sm ${
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-black text-sm transition-colors ${
               allOk ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white'
             }`}>
               {doneCount}/{CHECK_ITEMS.length}
@@ -159,21 +127,21 @@ export default function DossierChecklistModal({ open, onOpenChange, facture, art
           </div>
 
           {/* Status banner */}
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${
             allOk
               ? 'bg-emerald-500/15 border border-emerald-500/30'
               : 'bg-amber-500/15 border border-amber-500/30'
           }`}>
             {allOk ? (
               <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">
                   Dossier validé — visible dans Coût de Vente
                 </span>
               </>
             ) : (
               <>
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">
                   {CHECK_ITEMS.length - doneCount} vérification{CHECK_ITEMS.length - doneCount > 1 ? 's' : ''} manquante{CHECK_ITEMS.length - doneCount > 1 ? 's' : ''} — Coût de Vente masqué
                 </span>
@@ -182,7 +150,7 @@ export default function DossierChecklistModal({ open, onOpenChange, facture, art
           </div>
         </div>
 
-        {/* Check items */}
+        {/* Check items — all manual */}
         <div className="p-4 space-y-3 bg-stone-50 flex-1">
           {loading ? (
             <div className="flex items-center justify-center py-12 gap-3">
@@ -191,60 +159,53 @@ export default function DossierChecklistModal({ open, onOpenChange, facture, art
             </div>
           ) : (
             CHECK_ITEMS.map((item, idx) => {
-              const checked = getStatus(item);
-              const auto = isAuto(item);
-              const failed = auto && !checked;
-
+              const checked = !!checks[item.id];
               return (
                 <button
                   key={item.id}
-                  onClick={() => toggle(item)}
-                  disabled={auto}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all ${
+                  onClick={() => toggle(item.id)}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all cursor-pointer active:scale-95 ${
                     checked
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : failed
-                      ? 'bg-red-50 border-red-200'
-                      : 'bg-white border-stone-200 hover:border-stone-300'
-                  } ${auto ? 'cursor-default' : 'cursor-pointer'}`}
+                      ? 'bg-emerald-50 border-emerald-200 shadow-sm shadow-emerald-100'
+                      : 'bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50'
+                  }`}
                 >
-                  {/* Number badge */}
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-black text-sm ${
-                    checked ? 'bg-emerald-500 text-white' : failed ? 'bg-red-100 text-red-500' : 'bg-stone-100 text-stone-400'
+                  {/* Checkbox visual */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                    checked ? 'bg-emerald-500 text-white' : 'bg-stone-100 text-stone-300'
                   }`}>
-                    {checked ? <CheckCircle2 className="w-4 h-4" /> : failed ? <XCircle className="w-4 h-4" /> : idx + 1}
+                    {checked
+                      ? <CheckCircle2 className="w-5 h-5" />
+                      : <Circle className="w-5 h-5" />
+                    }
                   </div>
 
-                  {/* Icon */}
-                  <div className={`p-2 rounded-xl shrink-0 ${
-                    checked ? 'bg-emerald-100' : failed ? 'bg-red-100' : 'bg-stone-100'
-                  }`} style={{ color: checked ? '#10b981' : failed ? '#ef4444' : item.color }}>
+                  {/* Colored icon */}
+                  <div className={`p-2 rounded-xl shrink-0 transition-colors ${
+                    checked ? 'bg-emerald-100' : 'bg-stone-100'
+                  }`} style={{ color: checked ? '#10b981' : item.color }}>
                     {item.icon}
                   </div>
 
                   {/* Text */}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-[11px] font-black uppercase tracking-tight leading-snug ${
-                      checked ? 'text-emerald-700' : failed ? 'text-red-700' : 'text-stone-800'
+                    <p className={`text-[11px] font-black uppercase tracking-tight leading-snug transition-colors ${
+                      checked ? 'text-emerald-700 line-through opacity-70' : 'text-stone-800'
                     }`}>
                       {item.label}
                     </p>
-                    <p className={`text-[9px] font-medium mt-0.5 leading-relaxed ${
-                      checked ? 'text-emerald-500' : failed ? 'text-red-400' : 'text-stone-400'
+                    <p className={`text-[9px] font-medium mt-0.5 leading-relaxed transition-colors ${
+                      checked ? 'text-emerald-500' : 'text-stone-400'
                     }`}>
                       {item.desc}
                     </p>
                   </div>
 
-                  {/* Badge auto/manual */}
-                  <div className="shrink-0">
-                    <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                      auto
-                        ? checked ? 'bg-emerald-100 text-emerald-600' : 'bg-stone-100 text-stone-400'
-                        : 'bg-violet-100 text-violet-500'
-                    }`}>
-                      {auto ? 'Auto' : 'Manuel'}
-                    </span>
+                  {/* Number badge */}
+                  <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black transition-colors ${
+                    checked ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-500'
+                  }`}>
+                    {idx + 1}
                   </div>
                 </button>
               );
@@ -255,7 +216,7 @@ export default function DossierChecklistModal({ open, onOpenChange, facture, art
         {/* Footer */}
         <div className="px-5 py-4 bg-white border-t border-stone-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${allOk ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+            <div className={`w-2 h-2 rounded-full transition-colors ${allOk ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
             <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">
               {allOk ? 'Coût de Vente déverrouillé' : 'Coût de Vente verrouillé'}
             </span>
