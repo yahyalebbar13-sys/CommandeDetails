@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { exportCostAnalysisPDF } from '@/lib/pdf-export';
 import ArticleOverrideModal, { ArticleOverride } from './article-override-modal';
+import { useFirebase } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface CostAnalysisViewProps {
   articles: any[];
@@ -20,12 +22,39 @@ interface CostAnalysisViewProps {
 }
 
 export default function CostAnalysisView({ articles, factures, subCategories }: CostAnalysisViewProps) {
+  const { user, firestore } = useFirebase();
   const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
     factures.length > 0 ? factures[0].id : null
   );
-  // overrides: { [articleId]: ArticleOverride }
+  // overrides: { [articleId]: ArticleOverride } — persisted in Firebase
   const [overrides, setOverrides] = useState<Record<string, ArticleOverride>>({});
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
+
+  // ── Load overrides from Firebase when dossier changes ──
+  useEffect(() => {
+    if (!selectedFactureId || !firestore || !user) return;
+    setOverrides({});
+    getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
+      .then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.overrides) setOverrides(data.overrides);
+        }
+      })
+      .catch(err => console.error('Override load error:', err));
+  }, [selectedFactureId, firestore, user]);
+
+  // ── Save an override for one article to Firebase ──
+  const saveOverride = (articleId: string, ov: ArticleOverride) => {
+    const next = { ...overrides, [articleId]: ov };
+    setOverrides(next);
+    if (!selectedFactureId || !firestore || !user) return;
+    setDoc(
+      doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+      { overrides: next },
+      { merge: true }
+    ).catch(err => console.error('Override save error:', err));
+  };
 
   const selectedFacture = useMemo(
     () => factures.find(f => f.id === selectedFactureId) || null,
@@ -478,7 +507,7 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
         <ArticleOverrideModal
           article={editingArticle}
           override={overrides[editingArticle.id] || {}}
-          onSave={(ov) => setOverrides(prev => ({ ...prev, [editingArticle.id]: ov }))}
+          onSave={(ov) => saveOverride(editingArticle.id, ov)}
           onClose={() => setEditingArticle(null)}
         />
       )}

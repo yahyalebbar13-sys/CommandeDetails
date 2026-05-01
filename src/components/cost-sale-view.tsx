@@ -9,6 +9,7 @@ import {
 import { exportCostSalePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { ArticleOverride } from './article-override-modal';
 
 const MARGE_RATE = 0.05;
 
@@ -32,6 +33,8 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     paidFactures.length > 0 ? paidFactures[0].id : null
   );
   const [puMap, setPuMap] = useState<Record<string, string>>({});
+  // overrides from cost-analysis (persisted in Firebase under dp_declarations/{id}.overrides)
+  const [overrides, setOverrides] = useState<Record<string, ArticleOverride>>({});
   const [loading, setLoading] = useState(false);
 
   const selectedFacture = useMemo(
@@ -39,16 +42,18 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     [paidFactures, selectedFactureId]
   );
 
-  // Load saved DP puMap from Firebase when dossier changes
+  // Load saved DP puMap AND overrides from Firebase when dossier changes
   useEffect(() => {
     if (!selectedFactureId || !firestore || !user) return;
     setLoading(true);
     setPuMap({});
+    setOverrides({});
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.puMap) setPuMap(data.puMap);
+          if (data.overrides) setOverrides(data.overrides);
         }
       })
       .catch(err => console.error('DP load error:', err))
@@ -62,10 +67,12 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     return upper.includes('ZIPPER') || upper.includes('SLIDER');
   };
 
+  // Build per-category lines. Also collect the first override found for each category key,
+  // so customs overrides from cost-analysis propagate into cost-sale.
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
-    type MapEntry = { qty: number; nw: number; cbm: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean };
+    type MapEntry = { qty: number; nw: number; cbm: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean; firstOverride: ArticleOverride | null };
     const map: Record<string, MapEntry> = {};
     for (const a of dossierArticles) {
       const rawCat = a.categoryId || '—';
@@ -76,10 +83,14 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       const shouldGroup = !!genCatId && isPoleCategory(rawCat, genCatName);
       const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
       const isGrouped = shouldGroup;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped };
+      // Capture first override for this category key
+      const articleOverride: ArticleOverride | null = overrides[a.id] ? overrides[a.id] : null;
+      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped, firstOverride: articleOverride };
       map[key].qty += Number(a.quantity) || 0;
       map[key].nw += Number(a.netWeight) || 0;
       map[key].cbm += Number(a.cubicMeasurement) || 0;
+      // If no override captured yet for this key, grab it from this article
+      if (!map[key].firstOverride && articleOverride) map[key].firstOverride = articleOverride;
     }
     return Object.entries(map)
       .sort(([, a], [, b]) => {
@@ -87,13 +98,13 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         const bName = b.genCatId ? (generalCategories.find((g: any) => g.id === b.genCatId)?.name || b.firstCatName) : b.firstCatName;
         return aName.localeCompare(bName);
       })
-      .map(([, { qty, nw, cbm, unit, firstCatName, genCatId, isGrouped }]) => {
+      .map(([, { qty, nw, cbm, unit, firstCatName, genCatId, isGrouped, firstOverride }]) => {
         const effectiveQty = isGrouped ? nw : qty;
         const displayId = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId) : firstCatName;
         const cat = subCategories.find((c: any) => c.name === firstCatName);
-        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped };
+        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped, ov: firstOverride };
       });
-  }, [articles, selectedFactureId, subCategories, generalCategories]);
+  }, [articles, selectedFactureId, subCategories, generalCategories, overrides]);
 
   const analysis = useMemo(() => {
     if (!selectedFacture || categoryLines.length === 0) return null;
@@ -111,7 +122,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     const cbmTotal = categoryLines.reduce((s, l) => s + l.totalCBM, 0);
 
     const rows = categoryLines.map(line => {
-      const { categoryId, totalQty: qty, totalNW: nw, totalCBM: cbm, unit, cat } = line;
+      const { categoryId, totalQty: qty, totalNW: nw, totalCBM: cbm, unit, cat, ov } = line;
 
       // PU from DP declaration (USD)
       const puDollar = parseFloat(puMap[categoryId] ?? '') || 0;
@@ -120,13 +131,24 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       // Logistics prorated by CBM
       const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
-      // Customs
-      const customsValuePerKg = cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null;
-      const importDutyRate = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null;
-      const tpiRate = cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null;
-      const ticRate = cat?.ticRate != null ? Number(cat.ticRate) / 100 : null;
-      const tvaRate = cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null;
+      // Customs: override (from cost-analysis) takes priority over category defaults
+      const customsValuePerKg = ov?.customsValuePerKg != null
+        ? Number(ov.customsValuePerKg)
+        : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null);
+      const importDutyRate = ov?.importDutyRate != null
+        ? Number(ov.importDutyRate) / 100
+        : (cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null);
+      const tpiRate = ov?.tpiRate != null
+        ? Number(ov.tpiRate) / 100
+        : (cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null);
+      const ticRate = ov?.ticRate != null
+        ? Number(ov.ticRate) / 100
+        : (cat?.ticRate != null ? Number(cat.ticRate) / 100 : null);
+      const tvaRate = ov?.tvaRate != null
+        ? Number(ov.tvaRate) / 100
+        : (cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null);
       const hasCustData = customsValuePerKg !== null;
+      const hasOverride = !!(ov && Object.keys(ov).length > 0);
 
       const valDouane = hasCustData ? nw * customsValuePerKg! : 0;
       const di = importDutyRate != null ? valDouane * importDutyRate : 0;
@@ -153,6 +175,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         totalHT, marge, baseTva, tva, totalVenteTtc, pvuTtc,
         missingDP: puDollar === 0,
         missingCust: !hasCustData,
+        hasOverride,
       };
     });
 
@@ -312,7 +335,14 @@ export default function CostSaleView({ articles, factures, subCategories, genera
                   {analysis.rows.map(row => (
                     <TableRow key={row.categoryId} className={`border-stone-50 hover:bg-stone-50/50 transition-colors ${row.missingDP ? 'bg-amber-50/20' : ''}`}>
                       <TableCell className="py-4 px-6">
-                        <div className="font-black text-[12px] text-stone-900 uppercase">{row.categoryId}</div>
+                        <div className="font-black text-[12px] text-stone-900 uppercase flex items-center gap-1.5">
+                          {row.categoryId}
+                          {row.hasOverride && (
+                            <span className="inline-flex items-center gap-0.5 text-[7px] font-black text-amber-600 bg-amber-100 px-1 py-0.5 rounded uppercase">
+                              <AlertTriangle className="w-2 h-2" /> Override
+                            </span>
+                          )}
+                        </div>
                         {row.missingDP ? (
                           <span className="inline-flex items-center gap-1 text-[8px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded mt-1 uppercase">
                             <AlertTriangle className="w-2.5 h-2.5" /> PU manquant (DP)
