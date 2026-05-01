@@ -4,12 +4,15 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package
+  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package, ShieldCheck, XCircle
 } from 'lucide-react';
 import { exportCostSalePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
+
+// The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
+const REQUIRED_CHECKS = ['douane_ok', 'facture_mad_ok', 'nw_cbm_ok', 'dp_ok'];
 
 const MARGE_RATE = 0.05;
 
@@ -23,23 +26,68 @@ interface CostSaleViewProps {
 export default function CostSaleView({ articles, factures, subCategories, generalCategories }: CostSaleViewProps) {
   const { user, firestore } = useFirebase();
 
-  // ── Only show factures with "Facture Payée MAD" filled ──
-  const paidFactures = useMemo(
-    () => factures.filter(f => (Number(f.invoicePaidDhs) || 0) > 0),
-    [factures]
+  // ── Checklist state: map of factureId -> checks object ──
+  const [checklists, setChecklists] = useState<Record<string, Record<string, boolean>>>({});
+  const [checklistsLoaded, setChecklistsLoaded] = useState(false);
+
+  // Load all checklists once
+  useEffect(() => {
+    if (!firestore) return;
+    getDocs(collection(firestore, 'checklists'))
+      .then(snap => {
+        const result: Record<string, Record<string, boolean>> = {};
+        snap.docs.forEach(d => { result[d.id] = d.data().checks || {}; });
+        setChecklists(result);
+      })
+      .catch(() => {})
+      .finally(() => setChecklistsLoaded(true));
+  }, [firestore]);
+
+  // A dossier is "validated" when all 4 required checklist items are manually confirmed,
+  // PLUS its auto-detectable conditions pass.
+  const isFactureValidated = (f: any): boolean => {
+    const checks = checklists[f.id] || {};
+    const dossierArticles = articles.filter((a: any) => a.factureId === f.id);
+
+    // 1. Douane: customsPaidDhs > 0 (auto)
+    const douaneOk = (Number(f.customsPaidDhs) || 0) > 0;
+    // 2. Facture payée MAD (auto)
+    const factureOk = (Number(f.invoicePaidDhs) || 0) > 0;
+    // 3. NW + CBM + montant facture (auto + manual fallback)
+    const allNW = dossierArticles.length > 0 && dossierArticles.every((a: any) => (Number(a.netWeight) || 0) > 0);
+    const allCBM = dossierArticles.length > 0 && dossierArticles.every((a: any) => (Number(a.cubicMeasurement) || 0) > 0);
+    const hasDeclaredValue = (Number(f.declaredValue) || 0) > 0;
+    const nwCbmOk = (allNW && allCBM && hasDeclaredValue) || !!checks['nw_cbm_ok'];
+    // 4. DP ok: loaded later per dossier, use manual check as gate
+    const dpOk = !!checks['dp_ok'];
+
+    return douaneOk && factureOk && nwCbmOk && dpOk;
+  };
+
+  // ── Only show validated factures ──
+  const validatedFactures = useMemo(
+    () => checklistsLoaded ? factures.filter(isFactureValidated) : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [factures, checklists, checklistsLoaded, articles]
   );
 
-  const [selectedFactureId, setSelectedFactureId] = useState<string | null>(
-    paidFactures.length > 0 ? paidFactures[0].id : null
-  );
+  const [selectedFactureId, setSelectedFactureId] = useState<string | null>(null);
+
+  // Auto-select first validated dossier when list loads
+  useEffect(() => {
+    if (checklistsLoaded && validatedFactures.length > 0 && !selectedFactureId) {
+      setSelectedFactureId(validatedFactures[0].id);
+    }
+  }, [checklistsLoaded, validatedFactures, selectedFactureId]);
+
   const [puMap, setPuMap] = useState<Record<string, string>>({});
   // overrides from cost-analysis (persisted in Firebase under dp_declarations/{id}.overrides)
   const [overrides, setOverrides] = useState<Record<string, ArticleOverride>>({});
   const [loading, setLoading] = useState(false);
 
   const selectedFacture = useMemo(
-    () => paidFactures.find(f => f.id === selectedFactureId) || null,
-    [paidFactures, selectedFactureId]
+    () => validatedFactures.find(f => f.id === selectedFactureId) || null,
+    [validatedFactures, selectedFactureId]
   );
 
   // Load saved DP puMap AND overrides from Firebase when dossier changes
@@ -208,7 +256,12 @@ export default function CostSaleView({ articles, factures, subCategories, genera
             </p>
           </div>
           <div className="flex flex-col gap-2 w-full lg:w-auto">
-            <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Sélectionner un Dossier</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Sélectionner un Dossier</label>
+              <span className="flex items-center gap-1.5 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                <ShieldCheck className="w-3 h-3" /> {validatedFactures.length} dossier{validatedFactures.length !== 1 ? 's' : ''} validé{validatedFactures.length !== 1 ? 's' : ''}
+              </span>
+            </div>
             <div className="flex gap-3">
               <div className="relative flex-1 lg:w-72">
                 <select
@@ -216,12 +269,12 @@ export default function CostSaleView({ articles, factures, subCategories, genera
                   onChange={e => setSelectedFactureId(e.target.value)}
                   className="w-full bg-white/10 border border-white/20 text-white font-black uppercase text-sm rounded-xl px-4 h-12 appearance-none pr-10 focus:outline-none focus:border-emerald-500 transition-colors"
                 >
-                  {paidFactures.length === 0 && (
+                  {validatedFactures.length === 0 && (
                     <option value="" disabled className="text-stone-400 bg-white">
-                      Aucune facture payée MAD
+                      Aucun dossier validé — Vérifiez la checklist
                     </option>
                   )}
-                  {paidFactures.map(f => (
+                  {validatedFactures.map(f => (
                     <option key={f.id} value={f.id} className="text-stone-900 bg-white">
                       {f.id} — {f.arrivalDate}
                     </option>
@@ -242,9 +295,36 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         </div>
       </header>
 
-      {!selectedFacture && (
+      {!selectedFacture && checklistsLoaded && validatedFactures.length === 0 && (
+        <div className="py-24 text-center">
+          <div className="inline-flex flex-col items-center gap-4 bg-amber-50 border border-amber-200 rounded-3xl px-12 py-10">
+            <XCircle className="w-10 h-10 text-amber-400" />
+            <p className="text-[13px] font-black text-amber-800 uppercase tracking-tight">Aucun dossier validé</p>
+            <p className="text-[10px] font-bold text-amber-600 max-w-xs text-center leading-relaxed">
+              Pour afficher un dossier ici, complétez les 4 vérifications dans l'onglet <span className="font-black">Dossiers → Vérifier le Dossier</span>.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mt-2 text-left">
+              {['Douane correcte', 'Facture MAD payée', 'NW · CBM · Facture', 'DP créée + PU'].map((t, i) => (
+                <div key={i} className="flex items-center gap-2 text-[9px] font-black text-amber-700 uppercase">
+                  <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-700 flex items-center justify-center text-[8px] shrink-0">{i + 1}</span>
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!selectedFacture && checklistsLoaded && validatedFactures.length > 0 && (
         <div className="py-32 text-center text-stone-300 font-black uppercase text-[11px] tracking-widest">
           Sélectionnez un dossier pour voir l'analyse
+        </div>
+      )}
+
+      {!checklistsLoaded && (
+        <div className="flex items-center justify-center py-20 gap-3">
+          <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+          <span className="text-[11px] font-black text-stone-400 uppercase tracking-widest">Chargement des dossiers validés...</span>
         </div>
       )}
 

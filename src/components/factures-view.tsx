@@ -496,6 +496,7 @@ export default function FacturesView({
           open={!!checklistFacture}
           onOpenChange={(open) => !open && setChecklistFacture(null)}
           facture={checklistFacture}
+          articles={articles}
         />
 
         {/* Color Breakdown Detail Dialog */}
