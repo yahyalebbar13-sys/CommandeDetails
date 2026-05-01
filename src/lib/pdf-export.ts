@@ -366,7 +366,7 @@ export async function exportCostSalePDF(
         r.marge > 0 ? r.marge.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
         r.baseTva > 0 ? r.baseTva.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
         r.hasCustData && r.tvaRate != null ? r.tva.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '—',
-        r.pauVenteTtc > 0 ? r.pauVenteTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—',
+        r.pvuTtc > 0 ? r.pvuTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—',
       ];
     }),
     headStyles: { fillColor: [28, 25, 23], textColor: 255, fontStyle: 'bold', fontSize: 6, cellPadding: 2, halign: 'center' },
