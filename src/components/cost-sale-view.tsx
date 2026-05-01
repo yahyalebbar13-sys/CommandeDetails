@@ -30,10 +30,10 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   const [checklists, setChecklists] = useState<Record<string, Record<string, boolean>>>({});
   const [checklistsLoaded, setChecklistsLoaded] = useState(false);
 
-  // Load all checklists once
+  // Load all checklists once — stored under users/{uid}/checklists/
   useEffect(() => {
-    if (!firestore) return;
-    getDocs(collection(firestore, 'checklists'))
+    if (!firestore || !user) return;
+    getDocs(collection(firestore, 'users', user.uid, 'checklists'))
       .then(snap => {
         const result: Record<string, Record<string, boolean>> = {};
         snap.docs.forEach(d => { result[d.id] = d.data().checks || {}; });
@@ -41,7 +41,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       })
       .catch(() => {})
       .finally(() => setChecklistsLoaded(true));
-  }, [firestore]);
+  }, [firestore, user]);
 
   // A dossier is visible in Coût de Vente ONLY when the user has manually checked all 4 items
   const isFactureValidated = (f: any): boolean => {

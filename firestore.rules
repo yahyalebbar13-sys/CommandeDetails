@@ -61,6 +61,11 @@ service cloud.firestore {
       match /dp_declarations/{id} {
         allow read, write: if isOwner(userId);
       }
+
+      // checklists: dossier verification checklist, owner only
+      match /checklists/{id} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ── Client Access mapping ──────────────────────────────────────────────────

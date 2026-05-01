@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 // ── The 4 mandatory check items — all 100% manual ──
 type CheckItem = {
@@ -54,23 +55,24 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: {
   onOpenChange: (open: boolean) => void;
   facture: any;
 }) {
-  const { firestore } = useFirebase();
+  const { firestore, user } = useFirebase();
+  const { toast } = useToast();
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
 
-  // Load saved checks from Firebase
+  // Load saved checks from Firebase — stored under users/{uid}/checklists/{factureId}
   useEffect(() => {
-    if (!open || !facture?.id || !firestore) return;
+    if (!open || !facture?.id || !firestore || !user) return;
     setLoading(true);
-    getDoc(doc(firestore, 'checklists', facture.id))
+    getDoc(doc(firestore, 'users', user.uid, 'checklists', facture.id))
       .then(snap => {
         setChecks(snap.exists() ? snap.data().checks || {} : {});
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [open, facture?.id, firestore]);
+  }, [open, facture?.id, firestore, user]);
 
   const toggle = (id: string) => {
     setChecks(prev => ({ ...prev, [id]: !prev[id] }));
@@ -78,18 +80,22 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: {
   };
 
   const handleSave = useCallback(async () => {
-    if (!facture?.id || !firestore) return;
+    if (!facture?.id || !firestore || !user) return;
     setSaving(true);
     try {
       await setDoc(
-        doc(firestore, 'checklists', facture.id),
+        doc(firestore, 'users', user.uid, 'checklists', facture.id),
         { checks, savedAt: new Date().toISOString(), factureId: facture.id },
         { merge: true }
       );
       setSavedOk(true);
+      toast({ title: 'Sauvegardé !', description: `Vérification du dossier ${facture.id} enregistrée.` });
       setTimeout(() => setSavedOk(false), 3000);
+    } catch (err) {
+      console.error('Checklist save error:', err);
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder. Vérifiez votre connexion.', variant: 'destructive' });
     } finally { setSaving(false); }
-  }, [facture?.id, firestore, checks]);
+  }, [facture?.id, firestore, user, checks, toast]);
 
   const allOk = CHECK_ITEMS.every(i => !!checks[i.id]);
   const doneCount = CHECK_ITEMS.filter(i => !!checks[i.id]).length;
