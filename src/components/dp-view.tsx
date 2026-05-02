@@ -50,6 +50,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     setSavedCoutRevient(null);
     setSavedCoutVente(null);
     setPuMap({});
+    setFreightInput('');
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
@@ -57,6 +58,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
           if (data.puMap)               setPuMap(data.puMap);
           if (data.coutRevientTtcTotal) setSavedCoutRevient(Number(data.coutRevientTtcTotal));
           if (data.coutVenteTtcTotal)   setSavedCoutVente(Number(data.coutVenteTtcTotal));
+          if (data.freightValue != null) setFreightInput(String(data.freightValue));
         }
       })
       .catch(err => console.error('DP load error:', err))
@@ -121,10 +123,11 @@ export default function DPView({ articles, factures, subCategories, generalCateg
         return sum + pu * line.totalQty;
       }, 0);
 
-      // 1. Save declaration PU map
+      // 1. Save declaration PU map + freight value
+      const freightNum = parseFloat(freightInput) || 0;
       await setDoc(
         doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-        { puMap, savedAt: new Date().toISOString(), factureId: selectedFactureId },
+        { puMap, freightValue: freightNum, savedAt: new Date().toISOString(), factureId: selectedFactureId },
         { merge: true }
       );
 
@@ -146,7 +149,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     } finally {
       setSaving(false);
     }
-  }, [selectedFactureId, firestore, user, puMap, categoryLines]);
+  }, [selectedFactureId, firestore, user, puMap, categoryLines, freightInput]);
 
 
   const lines = categoryLines.map(line => ({
