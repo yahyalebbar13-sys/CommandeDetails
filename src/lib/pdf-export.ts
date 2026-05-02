@@ -424,7 +424,8 @@ export async function exportDPPDF(
     unit: string;
     puNum: number;
     mt: number;
-  }>
+  }>,
+  freightValue: number = 0
 ) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -531,9 +532,8 @@ export async function exportDPPDF(
   yPos += 34;
 
   // ── Table — NO NW column ──
-  const freightCost = Number(facture.freightCost) || 0;
-  const freightNote = freightCost > 0
-    ? `Incoterm: CFR  |  Freight Included: ${freightCost.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+  const freightNote = freightValue > 0
+    ? `Incoterm: CFR  |  Freight Included: ${freightValue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
     : 'Incoterm: CFR  |  Freight Included';
 
   autoTable(doc, {

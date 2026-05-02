@@ -8,7 +8,7 @@ import {
   Users, ChevronLeft, Package, Calendar, Clock, ClipboardList,
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
   Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle,
-  Search, SortAsc, SortDesc, TrendingUp, ChevronRight, Calculator
+  Search, SortAsc, SortDesc, TrendingUp, ChevronRight, Calculator, MapPin, User
 } from 'lucide-react';
 import CoutDeRevientModal from './cout-de-revient-modal';
 import { Badge } from '@/components/ui/badge';
@@ -586,6 +586,17 @@ function SupplierDetailView({
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isSupplierInfoOpen, setIsSupplierInfoOpen] = useState(false);
   const [cdrArticle, setCdrArticle] = useState<any>(null);
+  const [supplierProfile, setSupplierProfile] = useState<any>(null);
+
+  // Load supplier profile from Firebase
+  useEffect(() => {
+    if (!firestore || !user || !supplierName) return;
+    import('firebase/firestore').then(({ getDoc, doc: fbDoc }) => {
+      getDoc(fbDoc(firestore, 'users', user.uid, 'supplierProfiles', supplierName))
+        .then(snap => { if (snap.exists()) setSupplierProfile(snap.data()); })
+        .catch(() => {});
+    });
+  }, [firestore, user, supplierName]);
 
   const supArticles = useMemo(() => articles.filter(o => o.supplierId === supplierName), [articles, supplierName]);
   const supPayments = useMemo(() => (payments || []).filter(p => p.supplierId === supplierName).sort((a, b) => b.date.localeCompare(a.date)), [payments, supplierName]);
@@ -680,8 +691,30 @@ function SupplierDetailView({
             </div>
             <div>
               <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-1">Dossier Partenaire Consolidé</p>
-              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{supplierName}</h2>
-              <div className="flex gap-4 mt-4">
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">{supplierProfile?.name || supplierName}</h2>
+              {supplierProfile && (
+                <div className="mt-2 space-y-0.5">
+                  {(supplierProfile.address || supplierProfile.city || supplierProfile.country) && (
+                    <p className="text-[10px] font-bold text-stone-400 flex items-center gap-1.5">
+                      <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+                      {[supplierProfile.address, supplierProfile.city, supplierProfile.country].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                  {supplierProfile.contactPerson && (
+                    <p className="text-[10px] font-bold text-stone-400 flex items-center gap-1.5">
+                      <User className="w-3 h-3 text-blue-400 shrink-0" />
+                      {supplierProfile.contactPerson}
+                      {supplierProfile.phone && <span className="text-stone-500"> · {supplierProfile.phone}</span>}
+                    </p>
+                  )}
+                  {supplierProfile.notes && (
+                    <p className="text-[10px] font-bold text-amber-400/80 italic mt-1 max-w-sm line-clamp-2">
+                      {supplierProfile.notes}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-4 mt-3">
                 <Badge className="bg-white/10 text-white border-white/10 px-3 py-1 text-[10px] font-bold uppercase">
                   {supplierFactures.length} Dossiers
                 </Badge>
@@ -906,6 +939,59 @@ function SupplierDetailView({
             </Card>
           </section>
 
+          {/* Fiche Fournisseur — Description */}
+          {supplierProfile && (
+            <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-stone-900 px-5 py-3 flex items-center gap-2">
+                <Factory className="w-4 h-4 text-amber-400" />
+                <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Fiche Fournisseur</h4>
+              </div>
+              <div className="p-5 space-y-3">
+                {supplierProfile.name && (
+                  <div>
+                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Nom Officiel</p>
+                    <p className="text-[11px] font-black text-stone-900 uppercase">{supplierProfile.name}</p>
+                  </div>
+                )}
+                {(supplierProfile.address || supplierProfile.city || supplierProfile.country) && (
+                  <div>
+                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5 flex items-center gap-1"><MapPin className="w-2.5 h-2.5" /> Adresse</p>
+                    <p className="text-[10px] font-bold text-stone-700">
+                      {[supplierProfile.address, supplierProfile.city, supplierProfile.country].filter(Boolean).join(', ')}
+                    </p>
+                  </div>
+                )}
+                {supplierProfile.contactPerson && (
+                  <div>
+                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5 flex items-center gap-1"><User className="w-2.5 h-2.5" /> Contact</p>
+                    <p className="text-[10px] font-bold text-stone-700">{supplierProfile.contactPerson}</p>
+                    {supplierProfile.phone && <p className="text-[9px] font-bold text-blue-600">{supplierProfile.phone}</p>}
+                    {supplierProfile.email && <p className="text-[9px] font-bold text-blue-500">{supplierProfile.email}</p>}
+                  </div>
+                )}
+                {supplierProfile.bankName && (
+                  <div>
+                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Banque</p>
+                    <p className="text-[10px] font-bold text-stone-700">{supplierProfile.bankName}</p>
+                    {supplierProfile.bankAccount && <p className="text-[9px] font-bold text-stone-500">{supplierProfile.bankAccount}</p>}
+                  </div>
+                )}
+                {supplierProfile.notes && (
+                  <div className="pt-2 border-t border-stone-100">
+                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-1">Description / Notes</p>
+                    <p className="text-[10px] font-bold text-stone-700 leading-relaxed italic">{supplierProfile.notes}</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => setIsSupplierInfoOpen(true)}
+                  className="w-full mt-1 h-8 text-[8px] font-black uppercase tracking-widest text-stone-400 hover:text-amber-600 border border-stone-100 hover:border-amber-200 rounded-xl transition-colors"
+                >
+                  Modifier la fiche
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <Landmark className="w-5 h-5 text-amber-600" />
@@ -935,6 +1021,7 @@ function SupplierDetailView({
         open={isSupplierInfoOpen}
         onOpenChange={setIsSupplierInfoOpen}
         supplierId={supplierName}
+        onSaved={(profile) => setSupplierProfile(profile)}
       />
     </div>
   );

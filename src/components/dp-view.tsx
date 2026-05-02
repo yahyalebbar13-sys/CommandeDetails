@@ -33,6 +33,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tauxChange, setTauxChange] = useState<string>('10.5');
+  const [freightInput, setFreightInput] = useState<string>('');
 
   const selectedFacture = useMemo(
     () => factures.find(f => f.id === selectedFactureId) || null,
@@ -240,7 +241,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                       alert('Veuillez saisir au moins un PU déclaré avant d\'exporter le PDF.');
                       return;
                     }
-                    exportDPPDF(selectedFacture, lines);
+                    exportDPPDF(selectedFacture, lines, parseFloat(freightInput) || 0);
                   }}
                   className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
                 >
@@ -278,6 +279,24 @@ export default function DPView({ articles, factures, subCategories, generalCateg
               {showSuggested ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
               Valeur suggérée
             </button>
+          </div>
+
+          {/* Freight include (saisie manuelle) */}
+          <div className="flex items-center gap-4 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3">
+            <div className="flex-1">
+              <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-0.5">Freight Included (USD)</p>
+              <p className="text-[8px] font-bold text-emerald-500">Valeur du fret à inclure dans la déclaration PDF — saisie manuelle</p>
+            </div>
+            <input
+              type="number"
+              placeholder="0.00"
+              value={freightInput}
+              onChange={e => setFreightInput(e.target.value)}
+              step="0.01"
+              min="0"
+              className="w-36 bg-white border border-emerald-300 text-emerald-900 text-sm font-black rounded-xl px-3 h-10 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all text-right"
+            />
+            <span className="text-[10px] font-black text-emerald-600 uppercase">USD</span>
           </div>
 
           {/* Tableau */}
