@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { exportCostSalePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
 
 // The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
@@ -218,6 +218,18 @@ export default function CostSaleView({ articles, factures, subCategories, genera
 
     return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, totalMarge, totalTVA, rows };
   }, [selectedFacture, categoryLines, subCategories, puMap]);
+
+  // ── Persiste le total Coût de Vente dans Firebase pour la page Déclaration Provisoire ──
+  useEffect(() => {
+    if (!analysis || !selectedFactureId || !firestore || !user) return;
+    const totalCoutVente = analysis.rows.reduce((s, r) => s + (r.totalVenteTtc || 0), 0);
+    if (totalCoutVente <= 0) return;
+    setDoc(
+      doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+      { coutVenteTtcTotal: totalCoutVente },
+      { merge: true }
+    ).catch(() => {});
+  }, [analysis, selectedFactureId, firestore, user]);
 
   const missingDPCount = analysis?.rows.filter(r => r.missingDP).length || 0;
 

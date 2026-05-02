@@ -5,7 +5,8 @@ import autoTable from "jspdf-autotable";
 import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ExportBonCommandeProps { article: any; }
+interface SupplierProfile { name?: string; address?: string; city?: string; country?: string; phone?: string; email?: string; contactPerson?: string; }
+interface ExportBonCommandeProps { article: any; supplierProfile?: SupplierProfile; }
 
 // ── Brand ────────────────────────────────────────────────────────────────────
 const NAVY:   [number,number,number] = [15, 23, 42];
@@ -24,7 +25,7 @@ function fmtQty(qty: number, unit: string) {
   return `${fmtNum(Number(qty))} ${unit || ""}`.trim();
 }
 
-export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
+export default function ExportBonCommande({ article, supplierProfile }: ExportBonCommandeProps) {
   const handleExport = async () => {
     if (!article) return;
 
@@ -141,18 +142,25 @@ export default function ExportBonCommande({ article }: ExportBonCommandeProps) {
     doc.setFont("helvetica", "bold");
     doc.text("TO  (SUPPLIER)", toX + 4, y + 4.5);
 
+    // Merge: supplierProfile > article fields > placeholder
+    const sp = supplierProfile || {};
+    const supplierName = (sp.name || article.supplierName || article.supplierId || "SUPPLIER NAME").toUpperCase();
+    const supplierAddr = sp.address || article.supplierAddress || "Address: __________________________";
+    const supplierCity = sp.city    ? `${sp.city}${sp.country ? ', ' + sp.country : ''}` : (article.supplierCity || "City / Country: ___________________");
+    const supplierTel  = sp.phone   || article.supplierTel   || "Tel: ______________________________";
+    const supplierMail = sp.email   || article.supplierEmail  || "Email: ____________________________";
+
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...NAVY);
-    const supplierName = (article.supplierName || article.fournisseurId || "SUPPLIER NAME").toUpperCase();
     doc.text(supplierName, toX + 4, y + 12);
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...MUTED);
-    doc.text(article.supplierAddress || "Address: __________________________", toX + 4, y + 17);
-    doc.text(article.supplierCity    || "City / Country: ___________________", toX + 4, y + 21.5);
-    doc.text(article.supplierTel     || "Tel: ______________________________", toX + 4, y + 26);
-    doc.text(article.supplierEmail   || "Email: ____________________________", toX + 4, y + 30);
+    doc.text(supplierAddr, toX + 4, y + 17);
+    doc.text(supplierCity, toX + 4, y + 21.5);
+    doc.text(supplierTel,  toX + 4, y + 26);
+    doc.text(supplierMail, toX + 4, y + 30);
 
     y += 40;
 

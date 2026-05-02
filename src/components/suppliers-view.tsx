@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF, exportClientDossierPDF } from '@/lib/pdf-export';
+import SupplierInfoModal from './supplier-info-modal';
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
@@ -583,6 +584,7 @@ function SupplierDetailView({
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isSupplierInfoOpen, setIsSupplierInfoOpen] = useState(false);
   const [cdrArticle, setCdrArticle] = useState<any>(null);
 
   const supArticles = useMemo(() => articles.filter(o => o.supplierId === supplierName), [articles, supplierName]);
@@ -649,13 +651,23 @@ function SupplierDetailView({
         >
           <ChevronLeft className="w-4 h-4" /> Tous les Partenaires
         </Button>
-        <Button
-          size="sm"
-          onClick={handleExportPDF}
-          className="bg-amber-500 hover:bg-amber-600 text-stone-900 font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-amber-100 gap-2"
-        >
-          <Download className="w-3.5 h-3.5" /> Exporter PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsSupplierInfoOpen(true)}
+            className="border-stone-200 text-stone-600 font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full gap-2 hover:border-amber-400 hover:text-amber-700"
+          >
+            <Factory className="w-3.5 h-3.5" /> Fiche Fournisseur
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleExportPDF}
+            className="bg-amber-500 hover:bg-amber-600 text-stone-900 font-black uppercase text-[9px] tracking-widest px-4 h-9 rounded-full shadow-lg shadow-amber-100 gap-2"
+          >
+            <Download className="w-3.5 h-3.5" /> Exporter PDF
+          </Button>
+        </div>
       </div>
 
       <header className="bg-white rounded-[2rem] shadow-xl border border-stone-200 overflow-hidden">
@@ -918,6 +930,11 @@ function SupplierDetailView({
         factures={factures}
         articles={articles}
         categories={categories}
+      />
+      <SupplierInfoModal
+        open={isSupplierInfoOpen}
+        onOpenChange={setIsSupplierInfoOpen}
+        supplierId={supplierName}
       />
     </div>
   );

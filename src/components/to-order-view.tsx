@@ -11,8 +11,8 @@ import {
   Flame, AlertTriangle, CheckSquare, MessageSquareWarning, Send,
   ChevronDown, Package, X, Clock, CheckCircle2, Anchor, ChevronRight
 } from 'lucide-react';
-import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 import ExportBonCommande from './export-bon-commande';
@@ -30,6 +30,18 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   const { toast } = useToast();
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+
+  // Load supplier profiles for auto-fill in bon de commande
+  const supplierProfilesRef = useMemoFirebase(
+    () => user ? collection(firestore, 'users', user.uid, 'supplierProfiles') : null,
+    [firestore, user]
+  );
+  const { data: supplierProfiles = [] } = useCollection(supplierProfilesRef);
+  const supplierProfileMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    (supplierProfiles || []).forEach((p: any) => { if (p.id) map[p.id] = p; });
+    return map;
+  }, [supplierProfiles]);
 
   // Réclamation state — étape 1 : arrivage, étape 2 : commande
   const [selectedFactureId, setSelectedFactureId] = useState<string>('');
@@ -238,7 +250,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                       </div>
                       <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
                         {o.clientName && <ExportClientCommande article={o} />}
-                        <ExportBonCommande article={o} />
+                        <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
                         <Button size="sm" onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[8px] tracking-widest px-3 h-7 rounded-lg ml-1 gap-1">

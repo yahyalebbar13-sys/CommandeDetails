@@ -6,7 +6,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
 import {
-  FileCheck, ChevronDown, Info, FileDown, Eye, EyeOff, Lightbulb, Save, CheckCircle2, Loader2
+  FileCheck, ChevronDown, Info, FileDown, Eye, EyeOff, Lightbulb, Save, CheckCircle2, Loader2,
+  TrendingUp, TrendingDown, DollarSign, Calculator
 } from 'lucide-react';
 import { exportDPPDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
@@ -31,23 +32,30 @@ export default function DPView({ articles, factures, subCategories, generalCateg
   const [savedOk, setSavedOk] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tauxChange, setTauxChange] = useState<string>('10.5');
 
   const selectedFacture = useMemo(
     () => factures.find(f => f.id === selectedFactureId) || null,
     [factures, selectedFactureId]
   );
 
-  // ── Load saved PU from Firebase when dossier changes ──
+  // ── Load saved PU + totaux depuis Firebase quand le dossier change ──
+  const [savedCoutRevient, setSavedCoutRevient] = useState<number | null>(null);
+  const [savedCoutVente, setSavedCoutVente]     = useState<number | null>(null);
+
   useEffect(() => {
     if (!selectedFactureId || !firestore || !user) return;
     setLoading(true);
+    setSavedCoutRevient(null);
+    setSavedCoutVente(null);
     setPuMap({});
-    // Path: /users/{uid}/dp_declarations/{factureId} — matches security rules
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
-          if (data.puMap) setPuMap(data.puMap);
+          if (data.puMap)               setPuMap(data.puMap);
+          if (data.coutRevientTtcTotal) setSavedCoutRevient(Number(data.coutRevientTtcTotal));
+          if (data.coutVenteTtcTotal)   setSavedCoutVente(Number(data.coutVenteTtcTotal));
         }
       })
       .catch(err => console.error('DP load error:', err))
@@ -150,6 +158,18 @@ export default function DPView({ articles, factures, subCategories, generalCateg
   const totalMT = lines.reduce((s, l) => s + l.mt, 0);
   // Valeur déclarée en douane (USD) depuis le dossier
   const declaredValueDollar = Number(selectedFacture?.declaredValue) || 0;
+
+  // ── Diff = totaux exacts lus depuis Firebase (sauvegardés par cost-analysis-view & cost-sale-view) ──
+  const coutRevientData = useMemo(() => {
+    if (!selectedFacture) return null;
+    if (savedCoutRevient === null && savedCoutVente === null) return null;
+    const coutRevientTtc = savedCoutRevient ?? 0;
+    const coutVenteTtc   = savedCoutVente   ?? 0;
+    if (coutRevientTtc === 0 && coutVenteTtc === 0) return null;
+    const diff = coutRevientTtc - coutVenteTtc;
+    const pct  = coutRevientTtc > 0 ? (diff / coutRevientTtc) * 100 : 0;
+    return { coutRevientTtc, coutVenteTtc, diff, pct };
+  }, [selectedFacture, savedCoutRevient, savedCoutVente]);
 
   const setPU = (categoryId: string, val: string) => {
     setPuMap(prev => ({ ...prev, [categoryId]: val }));
@@ -397,6 +417,153 @@ export default function DPView({ articles, factures, subCategories, generalCateg
               </span>
             </div>
           </div>
+
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {/* DIFFÉRENCE VS COÛT DE REVIENT TTC                                 */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {totalMT > 0 && coutRevientData && (
+            <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Analyse Financière · Dossier</p>
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-amber-400" />
+                    Analyse · Coût de Revient vs Coût de Vente
+                  </h3>
+                </div>
+                {/* Taux de change input */}
+                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+                  <DollarSign className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Taux de Change</p>
+                    <p className="text-[8px] text-stone-400 font-bold">1 $ = ? MAD</p>
+                  </div>
+                  <input
+                    type="number"
+                    value={tauxChange}
+                    onChange={e => setTauxChange(e.target.value)}
+                    step="0.1"
+                    min="1"
+                    max="20"
+                    className="w-20 bg-white/10 border border-white/20 text-white font-black text-sm rounded-lg px-3 h-9 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all text-center"
+                  />
+                  <div className="flex gap-1">
+                    {[10, 10.5, 11].map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setTauxChange(String(v))}
+                        className={`px-2 py-1 rounded-lg text-[8px] font-black transition-all ${parseFloat(tauxChange) === v ? 'bg-amber-500 text-white' : 'bg-white/10 text-stone-400 hover:bg-white/20'}`}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* Col 1: Valeur déclarée */}
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 space-y-3">
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5" /> Coût de Vente TTC
+                  </p>
+                  <div>
+                    <p className="text-2xl font-black text-blue-800 leading-none">
+                      {coutRevientData.coutVenteTtc.toLocaleString('fr-MA', { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-[9px] font-black text-blue-500 uppercase mt-1">MAD</p>
+                  </div>
+                  <div className="pt-3 border-t border-blue-100 space-y-1.5">
+                    <div className="flex justify-between text-[9px]">
+                      <span className="text-blue-500 font-bold">Valeur USD déclarée (DP)</span>
+                      <span className="font-black text-blue-700">{totalMT.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $</span>
+                    </div>
+                    <div className="flex justify-between text-[9px]">
+                      <span className="text-blue-500 font-bold">Taux effectif (MAD/$)</span>
+                      <span className="font-black text-blue-700">{(parseFloat(tauxChange) || 10.5).toFixed(4)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Col 2: Coût de Revient TTC */}
+                <div className="bg-stone-50 border border-stone-100 rounded-2xl p-5 space-y-3">
+                  <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5" /> Coût de Revient TTC
+                  </p>
+                  <div>
+                    <p className="text-2xl font-black text-stone-800 leading-none">
+                      {coutRevientData.coutRevientTtc.toLocaleString('fr-MA', { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-[9px] font-black text-stone-500 uppercase mt-1">MAD</p>
+                  </div>
+                  <div className="pt-3 border-t border-stone-200 space-y-1.5">
+                    <p className="text-[8px] text-stone-400 font-bold italic normal-case leading-relaxed">
+                      Achat FOB + Fret + Taxes douane (DI/TPI/TIC/TVA réels) + Frais dossier (transit, change, divers)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Col 3: DIFFÉRENCE — diff = Revient - Vente ; négatif = gain */}
+                {(() => {
+                  const isGain = coutRevientData.diff <= 0; // revient <= vente = gain
+                  const absDiff = Math.abs(coutRevientData.diff);
+                  const absPct  = Math.abs(coutRevientData.pct);
+                  return (
+                    <div className={`rounded-2xl p-5 space-y-3 border ${
+                      isGain ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+                    }`}>
+                      <p className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 ${
+                        isGain ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {isGain
+                          ? <TrendingUp className="w-3.5 h-3.5" />
+                          : <TrendingDown className="w-3.5 h-3.5" />
+                        }
+                        {isGain ? 'Gain / Bénéfice' : 'Perte / À Ajuster'}
+                      </p>
+                      <div>
+                        <p className={`text-2xl font-black leading-none ${
+                          isGain ? 'text-emerald-700' : 'text-red-700'
+                        }`}>
+                          {isGain ? '+' : '-'}{absDiff.toLocaleString('fr-MA', { maximumFractionDigits: 0 })}
+                        </p>
+                        <p className={`text-[9px] font-black uppercase mt-1 ${
+                          isGain ? 'text-emerald-500' : 'text-red-500'
+                        }`}>MAD</p>
+                      </div>
+                      <div className="pt-3 border-t space-y-1.5" style={{ borderColor: isGain ? '#d1fae5' : '#fee2e2' }}>
+                        <div className="flex justify-between text-[9px]">
+                          <span className={`font-bold ${isGain ? 'text-emerald-600' : 'text-red-500'}`}>Marge</span>
+                          <span className={`font-black ${isGain ? 'text-emerald-700' : 'text-red-700'}`}>
+                            {isGain ? '+' : '-'}{absPct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className={`mt-2 px-3 py-2 rounded-xl text-[8px] font-bold uppercase leading-relaxed ${
+                          isGain ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {isGain
+                            ? `✓ Vous gagnez ${absDiff.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD sur ce dossier.`
+                            : `⚠ Perte de ${absDiff.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD. Vérifiez les PU ou les taxes.`
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer note */}
+              <div className="px-6 py-3 bg-amber-50/50 border-t border-amber-100 flex items-center gap-2">
+                <Info className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <p className="text-[8px] font-bold text-amber-600 uppercase tracking-wide">
+                  Coût de Vente calculé avec la même formule que la page Coût de Vente (HT × 1.05 + TVA). Coût de Revient = FOB + Fret + Taxes douane réelles (DI/TPI/TIC/TVA par catégorie) + Frais dossier.
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

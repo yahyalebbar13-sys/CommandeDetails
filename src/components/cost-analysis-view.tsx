@@ -156,6 +156,18 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, totalDroitsPayes, rows };
   }, [selectedFacture, dossierArticles, subCategories, overrides]);
 
+  // ── Persiste le total Coût de Revient dans Firebase pour la page Déclaration Provisoire ──
+  useEffect(() => {
+    if (!analysis || !selectedFactureId || !firestore || !user) return;
+    const totalCoutRevient = analysis.rows.reduce((s, r) => s + (r.mtTotal || 0), 0);
+    if (totalCoutRevient <= 0) return;
+    setDoc(
+      doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+      { coutRevientTtcTotal: totalCoutRevient },
+      { merge: true }
+    ).catch(() => {});
+  }, [analysis, selectedFactureId, firestore, user]);
+
   const missingCount = analysis?.rows.filter(r => r.missingData).length || 0;
   const overrideCount = analysis?.rows.filter(r => r.hasOverride).length || 0;
 

@@ -309,10 +309,25 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <SelectTrigger className={`h-11 font-bold rounded-xl border ${errors.genCat ? 'border-red-300 bg-red-50' : 'border-stone-200 bg-white'}`}>
                   <SelectValue placeholder="Choisir..." />
                 </SelectTrigger>
-                <SelectContent>
-                  {(generalCategories || []).map((gc: any) => (
-                    <SelectItem key={gc.id} value={gc.id} className="font-bold">{gc.name}</SelectItem>
-                  ))}
+                <SelectContent className="max-h-72">
+                  {(() => {
+                    const sorted = [...(generalCategories || [])].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'fr'));
+                    // Group by first letter
+                    const grouped: Record<string, any[]> = {};
+                    sorted.forEach((gc: any) => {
+                      const letter = (gc.name || '?')[0].toUpperCase();
+                      if (!grouped[letter]) grouped[letter] = [];
+                      grouped[letter].push(gc);
+                    });
+                    return Object.entries(grouped).map(([letter, items]) => (
+                      <SelectGroup key={letter}>
+                        <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1.5">{letter}</SelectLabel>
+                        {items.map((gc: any) => (
+                          <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-[11px]">{gc.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ));
+                  })()}
                 </SelectContent>
               </Select>
             </div>

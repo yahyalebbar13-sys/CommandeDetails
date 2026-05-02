@@ -62,6 +62,11 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      // supplierProfiles: fournisseur contact info (adresse, email, tél...), owner only
+      match /supplierProfiles/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
       // checklists: dossier verification checklist, owner only
       match /checklists/{id} {
         allow read, write: if isOwner(userId);
