@@ -7,10 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from '@/components/ui/badge';
 import { 
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Cell, PieChart, Pie, Legend, RadialBarChart, RadialBar
+  AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Cell, PieChart, Pie, Legend, ReferenceLine
 } from 'recharts';
-import { 
+import {
   DollarSign,
   Box,
   FileText,
@@ -26,16 +26,12 @@ import {
   CalendarDays,
   Ship,
   ShieldCheck,
-  Zap,
   AlertTriangle,
   Package,
   BarChart2,
   Activity,
   ArrowUpRight,
   ChevronRight,
-  Circle,
-  Clock,
-  RefreshCw,
   Percent,
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
@@ -363,13 +359,23 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     return { groupValueData, supplierData, evolutionData, statusData };
   }, [safeArticles, safeFactures, generalCategories, stats.statusCounts]);
 
-  // ── Recent activity (latest articles by createdAt) ─────────────────────────
-  const recentActivity = useMemo(() =>
-    [...safeArticles]
-      .filter(a => a.createdAt)
-      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-      .slice(0, 5)
-  , [safeArticles]);
+  // ── Dollar rate evolution per dossier (only factures with invoicePaidDhs > 0) ────
+  const dollarEvolutionData = useMemo(() => {
+    return safeFactures
+      .filter(f =>
+        Number(f.invoicePaidDhs) > 0 &&
+        Number(f.declaredValue) > 0 &&
+        (f.stockEntryDate || f.arrivalDate)
+      )
+      .map(f => ({
+        id: f.id,
+        date: f.stockEntryDate || f.arrivalDate,
+        rate: Number(f.invoicePaidDhs) / Number(f.declaredValue),
+        invoicePaidDhs: Number(f.invoicePaidDhs),
+        declaredValue: Number(f.declaredValue),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [safeFactures]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -802,49 +808,119 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
+        {/* Dollar Rate Evolution Chart */}
         <Card className="border-none shadow-sm bg-white rounded-2xl overflow-hidden">
           <CardHeader className="pb-0 pt-6 px-6">
             <CardTitle className="text-[11px] font-black uppercase text-stone-500 flex items-center gap-2 tracking-[0.2em]">
-              <Clock className="w-4 h-4 text-emerald-500" /> Activité Récente
+              <DollarSign className="w-4 h-4 text-emerald-500" /> Taux Dollar / Arrivage
             </CardTitle>
+            <p className="text-[8px] font-bold text-stone-300 uppercase tracking-widest mt-1">
+              Facture payée MAD ÷ Valeur déclarée USD — arrivages avec facture payée uniquement
+            </p>
           </CardHeader>
-          <CardContent className="p-6 pt-4">
-            {recentActivity.length === 0 ? (
+          <CardContent className="p-4 pt-3">
+            {dollarEvolutionData.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-stone-300">
-                <RefreshCw className="w-8 h-8 mb-2" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Aucune activité</p>
+                <DollarSign className="w-8 h-8 mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest">Aucun arrivage éligible</p>
+                <p className="text-[8px] text-stone-200 mt-1">Remplir la facture payée (MAD) et la valeur déclarée</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {recentActivity.map((art, i) => {
-                  const color = STATUS_COLORS[art.status] || '#94a3b8';
-                  const d = art.createdAt ? new Date(art.createdAt.seconds * 1000) : null;
-                  return (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: color }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black text-stone-800 truncate">{art.designation || art.reference || `Article #${i + 1}`}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ background: `${color}18`, color }}>
-                            {art.status}
-                          </span>
-                          {d && <span className="text-[8px] text-stone-300 font-bold">{d.toLocaleDateString('fr-FR')}</span>}
-                        </div>
+              <>
+                <div className="h-[160px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={dollarEvolutionData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f1" />
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        style={{ fontSize: '8px', fontWeight: '900', fill: '#94a3b8', textTransform: 'uppercase' }}
+                        tickFormatter={v => v?.substring(5) || v}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={v => `${v.toFixed(1)}`}
+                        style={{ fontSize: '8px', fontWeight: '900', fill: '#94a3b8' }}
+                        domain={['auto', 'auto']}
+                        width={30}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0]?.payload;
+                          return (
+                            <div className="bg-white border border-stone-100 shadow-xl rounded-2xl px-3 py-2.5 text-xs">
+                              <p className="font-black text-stone-400 uppercase tracking-widest text-[8px] mb-1">{d?.id} — {label}</p>
+                              <p className="font-black text-emerald-600 text-sm">1 USD = {Number(d?.rate).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD</p>
+                              <p className="text-[8px] text-stone-400 font-bold mt-0.5">{Number(d?.invoicePaidDhs).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD payés</p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <ReferenceLine
+                        y={dollarEvolutionData.reduce((s, d) => s + d.rate, 0) / dollarEvolutionData.length}
+                        stroke="#f59e0b"
+                        strokeDasharray="4 3"
+                        strokeWidth={1.5}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="rate"
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        dot={{ r: 3.5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Summary pills */}
+                <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-stone-50">
+                  <div className="text-center">
+                    <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taux Min</p>
+                    <p className="text-xs font-black text-red-500">
+                      {Math.min(...dollarEvolutionData.map(d => d.rate)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="text-center border-x border-stone-50">
+                    <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taux Moy</p>
+                    <p className="text-xs font-black text-amber-500">
+                      {(dollarEvolutionData.reduce((s, d) => s + d.rate, 0) / dollarEvolutionData.length).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taux Max</p>
+                    <p className="text-xs font-black text-emerald-500">
+                      {Math.max(...dollarEvolutionData.map(d => d.rate)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Table of points */}
+                <div className="mt-3 space-y-1 max-h-[100px] overflow-y-auto pr-1">
+                  {dollarEvolutionData.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-black text-stone-400 w-16 truncate">{d.id}</span>
+                        <span className="text-[7px] text-stone-300 font-bold">{d.date}</span>
                       </div>
+                      <span className="text-[9px] font-black text-emerald-600">
+                        {d.rate.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD/$
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
-            <div className="mt-6 pt-4 border-t border-stone-50">
-              <button
-                onClick={() => onNavigate('data')}
-                className="text-[9px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 transition-colors flex items-center gap-1"
-              >
-                Voir tout dans Data Lab <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
           </CardContent>
         </Card>
       </div>
