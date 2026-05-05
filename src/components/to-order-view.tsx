@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   ListTodo, Trash2, ArrowRight, Pencil, Settings2, MousePointer2,
   Flame, AlertTriangle, CheckSquare, MessageSquareWarning, Send,
-  ChevronDown, Package, X, Clock, CheckCircle2, Anchor, ChevronRight
+  ChevronDown, Package, X, Clock, CheckCircle2, Anchor, ChevronRight,
+  Container
 } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -63,6 +64,28 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
         return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
       });
   }, [articles]);
+
+  // ── Conteneurs Complets : grouper par fournisseur ─────────────────────
+  const containerGroups = useMemo(() => {
+    const fullContainerArts = toOrderArticles.filter(o => o.isFullContainer);
+    const map = new Map<string, any[]>();
+    fullContainerArts.forEach(o => {
+      const key = o.supplierId || 'Sans Fournisseur';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(o);
+    });
+    return Array.from(map.entries()).map(([supplier, arts]) => ({ supplier, arts }));
+  }, [toOrderArticles]);
+
+  const normalArticles = useMemo(() => toOrderArticles.filter(o => !o.isFullContainer), [toOrderArticles]);
+  const [collapsedContainers, setCollapsedContainers] = useState<Set<string>>(new Set());
+  const toggleContainer = useCallback((key: string) => {
+    setCollapsedContainers(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
 
   // ── Arrivages (factures) qui ont au moins un article associé ─────────
   const facturesWithArticles = useMemo(() => {
@@ -201,21 +224,109 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
         </div>
       </header>
 
-      {/* ─── Besoins Kanban ─── */}
-      {toOrderArticles.length === 0 ? (
+      {/* ─── Conteneurs Complets ─── */}
+      {containerGroups.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-500/10 rounded-xl border border-orange-200">
+              <Container className="w-4 h-4 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Commandes en production</p>
+              <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">Conteneurs <span className="text-orange-500">Complets</span></p>
+            </div>
+            <span className="ml-auto text-[9px] font-black bg-orange-100 text-orange-700 border border-orange-200 px-3 py-1 rounded-full uppercase tracking-widest">
+              {containerGroups.length} groupe{containerGroups.length > 1 ? 's' : ''} · {containerGroups.reduce((s, g) => s + g.arts.length, 0)} article{containerGroups.reduce((s, g) => s + g.arts.length, 0) > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {containerGroups.map(({ supplier, arts }) => {
+            const collapsed = collapsedContainers.has(supplier);
+            return (
+              <div key={supplier} className="rounded-2xl border-2 border-orange-200 bg-orange-50/40 overflow-hidden shadow-sm">
+                {/* Group header */}
+                <button
+                  type="button"
+                  onClick={() => toggleContainer(supplier)}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 bg-orange-100/60 hover:bg-orange-100 transition-colors text-left"
+                >
+                  <Container className="w-4 h-4 text-orange-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black text-orange-800 uppercase tracking-widest truncate">{supplier}</p>
+                    <p className="text-[9px] font-bold text-orange-500 uppercase">{arts.length} commande{arts.length > 1 ? 's' : ''} · Conteneur complet (PI)</p>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-orange-500 transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
+                </button>
+
+                {!collapsed && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {arts.map(o => {
+                      const isZipper = isZipperCategory(o.categoryId);
+                      const priorityConf = {
+                        urgent: { dot: 'bg-red-500', label: 'Urgent', badge: 'bg-red-100 text-red-700', borderLeft: 'border-l-red-400' },
+                        important: { dot: 'bg-amber-400', label: 'Important', badge: 'bg-amber-100 text-amber-700', borderLeft: 'border-l-amber-400' },
+                        todo: { dot: 'bg-stone-400', label: 'À faire', badge: 'bg-stone-100 text-stone-500', borderLeft: 'border-l-stone-300' },
+                      }[o.priority || 'todo'] || { dot: 'bg-stone-400', label: 'À faire', badge: 'bg-stone-100 text-stone-500', borderLeft: 'border-l-stone-300' };
+                      return (
+                        <div key={o.id} className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all p-4 space-y-2.5 border-l-4 ${priorityConf.borderLeft}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-stone-900 text-[11px] uppercase leading-tight truncate">{o.name}</p>
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase ${priorityConf.badge}`}>
+                                  <span className={`inline-block w-1 h-1 rounded-full ${priorityConf.dot} mr-1`} />
+                                  {priorityConf.label}
+                                </span>
+                                {o.isPreorder && o.clientName && (
+                                  <span className="text-[7px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full uppercase">{o.clientName}</span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black text-stone-900 whitespace-nowrap shrink-0">
+                              {Number(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-bold">{o.unitOfMeasure}</span>
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {o.size && <span className="text-[8px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.size}</span>}
+                            {o.color && <span className="text-[8px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.color}</span>}
+                            {isZipper && o.zipperType && <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded uppercase">{o.zipperType} {o.slider || ''}</span>}
+                            {!isZipper && o.specs && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">{o.specs}</span>}
+                          </div>
+                          <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
+                            {o.clientName && <ExportClientCommande article={o} />}
+                            <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                            <Button size="sm" onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }} className="bg-orange-600 hover:bg-orange-700 text-white font-black uppercase text-[8px] tracking-widest px-3 h-7 rounded-lg ml-1 gap-1">
+                              Commander <ArrowRight className="w-2.5 h-2.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ─── Besoins Kanban (articles normaux) ─── */}
+      {normalArticles.length === 0 && containerGroups.length === 0 ? (
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="py-20 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">
             Aucun besoin identifié pour le moment.
           </CardContent>
         </Card>
-      ) : (
+      ) : normalArticles.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {([
             { prio: 'urgent', label: 'Urgent', dotColor: 'bg-red-500', borderColor: 'border-red-200', borderLeft: 'border-l-red-400', bgColor: 'bg-red-50', textColor: 'text-red-700', badgeCls: 'bg-red-500 text-white' },
             { prio: 'important', label: 'Important', dotColor: 'bg-amber-400', borderColor: 'border-amber-200', borderLeft: 'border-l-amber-400', bgColor: 'bg-amber-50', textColor: 'text-amber-700', badgeCls: 'bg-amber-400 text-white' },
             { prio: 'todo', label: 'À faire', dotColor: 'bg-stone-400', borderColor: 'border-stone-200', borderLeft: 'border-l-stone-300', bgColor: 'bg-stone-50', textColor: 'text-stone-600', badgeCls: 'bg-stone-100 text-stone-500 border border-stone-200' },
           ] as const).map(col => {
-            const colArts = toOrderArticles.filter(o => (o.priority || 'todo') === col.prio);
+            const colArts = normalArticles.filter(o => (o.priority || 'todo') === col.prio);
             return (
               <div key={col.prio} className="space-y-3">
                 <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${col.bgColor} border ${col.borderColor}`}>

@@ -9,7 +9,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale } from 'lucide-react';
+import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale, Container } from 'lucide-react';
 
 interface LaunchOrderModalProps {
   open: boolean;
@@ -27,17 +27,19 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
     orderDate: new Date().toISOString().split('T')[0],
     cubicMeasurement: 0,
     netWeight: 0,
-    purchasePricePerUnit: 0
+    purchasePricePerUnit: 0,
+    containerRef: '',
   });
 
   useEffect(() => {
     if (open && article) {
       setFormData({
-        supplierId: '',
+        supplierId: article.supplierId || '',
         orderDate: new Date().toISOString().split('T')[0],
         cubicMeasurement: article.cubicMeasurement || 0,
         netWeight: article.netWeight || 0,
-        purchasePricePerUnit: article.purchasePricePerUnit || 0
+        purchasePricePerUnit: article.purchasePricePerUnit || 0,
+        containerRef: '',
       });
     }
   }, [open, article]);
@@ -106,6 +108,25 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
               value={formData.orderDate}
               onChange={e => setFormData(p => ({ ...p, orderDate: e.target.value }))}
             />
+          </div>
+
+          {/* Référence Conteneur */}
+          <div className="space-y-1">
+            <Label className="font-bold flex items-center gap-1">
+              <Container className="w-4 h-4 text-orange-500" /> Référence Conteneur
+              <span className="text-[9px] font-normal text-stone-400 ml-1">(optionnel — pour regrouper plusieurs commandes)</span>
+            </Label>
+            <Input
+              value={formData.containerRef}
+              onChange={e => setFormData(p => ({ ...p, containerRef: e.target.value.toUpperCase() }))}
+              placeholder="Ex: CTR-MH-01, CTNR-2026-A..."
+              className="bg-orange-50 border-orange-200 font-bold uppercase"
+            />
+            {formData.containerRef && (
+              <p className="text-[9px] font-bold text-orange-600 uppercase tracking-widest">
+                ✓ Les commandes avec la même référence seront groupées ensemble
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

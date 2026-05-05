@@ -526,7 +526,7 @@ export default function FacturesView({
                       Rouleaux
                     </div>
                   </div>
-                  <div className="divide-y divide-violet-50">
+                  <div className="divide-y divide-violet-50 max-h-64 overflow-y-auto">
                     {(colorDetailArticle.colorBreakdown || []).map((row: any, i: number) => (
                       <div key={i} className="grid grid-cols-[1fr_100px] hover:bg-violet-50/30 transition-colors">
                         <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>

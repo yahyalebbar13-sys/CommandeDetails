@@ -13,7 +13,9 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
+import { Check, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
@@ -49,6 +51,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [formData, setFormData] = useState<any>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+  const [colorOpen, setColorOpen] = useState(false);
 
   const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
     setColorBreakdown(rows);
@@ -369,14 +372,33 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
                 </div>
               ) : (
-                <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Popover open={colorOpen} onOpenChange={setColorOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="h-12 w-full border border-stone-200 bg-white font-bold rounded-xl px-3 flex items-center justify-between text-sm hover:border-stone-400 transition-colors"
+                    >
+                      <span className="uppercase font-bold text-stone-800">{formData.color || 'Choisir...'}</span>
+                      <ChevronDownIcon className="w-4 h-4 text-stone-400" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-1 max-h-60 overflow-y-auto" align="start" sideOffset={4}>
+                    {COLORS.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => { setFormData((p: any) => ({ ...p, color: c })); setColorOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-100 transition-colors text-left ${
+                          formData.color === c ? 'bg-stone-100 font-black' : 'font-bold'
+                        }`}
+                      >
+                        {formData.color === c && <Check className="w-3.5 h-3.5 text-stone-700 shrink-0" />}
+                        {formData.color !== c && <span className="w-3.5 shrink-0" />}
+                        <span className="text-sm uppercase text-stone-800">{c}</span>
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
             <div className="space-y-1.5">
