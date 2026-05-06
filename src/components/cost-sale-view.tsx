@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package, ShieldCheck, XCircle
 } from 'lucide-react';
-import { exportCostSalePDF } from '@/lib/pdf-export';
+import { exportCostSalePDF, exportCoutVenteSimplePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
@@ -106,7 +106,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   const categoryLines = useMemo(() => {
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
-    type MapEntry = { qty: number; nw: number; cbm: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean; firstOverride: ArticleOverride | null };
+    type MapEntry = { qty: number; nw: number; cbm: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean; firstOverride: ArticleOverride | null; sizes: Set<string>; colors: Set<string> };
     const map: Record<string, MapEntry> = {};
     for (const a of dossierArticles) {
       const rawCat = a.categoryId || '—';
@@ -119,10 +119,13 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       const isGrouped = shouldGroup;
       // Capture first override for this category key
       const articleOverride: ArticleOverride | null = overrides[a.id] ? overrides[a.id] : null;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped, firstOverride: articleOverride };
+      if (!map[key]) map[key] = { qty: 0, nw: 0, cbm: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped, firstOverride: articleOverride, sizes: new Set(), colors: new Set() };
       map[key].qty += Number(a.quantity) || 0;
       map[key].nw += Number(a.netWeight) || 0;
       map[key].cbm += Number(a.cubicMeasurement) || 0;
+      // Collect unique sizes and colors
+      if (a.size && a.size !== 'various') map[key].sizes.add(a.size.toUpperCase());
+      if (a.color && a.color !== 'various') map[key].colors.add(a.color.toUpperCase());
       // If no override captured yet for this key, grab it from this article
       if (!map[key].firstOverride && articleOverride) map[key].firstOverride = articleOverride;
     }
@@ -132,11 +135,15 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         const bName = b.genCatId ? (generalCategories.find((g: any) => g.id === b.genCatId)?.name || b.firstCatName) : b.firstCatName;
         return aName.localeCompare(bName);
       })
-      .map(([, { qty, nw, cbm, unit, firstCatName, genCatId, isGrouped, firstOverride }]) => {
+      .map(([, { qty, nw, cbm, unit, firstCatName, genCatId, isGrouped, firstOverride, sizes, colors }]) => {
         const effectiveQty = isGrouped ? nw : qty;
         const displayId = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId) : firstCatName;
         const cat = subCategories.find((c: any) => c.name === firstCatName);
-        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped, ov: firstOverride };
+        // Unique size: show only if all articles share the same single size
+        const uniqueSize = sizes.size === 1 ? [...sizes][0] : null;
+        // Unique color: show only if all articles share the same single color
+        const uniqueColor = colors.size === 1 ? [...colors][0] : null;
+        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, totalCBM: cbm, unit, cat, isPole: isGrouped, ov: firstOverride, uniqueSize, uniqueColor };
       });
   }, [articles, selectedFactureId, subCategories, generalCategories, overrides]);
 
@@ -210,6 +217,8 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         missingDP: puDollar === 0,
         missingCust: !hasCustData,
         hasOverride,
+        uniqueSize: line.uniqueSize ?? null,
+        uniqueColor: line.uniqueColor ?? null,
       };
     });
 
@@ -281,12 +290,22 @@ export default function CostSaleView({ articles, factures, subCategories, genera
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
               </div>
               {selectedFacture && analysis && (
-                <button
-                  onClick={() => exportCostSalePDF(selectedFacture, analysis.rows, analysis)}
-                  className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
-                >
-                  <FileDown className="w-4 h-4" /> PDF
-                </button>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => exportCostSalePDF(selectedFacture, analysis.rows, analysis)}
+                    className="h-12 px-4 bg-red-500 hover:bg-red-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
+                    title="Export complet (toutes colonnes)"
+                  >
+                    <FileDown className="w-4 h-4" /> Complet
+                  </button>
+                  <button
+                    onClick={() => exportCoutVenteSimplePDF(selectedFacture, analysis.rows, analysis)}
+                    className="h-12 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-emerald-600/20 shrink-0"
+                    title="PDF Coût de Vente TTC — version simplifiée"
+                  >
+                    <FileDown className="w-4 h-4" /> Prix Vente
+                  </button>
+                </div>
               )}
             </div>
           </div>

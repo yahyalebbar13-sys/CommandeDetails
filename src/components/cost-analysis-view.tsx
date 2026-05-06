@@ -10,7 +10,7 @@ import {
   Calculator, ChevronDown, AlertTriangle, CheckCircle2,
   FileText, Truck, Package, DollarSign, TrendingUp, Info, FileDown, Pencil
 } from 'lucide-react';
-import { exportCostAnalysisPDF } from '@/lib/pdf-export';
+import { exportCostAnalysisPDF, exportCoutRevientSimplePDF, exportDossierArticlesPDF } from '@/lib/pdf-export';
 import ArticleOverrideModal, { ArticleOverride } from './article-override-modal';
 import { useFirebase } from '@/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -211,12 +211,29 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
               </div>
               {selectedFacture && analysis && (
-                <button
-                  onClick={() => exportCostAnalysisPDF(selectedFacture, analysis.rows, analysis)}
-                  className="h-12 px-5 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
-                >
-                  <FileDown className="w-4 h-4" /> PDF
-                </button>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => exportCostAnalysisPDF(selectedFacture, analysis.rows, analysis)}
+                    className="h-12 px-4 bg-red-500 hover:bg-red-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-red-500/20 shrink-0"
+                    title="Export complet (toutes colonnes)"
+                  >
+                    <FileDown className="w-4 h-4" /> Complet
+                  </button>
+                  <button
+                    onClick={() => exportCoutRevientSimplePDF(selectedFacture, analysis.rows, analysis)}
+                    className="h-12 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-emerald-600/20 shrink-0"
+                    title="PDF Prix de Revient TTC — version simplifiée"
+                  >
+                    <FileDown className="w-4 h-4" /> Prix Revient
+                  </button>
+                  <button
+                    onClick={() => exportDossierArticlesPDF(selectedFacture, analysis.rows, analysis.tauxChange)}
+                    className="h-12 px-4 bg-sky-600 hover:bg-sky-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-sky-600/20 shrink-0"
+                    title="PDF Dossier — Catégorie / Taille / Description / Qté / P.A. TTC"
+                  >
+                    <FileDown className="w-4 h-4" /> Dossier
+                  </button>
+                </div>
               )}
             </div>
           </div>

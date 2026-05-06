@@ -270,6 +270,642 @@ export async function exportCostAnalysisPDF(
   doc.save(`CoutRevient_${facture.id || 'Dossier'}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
+// ─────────────────────────────────────────────
+//  PRIX DE REVIENT TTC — VERSION SIMPLIFIÉE
+// ─────────────────────────────────────────────
+export async function exportCoutRevientSimplePDF(
+  facture: any,
+  rows: any[],
+  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; totalDroitsPayes: number }
+) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const NAVY: [number, number, number] = [15, 23, 42];
+  const GOLD: [number, number, number] = [196, 160, 98];
+  const EMERALD: [number, number, number] = [5, 150, 105];
+  const TEXT_MAIN: [number, number, number] = [30, 41, 59];
+  const TEXT_MUTED: [number, number, number] = [100, 116, 139];
+  const LIGHT_BG: [number, number, number] = [248, 250, 252];
+  const BORDER_COLOR: [number, number, number] = [226, 232, 240];
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 14;
+  const contentW = pageW - marginX * 2;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFr = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  let yPos = 14;
+
+  // ── Logo / Brand ──
+  await new Promise<void>(resolve => {
+    const img = new Image();
+    img.src = '/logo.png';
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
+    img.onerror = () => {
+      doc.setTextColor(...NAVY);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LEBTEX', marginX, yPos + 7);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GOLD);
+      doc.text('TEXTILE IMPORT', marginX, yPos + 12);
+      resolve();
+    };
+  });
+
+  // ── Title right ──
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PRIX DE REVIENT TTC', pageW - marginX, yPos + 5, { align: 'right' });
+
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(pageW - marginX - 72, yPos + 8, pageW - marginX, yPos + 8);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...TEXT_MAIN);
+  doc.text(`Dossier : ${(facture.id || '—').toUpperCase()}`, pageW - marginX, yPos + 14, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text(`Date : ${todayFr}`, pageW - marginX, yPos + 19, { align: 'right' });
+
+  yPos += 28;
+
+  // ── Info block ──
+  doc.setFillColor(...LIGHT_BG);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, yPos, contentW, 20, 1.5, 1.5, 'FD');
+
+  const infoItems: [string, string][] = [
+    ['ETA', facture.arrivalDate || '—'],
+    ['Fournisseur', (facture.supplierId || '—').toUpperCase()],
+    ['Taux de change', analysis.tauxChange > 0 ? `${analysis.tauxChange.toFixed(4)} MAD/$` : '—'],
+    ['N° BL', facture.noBL || '—'],
+  ];
+  const iColW = contentW / infoItems.length;
+  infoItems.forEach(([label, value], i) => {
+    const ix = marginX + i * iColW + 4;
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text(label.toUpperCase(), ix, yPos + 7);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...NAVY);
+    doc.text(value.length > 20 ? value.slice(0, 19) + '…' : value, ix, yPos + 14);
+  });
+
+  yPos += 28;
+
+  // ── KPI summary bar ──
+  const totalPauSum = rows.reduce((s, r) => s + (r.mtTotal || 0), 0);
+  const kpis: [string, string, [number,number,number]][] = [
+    ['Total Frais Log.', `${analysis.mtFraisTotal.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, [79, 70, 229]],
+    ['Droits Douane', `${analysis.totalDroitsPayes.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, [220, 38, 38]],
+    ['CBM Total', `${analysis.cbmTotal.toFixed(3)} m³`, [14, 116, 144]],
+    ['TOTAL COÛT REVIENT', `${totalPauSum.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, EMERALD],
+  ];
+  const kpiW = contentW / kpis.length;
+  kpis.forEach(([label, value, color], i) => {
+    const kx = marginX + i * kpiW;
+    const isLast = i === kpis.length - 1;
+    if (isLast) {
+      doc.setFillColor(...EMERALD);
+    } else {
+      doc.setFillColor(color[0], color[1], color[2], 0.08 as any);
+      doc.setFillColor(245, 245, 244);
+    }
+    doc.roundedRect(kx + (i > 0 ? 2 : 0), yPos, kpiW - 2, 16, 2, 2, 'F');
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(isLast ? 255 : color[0], isLast ? 255 : color[1], isLast ? 255 : color[2]);
+    doc.text(label.toUpperCase(), kx + (i > 0 ? 5 : 3), yPos + 5.5);
+    doc.setFontSize(isLast ? 9 : 8);
+    doc.setTextColor(isLast ? 255 : TEXT_MAIN[0], isLast ? 255 : TEXT_MAIN[1], isLast ? 255 : TEXT_MAIN[2]);
+    doc.text(value, kx + (i > 0 ? 5 : 3), yPos + 12);
+  });
+
+  yPos += 22;
+
+  // ── Table — P.A.U TTC par article ──
+  const tableRows = rows.map(r => [
+    (r.categoryId || '—').toUpperCase(),
+    r.size ? r.size.toUpperCase() : '—',
+    r.color ? r.color.toUpperCase() : '—',
+    (r.specs || (r.zipperType ? `${r.zipperType}${r.slider ? ' / ' + r.slider : ''}` : '') || r.name || '—').toUpperCase() || '—',
+    Number(r.qty).toLocaleString('fr-MA'),
+    (r.unitOfMeasure || 'U').toUpperCase(),
+    r.pauTtc > 0
+      ? r.pauTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '—',
+  ]);
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Catégorie', 'Taille', 'Couleur', 'Technique / Spécification', 'Quantité', 'Unité', 'P.A.U TTC (MAD)']],
+    body: tableRows,
+    foot: [[
+      { content: `TOTAL — ${rows.length} article(s)`, colSpan: 4, styles: { halign: 'left' as const } },
+      rows.reduce((s, r) => s + Number(r.qty), 0).toLocaleString('fr-MA'),
+      '',
+      '',
+    ]],
+    margin: { left: marginX, right: marginX, bottom: 45 },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3.5,
+      font: 'helvetica',
+      textColor: TEXT_MAIN,
+      lineColor: BORDER_COLOR,
+      lineWidth: 0.2,
+    },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontSize: 7.5,
+      fontStyle: 'bold',
+      cellPadding: 4,
+    },
+    footStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: { fillColor: LIGHT_BG },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 28 },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 22, halign: 'center' },
+      3: { fontStyle: 'bold', cellWidth: 'auto' },
+      4: { halign: 'right', cellWidth: 20 },
+      5: { halign: 'center', cellWidth: 16 },
+      6: { halign: 'right', fontStyle: 'bold', textColor: EMERALD, cellWidth: 32 },
+    },
+    theme: 'striped',
+  });
+
+  // ── Footer pages ──
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 22, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
+    doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
+
+    doc.setFillColor(...NAVY);
+    doc.rect(0, pageH - 10, pageW, 10, 'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0, pageH - 10, 4, 10, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`PRIX DE REVIENT TTC — Usage interne confidentiel  |  ${todayStr}`, marginX + 4, pageH - 4);
+    doc.text(`Page ${i} / ${pageCount}`, pageW - marginX, pageH - 4, { align: 'right' });
+  }
+
+  doc.save(`PrixRevient_${(facture.id || 'Dossier').toUpperCase()}_${todayStr}.pdf`);
+}
+
+// ─────────────────────────────────────────────
+//  COÛT DE VENTE TTC — VERSION SIMPLIFIÉE
+// ─────────────────────────────────────────────
+export async function exportCoutVenteSimplePDF(
+  facture: any,
+  rows: any[],
+  analysis: { tauxChange: number; mtFraisTotal: number; cbmTotal: number; totalMarge: number; totalTVA: number }
+) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const NAVY: [number, number, number] = [15, 23, 42];
+  const GOLD: [number, number, number] = [196, 160, 98];
+  const EMERALD: [number, number, number] = [5, 150, 105];
+  const AMBER: [number, number, number] = [245, 158, 11];
+  const TEXT_MAIN: [number, number, number] = [30, 41, 59];
+  const TEXT_MUTED: [number, number, number] = [100, 116, 139];
+  const LIGHT_BG: [number, number, number] = [248, 250, 252];
+  const BORDER_COLOR: [number, number, number] = [226, 232, 240];
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 14;
+  const contentW = pageW - marginX * 2;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFr = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  let yPos = 14;
+
+  // ── Logo / Brand ──
+  await new Promise<void>(resolve => {
+    const img = new Image();
+    img.src = '/logo.png';
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
+    img.onerror = () => {
+      doc.setTextColor(...NAVY);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LEBTEX', marginX, yPos + 7);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GOLD);
+      doc.text('TEXTILE IMPORT', marginX, yPos + 12);
+      resolve();
+    };
+  });
+
+  // ── Title right ──
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('COÛT DE VENTE TTC', pageW - marginX, yPos + 5, { align: 'right' });
+
+  doc.setDrawColor(...EMERALD);
+  doc.setLineWidth(0.5);
+  doc.line(pageW - marginX - 68, yPos + 8, pageW - marginX, yPos + 8);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...TEXT_MAIN);
+  doc.text(`Dossier : ${(facture.id || '—').toUpperCase()}`, pageW - marginX, yPos + 14, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text(`Date : ${todayFr}`, pageW - marginX, yPos + 19, { align: 'right' });
+
+  yPos += 28;
+
+  // ── Info block ──
+  doc.setFillColor(...LIGHT_BG);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, yPos, contentW, 20, 1.5, 1.5, 'FD');
+
+  const infoItems: [string, string][] = [
+    ['ETA', facture.arrivalDate || '—'],
+    ['Fournisseur', (facture.supplierId || '—').toUpperCase()],
+    ['Taux de change', analysis.tauxChange > 0 ? `${analysis.tauxChange.toFixed(4)} MAD/$` : '—'],
+    ['N° BL', facture.noBL || '—'],
+  ];
+  const iColW = contentW / infoItems.length;
+  infoItems.forEach(([label, value], i) => {
+    const ix = marginX + i * iColW + 4;
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text(label.toUpperCase(), ix, yPos + 7);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...NAVY);
+    doc.text(value.length > 20 ? value.slice(0, 19) + '…' : value, ix, yPos + 14);
+  });
+
+  yPos += 28;
+
+  // ── KPI summary bar ──
+  const totalVenteTtc = rows.reduce((s, r) => s + (r.totalVenteTtc || 0), 0);
+  const kpis: [string, string, [number, number, number]][] = [
+    ['Total Frais Log.', `${analysis.mtFraisTotal.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, [79, 70, 229]],
+    ['Total Marge (5%)', `${analysis.totalMarge.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, EMERALD],
+    ['Total TVA', `${analysis.totalTVA.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, [245, 158, 11]],
+    ['TOTAL COÛT VENTE', `${totalVenteTtc.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, EMERALD],
+  ];
+  const kpiW = contentW / kpis.length;
+  kpis.forEach(([label, value, color], i) => {
+    const kx = marginX + i * kpiW;
+    const isLast = i === kpis.length - 1;
+    doc.setFillColor(isLast ? EMERALD[0] : 245, isLast ? EMERALD[1] : 245, isLast ? EMERALD[2] : 244);
+    doc.roundedRect(kx + (i > 0 ? 2 : 0), yPos, kpiW - 2, 16, 2, 2, 'F');
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(isLast ? 255 : color[0], isLast ? 255 : color[1], isLast ? 255 : color[2]);
+    doc.text(label.toUpperCase(), kx + (i > 0 ? 5 : 3), yPos + 5.5);
+    doc.setFontSize(isLast ? 9 : 8);
+    doc.setTextColor(isLast ? 255 : TEXT_MAIN[0], isLast ? 255 : TEXT_MAIN[1], isLast ? 255 : TEXT_MAIN[2]);
+    doc.text(value, kx + (i > 0 ? 5 : 3), yPos + 12);
+  });
+
+  yPos += 22;
+
+  // ── Table — P.V.U TTC par catégorie ──
+  const tableRows = rows.map(r => [
+    (r.categoryId || '—').toUpperCase(),
+    r.uniqueSize ? r.uniqueSize.toUpperCase() : '—',
+    r.cat?.hsCode || '—',
+    r.uniqueColor ? r.uniqueColor.toUpperCase() : '—',
+    Number(r.qty).toLocaleString('fr-MA'),
+    (r.unit || 'U').toUpperCase(),
+    r.pvuTtc > 0
+      ? r.pvuTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '—',
+  ]);
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Catégorie', 'Taille', 'Technique / Spécification', 'Couleur', 'Quantité', 'Unité', 'P.V.U TTC (MAD)']],
+    body: tableRows,
+    foot: [[
+      { content: `TOTAL — ${rows.length} catégorie(s)`, colSpan: 4, styles: { halign: 'left' as const } },
+      { content: rows.reduce((s, r) => s + Number(r.qty), 0).toLocaleString('fr-MA'), styles: { halign: 'right' as const } },
+      '',
+      '',
+    ]],
+    margin: { left: marginX, right: marginX, bottom: 45 },
+    styles: {
+      fontSize: 8,
+      cellPadding: 3.5,
+      font: 'helvetica',
+      textColor: TEXT_MAIN,
+      lineColor: BORDER_COLOR,
+      lineWidth: 0.2,
+    },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontSize: 7.5,
+      fontStyle: 'bold',
+      cellPadding: 4,
+    },
+    footStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: { fillColor: LIGHT_BG },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 32 },
+      1: { cellWidth: 16, halign: 'center' },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { halign: 'right', cellWidth: 20 },
+      5: { halign: 'center', cellWidth: 16 },
+      6: { halign: 'right', fontStyle: 'bold', textColor: EMERALD, cellWidth: 32 },
+    },
+    theme: 'striped',
+    didParseCell: (data: any) => {
+      if (data.row.section === 'body' && data.column.index === 6 && data.cell.raw !== '—') {
+        data.cell.styles.fillColor = [240, 253, 250];
+      }
+    },
+  });
+
+  // ── Footer pages ──
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 22, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
+    doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
+
+    doc.setFillColor(...NAVY);
+    doc.rect(0, pageH - 10, pageW, 10, 'F');
+    doc.setFillColor(...EMERALD);
+    doc.rect(0, pageH - 10, 4, 10, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`COÛT DE VENTE TTC — Usage interne confidentiel  |  ${todayStr}`, marginX + 4, pageH - 4);
+    doc.text(`Page ${i} / ${pageCount}`, pageW - marginX, pageH - 4, { align: 'right' });
+  }
+
+  doc.save(`CoutVente_Simple_${(facture.id || 'Dossier').toUpperCase()}_${todayStr}.pdf`);
+}
+
+// ─────────────────────────────────────────────
+//  DOSSIER ARTICLES — Catégorie / Taille / Description / Qté / PA TTC
+// ─────────────────────────────────────────────
+export async function exportDossierArticlesPDF(
+  facture: any,
+  rows: any[],
+  tauxChange: number
+) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const NAVY: [number, number, number] = [15, 23, 42];
+  const GOLD: [number, number, number] = [196, 160, 98];
+  const TEAL: [number, number, number] = [14, 116, 144];
+  const TEXT_MAIN: [number, number, number] = [30, 41, 59];
+  const TEXT_MUTED: [number, number, number] = [100, 116, 139];
+  const LIGHT_BG: [number, number, number] = [248, 250, 252];
+  const BORDER_COLOR: [number, number, number] = [226, 232, 240];
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 14;
+  const contentW = pageW - marginX * 2;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFr = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  let yPos = 14;
+
+  // ── Logo / Brand ──
+  await new Promise<void>(resolve => {
+    const img = new Image();
+    img.src = '/logo.png';
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
+    img.onerror = () => {
+      doc.setTextColor(...NAVY);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LEBTEX', marginX, yPos + 7);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GOLD);
+      doc.text('TEXTILE IMPORT', marginX, yPos + 12);
+      resolve();
+    };
+  });
+
+  // ── Title right ──
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text("DOSSIER D'ARRIVAGE", pageW - marginX, yPos + 5, { align: 'right' });
+
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(pageW - marginX - 64, yPos + 8, pageW - marginX, yPos + 8);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...TEXT_MAIN);
+  doc.text(`Dossier : ${(facture.id || '—').toUpperCase()}`, pageW - marginX, yPos + 14, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text(`Date : ${todayFr}`, pageW - marginX, yPos + 19, { align: 'right' });
+
+  yPos += 28;
+
+  // ── Info block ──
+  doc.setFillColor(...LIGHT_BG);
+  doc.setDrawColor(...BORDER_COLOR);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, yPos, contentW, 20, 1.5, 1.5, 'FD');
+
+  const infoItems: [string, string][] = [
+    ['ETA', facture.arrivalDate || '—'],
+    ['Fournisseur', (facture.supplierId || '—').toUpperCase()],
+    ['N° BL', facture.noBL || '—'],
+    ['Armateur', (facture.shippingLine || '—').toUpperCase()],
+  ];
+  const iColW = contentW / infoItems.length;
+  infoItems.forEach(([label, value], i) => {
+    const ix = marginX + i * iColW + 4;
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text(label.toUpperCase(), ix, yPos + 7);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...NAVY);
+    doc.text(value.length > 22 ? value.slice(0, 21) + '…' : value, ix, yPos + 14);
+  });
+
+  yPos += 28;
+
+  // ── KPI totaux ──
+  const totalQty = rows.reduce((s, r) => s + Number(r.qty || r.quantity || 0), 0);
+  const totalPAUMad = rows.reduce((s, r) => s + (r.mtTotal || 0), 0);
+
+  const kpis: [string, string][] = [
+    ['Nombre d\'articles', String(rows.length)],
+    ['Quantité totale', totalQty.toLocaleString('fr-MA')],
+    ['Taux de change', tauxChange > 0 ? `${tauxChange.toFixed(4)} MAD/$` : '—'],
+    ['Total P.A. TTC', `${totalPAUMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`],
+  ];
+  const kpiW = contentW / kpis.length;
+  kpis.forEach(([label, value], i) => {
+    const kx = marginX + i * kpiW;
+    const isLast = i === kpis.length - 1;
+    doc.setFillColor(isLast ? 14 : 245, isLast ? 116 : 245, isLast ? 144 : 244);
+    doc.roundedRect(kx + (i > 0 ? 2 : 0), yPos, kpiW - 2, 16, 2, 2, 'F');
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(isLast ? 255 : 161, isLast ? 255 : 161, isLast ? 255 : 170);
+    doc.text(label.toUpperCase(), kx + (i > 0 ? 5 : 3), yPos + 5.5);
+    doc.setFontSize(isLast ? 9 : 8);
+    doc.setTextColor(isLast ? 255 : TEXT_MAIN[0], isLast ? 255 : TEXT_MAIN[1], isLast ? 255 : TEXT_MAIN[2]);
+    doc.text(value, kx + (i > 0 ? 5 : 3), yPos + 12);
+  });
+
+  yPos += 22;
+
+  // ── Table principale ──
+  const tableRows = rows.map(r => {
+    const qty = Number(r.qty || r.quantity || 0);
+    const pauDollar = Number(r.pauDollar || r.purchasePricePerUnit || 0);
+    const pauMad = r.pauTtc > 0 ? r.pauTtc : (tauxChange > 0 && pauDollar > 0 ? pauDollar * tauxChange : 0);
+    return [
+      (r.categoryId || '—').toUpperCase(),
+      r.size && r.size !== 'various' ? r.size.toUpperCase() : '—',
+      (r.name || r.categoryId || '—').toUpperCase(),
+      qty.toLocaleString('fr-MA'),
+      (r.unitOfMeasure || 'U').toUpperCase(),
+      pauMad > 0
+        ? pauMad.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '—',
+    ];
+  });
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Catégorie', 'Taille', 'Description', 'Quantité', 'Unité', 'P.A. Unit. TTC (MAD)']],
+    body: tableRows,
+    foot: [[
+      { content: `TOTAL — ${rows.length} article(s)`, colSpan: 3, styles: { halign: 'left' as const } },
+      { content: totalQty.toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      '',
+      { content: `${totalPAUMad.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD`, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+    ]],
+    margin: { left: marginX, right: marginX, bottom: 45 },
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 4.5,
+      font: 'helvetica',
+      textColor: TEXT_MAIN,
+      lineColor: BORDER_COLOR,
+      lineWidth: 0.2,
+    },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      cellPadding: 5,
+    },
+    footStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8.5,
+    },
+    alternateRowStyles: { fillColor: LIGHT_BG },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 32 },
+      1: { cellWidth: 22, halign: 'center' },
+      2: { fontStyle: 'bold' },
+      3: { halign: 'right', cellWidth: 22 },
+      4: { halign: 'center', cellWidth: 14 },
+      5: { halign: 'right', fontStyle: 'bold', textColor: TEAL, cellWidth: 36 },
+    },
+    theme: 'striped',
+    didParseCell: (data: any) => {
+      if (data.row.section === 'body' && data.column.index === 5 && data.cell.raw !== '—') {
+        data.cell.styles.fillColor = [240, 253, 250];
+      }
+    },
+  });
+
+  // ── Note confidentialité ──
+  const finalY = (doc as any).lastAutoTable.finalY + 6;
+  if (finalY < pageH - 50) {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text('Document à usage interne — Les prix de revient TTC incluent achat, frais logistiques et droits de douane.', marginX, finalY);
+  }
+
+  // ── Footer pages ──
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text('LEBTEX TEXTILE IMPORT - 31 Rue 65 Lotissement Al Hamd Ain-Chock-Casablanca-Maroc', pageW / 2, pageH - 22, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78 / +212 522 31 62 88 - Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 18, { align: 'center' });
+    doc.text('Patente: 34011181 - R.C: 704617 - I.F: 68814237 - ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
+
+    doc.setFillColor(...NAVY);
+    doc.rect(0, pageH - 10, pageW, 10, 'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0, pageH - 10, 4, 10, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`DOSSIER ARRIVAGE — Usage interne confidentiel  |  ${todayStr}`, marginX + 4, pageH - 4);
+    doc.text(`Page ${i} / ${pageCount}`, pageW - marginX, pageH - 4, { align: 'right' });
+  }
+
+  doc.save(`Dossier_Articles_${(facture.id || 'Dossier').toUpperCase()}_${todayStr}.pdf`);
+}
+
 export async function exportCostSalePDF(
   facture: any,
   rows: any[],
