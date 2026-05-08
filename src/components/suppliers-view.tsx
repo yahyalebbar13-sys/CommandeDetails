@@ -148,7 +148,7 @@ export default function SuppliersView({ articles, factures, payments, categories
     articles
       .filter(a => a.isPreorder && a.clientName)
       .forEach(a => {
-        const client = a.clientName.trim();
+        const client = a.clientName.trim().toUpperCase();
         if (!stats[client]) stats[client] = { orders: 0, categories: new Set() };
         stats[client].orders += 1;
         stats[client].categories.add(a.categoryId || 'Inconnu');
