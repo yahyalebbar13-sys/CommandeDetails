@@ -94,7 +94,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     };
   }, [selectedArticle, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, articles, factures, categories]);
 
-  const fmtMAD = (n: number) => n.toLocaleString('fr-MA', { maximumFractionDigits: 0 });
+  const fmtMAD = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const handleExport = async () => {
     if (!computed || !selectedArticle) return;

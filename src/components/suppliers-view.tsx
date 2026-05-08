@@ -2169,7 +2169,9 @@ export function ClientDetailView({
         let derivedStatus = a.status;
         const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
 
-        if (facture) {
+        if (a.status === 'DELIVERED') {
+          derivedStatus = 'DELIVERED';
+        } else if (facture) {
           const now = new Date();
           const isArrived = arrivalDate ? new Date(arrivalDate) <= now : false;
           // A facture indicates a real shipment dossier exists.
