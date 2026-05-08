@@ -27,7 +27,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
   // Only PI articles that have a clientName assigned
   const piArticles = useMemo(() =>
-    articles.filter(a => (a.status === 'PI' || a.status === 'pi') && a.clientName && a.clientName.trim() !== '')
+    articles.filter(a => ['PI', 'pi', 'SHIPPED', 'shipped'].includes(a.status) && a.clientName && a.clientName.trim() !== '')
       .filter(a => {
         if (!search.trim()) return true;
         const q = search.toLowerCase();
