@@ -175,7 +175,11 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                 <div className={`w-2 h-2 rounded-full shrink-0 ${selectedArticle?.id === a.id ? 'bg-amber-500' : 'bg-stone-200'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-black text-stone-900 uppercase truncate">{a.name || a.categoryId}</p>
-                  <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">{a.categoryId} · {Number(a.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure} · ${Number(a.purchasePricePerUnit).toFixed(4)}</p>
+                  <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">
+                    {a.categoryId}
+                    {Number(a.quantity) > 0 ? ` · ${Number(a.quantity).toLocaleString('fr-MA')} ${a.unitOfMeasure || 'u'}` : ''}
+                    {Number(a.purchasePricePerUnit) > 0 ? ` · $${Number(a.purchasePricePerUnit).toFixed(4)}` : ''}
+                  </p>
                 </div>
                 {selectedArticle?.id === a.id && (
                   <span className="text-[8px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase shrink-0">Sélectionné</span>
@@ -202,14 +206,28 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                   <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Article sélectionné</p>
                   <p className="text-base font-black text-white uppercase">{selectedArticle.name || selectedArticle.categoryId}</p>
                   <p className="text-[9px] font-bold text-amber-400 uppercase mt-0.5">
-                    {Number(selectedArticle.quantity).toLocaleString('fr-MA')} {selectedArticle.unitOfMeasure} · ${Number(selectedArticle.purchasePricePerUnit).toFixed(4)}/u
+                    {Number(selectedArticle.quantity) > 0 ? `${Number(selectedArticle.quantity).toLocaleString('fr-MA')} ${selectedArticle.unitOfMeasure || 'u'}` : 'QTE MANQUANTE'}
+                    {Number(selectedArticle.purchasePricePerUnit) > 0 ? ` · $${Number(selectedArticle.purchasePricePerUnit).toFixed(4)}/u` : ' · PRIX MANQUANT'}
                     {selectedArticle.supplierId && ` · ${selectedArticle.supplierId}`}
                   </p>
                 </div>
               </div>
 
-              {/* Parameters */}
-              <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 space-y-4">
+              {(!selectedArticle.purchasePricePerUnit || !selectedArticle.netWeight || !selectedArticle.cubicMeasurement || !selectedArticle.quantity) ? (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center space-y-2">
+                  <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Informations incomplètes</p>
+                  <p className="text-sm font-bold text-red-800">Impossible de calculer le devis. Veuillez renseigner :</p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-3">
+                    {!selectedArticle.quantity && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Quantité</span>}
+                    {!selectedArticle.purchasePricePerUnit && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Prix d'achat</span>}
+                    {!selectedArticle.netWeight && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Poids Net (NW)</span>}
+                    {!selectedArticle.cubicMeasurement && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Volume (CBM)</span>}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Parameters */}
+                  <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 space-y-4">
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1.5"><Calculator className="w-3 h-3" /> Paramètres</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
