@@ -484,9 +484,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
                     <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
                     <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">Expédié (Sur Facture)</SelectItem>
-                    {formData.isPreorder && formData.clientName && (
-                      <SelectItem value="DELIVERED" className="font-bold text-emerald-600 uppercase">✓ Livré au Client</SelectItem>
-                    )}
+                    <SelectItem 
+                      value="DELIVERED" 
+                      className="font-bold text-emerald-600 uppercase"
+                      disabled={!formData.isPreorder || !formData.clientName}
+                    >
+                      ✓ Livré au Client {!formData.isPreorder || !formData.clientName ? '(Req. Client)' : ''}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 

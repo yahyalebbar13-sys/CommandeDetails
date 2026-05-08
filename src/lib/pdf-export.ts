@@ -1995,8 +1995,8 @@ export async function exportDevisClientPIPDF(params: {
         String(i + 1),
         `${(article.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}`,
         fmtQty(qty, article.unitOfMeasure),
-        prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        lineTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        prixVenteUniteMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       ]);
     });
   } else if (sizeBreakdown.length > 0) {
@@ -2007,8 +2007,8 @@ export async function exportDevisClientPIPDF(params: {
         String(i + 1),
         `${(article.categoryId || '—').toUpperCase()} — Taille ${(r.size || '—').toUpperCase()}`,
         fmtQty(qty, article.unitOfMeasure),
-        prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        lineTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        prixVenteUniteMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       ]);
     });
   } else {
@@ -2016,8 +2016,8 @@ export async function exportDevisClientPIPDF(params: {
       '1',
       (article.name || article.categoryId || '—').toUpperCase(),
       fmtQty(article.quantity, article.unitOfMeasure),
-      prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      prixVenteUniteMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      prixVenteTotalMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     ]);
   }
 
@@ -2038,7 +2038,7 @@ export async function exportDevisClientPIPDF(params: {
     body: lineItems,
     foot: [[
       { content: 'TOTAL DEVIS', colSpan: 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const, paddingRight: 15 } },
-      { content: prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: prixVenteTotalMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
     ]],
     margin: { left: MX, right: MX, bottom: 50 },
     styles: {
