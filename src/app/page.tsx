@@ -426,32 +426,48 @@ function AdminApp() {
     setActiveTab('dashboard'); setSelectedFactureId(null);
     setSelectedGeneralCategoryId(null); setSelectedCategoryName(null); setIsMobileMenuOpen(false);
   };
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'to-order', label: 'Besoins et Réclamations', icon: ClipboardList },
-    { id: 'pending', label: 'Production', icon: Factory },
-    { id: 'timeline', label: 'Timeline', icon: Timer },
-    { id: 'factures', label: 'Arrivages', icon: Anchor },
-    { id: 'general-categories', label: 'Groupes', icon: Layers },
-    { id: 'cost-analysis',    label: 'Coût Revient',      icon: Calculator },
-    { id: 'cost-sale',        label: 'Coût Vente',         icon: ShoppingCart },
-    { id: 'dp',               label: 'Décl. Provisoire',   icon: FileCheck },
-    { id: 'reconciliation',   label: 'Réconciliation',     icon: TrendingUp },
-    { id: 'devis-pi',         label: 'Devis Client',       icon: ReceiptText },
-    { id: 'suppliers',        label: 'Partenaires',        icon: UserCheck },
-    { id: 'data',             label: 'Data Lab',           icon: Database },
+  const navGroups = [
+    [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'to-order', label: 'Besoins', icon: ClipboardList },
+      { id: 'pending', label: 'Production', icon: Factory },
+      { id: 'timeline', label: 'Timeline', icon: Timer },
+      { id: 'factures', label: 'Arrivages', icon: Anchor },
+      { id: 'general-categories', label: 'Groupes', icon: Layers },
+    ],
+    [
+      { id: 'cost-analysis',  label: 'Coût Revient', icon: Calculator },
+      { id: 'cost-sale',      label: 'Coût Vente',   icon: ShoppingCart },
+      { id: 'dp',             label: 'Déc. Prov.',   icon: FileCheck },
+      { id: 'reconciliation', label: 'Réconcil.',    icon: TrendingUp },
+    ],
+    [
+      { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
+      { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
+      { id: 'data',      label: 'Data Lab',     icon: Database },
+    ],
   ] as const;
+  const navItems = navGroups.flat();
 
 
   const NavButtons = ({ vertical = false }: { vertical?: boolean }) => (
-    <div className={`flex ${vertical ? 'flex-col space-y-2' : 'flex-row space-x-1'}`}>
-      {navItems.map(({ id, label, icon: Icon }) => (
-        <Button key={id} variant={activeTab === id ? "secondary" : "ghost"}
-          className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'} ${vertical ? 'w-full h-12' : ''}`}
-          onClick={() => { setPreviousTab(null); setActiveTab(id); if (id === 'factures') setSelectedFactureId(null); if (id === 'general-categories') setSelectedGeneralCategoryId(null); setIsMobileMenuOpen(false); }}>
-          <Icon className={vertical ? 'w-5 h-5' : 'w-3.5 h-3.5'} />
-          <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{label}</span>
-        </Button>
+    <div className={`flex ${vertical ? 'flex-col space-y-1' : 'flex-row space-x-1'}`}>
+      {navGroups.map((group, gi) => (
+        <React.Fragment key={gi}>
+          {gi > 0 && (
+            vertical
+              ? <div className="my-1 h-px bg-stone-100 mx-2" />
+              : <div className="mx-1 h-5 w-px bg-stone-200 self-center" />
+          )}
+          {group.map(({ id, label, icon: Icon }) => (
+            <Button key={id} variant={activeTab === id ? 'secondary' : 'ghost'}
+              className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 py-1.5 h-9 ${activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'} ${vertical ? 'w-full h-11' : ''}`}
+              onClick={() => { setPreviousTab(null); setActiveTab(id); if (id === 'factures') setSelectedFactureId(null); if (id === 'general-categories') setSelectedGeneralCategoryId(null); setIsMobileMenuOpen(false); }}>
+              <Icon className={vertical ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
+              <span className={`truncate uppercase font-black tracking-wider ${vertical ? 'text-[11px]' : 'text-[10px]'}`}>{label}</span>
+            </Button>
+          ))}
+        </React.Fragment>
       ))}
     </div>
   );

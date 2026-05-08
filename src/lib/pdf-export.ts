@@ -1949,7 +1949,6 @@ export async function exportDevisClientPIPDF(params: {
     ['Couleur',                 colorLabel],
     ['Quantité commandée',      fmtQty(article.quantity, article.unitOfMeasure)],
     ['Date de commande',        article.orderDate || todayStr],
-    ["Date d'arrivée estimée",  article.arrivalDate || 'À confirmer'],
   ];
   if (article.zipperType) {
     specs.push(['Type Fermeture', article.zipperType.toUpperCase()]);
@@ -2027,130 +2026,91 @@ export async function exportDevisClientPIPDF(params: {
     return s + (isNaN(n) ? 0 : n);
   }, 0);
 
+  const COL_N   = 8;
+  const COL_QTE = 28;
+  const COL_PU  = 34;
+  const COL_TOT = 34;
+  const COL_DES = CW - COL_N - COL_QTE - COL_PU - COL_TOT;
+
   autoTable(doc, {
     startY: y,
-    head: [['N°', 'Désignation', 'Quantité', `Prix Unit. (MAD)`, 'Total (MAD)']],
+    head: [['N°', 'Désignation', 'Quantité', 'Prix Unit. (MAD)', 'Total (MAD)']],
     body: lineItems,
     foot: [[
-      { content: '', colSpan: 2, styles: { halign: 'left' as const } },
-      { content: fmtQty(totalQty, article.unitOfMeasure), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
-      { content: 'TOTAL DEVIS', styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
-      { content: prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      '',
+      'TOTAL DEVIS',
+      fmtQty(article.quantity, article.unitOfMeasure),
+      '',
+      prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     ]],
-    margin: { left: MX, right: MX, bottom: 25 },
+    margin: { left: MX, right: MX, bottom: 50 },
     styles: {
       fontSize: 8, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
       font: 'helvetica', textColor: [30, 41, 59], lineColor: BORDER, lineWidth: 0.15,
     },
     headStyles: { fillColor: NAVY, textColor: WHITE, fontSize: 7.5, fontStyle: 'bold' },
-    footStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: 'bold', fontSize: 8.5 },
+    footStyles: { fillColor: GOLD_LIGHT, textColor: NAVY, fontStyle: 'bold', fontSize: 8.5 },
     alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: {
-      0: { cellWidth: 8, halign: 'center', textColor: MUTED },
-      1: { fontStyle: 'bold' },
-      2: { halign: 'right', cellWidth: 30 },
-      3: { halign: 'right', cellWidth: 35 },
-      4: { halign: 'right', cellWidth: 35, fontStyle: 'bold', textColor: NAVY },
-    },
-    didParseCell: (data: any) => {
-      if (data.row.section === 'foot') {
-        data.cell.styles.fillColor = GOLD_LIGHT;
-        data.cell.styles.textColor = NAVY;
-      }
+      0: { cellWidth: COL_N,   halign: 'center' as const, textColor: MUTED },
+      1: { cellWidth: COL_DES, fontStyle: 'bold' as const },
+      2: { cellWidth: COL_QTE, halign: 'right' as const },
+      3: { cellWidth: COL_PU,  halign: 'right' as const },
+      4: { cellWidth: COL_TOT, halign: 'right' as const, fontStyle: 'bold' as const, textColor: NAVY },
     },
   });
 
-  // ── Validité du devis ─────────────────────────────────────────────────
+  // ── Signature block ──────────────────────────────────────────────────
   y = (doc as any).lastAutoTable.finalY + 8;
-  if (y > H - 40) { doc.addPage(); y = 20; }
-
-  doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
-  doc.roundedRect(MX, y, CW, 16, 1, 1, 'FD');
-  doc.setFillColor(...GOLD); doc.rect(MX, y, 3, 16, 'F');
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-  doc.text('VALIDITÉ & MODALITÉS', MX + 7, y + 6);
-  doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
-  doc.text('Ce devis est valable 30 jours à compter de sa date d\'émission. Les prix sont indiqués en Dirhams Marocains (MAD), toutes taxes comprises.', MX + 7, y + 11, { maxWidth: CW - 12 });
-
-  // ════════════════════════════════════════════════════════════════════
-  // PAGE 2 — CONDITIONS & SIGNATURES
-  // ════════════════════════════════════════════════════════════════════
-  doc.addPage();
-  y = 20;
-
-  // ── Page 2 header strip ───────────────────────────────────────────────
-  doc.setFillColor(...NAVY);
-  doc.rect(0, 0, W, 14, 'F');
-  doc.setFillColor(...GOLD);
-  doc.rect(0, 0, 5, 14, 'F');
-  doc.setTextColor(...WHITE); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-  doc.text('CONDITIONS GÉNÉRALES DE VENTE', MX + 5, 9);
-  doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
-  doc.text(`Réf : ${ref}  —  ${today}`, W - MX, 9, { align: 'right' });
-
-  y = 22;
-
-  // ── Conditions block ──────────────────────────────────────────────────
-  const cgvItems = [
-    { title: 'Art. 1 — Objet', text: 'Le présent devis décrit les conditions dans lesquelles LEBTEX TEXTILE IMPORT s\'engage à fournir les marchandises désignées ci-avant au client acceptant les présentes conditions.' },
-    { title: 'Art. 2 — Commande ferme', text: 'Toute commande accompagnée d\'un acompte est réputée ferme, définitive, non annulable et non remboursable. La validation du devis par le client vaut acceptation sans réserve des présentes conditions.' },
-    { title: 'Art. 3 — Paiement', text: 'Les conditions de paiement sont les suivantes : acompte à la confirmation de la commande, solde intégral exigible à la livraison ou à la réception des marchandises, sauf accord écrit préalable.' },
-    { title: 'Art. 4 — Délais de livraison', text: 'Les délais d\'arrivée indiqués sont donnés à titre prévisionnel et peuvent varier selon les conditions d\'importation, de transit maritime et de dédouanement. LEBTEX ne saurait être tenu responsable de retards indépendants de sa volonté.' },
-    { title: 'Art. 5 — Réserves & réclamations', text: 'Toute réclamation relative à la qualité ou aux quantités livrées doit être formulée par écrit dans les 48 heures suivant la réception des marchandises. Passé ce délai, aucune réclamation ne pourra être prise en compte.' },
-    { title: 'Art. 6 — Propriété & responsabilité', text: 'Les marchandises restent la propriété de LEBTEX TEXTILE IMPORT jusqu\'au paiement intégral. Les risques sont transférés au client dès la remise des marchandises au transporteur ou lors du retrait en entrepôt.' },
-  ];
-
-  cgvItems.forEach(item => {
-    if (y > H - 60) { doc.addPage(); y = 20; }
-    doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
-    const textLines = doc.splitTextToSize(item.text, CW - 10);
-    const boxH = 7 + textLines.length * 4.2;
-    doc.roundedRect(MX, y, CW, boxH, 1, 1, 'FD');
-    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-    doc.text(item.title, MX + 4, y + 5);
-    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 80);
-    doc.text(textLines, MX + 4, y + 9.5);
-    y += boxH + 4;
-  });
-
-  // ── Signature block ───────────────────────────────────────────────────
-  if (y > H - 55) { doc.addPage(); y = 20; }
-
-  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
-  doc.line(MX, y, W - MX, y);
-  y += 6;
+  if (y > H - 70) { doc.addPage(); y = 20; }
 
   const sigW = (CW - 8) / 2;
 
-  // LEBTEX box
-  doc.setFillColor(...BG); doc.setDrawColor(...BORDER);
-  doc.roundedRect(MX, y, sigW, 32, 1, 1, 'FD');
-  doc.setFillColor(...NAVY);
-  doc.roundedRect(MX, y, sigW, 6, 1, 1, 'F');
-  doc.rect(MX, y + 3, sigW, 3, 'F');
+  // LEBTEX
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, sigW, 26, 1, 1, 'FD');
+  doc.setFillColor(...NAVY); doc.roundedRect(MX, y, sigW, 6, 1, 1, 'F'); doc.rect(MX, y + 3, sigW, 3, 'F');
   doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...WHITE);
   doc.text('ÉMIS PAR LEBTEX TEXTILE IMPORT', MX + 4, y + 4.5);
   doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
-  doc.text('Service Commercial', MX + 4, y + 12);
-  doc.text('Cachet et signature :', MX + 4, y + 17);
+  doc.text('Service Commercial', MX + 4, y + 11);
+  doc.text('Cachet et signature :', MX + 4, y + 16);
   doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
-  doc.line(MX + 6, y + 29, MX + sigW - 4, y + 29);
+  doc.line(MX + 6, y + 23, MX + sigW - 4, y + 23);
 
-  // Client box
+  // Client
   const clX = MX + sigW + 8;
-  doc.setFillColor(...BG); doc.setDrawColor(...BORDER);
-  doc.roundedRect(clX, y, sigW, 32, 1, 1, 'FD');
-  doc.setFillColor(...BORDER);
-  doc.roundedRect(clX, y, sigW, 6, 1, 1, 'F');
-  doc.rect(clX, y + 3, sigW, 3, 'F');
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.roundedRect(clX, y, sigW, 26, 1, 1, 'FD');
+  doc.setFillColor(...BORDER); doc.roundedRect(clX, y, sigW, 6, 1, 1, 'F'); doc.rect(clX, y + 3, sigW, 3, 'F');
   doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
   doc.text('BON POUR ACCORD — CLIENT', clX + 4, y + 4.5);
   doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
-  doc.text('Nom : ___________________________', clX + 4, y + 12);
-  doc.text('Lu et approuvé (cachet & signature) :', clX + 4, y + 17);
+  doc.text('Nom : ___________________________', clX + 4, y + 11);
+  doc.text('Lu et approuvé (cachet & signature) :', clX + 4, y + 16);
   doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([1, 1], 0);
-  doc.line(clX + 6, y + 29, clX + sigW - 4, y + 29);
+  doc.line(clX + 6, y + 23, clX + sigW - 4, y + 23);
   doc.setLineDashPattern([], 0);
+
+  y += 32;
+
+  // ── CGV compacts en bas de page ───────────────────────────────────
+  if (y > H - 38) { doc.addPage(); y = 20; }
+  doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
+  doc.line(MX, y, W - MX, y);
+  y += 3;
+  doc.setFontSize(5.8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
+  doc.text('CONDITIONS GÉNÉRALES', MX, y + 3);
+  doc.setFont('helvetica', 'normal');
+  const cgvLines = [
+    'Art. 1 — Ce devis engage LEBTEX TEXTILE IMPORT à fournir les marchandises désignées aux conditions acceptées par le client.',
+    'Art. 2 — Les délais d\'arrivée sont indicatifs et peuvent varier selon les conditions d\'import, transit et dédouanement. LEBTEX ne peut être tenu responsable de retards.',
+    'Art. 3 — Toute réclamation sur la qualité ou quantité doit être formulée par écrit dans les 48h suivant réception. Les marchandises restent propriété de LEBTEX jusqu\'au paiement intégral.',
+  ];
+  cgvLines.forEach((line, i) => {
+    const wrapped = doc.splitTextToSize(line, CW);
+    doc.text(wrapped, MX, y + 7 + i * 6.5);
+  });
 
   // ── Footer — all pages ────────────────────────────────────────────────
   const pages = (doc as any).internal.getNumberOfPages();

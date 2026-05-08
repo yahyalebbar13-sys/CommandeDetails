@@ -1914,6 +1914,16 @@ const STATUS_GROUPS = [
     borderColor: '#d6d3d1',
     dotColor: '#a8a29e',
   },
+  {
+    key: 'DELIVERED',
+    label: 'Livré',
+    description: 'Commande clôturée',
+    icon: '📦',
+    headerBg: 'linear-gradient(135deg, #1f2937, #374151)',
+    badgeBg: '#f3f4f6', badgeText: '#1f2937',
+    borderColor: '#e5e7eb',
+    dotColor: '#9ca3af',
+  },
 ];
 
 // ── GroupedArticleList ──────────────────────────────────────────────────────
@@ -1928,7 +1938,9 @@ function GroupedArticleList({
 }) {
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     const s = new Set<string>();
-    STATUS_GROUPS.forEach(g => s.add(g.key));
+    STATUS_GROUPS.forEach(g => {
+      if (g.key !== 'DELIVERED') s.add(g.key);
+    });
     return s;
   });
 
@@ -2209,6 +2221,7 @@ export function ClientDetailView({
           'SHIPPED': 4,
           'PI': 5,
           'TO_ORDER': 6,
+          'DELIVERED': 7,
         };
         const weightA = STATUS_WEIGHT[a.status] || 99;
         const weightB = STATUS_WEIGHT[b.status] || 99;
@@ -2249,6 +2262,7 @@ export function ClientDetailView({
     if (status === 'TRANSIT') return { label: 'En Transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-400', icon: '🚢' };
     if (status === 'CUSTOMS') return { label: 'En Dédouanement', cls: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500', icon: '🛃' };
     if (status === 'STOCK') return { label: 'En Stock', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', icon: '✅' };
+    if (status === 'DELIVERED') return { label: 'Livré', cls: 'bg-stone-800 text-stone-200 border-stone-700', dot: 'bg-stone-600', icon: '📦' };
     return { label: status, cls: 'bg-stone-100 text-stone-600 border-stone-200', dot: 'bg-stone-400', icon: '📦' };
   };
 

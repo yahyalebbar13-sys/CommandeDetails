@@ -25,17 +25,18 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [fraisSupp, setFraisSupp] = useState(String(DEFAULT_FRAIS.supp));
   const [isExporting, setIsExporting] = useState(false);
 
-  // PI articles only
+  // Only PI articles that have a clientName assigned
   const piArticles = useMemo(() =>
-    articles.filter(a => a.status === 'PI' || a.status === 'pi')
+    articles.filter(a => (a.status === 'PI' || a.status === 'pi') && a.clientName && a.clientName.trim() !== '')
       .filter(a => {
         if (!search.trim()) return true;
         const q = search.toLowerCase();
         return (a.categoryId || '').toLowerCase().includes(q) ||
           (a.name || '').toLowerCase().includes(q) ||
-          (a.supplierId || '').toLowerCase().includes(q);
+          (a.supplierId || '').toLowerCase().includes(q) ||
+          (a.clientName || '').toLowerCase().includes(q);
       })
-      .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || ''))
+      .sort((a, b) => (a.clientName || '').localeCompare(b.clientName || '') || (a.categoryId || '').localeCompare(b.categoryId || ''))
   , [articles, search]);
 
   // Compute cost for selected article
