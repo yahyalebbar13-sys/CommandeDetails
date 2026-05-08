@@ -2037,11 +2037,8 @@ export async function exportDevisClientPIPDF(params: {
     head: [['N°', 'Désignation', 'Quantité', 'Prix Unit. (MAD)', 'Total (MAD)']],
     body: lineItems,
     foot: [[
-      '',
-      'TOTAL DEVIS',
-      fmtQty(article.quantity, article.unitOfMeasure),
-      '',
-      prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      { content: 'TOTAL DEVIS', colSpan: 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const, paddingRight: 15 } },
+      { content: prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
     ]],
     margin: { left: MX, right: MX, bottom: 50 },
     styles: {

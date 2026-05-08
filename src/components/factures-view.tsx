@@ -393,11 +393,15 @@ export default function FacturesView({
                 {selectedFactureArticles.map((o) => {
                   const isZipper = isZipperCategory(o.categoryId);
                   return (
-                    <TableRow key={o.id} className="hover:bg-stone-50/50 transition-colors border-stone-100 group">
+                    <TableRow 
+                      key={o.id} 
+                      className="hover:bg-stone-50/50 transition-colors border-stone-100 group cursor-pointer"
+                      onClick={() => setEditingArticle(o)}
+                    >
                       <TableCell className="py-3 px-8">
                         <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
                           <button 
-                            onClick={() => onNavigateToCategory(o.categoryId)}
+                            onClick={(e) => { e.stopPropagation(); onNavigateToCategory(o.categoryId); }}
                             className="group-hover:text-amber-600 flex items-center gap-2 transition-colors text-left"
                           >
                             {o.name} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
