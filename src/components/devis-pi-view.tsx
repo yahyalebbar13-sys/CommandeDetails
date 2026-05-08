@@ -62,6 +62,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     const partFraisMad = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * totalFrais : 0;
 
     const cat = categories.find(c => c.name === selectedArticle.categoryId || c.id === selectedArticle.categoryId);
+    const hasCustData = cat && cat.customsValuePerKg != null;
     const nw = Number(selectedArticle.netWeight) || 0;
     const customsVpKg = Number(cat?.customsValuePerKg) || 0;
     const di = (cat?.importDutyRate ?? 0) / 100;
@@ -79,11 +80,11 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
     const coutAchatMad = qty * prix * tc;
     const fretPartMad = partFret$ * tc;
-    const coutTotalMad = coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad;
-    const coutUniteMad = qty > 0 ? coutTotalMad / qty : 0;
+    const coutTotalMad = hasCustData ? coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad : 0;
+    const coutUniteMad = hasCustData && qty > 0 ? coutTotalMad / qty : 0;
     const marge = Number(margePercent) || 0;
-    const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
-    const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
+    const prixVenteUniteMad = hasCustData ? coutUniteMad * (1 + marge / 100) : 0;
+    const prixVenteTotalMad = hasCustData ? coutTotalMad * (1 + marge / 100) : 0;
 
     return {
       qty, prix, cbm, cbmTotal, fretTotal$, partFret$, partFraisMad,
@@ -91,6 +92,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad,
       fraisTransitMad, fraisChangeMad, fraisSuppMad,
       isEstimated: !linkedFac,
+      hasCustData,
     };
   }, [selectedArticle, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, articles, factures, categories]);
 
@@ -213,7 +215,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                 </div>
               </div>
 
-              {(!selectedArticle.purchasePricePerUnit || !selectedArticle.netWeight || !selectedArticle.cubicMeasurement || !selectedArticle.quantity) ? (
+              {(!selectedArticle.purchasePricePerUnit || !selectedArticle.netWeight || !selectedArticle.cubicMeasurement || !selectedArticle.quantity || (computed && !computed.hasCustData)) ? (
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center space-y-2">
                   <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Informations incomplètes</p>
                   <p className="text-sm font-bold text-red-800">Impossible de calculer le devis. Veuillez renseigner :</p>
@@ -222,6 +224,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                     {!selectedArticle.purchasePricePerUnit && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Prix d'achat</span>}
                     {!selectedArticle.netWeight && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Poids Net (NW)</span>}
                     {!selectedArticle.cubicMeasurement && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Volume (CBM)</span>}
+                    {(computed && !computed.hasCustData) && <span className="bg-white text-red-600 text-[10px] font-black px-3 py-1 rounded-full shadow-sm">Données Douanières Catégorie</span>}
                   </div>
                 </div>
               ) : (

@@ -131,8 +131,8 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       const pauDollar = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(a.purchasePricePerUnit)) || 0;
       const valAchatMad = qty * pauDollar * tauxChange;
 
-      const mtTotal = valAchatMad + fraisCmd + totalDouane;
-      const pauTtc = qty > 0 ? mtTotal / qty : 0;
+      const mtTotal = hasCustData ? (valAchatMad + fraisCmd + totalDouane) : 0;
+      const pauTtc = (hasCustData && qty > 0) ? mtTotal / qty : 0;
 
       return {
         ...a,
