@@ -1819,39 +1819,40 @@ export async function exportDevisClientPIPDF(params: {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
-  const {
-    article, tauxChange, coutTotalMad, coutUniteMad,
-    margePercent, prixVenteUniteMad, prixVenteTotalMad, isEstimated,
-    fraisDetails
-  } = params;
+  const { article, prixVenteUniteMad, prixVenteTotalMad } = params;
 
-  const NAVY:   [number,number,number] = [15, 23, 42];
-  const GOLD:   [number,number,number] = [196, 160, 98];
-  const EMERALD:[number,number,number] = [5, 150, 105];
-  const WHITE:  [number,number,number] = [255, 255, 255];
-  const MUTED:  [number,number,number] = [100, 116, 139];
-  const BORDER: [number,number,number] = [226, 232, 240];
-  const BG:     [number,number,number] = [248, 250, 252];
-  const GOLD_L: [number,number,number] = [254, 249, 240];
-  const INDIGO: [number,number,number] = [79, 70, 229];
-  const AMBER:  [number,number,number] = [217, 119, 6];
+  // ── Brand palette (same as export-client-commande) ─────────────────────────
+  const NAVY:      [number,number,number] = [15, 23, 42];
+  const GOLD:      [number,number,number] = [196, 160, 98];
+  const WHITE:     [number,number,number] = [255, 255, 255];
+  const MUTED:     [number,number,number] = [100, 116, 139];
+  const BORDER:    [number,number,number] = [226, 232, 240];
+  const BG:        [number,number,number] = [248, 250, 252];
+  const GOLD_LIGHT:[number,number,number] = [254, 249, 240];
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const MX = 15;
   const CW = W - MX * 2;
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const ref = `DEV-PI-${Date.now().toString().slice(-8)}`;
+  const ref = `DEV-LBX-${Date.now().toString().slice(-8)}`;
 
-  // ── Header band ────────────────────────────────────────────────────────────
+  const fmtNum = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const fmtQty = (n: number, u: string) => `${fmtNum(Number(n))} ${u || ''}`.trim();
+
+  // ════════════════════════════════════════════════════════════════════
+  // PAGE 1 — DEVIS
+  // ════════════════════════════════════════════════════════════════════
+
+  // ── Header band ──────────────────────────────────────────────────────
   doc.setFillColor(...NAVY);
   doc.rect(0, 0, W, 38, 'F');
   doc.setFillColor(...GOLD);
   doc.rect(0, 0, 5, 38, 'F');
 
-  // Logo
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
@@ -1866,86 +1867,95 @@ export async function exportDevisClientPIPDF(params: {
   });
 
   doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-  doc.text('DEVIS PRIX ESTIMATIF', W - MX, 17, { align: 'right' });
+  doc.text('DEVIS', W - MX, 18, { align: 'right' });
   doc.setFontSize(8); doc.setFont('helvetica', 'normal');
   doc.setTextColor(...GOLD);
-  doc.text(`Réf : ${ref}`, W - MX, 25, { align: 'right' });
+  doc.text(`Réf : ${ref}`, W - MX, 26, { align: 'right' });
   doc.setTextColor(148, 163, 184);
-  doc.text(`Date : ${today}`, W - MX, 30, { align: 'right' });
+  doc.text(`Date : ${today}`, W - MX, 31, { align: 'right' });
 
   let y = 44;
 
-  // ── Estimation notice ───────────────────────────────────────────────────────
-  const noticeBg: [number,number,number] = isEstimated ? [255, 251, 235] : [240, 253, 244];
-  const noticeBorder: [number,number,number] = isEstimated ? [253, 230, 138] : [167, 243, 208];
-  const noticeText: [number,number,number] = isEstimated ? [146, 64, 14] : [22, 101, 52];
-  doc.setFillColor(...noticeBg);
-  doc.setDrawColor(...noticeBorder);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(MX, y, CW, 9, 1, 1, 'FD');
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...noticeText);
-  const noticeMsg = isEstimated
-    ? '⚠  PRIX ESTIMATIF — Basé sur des hypothèses de transport et de taux de change. Non contractuel.'
-    : '✓  PRIX BASÉ SUR UN DOSSIER RÉEL — Données de transport et douane certifiées.';
-  doc.text(noticeMsg, W / 2, y + 5.8, { align: 'center' });
-  y += 14;
+  // ── FROM / TO ─────────────────────────────────────────────────────────
+  const colW = (CW - 6) / 2;
 
-  // ── Article banner ──────────────────────────────────────────────────────────
-  doc.setFillColor(...NAVY);
-  doc.roundedRect(MX, y, CW, 16, 1.5, 1.5, 'F');
+  // FROM — LEBTEX
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, colW, 34, 1, 1, 'FD');
   doc.setFillColor(...GOLD);
-  doc.rect(MX, y, 5, 16, 'F');
-  doc.roundedRect(MX, y, 5, 16, 1.5, 1.5, 'F');
+  doc.roundedRect(MX, y, colW, 6, 1, 1, 'F');
+  doc.rect(MX, y + 3, colW, 3, 'F');
+  doc.setTextColor(...NAVY); doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+  doc.text('ÉMETTEUR', MX + 4, y + 4.5);
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+  doc.text('LEBTEX TEXTILE IMPORT', MX + 4, y + 12);
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+  doc.text('31 Rue 65, Lot. Al Hamd Ain-Chock', MX + 4, y + 17);
+  doc.text('Casablanca, Maroc', MX + 4, y + 21.5);
+  doc.text('Tél : +212 6 61 10 15 60', MX + 4, y + 26);
+  doc.text('Contact.lebtex@gmail.com', MX + 4, y + 30);
+
+  // TO — Client
+  const toX = MX + colW + 6;
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER);
+  doc.roundedRect(toX, y, colW, 34, 1, 1, 'FD');
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(toX, y, colW, 6, 1, 1, 'F');
+  doc.rect(toX, y + 3, colW, 3, 'F');
+  doc.setTextColor(...WHITE); doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+  doc.text('CLIENT', toX + 4, y + 4.5);
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+  doc.text((article.clientName || 'NOM DU CLIENT').toUpperCase(), toX + 4, y + 12);
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+  doc.text(article.clientAddress  || 'Adresse : ________________________', toX + 4, y + 17);
+  doc.text(article.clientCity     || 'Ville / Pays : ____________________', toX + 4, y + 21.5);
+  doc.text(article.clientTel      || 'Tél : _____________________________', toX + 4, y + 26);
+  doc.text(article.clientEmail    || 'Email : ___________________________', toX + 4, y + 30);
+
+  y += 40;
+
+  // ── Article banner ────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MX, y, CW, 14, 1.5, 1.5, 'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(MX, y, 5, 14, 'F');
+  doc.roundedRect(MX, y, 5, 14, 1.5, 1.5, 'F');
 
   doc.setTextColor(...WHITE); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-  const artName = (article.name || article.categoryId || 'ARTICLE').toUpperCase();
-  doc.text(artName, MX + 10, y + 7);
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...GOLD);
-  doc.text(`${Number(article.quantity).toLocaleString('fr-FR')} ${article.unitOfMeasure || 'u'}`, MX + 10, y + 12.5);
+  doc.text((article.name || article.categoryId || 'ARTICLE').toUpperCase(), MX + 10, y + 9.5);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GOLD);
+  doc.text(`QTÉ : ${fmtQty(article.quantity, article.unitOfMeasure)}`, W - MX - 2, y + 5.5, { align: 'right' });
+  doc.setTextColor(148, 163, 184); doc.setFontSize(7);
+  doc.text(`Unité : ${article.unitOfMeasure || '—'}`, W - MX - 2, y + 10.5, { align: 'right' });
 
-  // Tags right
-  const tags = [
-    article.supplierId && `Fourn: ${article.supplierId}`,
-    article.size && article.size !== 'various' && article.size.toUpperCase(),
-    article.color && article.color !== 'various' && article.color.toUpperCase(),
-  ].filter(Boolean) as string[];
-  let tagX = W - MX - 2;
-  tags.reverse().forEach(tag => {
-    doc.setFontSize(7); doc.setFont('helvetica', 'bold');
-    const tw = doc.getTextWidth(tag) + 6;
-    tagX -= tw;
-    doc.setFillColor(255,255,255, 0.1 as any);
-    doc.setFillColor(30, 40, 60);
-    doc.roundedRect(tagX, y + 4, tw, 6, 1, 1, 'F');
-    doc.setTextColor(196, 160, 98);
-    doc.text(tag, tagX + 3, y + 8.5);
-    tagX -= 3;
-  });
+  y += 20;
 
-  y += 22;
-
-  // ── Specs grid ─────────────────────────────────────────────────────────────
+  // ── Spécifications ────────────────────────────────────────────────────
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-  doc.text('SPÉCIFICATIONS', MX, y);
+  doc.text('SPÉCIFICATIONS DE LA COMMANDE', MX, y);
   doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
-  doc.line(MX + 32, y - 1, W - MX, y - 1);
+  doc.line(MX + 65, y - 1, W - MX, y - 1);
   y += 4;
 
+  const colorLabel = (() => {
+    const cb: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
+    if (cb.length > 0) return `${cb.length} COULEUR(S)`;
+    return (article.color && article.color !== 'various') ? article.color.toUpperCase() : '—';
+  })();
+
   const specs: [string, string][] = [
-    ['Catégorie / Produit', (article.categoryId || '—').toUpperCase()],
-    ['Quantité commandée', `${Number(article.quantity).toLocaleString('fr-FR')} ${article.unitOfMeasure || 'u'}`],
-    ['Taille', article.size && article.size !== 'various' ? article.size.toUpperCase() : 'DIVERSES'],
-    ['Couleur', article.color && article.color !== 'various' ? article.color.toUpperCase() : 'DIVERSES'],
-    ['Prix achat unitaire (PI)', `${Number(article.purchasePricePerUnit || 0).toFixed(4)} $`],
-    ['Taux de change estimé', `${tauxChange.toFixed(4)} MAD / $`],
+    ['Désignation / Catégorie', (article.categoryId || '—').toUpperCase()],
+    ['Taille',                  article.size && article.size !== 'various' ? article.size.toUpperCase() : 'DIVERSES'],
+    ['Couleur',                 colorLabel],
+    ['Quantité commandée',      fmtQty(article.quantity, article.unitOfMeasure)],
+    ['Date de commande',        article.orderDate || todayStr],
+    ["Date d'arrivée estimée",  article.arrivalDate || 'À confirmer'],
   ];
   if (article.zipperType) {
     specs.push(['Type Fermeture', article.zipperType.toUpperCase()]);
     specs.push(['Curseur / Type', `${article.slider || '—'} / ${article.sliderType || '—'}`.toUpperCase()]);
   }
-  if (article.specs) specs.push(['Notes techniques', article.specs]);
+  if (article.specs) specs.push(['Notes Techniques', article.specs]);
 
   const cellW = CW / 2;
   const cellH = 10;
@@ -1954,7 +1964,7 @@ export async function exportDevisClientPIPDF(params: {
     const row = Math.floor(i / 2);
     const cx = MX + col * cellW;
     const cy = y + row * cellH;
-    doc.setFillColor(...(col === 0 ? BG : WHITE));
+    if (col === 0) doc.setFillColor(...BG); else doc.setFillColor(...WHITE);
     doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
     doc.rect(cx, cy, cellW, cellH, 'FD');
     doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
@@ -1965,115 +1975,186 @@ export async function exportDevisClientPIPDF(params: {
 
   y += Math.ceil(specs.length / 2) * cellH + 10;
 
-  // ── Cost breakdown table ────────────────────────────────────────────────────
+  // ── Tableau de prix ───────────────────────────────────────────────────
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-  doc.text('DÉTAIL DU PRIX DE REVIENT TTC ESTIMATIF', MX, y);
+  doc.text('RÉCAPITULATIF DU DEVIS', MX, y);
   doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
-  doc.line(MX + 78, y - 1, W - MX, y - 1);
+  doc.line(MX + 48, y - 1, W - MX, y - 1);
   y += 3;
 
-  const fmtMAD = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' MAD';
-  const fmtPct = (n: number) => n.toFixed(1) + '%';
-  const totalMad = coutTotalMad;
+  const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
+  const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
 
-  const costRows = [
-    ['Achat FOB (Qty × PA$ × Taux)', fmtMAD(fraisDetails.coutAchatMad), fmtPct(totalMad > 0 ? fraisDetails.coutAchatMad / totalMad * 100 : 0)],
-    ['Fret maritime (part article)', fmtMAD(fraisDetails.fretPartMad), fmtPct(totalMad > 0 ? fraisDetails.fretPartMad / totalMad * 100 : 0)],
-    ['Frais de dossier (transitaire + change + divers)', fmtMAD(fraisDetails.fraisTransitMad + fraisDetails.fraisChangeMad + fraisDetails.fraisSuppMad), fmtPct(totalMad > 0 ? (fraisDetails.fraisTransitMad + fraisDetails.fraisChangeMad + fraisDetails.fraisSuppMad) / totalMad * 100 : 0)],
-    ['Droits de douane + TVA (estimatifs)', fmtMAD(fraisDetails.totalTaxesMad), fmtPct(totalMad > 0 ? fraisDetails.totalTaxesMad / totalMad * 100 : 0)],
-  ];
+  // Build line items — quantity by color or size or single line
+  const lineItems: [string, string, string, string, string][] = [];
+
+  if (colorBreakdown.length > 0) {
+    colorBreakdown.forEach((r: any, i: number) => {
+      const qty = Number(r.rolls || 0);
+      const lineTotal = qty * prixVenteUniteMad;
+      lineItems.push([
+        String(i + 1),
+        `${(article.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}`,
+        fmtQty(qty, article.unitOfMeasure),
+        prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        lineTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ]);
+    });
+  } else if (sizeBreakdown.length > 0) {
+    sizeBreakdown.forEach((r: any, i: number) => {
+      const qty = Number(r.quantity || 0);
+      const lineTotal = qty * prixVenteUniteMad;
+      lineItems.push([
+        String(i + 1),
+        `${(article.categoryId || '—').toUpperCase()} — Taille ${(r.size || '—').toUpperCase()}`,
+        fmtQty(qty, article.unitOfMeasure),
+        prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        lineTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ]);
+    });
+  } else {
+    lineItems.push([
+      '1',
+      (article.name || article.categoryId || '—').toUpperCase(),
+      fmtQty(article.quantity, article.unitOfMeasure),
+      prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    ]);
+  }
+
+  const totalQty = lineItems.reduce((s, r) => {
+    const n = parseFloat(r[2].replace(/\s/g, '').replace(',', '.'));
+    return s + (isNaN(n) ? 0 : n);
+  }, 0);
 
   autoTable(doc, {
     startY: y,
-    head: [['Composante', 'Montant (MAD)', '% du Total']],
-    body: costRows,
-    foot: [['COÛT DE REVIENT TTC TOTAL', fmtMAD(coutTotalMad), '100%']],
-    margin: { left: MX, right: MX, bottom: 50 },
-    styles: { fontSize: 8, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, font: 'helvetica', textColor: [30, 41, 59], lineColor: BORDER, lineWidth: 0.2 },
+    head: [['N°', 'Désignation', 'Quantité', `Prix Unit. (MAD)`, 'Total (MAD)']],
+    body: lineItems,
+    foot: [[
+      { content: '', colSpan: 2, styles: { halign: 'left' as const } },
+      { content: fmtQty(totalQty, article.unitOfMeasure), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: 'TOTAL DEVIS', styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: prixVenteTotalMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+    ]],
+    margin: { left: MX, right: MX, bottom: 25 },
+    styles: {
+      fontSize: 8, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+      font: 'helvetica', textColor: [30, 41, 59], lineColor: BORDER, lineWidth: 0.15,
+    },
     headStyles: { fillColor: NAVY, textColor: WHITE, fontSize: 7.5, fontStyle: 'bold' },
     footStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: 'bold', fontSize: 8.5 },
-    alternateRowStyles: { fillColor: BG },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: {
-      0: { fontStyle: 'bold' },
-      1: { halign: 'right', textColor: INDIGO, fontStyle: 'bold' },
-      2: { halign: 'right', cellWidth: 24, textColor: MUTED },
+      0: { cellWidth: 8, halign: 'center', textColor: MUTED },
+      1: { fontStyle: 'bold' },
+      2: { halign: 'right', cellWidth: 30 },
+      3: { halign: 'right', cellWidth: 35 },
+      4: { halign: 'right', cellWidth: 35, fontStyle: 'bold', textColor: NAVY },
     },
-    theme: 'grid',
+    didParseCell: (data: any) => {
+      if (data.row.section === 'foot') {
+        data.cell.styles.fillColor = GOLD_LIGHT;
+        data.cell.styles.textColor = NAVY;
+      }
+    },
   });
 
+  // ── Validité du devis ─────────────────────────────────────────────────
   y = (doc as any).lastAutoTable.finalY + 8;
+  if (y > H - 40) { doc.addPage(); y = 20; }
 
-  // ── Unit cost + margin box ──────────────────────────────────────────────────
-  if (y > H - 80) { doc.addPage(); y = 20; }
-
-  // Left: unit cost
-  const halfW = (CW - 6) / 2;
-  doc.setFillColor(...BG);
-  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
-  doc.roundedRect(MX, y, halfW, 36, 1.5, 1.5, 'FD');
-  doc.setFillColor(...INDIGO);
-  doc.roundedRect(MX, y, halfW, 6, 1.5, 1.5, 'F');
-  doc.rect(MX, y + 3, halfW, 3, 'F');
-  doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...WHITE);
-  doc.text('COÛT DE REVIENT UNITAIRE', MX + 4, y + 4.5);
-
-  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(79, 70, 229);
-  doc.text(coutUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), MX + 4, y + 20);
-  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
-  doc.text(`MAD / ${article.unitOfMeasure || 'u'}`, MX + 4, y + 27);
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
-  doc.text(`Basé sur ${Number(article.quantity).toLocaleString('fr-FR')} ${article.unitOfMeasure || 'u'}`, MX + 4, y + 33);
-
-  // Right: recommended client price
-  const rightX = MX + halfW + 6;
-  doc.setFillColor(...GOLD_L);
-  doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
-  doc.roundedRect(rightX, y, halfW, 36, 1.5, 1.5, 'FD');
-  doc.setFillColor(...GOLD);
-  doc.roundedRect(rightX, y, halfW, 6, 1.5, 1.5, 'F');
-  doc.rect(rightX, y + 3, halfW, 3, 'F');
-  doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-  doc.text(`PRIX RECOMMANDÉ CLIENT (+${margePercent.toFixed(1)}%)`, rightX + 4, y + 4.5);
-
-  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...AMBER);
-  doc.text(prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), rightX + 4, y + 20);
-  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
-  doc.text(`MAD / ${article.unitOfMeasure || 'u'}`, rightX + 4, y + 27);
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
-  doc.text(`Total : ${prixVenteTotalMad.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD`, rightX + 4, y + 33);
-
-  y += 42;
-
-  // ── Marge summary line ──────────────────────────────────────────────────────
-  const margeMad = prixVenteTotalMad - coutTotalMad;
-  doc.setFillColor(240, 253, 244); doc.setDrawColor(167, 243, 208); doc.setLineWidth(0.3);
-  doc.roundedRect(MX, y, CW, 12, 1, 1, 'FD');
-  doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(22, 101, 52);
-  doc.text(`Marge brute estimative : ${fmtMAD(margeMad)}  (${margePercent.toFixed(1)}% du prix de revient)`, MX + 5, y + 7.5);
-  y += 17;
-
-  // ── Disclaimer ─────────────────────────────────────────────────────────────
-  if (y > H - 60) { doc.addPage(); y = 20; }
-  doc.setFillColor(...GOLD_L); doc.setDrawColor(...GOLD); doc.setLineWidth(0.3);
-  doc.roundedRect(MX, y, CW, 24, 1, 1, 'FD');
-  doc.setFillColor(...GOLD); doc.rect(MX, y, 3, 24, 'F');
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, CW, 16, 1, 1, 'FD');
+  doc.setFillColor(...GOLD); doc.rect(MX, y, 3, 16, 'F');
   doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
-  doc.text('NOTES ET CONDITIONS', MX + 7, y + 5.5);
-  const notes = [
-    '1. Ce devis est établi à titre indicatif sur la base d\'estimations de frais de transport et de droits de douane.',
-    '2. Le prix de revient TTC inclut : coût FOB, fret maritime estimé, droits de douane, TVA et frais de dossier.',
-    '3. Le prix recommandé client est calculé avec une marge commerciale de ' + margePercent.toFixed(1) + '% sur le coût de revient.',
-    '4. Les taux réels (change, douane, fret) peuvent varier au moment de la commande effective.',
-  ];
-  doc.setFontSize(6.8); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 80);
-  notes.forEach((n, i) => doc.text(n, MX + 7, y + 10 + i * 3.5));
-  y += 30;
+  doc.text('VALIDITÉ & MODALITÉS', MX + 7, y + 6);
+  doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+  doc.text('Ce devis est valable 30 jours à compter de sa date d\'émission. Les prix sont indiqués en Dirhams Marocains (MAD), toutes taxes comprises.', MX + 7, y + 11, { maxWidth: CW - 12 });
 
-  // ── Footer all pages ────────────────────────────────────────────────────────
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
+  // ════════════════════════════════════════════════════════════════════
+  // PAGE 2 — CONDITIONS & SIGNATURES
+  // ════════════════════════════════════════════════════════════════════
+  doc.addPage();
+  y = 20;
+
+  // ── Page 2 header strip ───────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 14, 'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 0, 5, 14, 'F');
+  doc.setTextColor(...WHITE); doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+  doc.text('CONDITIONS GÉNÉRALES DE VENTE', MX + 5, 9);
+  doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+  doc.text(`Réf : ${ref}  —  ${today}`, W - MX, 9, { align: 'right' });
+
+  y = 22;
+
+  // ── Conditions block ──────────────────────────────────────────────────
+  const cgvItems = [
+    { title: 'Art. 1 — Objet', text: 'Le présent devis décrit les conditions dans lesquelles LEBTEX TEXTILE IMPORT s\'engage à fournir les marchandises désignées ci-avant au client acceptant les présentes conditions.' },
+    { title: 'Art. 2 — Commande ferme', text: 'Toute commande accompagnée d\'un acompte est réputée ferme, définitive, non annulable et non remboursable. La validation du devis par le client vaut acceptation sans réserve des présentes conditions.' },
+    { title: 'Art. 3 — Paiement', text: 'Les conditions de paiement sont les suivantes : acompte à la confirmation de la commande, solde intégral exigible à la livraison ou à la réception des marchandises, sauf accord écrit préalable.' },
+    { title: 'Art. 4 — Délais de livraison', text: 'Les délais d\'arrivée indiqués sont donnés à titre prévisionnel et peuvent varier selon les conditions d\'importation, de transit maritime et de dédouanement. LEBTEX ne saurait être tenu responsable de retards indépendants de sa volonté.' },
+    { title: 'Art. 5 — Réserves & réclamations', text: 'Toute réclamation relative à la qualité ou aux quantités livrées doit être formulée par écrit dans les 48 heures suivant la réception des marchandises. Passé ce délai, aucune réclamation ne pourra être prise en compte.' },
+    { title: 'Art. 6 — Propriété & responsabilité', text: 'Les marchandises restent la propriété de LEBTEX TEXTILE IMPORT jusqu\'au paiement intégral. Les risques sont transférés au client dès la remise des marchandises au transporteur ou lors du retrait en entrepôt.' },
+  ];
+
+  cgvItems.forEach(item => {
+    if (y > H - 60) { doc.addPage(); y = 20; }
+    doc.setFillColor(...BG); doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
+    const textLines = doc.splitTextToSize(item.text, CW - 10);
+    const boxH = 7 + textLines.length * 4.2;
+    doc.roundedRect(MX, y, CW, boxH, 1, 1, 'FD');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+    doc.text(item.title, MX + 4, y + 5);
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 80);
+    doc.text(textLines, MX + 4, y + 9.5);
+    y += boxH + 4;
+  });
+
+  // ── Signature block ───────────────────────────────────────────────────
+  if (y > H - 55) { doc.addPage(); y = 20; }
+
+  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.line(MX, y, W - MX, y);
+  y += 6;
+
+  const sigW = (CW - 8) / 2;
+
+  // LEBTEX box
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER);
+  doc.roundedRect(MX, y, sigW, 32, 1, 1, 'FD');
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MX, y, sigW, 6, 1, 1, 'F');
+  doc.rect(MX, y + 3, sigW, 3, 'F');
+  doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...WHITE);
+  doc.text('ÉMIS PAR LEBTEX TEXTILE IMPORT', MX + 4, y + 4.5);
+  doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+  doc.text('Service Commercial', MX + 4, y + 12);
+  doc.text('Cachet et signature :', MX + 4, y + 17);
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+  doc.line(MX + 6, y + 29, MX + sigW - 4, y + 29);
+
+  // Client box
+  const clX = MX + sigW + 8;
+  doc.setFillColor(...BG); doc.setDrawColor(...BORDER);
+  doc.roundedRect(clX, y, sigW, 32, 1, 1, 'FD');
+  doc.setFillColor(...BORDER);
+  doc.roundedRect(clX, y, sigW, 6, 1, 1, 'F');
+  doc.rect(clX, y + 3, sigW, 3, 'F');
+  doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
+  doc.text('BON POUR ACCORD — CLIENT', clX + 4, y + 4.5);
+  doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+  doc.text('Nom : ___________________________', clX + 4, y + 12);
+  doc.text('Lu et approuvé (cachet & signature) :', clX + 4, y + 17);
+  doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([1, 1], 0);
+  doc.line(clX + 6, y + 29, clX + sigW - 4, y + 29);
+  doc.setLineDashPattern([], 0);
+
+  // ── Footer — all pages ────────────────────────────────────────────────
+  const pages = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
     doc.line(MX, H - 18, W - MX, H - 18);
@@ -2083,10 +2164,11 @@ export async function exportDevisClientPIPDF(params: {
     doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
     doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
     doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
-    doc.text(`Devis Prix Estimatif PI  |  ${ref}  |  ${todayStr}  |  CONFIDENTIEL`, MX + 5, H - 3.5);
-    doc.text(`Page ${i} / ${pageCount}`, W - MX, H - 3.5, { align: 'right' });
+    doc.text(`Devis  |  ${ref}  |  ${todayStr}  |  CONFIDENTIEL`, MX + 5, H - 3.5);
+    doc.text(`Page ${i} / ${pages}`, W - MX, H - 3.5, { align: 'right' });
   }
 
-  const artLabel = (article.name || article.categoryId || 'PI').replace(/\s+/g, '_').toUpperCase();
-  doc.save(`Devis_PI_${artLabel}_${todayStr}.pdf`);
+  const artLabel = (article.name || article.categoryId || 'DEVIS').replace(/\s+/g, '_').toUpperCase();
+  doc.save(`DEVIS-LEBTEX-${artLabel}-${todayStr}.pdf`);
 }
+
