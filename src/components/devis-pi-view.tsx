@@ -315,6 +315,8 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
               </button>
             </>
           )}
+          </>
+        )}
         </div>
       </div>
     </div>
