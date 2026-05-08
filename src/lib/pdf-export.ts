@@ -1790,3 +1790,303 @@ export async function exportClientDossierPDF(
   const cleanName = clientName.replace(/\s+/g, "_").toUpperCase();
   doc.save(`DOSSIER_CLIENT_${cleanName}_${todayStr}.pdf`);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DEVIS CLIENT — Prix de Revient TTC Estimatif (PI) + Marge Commerciale
+//  Usage : rare — quand on veut communiquer un prix recommandé au client
+//          avant la commande fournisseur
+// ─────────────────────────────────────────────────────────────────────────────
+export async function exportDevisClientPIPDF(params: {
+  article: any;
+  tauxChange: number;
+  coutTotalMad: number;
+  coutUniteMad: number;
+  coutTotal$: number;
+  coutUnite$: number;
+  margePercent: number;          // ex: 15 => 15%
+  prixVenteUniteMad: number;     // coutUniteMad * (1 + marge/100)
+  prixVenteTotalMad: number;
+  isEstimated: boolean;
+  fraisDetails: {
+    fraisTransitMad: number;
+    fraisChangeMad: number;
+    fraisSuppMad: number;
+    fretPartMad: number;
+    totalTaxesMad: number;
+    coutAchatMad: number;
+  };
+}) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const {
+    article, tauxChange, coutTotalMad, coutUniteMad,
+    margePercent, prixVenteUniteMad, prixVenteTotalMad, isEstimated,
+    fraisDetails
+  } = params;
+
+  const NAVY:   [number,number,number] = [15, 23, 42];
+  const GOLD:   [number,number,number] = [196, 160, 98];
+  const EMERALD:[number,number,number] = [5, 150, 105];
+  const WHITE:  [number,number,number] = [255, 255, 255];
+  const MUTED:  [number,number,number] = [100, 116, 139];
+  const BORDER: [number,number,number] = [226, 232, 240];
+  const BG:     [number,number,number] = [248, 250, 252];
+  const GOLD_L: [number,number,number] = [254, 249, 240];
+  const INDIGO: [number,number,number] = [79, 70, 229];
+  const AMBER:  [number,number,number] = [217, 119, 6];
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const MX = 15;
+  const CW = W - MX * 2;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const ref = `DEV-PI-${Date.now().toString().slice(-8)}`;
+
+  // ── Header band ────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 38, 'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 0, 5, 38, 'F');
+
+  // Logo
+  await new Promise<void>(resolve => {
+    const img = new Image();
+    img.src = '/logo.png';
+    img.onload = () => { doc.addImage(img, 'PNG', 10, 6, 32, 16); resolve(); };
+    img.onerror = () => {
+      doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+      doc.text('LEBTEX', 12, 20);
+      doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GOLD); doc.text('TEXTILE IMPORT', 12, 26);
+      resolve();
+    };
+  });
+
+  doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+  doc.text('DEVIS PRIX ESTIMATIF', W - MX, 17, { align: 'right' });
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...GOLD);
+  doc.text(`Réf : ${ref}`, W - MX, 25, { align: 'right' });
+  doc.setTextColor(148, 163, 184);
+  doc.text(`Date : ${today}`, W - MX, 30, { align: 'right' });
+
+  let y = 44;
+
+  // ── Estimation notice ───────────────────────────────────────────────────────
+  const noticeBg: [number,number,number] = isEstimated ? [255, 251, 235] : [240, 253, 244];
+  const noticeBorder: [number,number,number] = isEstimated ? [253, 230, 138] : [167, 243, 208];
+  const noticeText: [number,number,number] = isEstimated ? [146, 64, 14] : [22, 101, 52];
+  doc.setFillColor(...noticeBg);
+  doc.setDrawColor(...noticeBorder);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, CW, 9, 1, 1, 'FD');
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...noticeText);
+  const noticeMsg = isEstimated
+    ? '⚠  PRIX ESTIMATIF — Basé sur des hypothèses de transport et de taux de change. Non contractuel.'
+    : '✓  PRIX BASÉ SUR UN DOSSIER RÉEL — Données de transport et douane certifiées.';
+  doc.text(noticeMsg, W / 2, y + 5.8, { align: 'center' });
+  y += 14;
+
+  // ── Article banner ──────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MX, y, CW, 16, 1.5, 1.5, 'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(MX, y, 5, 16, 'F');
+  doc.roundedRect(MX, y, 5, 16, 1.5, 1.5, 'F');
+
+  doc.setTextColor(...WHITE); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+  const artName = (article.name || article.categoryId || 'ARTICLE').toUpperCase();
+  doc.text(artName, MX + 10, y + 7);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...GOLD);
+  doc.text(`${Number(article.quantity).toLocaleString('fr-FR')} ${article.unitOfMeasure || 'u'}`, MX + 10, y + 12.5);
+
+  // Tags right
+  const tags = [
+    article.supplierId && `Fourn: ${article.supplierId}`,
+    article.size && article.size !== 'various' && article.size.toUpperCase(),
+    article.color && article.color !== 'various' && article.color.toUpperCase(),
+  ].filter(Boolean) as string[];
+  let tagX = W - MX - 2;
+  tags.reverse().forEach(tag => {
+    doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    const tw = doc.getTextWidth(tag) + 6;
+    tagX -= tw;
+    doc.setFillColor(255,255,255, 0.1 as any);
+    doc.setFillColor(30, 40, 60);
+    doc.roundedRect(tagX, y + 4, tw, 6, 1, 1, 'F');
+    doc.setTextColor(196, 160, 98);
+    doc.text(tag, tagX + 3, y + 8.5);
+    tagX -= 3;
+  });
+
+  y += 22;
+
+  // ── Specs grid ─────────────────────────────────────────────────────────────
+  doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+  doc.text('SPÉCIFICATIONS', MX, y);
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+  doc.line(MX + 32, y - 1, W - MX, y - 1);
+  y += 4;
+
+  const specs: [string, string][] = [
+    ['Catégorie / Produit', (article.categoryId || '—').toUpperCase()],
+    ['Quantité commandée', `${Number(article.quantity).toLocaleString('fr-FR')} ${article.unitOfMeasure || 'u'}`],
+    ['Taille', article.size && article.size !== 'various' ? article.size.toUpperCase() : 'DIVERSES'],
+    ['Couleur', article.color && article.color !== 'various' ? article.color.toUpperCase() : 'DIVERSES'],
+    ['Prix achat unitaire (PI)', `${Number(article.purchasePricePerUnit || 0).toFixed(4)} $`],
+    ['Taux de change estimé', `${tauxChange.toFixed(4)} MAD / $`],
+  ];
+  if (article.zipperType) {
+    specs.push(['Type Fermeture', article.zipperType.toUpperCase()]);
+    specs.push(['Curseur / Type', `${article.slider || '—'} / ${article.sliderType || '—'}`.toUpperCase()]);
+  }
+  if (article.specs) specs.push(['Notes techniques', article.specs]);
+
+  const cellW = CW / 2;
+  const cellH = 10;
+  specs.forEach((s, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const cx = MX + col * cellW;
+    const cy = y + row * cellH;
+    doc.setFillColor(...(col === 0 ? BG : WHITE));
+    doc.setDrawColor(...BORDER); doc.setLineWidth(0.2);
+    doc.rect(cx, cy, cellW, cellH, 'FD');
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+    doc.text(s[0].toUpperCase(), cx + 3, cy + 3.5);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+    doc.text(doc.splitTextToSize(s[1], cellW - 6)[0], cx + 3, cy + 8);
+  });
+
+  y += Math.ceil(specs.length / 2) * cellH + 10;
+
+  // ── Cost breakdown table ────────────────────────────────────────────────────
+  doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+  doc.text('DÉTAIL DU PRIX DE REVIENT TTC ESTIMATIF', MX, y);
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.5);
+  doc.line(MX + 78, y - 1, W - MX, y - 1);
+  y += 3;
+
+  const fmtMAD = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' MAD';
+  const fmtPct = (n: number) => n.toFixed(1) + '%';
+  const totalMad = coutTotalMad;
+
+  const costRows = [
+    ['Achat FOB (Qty × PA$ × Taux)', fmtMAD(fraisDetails.coutAchatMad), fmtPct(totalMad > 0 ? fraisDetails.coutAchatMad / totalMad * 100 : 0)],
+    ['Fret maritime (part article)', fmtMAD(fraisDetails.fretPartMad), fmtPct(totalMad > 0 ? fraisDetails.fretPartMad / totalMad * 100 : 0)],
+    ['Frais de dossier (transitaire + change + divers)', fmtMAD(fraisDetails.fraisTransitMad + fraisDetails.fraisChangeMad + fraisDetails.fraisSuppMad), fmtPct(totalMad > 0 ? (fraisDetails.fraisTransitMad + fraisDetails.fraisChangeMad + fraisDetails.fraisSuppMad) / totalMad * 100 : 0)],
+    ['Droits de douane + TVA (estimatifs)', fmtMAD(fraisDetails.totalTaxesMad), fmtPct(totalMad > 0 ? fraisDetails.totalTaxesMad / totalMad * 100 : 0)],
+  ];
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Composante', 'Montant (MAD)', '% du Total']],
+    body: costRows,
+    foot: [['COÛT DE REVIENT TTC TOTAL', fmtMAD(coutTotalMad), '100%']],
+    margin: { left: MX, right: MX, bottom: 50 },
+    styles: { fontSize: 8, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, font: 'helvetica', textColor: [30, 41, 59], lineColor: BORDER, lineWidth: 0.2 },
+    headStyles: { fillColor: NAVY, textColor: WHITE, fontSize: 7.5, fontStyle: 'bold' },
+    footStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: 'bold', fontSize: 8.5 },
+    alternateRowStyles: { fillColor: BG },
+    columnStyles: {
+      0: { fontStyle: 'bold' },
+      1: { halign: 'right', textColor: INDIGO, fontStyle: 'bold' },
+      2: { halign: 'right', cellWidth: 24, textColor: MUTED },
+    },
+    theme: 'grid',
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 8;
+
+  // ── Unit cost + margin box ──────────────────────────────────────────────────
+  if (y > H - 80) { doc.addPage(); y = 20; }
+
+  // Left: unit cost
+  const halfW = (CW - 6) / 2;
+  doc.setFillColor(...BG);
+  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, halfW, 36, 1.5, 1.5, 'FD');
+  doc.setFillColor(...INDIGO);
+  doc.roundedRect(MX, y, halfW, 6, 1.5, 1.5, 'F');
+  doc.rect(MX, y + 3, halfW, 3, 'F');
+  doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...WHITE);
+  doc.text('COÛT DE REVIENT UNITAIRE', MX + 4, y + 4.5);
+
+  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(79, 70, 229);
+  doc.text(coutUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), MX + 4, y + 20);
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
+  doc.text(`MAD / ${article.unitOfMeasure || 'u'}`, MX + 4, y + 27);
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+  doc.text(`Basé sur ${Number(article.quantity).toLocaleString('fr-FR')} ${article.unitOfMeasure || 'u'}`, MX + 4, y + 33);
+
+  // Right: recommended client price
+  const rightX = MX + halfW + 6;
+  doc.setFillColor(...GOLD_L);
+  doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
+  doc.roundedRect(rightX, y, halfW, 36, 1.5, 1.5, 'FD');
+  doc.setFillColor(...GOLD);
+  doc.roundedRect(rightX, y, halfW, 6, 1.5, 1.5, 'F');
+  doc.rect(rightX, y + 3, halfW, 3, 'F');
+  doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+  doc.text(`PRIX RECOMMANDÉ CLIENT (+${margePercent.toFixed(1)}%)`, rightX + 4, y + 4.5);
+
+  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...AMBER);
+  doc.text(prixVenteUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), rightX + 4, y + 20);
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...MUTED);
+  doc.text(`MAD / ${article.unitOfMeasure || 'u'}`, rightX + 4, y + 27);
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+  doc.text(`Total : ${prixVenteTotalMad.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD`, rightX + 4, y + 33);
+
+  y += 42;
+
+  // ── Marge summary line ──────────────────────────────────────────────────────
+  const margeMad = prixVenteTotalMad - coutTotalMad;
+  doc.setFillColor(240, 253, 244); doc.setDrawColor(167, 243, 208); doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, CW, 12, 1, 1, 'FD');
+  doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(22, 101, 52);
+  doc.text(`Marge brute estimative : ${fmtMAD(margeMad)}  (${margePercent.toFixed(1)}% du prix de revient)`, MX + 5, y + 7.5);
+  y += 17;
+
+  // ── Disclaimer ─────────────────────────────────────────────────────────────
+  if (y > H - 60) { doc.addPage(); y = 20; }
+  doc.setFillColor(...GOLD_L); doc.setDrawColor(...GOLD); doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, CW, 24, 1, 1, 'FD');
+  doc.setFillColor(...GOLD); doc.rect(MX, y, 3, 24, 'F');
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
+  doc.text('NOTES ET CONDITIONS', MX + 7, y + 5.5);
+  const notes = [
+    '1. Ce devis est établi à titre indicatif sur la base d\'estimations de frais de transport et de droits de douane.',
+    '2. Le prix de revient TTC inclut : coût FOB, fret maritime estimé, droits de douane, TVA et frais de dossier.',
+    '3. Le prix recommandé client est calculé avec une marge commerciale de ' + margePercent.toFixed(1) + '% sur le coût de revient.',
+    '4. Les taux réels (change, douane, fret) peuvent varier au moment de la commande effective.',
+  ];
+  doc.setFontSize(6.8); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 80);
+  notes.forEach((n, i) => doc.text(n, MX + 7, y + 10 + i * 3.5));
+  y += 30;
+
+  // ── Footer all pages ────────────────────────────────────────────────────────
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...GOLD); doc.setLineWidth(0.4);
+    doc.line(MX, H - 18, W - MX, H - 18);
+    doc.setFontSize(6.3); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED);
+    doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc', W / 2, H - 14.5, { align: 'center' });
+    doc.text('Tél : +212 6 61 10 15 60  |  Email : Contact.lebtex@gmail.com  |  Patente : 34011181  |  ICE : 003823212000094', W / 2, H - 11, { align: 'center' });
+    doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
+    doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+    doc.text(`Devis Prix Estimatif PI  |  ${ref}  |  ${todayStr}  |  CONFIDENTIEL`, MX + 5, H - 3.5);
+    doc.text(`Page ${i} / ${pageCount}`, W - MX, H - 3.5, { align: 'right' });
+  }
+
+  const artLabel = (article.name || article.categoryId || 'PI').replace(/\s+/g, '_').toUpperCase();
+  doc.save(`Devis_PI_${artLabel}_${todayStr}.pdf`);
+}

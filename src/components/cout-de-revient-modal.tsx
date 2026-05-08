@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import {
   Calculator, Package, TrendingUp, Truck, FileText,
   AlertCircle, CheckCircle, Warehouse, DollarSign,
-  Boxes, ArrowRight, Info, RefreshCw, Pencil
+  Boxes, Info, Pencil, FileDown, ReceiptText
 } from 'lucide-react';
+import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 
 interface CoutDeRevientModalProps {
   open: boolean;
@@ -39,6 +40,8 @@ function SummaryLine({ label, value, sub = '', bold = false, accent = '' }: { la
 
 export default function CoutDeRevientModal({ open, onOpenChange, article, factures, articles, categories }: CoutDeRevientModalProps) {
   const [tauxChange, setTauxChange] = useState<string>('10.5');
+  const [margePercent, setMargePercent] = useState<string>('15');
+  const [isExporting, setIsExporting] = useState(false);
 
   // ─── Editable cost fields (MAD) ────────────────────────────────────────────
   const [fraisTransitaire, setFraisTransitaire] = useState<string>(String(DEFAULT_FRAIS_TRANSIT));
@@ -549,6 +552,134 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
                       </p>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* ─── Devis Client (optionnel) ─────────────────────────────────── */}
+              <div className="bg-white rounded-2xl border-2 border-amber-200 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-3 flex items-center gap-2">
+                  <ReceiptText className="w-4 h-4 text-white" />
+                  <p className="text-[10px] font-black text-white uppercase tracking-widest">Devis Prix Client — Optionnel</p>
+                  <span className="ml-auto text-[8px] font-black text-amber-100 bg-amber-600/40 px-2 py-0.5 rounded-full uppercase tracking-wider">Rare · Sur demande</span>
+                </div>
+                <div className="p-4 space-y-4">
+                  <p className="text-[9px] font-bold text-stone-400 uppercase leading-relaxed">
+                    Ajoutez une marge commerciale sur le prix de revient TTC estimatif pour communiquer un prix indicatif au client avant de passer commande.
+                  </p>
+
+                  {/* Marge input */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[9px] font-black text-stone-500 uppercase tracking-widest block">Marge commerciale (%)</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          id="marge-input"
+                          type="number"
+                          min={0}
+                          max={200}
+                          step={0.5}
+                          value={margePercent}
+                          onChange={e => setMargePercent(e.target.value)}
+                          className="h-10 w-24 border-2 border-amber-200 focus:border-amber-400 focus:outline-none rounded-xl px-3 font-black text-stone-900 text-sm text-center"
+                          placeholder="15"
+                        />
+                        <span className="text-sm font-black text-stone-400">%</span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {[10, 15, 20, 25, 30].map(m => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setMargePercent(String(m))}
+                              className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border transition-all ${
+                                Number(margePercent) === m
+                                  ? 'bg-amber-500 text-white border-amber-500'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400'
+                              }`}
+                            >
+                              {m}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Price preview */}
+                  {computed && computed.coutUniteMad > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                        <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Coût Revient / Unité</p>
+                        <p className="text-lg font-black text-indigo-700 leading-none">
+                          {computed.coutUniteMad.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[8px] font-bold text-indigo-400 mt-0.5">MAD / {article.unitOfMeasure || 'u'}</p>
+                      </div>
+                      <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3">
+                        <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-1">Prix Recommandé / Unité</p>
+                        <p className="text-lg font-black text-amber-700 leading-none">
+                          {(computed.coutUniteMad * (1 + (Number(margePercent) || 0) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[8px] font-bold text-amber-500 mt-0.5">MAD / {article.unitOfMeasure || 'u'} · +{margePercent}%</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Total client */}
+                  {computed && computed.coutTotalMad > 0 && (
+                    <div className="bg-stone-900 rounded-xl px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Total Recommandé Client</p>
+                        <p className="text-xl font-black text-amber-400 leading-none mt-0.5">
+                          {(computed.coutTotalMad * (1 + (Number(margePercent) || 0) / 100)).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[8px] font-black text-stone-500 uppercase">Marge brute</p>
+                        <p className="text-sm font-black text-emerald-400">
+                          +{(computed.coutTotalMad * (Number(margePercent) || 0) / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Export devis button */}
+                  <button
+                    id="export-devis-pi-btn"
+                    disabled={!computed || computed.coutUniteMad <= 0 || isExporting}
+                    onClick={async () => {
+                      if (!computed) return;
+                      const marge = Number(margePercent) || 0;
+                      setIsExporting(true);
+                      try {
+                        await exportDevisClientPIPDF({
+                          article,
+                          tauxChange: Number(tauxChange) || 10.5,
+                          coutTotalMad: computed.coutTotalMad,
+                          coutUniteMad: computed.coutUniteMad,
+                          'coutTotal$': computed.coutTotal$,
+                          'coutUnite$': computed.coutUnite$,
+                          margePercent: marge,
+                          prixVenteUniteMad: computed.coutUniteMad * (1 + marge / 100),
+                          prixVenteTotalMad: computed.coutTotalMad * (1 + marge / 100),
+                          isEstimated: computed.isEstimated,
+                          fraisDetails: {
+                            fraisTransitMad: computed.fraisTransitMad,
+                            fraisChangeMad: computed.fraisChangeMad,
+                            fraisSuppMad: computed.fraisSuppMad,
+                            fretPartMad: computed.fretPartMad,
+                            totalTaxesMad: computed.totalTaxesMad,
+                            coutAchatMad: computed.coutAchatMad,
+                          },
+                        });
+                      } finally {
+                        setIsExporting(false);
+                      }
+                    }}
+                    className="w-full h-11 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-amber-500/20"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    {isExporting ? 'Génération...' : 'Exporter le Devis Client (PDF)'}
+                  </button>
                 </div>
               </div>
 
