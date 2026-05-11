@@ -63,6 +63,20 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     }
   };
 
+  const avgFreightPerCbm = useMemo(() => {
+    const validFactures = factures.filter(f =>
+      (Number(f.freightCost) || Number(f.freight) || 0) > 0 &&
+      articles.filter(a => a.factureId === f.id).reduce((s: number, a: any) => s + (a.cubicMeasurement || 0), 0) > 0
+    );
+    if (validFactures.length === 0) return 1500 / CBM_STD;
+    const total = validFactures.reduce((sum, f) => {
+      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      const cbm = articles.filter(a => a.factureId === f.id).reduce((s: number, a: any) => s + (a.cubicMeasurement || 0), 0);
+      return sum + (cbm > 0 ? freight / cbm : 0);
+    }, 0);
+    return total / validFactures.length;
+  }, [factures, articles]);
+
   // Compute cost for selected articles
   const computedArray = useMemo(() => {
     const globalTc = Number(tauxChange) || DEFAULT_TAUX;
@@ -79,28 +93,21 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const cbm = Number(article.cubicMeasurement) || 0;
 
       const linkedFac = factures.find(f => f.id === article.factureId);
-      const isShipped = article.status === 'SHIPPED' || article.status === 'shipped';
 
       let tc = globalTc;
       let fraisTransitMad = globalFraisTransitMad;
       let fraisChangeMad = globalFraisChangeMad;
       let fraisSuppMad = globalFraisSuppMad;
-      let fretTotal$ = 1500;
+      let fretTotal$ = avgFreightPerCbm * CBM_STD;
 
-      if (isShipped && linkedFac) {
-        const invoicePaidDhs = Number(linkedFac.invoicePaidDhs) || 0;
-        const declaredValue = Number(linkedFac.declaredValue) || 0;
-        if (invoicePaidDhs > 0 && declaredValue > 0) {
-          tc = invoicePaidDhs / declaredValue;
-        } else if (Number(linkedFac.tauxChange) > 0) {
-           tc = Number(linkedFac.tauxChange);
-        }
-        fraisTransitMad = Number(linkedFac.supplierInvoiceAmount) || DEFAULT_FRAIS.transit;
-        fraisChangeMad = Number(linkedFac.exchangeInvoiceAmount) || DEFAULT_FRAIS.change;
-        fraisSuppMad = Number(linkedFac.additionalCostsAmount) || DEFAULT_FRAIS.supp;
+      if (linkedFac) {
+        const transit = Number(linkedFac.supplierInvoiceAmount) || 0;
+        const change = Number(linkedFac.exchangeInvoiceAmount) || 0;
+        const supp = Number(linkedFac.additionalCostsAmount) || 0;
+        fraisTransitMad = transit > 0 ? transit : DEFAULT_FRAIS.transit;
+        fraisChangeMad = change > 0 ? change : DEFAULT_FRAIS.change;
+        fraisSuppMad = supp > 0 ? supp : DEFAULT_FRAIS.supp;
         fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 0;
-      } else if (linkedFac) {
-        fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 1500;
       }
 
       const totalFrais = fraisTransitMad + fraisChangeMad + fraisSuppMad;
@@ -163,7 +170,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         }
       };
     }).filter(Boolean);
-  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, articles, factures, categories]);
+  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, articles, factures, categories, avgFreightPerCbm]);
 
   const totalCoutTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.coutTotalMad || 0), 0);
   const totalPrixVenteTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixVenteTotalMad || 0), 0);
