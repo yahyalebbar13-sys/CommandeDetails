@@ -59,6 +59,16 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
   // ─── Pre-populate editable fields from linked facture ─────────────────────
   useEffect(() => {
     if (isLinked && linkedFacture) {
+      const invoicePaidDhs = Number(linkedFacture.invoicePaidDhs) || 0;
+      const declaredValue = Number(linkedFacture.declaredValue) || 0;
+      if (invoicePaidDhs > 0 && declaredValue > 0) {
+        setTauxChange(String(invoicePaidDhs / declaredValue));
+      } else if (Number(linkedFacture.exchangeRate) > 0) {
+        setTauxChange(String(linkedFacture.exchangeRate));
+      } else if (Number(linkedFacture.tauxChange) > 0) {
+        setTauxChange(String(linkedFacture.tauxChange));
+      }
+
       const transit = Number(linkedFacture.supplierInvoiceAmount) || 0;
       const change = Number(linkedFacture.exchangeInvoiceAmount) || 0;
       const supp = Number(linkedFacture.additionalCostsAmount) || 0;

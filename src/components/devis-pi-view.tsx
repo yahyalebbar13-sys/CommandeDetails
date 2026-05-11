@@ -101,6 +101,16 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       let fretTotal$ = avgFreightPerCbm * CBM_STD;
 
       if (linkedFac) {
+        const invoicePaidDhs = Number(linkedFac.invoicePaidDhs) || 0;
+        const declaredValue = Number(linkedFac.declaredValue) || 0;
+        if (invoicePaidDhs > 0 && declaredValue > 0) {
+          tc = invoicePaidDhs / declaredValue;
+        } else if (Number(linkedFac.exchangeRate) > 0) {
+          tc = Number(linkedFac.exchangeRate);
+        } else if (Number(linkedFac.tauxChange) > 0) {
+          tc = Number(linkedFac.tauxChange);
+        }
+
         const transit = Number(linkedFac.supplierInvoiceAmount) || 0;
         const change = Number(linkedFac.exchangeInvoiceAmount) || 0;
         const supp = Number(linkedFac.additionalCostsAmount) || 0;
@@ -152,11 +162,11 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
       const coutAchatMad = qty * prix * tc;
       const fretPartMad = partFret$ * tc;
-      const coutTotalMad = hasCustData ? coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad : 0;
-      const coutUniteMad = hasCustData && qty > 0 ? coutTotalMad / qty : 0;
+      const coutTotalMad = coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad;
+      const coutUniteMad = qty > 0 ? coutTotalMad / qty : 0;
       const marge = Number(margePercent) || 0;
-      const prixVenteUniteMad = hasCustData ? coutUniteMad * (1 + marge / 100) : 0;
-      const prixVenteTotalMad = hasCustData ? coutTotalMad * (1 + marge / 100) : 0;
+      const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
+      const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
 
       return {
         article,
@@ -166,7 +176,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad,
           fraisTransitMad, fraisChangeMad, fraisSuppMad,
           isEstimated: !linkedFac,
-          hasCustData,
+          hasCustData: true,
         }
       };
     }).filter(Boolean);
