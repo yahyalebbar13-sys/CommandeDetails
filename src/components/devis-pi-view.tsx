@@ -121,13 +121,27 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const tic = (cat?.ticRate ?? 0) / 100;
       const tva = (cat?.tvaRate ?? 20) / 100;
 
-      let totalTaxesMad = 0;
-      if (nw > 0 && customsVpKg > 0) {
-        const base = nw * customsVpKg;
-        const diMad = base * di; const tpiMad = base * tpi; const ticMad = base * tic;
-        const tvaMad = (base + diMad + tpiMad + ticMad) * tva;
-        totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
+      const valeurFOB = qty * prix;
+      const dossierDeclaredValue = linkedFac ? Number(linkedFac.declaredValue) || 0 : 0;
+      const weightBaseDouaneMad = (nw > 0 && customsVpKg > 0) ? nw * customsVpKg : 0;
+      let valeurDouaneMad = 0;
+
+      if (weightBaseDouaneMad > 0) {
+        valeurDouaneMad = weightBaseDouaneMad;
+      } else if (dossierDeclaredValue > 0 && linkedFac) {
+        const dosArticles = articles.filter(a => a.factureId === linkedFac.id);
+        const totalFOBDossier = dosArticles.reduce((s: number, a: any) => s + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
+        const artFobShare = totalFOBDossier > 0 ? valeurFOB / totalFOBDossier : 0;
+        valeurDouaneMad = (dossierDeclaredValue * artFobShare) * tc;
+      } else {
+        valeurDouaneMad = valeurFOB * tc;
       }
+
+      const diMad = valeurDouaneMad * di;
+      const tpiMad = valeurDouaneMad * tpi;
+      const ticMad = valeurDouaneMad * tic;
+      const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
+      const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
 
       const coutAchatMad = qty * prix * tc;
       const fretPartMad = partFret$ * tc;
