@@ -65,11 +65,10 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
   // Compute cost for selected articles
   const computedArray = useMemo(() => {
-    const tc = Number(tauxChange) || DEFAULT_TAUX;
-    const fraisTransitMad = Number(fraisTransit) || 0;
-    const fraisChangeMad = Number(fraisChange) || 0;
-    const fraisSuppMad = Number(fraisSupp) || 0;
-    const totalFrais = fraisTransitMad + fraisChangeMad + fraisSuppMad;
+    const globalTc = Number(tauxChange) || DEFAULT_TAUX;
+    const globalFraisTransitMad = Number(fraisTransit) || 0;
+    const globalFraisChangeMad = Number(fraisChange) || 0;
+    const globalFraisSuppMad = Number(fraisSupp) || 0;
 
     return Array.from(selectedArticleIds).map(id => {
       const article = articles.find(a => a.id === id);
@@ -80,7 +79,32 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const cbm = Number(article.cubicMeasurement) || 0;
 
       const linkedFac = factures.find(f => f.id === article.factureId);
-      const fretTotal$ = linkedFac ? (Number(linkedFac.freightCost) || 0) : 1500;
+      const isShipped = article.status === 'SHIPPED' || article.status === 'shipped';
+
+      let tc = globalTc;
+      let fraisTransitMad = globalFraisTransitMad;
+      let fraisChangeMad = globalFraisChangeMad;
+      let fraisSuppMad = globalFraisSuppMad;
+      let fretTotal$ = 1500;
+
+      if (isShipped && linkedFac) {
+        const invoicePaidDhs = Number(linkedFac.invoicePaidDhs) || 0;
+        const declaredValue = Number(linkedFac.declaredValue) || 0;
+        if (invoicePaidDhs > 0 && declaredValue > 0) {
+          tc = invoicePaidDhs / declaredValue;
+        } else if (Number(linkedFac.tauxChange) > 0) {
+           tc = Number(linkedFac.tauxChange);
+        }
+        fraisTransitMad = Number(linkedFac.supplierInvoiceAmount) || DEFAULT_FRAIS.transit;
+        fraisChangeMad = Number(linkedFac.exchangeInvoiceAmount) || DEFAULT_FRAIS.change;
+        fraisSuppMad = Number(linkedFac.additionalCostsAmount) || DEFAULT_FRAIS.supp;
+        fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 0;
+      } else if (linkedFac) {
+        fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 1500;
+      }
+
+      const totalFrais = fraisTransitMad + fraisChangeMad + fraisSuppMad;
+
       const cbmTotal = linkedFac
         ? (articles.filter(a => a.factureId === linkedFac.id).reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0) || CBM_STD)
         : CBM_STD;
