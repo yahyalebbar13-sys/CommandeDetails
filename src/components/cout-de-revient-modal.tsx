@@ -129,14 +129,13 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       cbmTotal = CBM_CONTAINER_STD;
     }
 
-    // Part de fret de cet article ($) proportionnelle au CBM
-    const partFret$ = cbmTotal > 0 && cbmArticle > 0
-      ? (cbmArticle / cbmTotal) * fretTotal$
-      : 0;
+    // Part de frais de cet article (MAD) proportionnelle au CBM — Divide by 1.20 as in CostAnalysisView
+    const totalFraisFixesHT = (fraisTransitMad + fraisChangeMad + fraisSuppMad) / 1.20;
+    const totalFretMad = (fretTotal$ * tc) / 1.20;
+    const mtFraisTotalDossier = totalFraisFixesHT + totalFretMad;
 
-    // Part des frais fixes de ce article (MAD), proratisée au CBM
     const partFraisMad = cbmTotal > 0 && cbmArticle > 0
-      ? (cbmArticle / cbmTotal) * totalFraisFixesMad
+      ? (cbmArticle / cbmTotal) * mtFraisTotalDossier
       : 0;
 
     // ─── Valeur douane ───────────────────────────────────────────────────
@@ -181,7 +180,8 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       diMad = valeurDouaneMad * importDutyRate;
       tpiMad = valeurDouaneMad * tpiRate;
       ticMad = valeurDouaneMad * ticRate;
-      const baseTvaMad = valeurDouaneMad + diMad + tpiMad + ticMad;
+      // TVA base excludes TIC as in CostAnalysisView line 127
+      const baseTvaMad = valeurDouaneMad + diMad + tpiMad;
       tvaMad = baseTvaMad * tvaRate;
       totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
 
@@ -197,7 +197,8 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       const di$ = valeurDouane$ * importDutyRate;
       const tpi$ = valeurDouane$ * tpiRate;
       const tic$ = valeurDouane$ * ticRate;
-      const baseTVA$ = valeurDouane$ + di$ + tpi$ + tic$;
+      // TVA base excludes TIC as in CostAnalysisView line 127
+      const baseTVA$ = valeurDouane$ + di$ + tpi$;
       const tva$ = baseTVA$ * tvaRate;
       diMad = di$ * tc;
       tpiMad = tpi$ * tc;
@@ -215,7 +216,8 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       const di$ = valeurDouane$ * importDutyRate;
       const tpi$ = valeurDouane$ * tpiRate;
       const tic$ = valeurDouane$ * ticRate;
-      const baseTVA$ = valeurDouane$ + di$ + tpi$ + tic$;
+      // TVA base excludes TIC as in CostAnalysisView line 127
+      const baseTVA$ = valeurDouane$ + di$ + tpi$;
       const tva$ = baseTVA$ * tvaRate;
       diMad = di$ * tc;
       tpiMad = tpi$ * tc;
@@ -226,8 +228,7 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
 
     // Coût total de revient MAD
     const coutAchatMad = valeurFOB * tc;
-    const fretPartMad = partFret$ * tc;
-    const coutTotalMad = coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad;
+    const coutTotalMad = coutAchatMad + partFraisMad + totalTaxesMad;
     const coutTotal$ = coutTotalMad / tc;
 
     // Unitaires

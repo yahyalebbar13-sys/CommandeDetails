@@ -120,14 +120,16 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 0;
       }
 
-      const totalFrais = fraisTransitMad + fraisChangeMad + fraisSuppMad;
+      // Logistic costs (Divide by 1.20 as in CostAnalysisView)
+      const totalFraisHT = (fraisTransitMad + fraisChangeMad + fraisSuppMad) / 1.20;
+      const fretMad = (fretTotal$ * tc) / 1.20;
+      const mtFraisTotal = totalFraisHT + fretMad;
 
       const cbmTotal = linkedFac
         ? (articles.filter(a => a.factureId === linkedFac.id).reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0) || CBM_STD)
         : CBM_STD;
 
-      const partFret$ = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * fretTotal$ : 0;
-      const partFraisMad = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * totalFrais : 0;
+      const fraisCmd = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
       const cat = categories.find(c => c.name === article.categoryId || c.id === article.categoryId);
       const hasCustData = cat && cat.customsValuePerKg != null;
@@ -157,12 +159,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const diMad = valeurDouaneMad * di;
       const tpiMad = valeurDouaneMad * tpi;
       const ticMad = valeurDouaneMad * tic;
-      const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
+      // TVA Base excludes TIC in CostAnalysisView line 127
+      const tvaMad = (valeurDouaneMad + diMad + tpiMad) * tva;
       const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
 
-      const coutAchatMad = qty * prix * tc;
-      const fretPartMad = partFret$ * tc;
-      const coutTotalMad = coutAchatMad + fretPartMad + totalTaxesMad + partFraisMad;
+      const valAchatMad = qty * prix * tc;
+      const coutTotalMad = valAchatMad + fraisCmd + totalTaxesMad;
       const coutUniteMad = qty > 0 ? coutTotalMad / qty : 0;
       const marge = Number(margePercent) || 0;
       const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
