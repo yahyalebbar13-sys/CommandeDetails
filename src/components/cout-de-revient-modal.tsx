@@ -143,10 +143,8 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       : 0;
 
     const partFret$ = fretPartMad / tc;
-    const totalFraisFixesMad = fraisTransitMad + fraisChangeMad + fraisSuppMad;
 
     // ─── Valeur douane ───────────────────────────────────────────────────
-    // ... (rest of logic remains same, but we need to ensure all variables are defined)
     // ⚡ Hiérarchie de calcul de la base douanière :
     // 1. Priorité 1 : Poids Net * Valeur fixe/kg (Audit Analytique catégorie) — DÉJÀ EN MAD.
     // 2. Priorité 2 : Valeur déclarée (Audit Analytique dossier) si saisie.
