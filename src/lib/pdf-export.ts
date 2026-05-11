@@ -1797,29 +1797,20 @@ export async function exportClientDossierPDF(
 //          avant la commande fournisseur
 // ─────────────────────────────────────────────────────────────────────────────
 export async function exportDevisClientPIPDF(params: {
-  article: any;
+  items: Array<{
+    article: any;
+    computed: any;
+  }>;
   tauxChange: number;
-  coutTotalMad: number;
-  coutUniteMad: number;
-  coutTotal$: number;
-  coutUnite$: number;
-  margePercent: number;          // ex: 15 => 15%
-  prixVenteUniteMad: number;     // coutUniteMad * (1 + marge/100)
-  prixVenteTotalMad: number;
-  isEstimated: boolean;
-  fraisDetails: {
-    fraisTransitMad: number;
-    fraisChangeMad: number;
-    fraisSuppMad: number;
-    fretPartMad: number;
-    totalTaxesMad: number;
-    coutAchatMad: number;
-  };
+  margePercent: number;
 }) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
-  const { article, prixVenteUniteMad, prixVenteTotalMad } = params;
+  const { items, margePercent } = params;
+  if (!items || items.length === 0) return;
+
+  const article = items[0].article;
 
   // ── Brand palette (same as export-client-commande) ─────────────────────────
   const NAVY:      [number,number,number] = [15, 23, 42];
@@ -1922,13 +1913,21 @@ export async function exportDevisClientPIPDF(params: {
   doc.roundedRect(MX, y, 5, 14, 1.5, 1.5, 'F');
 
   doc.setTextColor(...WHITE); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-  doc.text((article.name || article.categoryId || 'ARTICLE').toUpperCase(), MX + 10, y + 9.5);
+  const titleText = items.length > 1 ? `DEVIS GROUPÉ (${items.length} ARTICLES)` : (article.name || article.categoryId || 'ARTICLE').toUpperCase();
+  doc.text(titleText, MX + 10, y + 9.5);
   doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...GOLD);
-  doc.text(`QTÉ : ${fmtQty(article.quantity, article.unitOfMeasure)}`, W - MX - 2, y + 5.5, { align: 'right' });
+  const totalGlobalQty = items.reduce((s, it) => s + (Number(it.article.quantity) || 0), 0);
+  doc.text(`QTÉ TOTALE : ${fmtNum(totalGlobalQty)}`, W - MX - 2, y + 5.5, { align: 'right' });
   doc.setTextColor(148, 163, 184); doc.setFontSize(7);
-  doc.text(`Unité : ${article.unitOfMeasure || '—'}`, W - MX - 2, y + 10.5, { align: 'right' });
+  if (items.length > 1) {
+    doc.text(`Articles multiples`, W - MX - 2, y + 10.5, { align: 'right' });
+  } else {
+    doc.text(`Unité : ${article.unitOfMeasure || '—'}`, W - MX - 2, y + 10.5, { align: 'right' });
+  }
 
   y += 20;
+
+  if (items.length === 1) {
 
   // ── Spécifications ────────────────────────────────────────────────────
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
@@ -1972,7 +1971,8 @@ export async function exportDevisClientPIPDF(params: {
     doc.text(doc.splitTextToSize(s[1], cellW - 6)[0], cx + 3, cy + 8);
   });
 
-  y += Math.ceil(specs.length / 2) * cellH + 10;
+    y += Math.ceil(specs.length / 2) * cellH + 10;
+  }
 
   // ── Tableau de prix ───────────────────────────────────────────────────
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...NAVY);
@@ -1981,50 +1981,57 @@ export async function exportDevisClientPIPDF(params: {
   doc.line(MX + 48, y - 1, W - MX, y - 1);
   y += 3;
 
-  const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
-  const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
-
-  // Build line items — quantity by color or size or single line
+  // Build line items
   const lineItems: [string, string, string, string, string][] = [];
+  let index = 1;
+  let totalDevisMad = 0;
 
-  if (colorBreakdown.length > 0) {
-    colorBreakdown.forEach((r: any, i: number) => {
-      const qty = Number(r.rolls || 0);
-      const lineTotal = qty * prixVenteUniteMad;
-      lineItems.push([
-        String(i + 1),
-        `${(article.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}`,
-        fmtQty(qty, article.unitOfMeasure),
-        prixVenteUniteMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      ]);
-    });
-  } else if (sizeBreakdown.length > 0) {
-    sizeBreakdown.forEach((r: any, i: number) => {
-      const qty = Number(r.quantity || 0);
-      const lineTotal = qty * prixVenteUniteMad;
-      lineItems.push([
-        String(i + 1),
-        `${(article.categoryId || '—').toUpperCase()} — Taille ${(r.size || '—').toUpperCase()}`,
-        fmtQty(qty, article.unitOfMeasure),
-        prixVenteUniteMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      ]);
-    });
-  } else {
-    lineItems.push([
-      '1',
-      (article.name || article.categoryId || '—').toUpperCase(),
-      fmtQty(article.quantity, article.unitOfMeasure),
-      prixVenteUniteMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      prixVenteTotalMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    ]);
-  }
+  items.forEach(item => {
+    const art = item.article;
+    const comp = item.computed;
+    const pu = comp.prixVenteUniteMad;
+    const pt = comp.prixVenteTotalMad;
+    totalDevisMad += pt;
 
-  const totalQty = lineItems.reduce((s, r) => {
-    const n = parseFloat(r[2].replace(/\s/g, '').replace(',', '.'));
-    return s + (isNaN(n) ? 0 : n);
-  }, 0);
+    const colorBreakdown: any[] = Array.isArray(art.colorBreakdown) ? art.colorBreakdown : [];
+    const sizeBreakdown:  any[] = Array.isArray(art.sizeBreakdown)  ? art.sizeBreakdown  : [];
+
+    if (colorBreakdown.length > 0) {
+      colorBreakdown.forEach((r: any) => {
+        const qty = Number(r.rolls || 0);
+        if (qty <= 0) return;
+        const lineTotal = qty * pu;
+        lineItems.push([
+          String(index++),
+          `${(art.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}`,
+          fmtQty(qty, art.unitOfMeasure),
+          pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ]);
+      });
+    } else if (sizeBreakdown.length > 0) {
+      sizeBreakdown.forEach((r: any) => {
+        const qty = Number(r.quantity || 0);
+        if (qty <= 0) return;
+        const lineTotal = qty * pu;
+        lineItems.push([
+          String(index++),
+          `${(art.categoryId || '—').toUpperCase()} — Taille ${(r.size || '—').toUpperCase()}`,
+          fmtQty(qty, art.unitOfMeasure),
+          pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ]);
+      });
+    } else {
+      lineItems.push([
+        String(index++),
+        (art.name || art.categoryId || '—').toUpperCase(),
+        fmtQty(art.quantity, art.unitOfMeasure),
+        pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        pt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ]);
+    }
+  });
 
   const COL_N   = 8;
   const COL_QTE = 28;
@@ -2038,7 +2045,7 @@ export async function exportDevisClientPIPDF(params: {
     body: lineItems,
     foot: [[
       { content: 'TOTAL DEVIS', colSpan: 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const, paddingRight: 15 } },
-      { content: prixVenteTotalMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: totalDevisMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
     ]],
     margin: { left: MX, right: MX, bottom: 50 },
     styles: {
@@ -2125,7 +2132,7 @@ export async function exportDevisClientPIPDF(params: {
     doc.text(`Page ${i} / ${pages}`, W - MX, H - 3.5, { align: 'right' });
   }
 
-  const artLabel = (article.name || article.categoryId || 'DEVIS').replace(/\s+/g, '_').toUpperCase();
+  const artLabel = items.length > 1 ? `GROUPE-${items.length}` : (article.name || article.categoryId || 'DEVIS').replace(/\s+/g, '_').toUpperCase();
   doc.save(`DEVIS-LEBTEX-${artLabel}-${todayStr}.pdf`);
 }
 
