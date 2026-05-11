@@ -173,8 +173,8 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       return {
         article,
         computed: {
-          qty, prix, cbm, cbmTotal, fretTotal$, partFret$, partFraisMad,
-          totalFrais, coutAchatMad, fretPartMad, totalTaxesMad,
+          qty, prix, cbm, cbmTotal, fretTotal$, fraisCmd,
+          valAchatMad, totalTaxesMad,
           coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad,
           fraisTransitMad, fraisChangeMad, fraisSuppMad,
           isEstimated: !linkedFac,

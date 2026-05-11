@@ -135,10 +135,18 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
     const mtFraisTotalDossier = totalFraisFixesHT + totalFretMad;
 
     const partFraisMad = cbmTotal > 0 && cbmArticle > 0
-      ? (cbmArticle / cbmTotal) * mtFraisTotalDossier
+      ? (cbmArticle / cbmTotal) * totalFraisFixesHT
       : 0;
 
+    const fretPartMad = cbmTotal > 0 && cbmArticle > 0
+      ? (cbmArticle / cbmTotal) * totalFretMad
+      : 0;
+
+    const partFret$ = fretPartMad / tc;
+    const totalFraisFixesMad = fraisTransitMad + fraisChangeMad + fraisSuppMad;
+
     // ─── Valeur douane ───────────────────────────────────────────────────
+    // ... (rest of logic remains same, but we need to ensure all variables are defined)
     // ⚡ Hiérarchie de calcul de la base douanière :
     // 1. Priorité 1 : Poids Net * Valeur fixe/kg (Audit Analytique catégorie) — DÉJÀ EN MAD.
     // 2. Priorité 2 : Valeur déclarée (Audit Analytique dossier) si saisie.
@@ -153,51 +161,40 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       : 0;
 
     const netWeight = Number(article.netWeight) || 0;
-    const customsValuePerKg = Number(category?.customsValuePerKg) || 0; // EN DH/KG !
+    const customsValuePerKg = Number(category?.customsValuePerKg) || 0;
 
-    // ─── Weight-based customs value is IN MAD (customsValuePerKg is dh/kg) ──
     const weightBaseDouaneMad = (netWeight > 0 && customsValuePerKg > 0) ? netWeight * customsValuePerKg : 0;
 
-    // Taux — tirés de la catégorie (Audit Analytique Produit), pas de l'article
     const importDutyRate = (category?.importDutyRate ?? 0) / 100;
     const tpiRate = (category?.tpiRate ?? 0) / 100;
     const ticRate = (category?.ticRate ?? 0) / 100;
     const tvaRate = (category?.tvaRate ?? 20) / 100;
 
-    let valeurDouaneMad: number;
-    let valeurDouane$: number;
-    let douaneSource: 'weight' | 'declared' | 'calculated';
-    let totalTaxesMad: number;
-    let diMad: number, tpiMad: number, ticMad: number, tvaMad: number;
+    let valeurDouaneMad: number = 0;
+    let valeurDouane$: number = 0;
+    let douaneSource: 'weight' | 'declared' | 'calculated' = 'calculated';
+    let totalTaxesMad: number = 0;
+    let diMad: number = 0, tpiMad: number = 0, ticMad: number = 0, tvaMad: number = 0;
 
     if (weightBaseDouaneMad > 0) {
-      // ⚡ Priorité 1 : Calcul basé sur le poids — valeur directement en MAD
       valeurDouaneMad = weightBaseDouaneMad;
-      valeurDouane$ = valeurDouaneMad / tc; // pour affichage info seulement
+      valeurDouane$ = valeurDouaneMad / tc;
       douaneSource = 'weight';
-
-      // Droits & Taxes calculés directement en MAD
       diMad = valeurDouaneMad * importDutyRate;
       tpiMad = valeurDouaneMad * tpiRate;
       ticMad = valeurDouaneMad * ticRate;
-      // TVA base excludes TIC as in CostAnalysisView line 127
       const baseTvaMad = valeurDouaneMad + diMad + tpiMad;
       tvaMad = baseTvaMad * tvaRate;
       totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
-
     } else if (dossierDeclaredValue > 0 && dosArticles.length > 0) {
-      // Priorité 2 : Valeur déclarée du dossier (en $), proratisée par FOB
       const totalFOBDossier = dosArticles.reduce((s: number, a: any) => s + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
       const artFobShare = totalFOBDossier > 0 ? valeurFOB / totalFOBDossier : 0;
       valeurDouane$ = dossierDeclaredValue * artFobShare;
       valeurDouaneMad = valeurDouane$ * tc;
       douaneSource = 'declared';
-
-      // Droits & Taxes calculés en $ puis convertis en MAD
       const di$ = valeurDouane$ * importDutyRate;
       const tpi$ = valeurDouane$ * tpiRate;
       const tic$ = valeurDouane$ * ticRate;
-      // TVA base excludes TIC as in CostAnalysisView line 127
       const baseTVA$ = valeurDouane$ + di$ + tpi$;
       const tva$ = baseTVA$ * tvaRate;
       diMad = di$ * tc;
@@ -205,18 +202,13 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       ticMad = tic$ * tc;
       tvaMad = tva$ * tc;
       totalTaxesMad = (di$ + tpi$ + tic$ + tva$) * tc;
-
     } else {
-      // Fallback : Valeur FOB en $
       valeurDouane$ = valeurFOB;
       valeurDouaneMad = valeurDouane$ * tc;
       douaneSource = 'calculated';
-
-      // Droits & Taxes calculés en $ puis convertis en MAD
       const di$ = valeurDouane$ * importDutyRate;
       const tpi$ = valeurDouane$ * tpiRate;
       const tic$ = valeurDouane$ * ticRate;
-      // TVA base excludes TIC as in CostAnalysisView line 127
       const baseTVA$ = valeurDouane$ + di$ + tpi$;
       const tva$ = baseTVA$ * tvaRate;
       diMad = di$ * tc;
@@ -226,12 +218,9 @@ export default function CoutDeRevientModal({ open, onOpenChange, article, factur
       totalTaxesMad = (di$ + tpi$ + tic$ + tva$) * tc;
     }
 
-    // Coût total de revient MAD
     const coutAchatMad = valeurFOB * tc;
-    const coutTotalMad = coutAchatMad + partFraisMad + totalTaxesMad;
+    const coutTotalMad = coutAchatMad + partFraisMad + fretPartMad + totalTaxesMad;
     const coutTotal$ = coutTotalMad / tc;
-
-    // Unitaires
     const coutUnite$ = qty > 0 ? coutTotal$ / qty : 0;
     const coutUniteMad = qty > 0 ? coutTotalMad / qty : 0;
 
