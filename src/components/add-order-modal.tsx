@@ -631,7 +631,20 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             )}
           </div>
 
-          {/* ── Section 5: Précommande Client ─────────────────────────────── */}
+          {/* Délai de production estimé — champ principal */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+              <Clock className="w-3 h-3" /> Délai de production estimé
+            </Label>
+            <Input
+              placeholder="Ex: 30 jours, 6 semaines..."
+              className="h-11 border-stone-200 font-bold rounded-xl"
+              value={formData.estimatedProductionDelay}
+              onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
+            />
+          </div>
+
+          {/* ── Section Précommande Client ─────────────────────────────── */}
           <div className={`rounded-xl border transition-all ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
             <div className="flex items-center justify-between p-3.5">
               <div className="flex items-center gap-2">
@@ -642,46 +655,23 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               </div>
               <Switch
                 checked={formData.isPreorder}
-                onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '', clientEmail: v ? p.clientEmail : '', estimatedProductionDelay: v ? p.estimatedProductionDelay : '' }))}
+                onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '' }))}
               />
             </div>
             {formData.isPreorder && (
-              <div className="px-3.5 pb-3.5 space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                    <UserCircle2 className="w-3 h-3" /> Nom du Client
-                  </Label>
-                  <Input
-                    placeholder="Ex: Zara, H&M, Client X..."
-                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                    value={formData.clientName}
-                    onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                    <Mail className="w-3 h-3" /> Email du Client
-                    <span className="ml-1 text-[8px] font-bold text-indigo-300 normal-case tracking-normal">(pour notifications Gmail)</span>
-                  </Label>
-                  <Input
-                    type="email"
-                    placeholder="client@example.com"
-                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                    value={formData.clientEmail}
-                    onChange={e => setFormData((p: any) => ({ ...p, clientEmail: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> Délai de production estimé
-                  </Label>
-                  <Input
-                    placeholder="Ex: 30 jours, 6 semaines..."
-                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                    value={formData.estimatedProductionDelay}
-                    onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
-                  />
-                </div>
+              <div className="px-3.5 pb-3.5 space-y-1.5">
+                <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                  <UserCircle2 className="w-3 h-3" /> Nom du Client
+                </Label>
+                <Input
+                  placeholder="Ex: Zara, H&M, Client X..."
+                  className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                  value={formData.clientName}
+                  onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                />
+                <p className="text-[9px] text-indigo-400 font-bold mt-1">
+                  📧 L&apos;email est récupéré automatiquement depuis l&apos;accès portail du client.
+                </p>
               </div>
             )}
             {!formData.isPreorder && (

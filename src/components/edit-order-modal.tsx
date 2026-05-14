@@ -6,10 +6,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Mail, Clock } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
@@ -72,7 +72,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         priority: article.priority || 'todo',
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
-        clientEmail: article.clientEmail || '',
         estimatedProductionDelay: article.estimatedProductionDelay || '',
       });
       setSelectedGenCatId(article.generalCategoryId || '');
@@ -159,44 +158,60 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       factureId: finalFactureId,
       arrivalDate,
       stockEntryDate,
-      // Multi-color breakdown
       colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
     };
 
     updateDocumentNonBlocking(docRef, finalData);
 
-    // ── Send Gmail notification if status changed and client email is set ──
+    // ── Send Gmail notification if status changed and it's a preorder with a named client ──
     const oldStatus = article.status;
     const newStatus = formData.status;
-    const clientEmail = formData.clientEmail?.trim();
+    const clientName = formData.clientName?.trim();
 
-    if (oldStatus !== newStatus && clientEmail && formData.isPreorder) {
+    if (oldStatus !== newStatus && formData.isPreorder && clientName) {
       try {
-        await fetch('/api/send-notification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientEmail,
-            clientName: formData.clientName || 'Client',
-            articleName: formData.categoryId || formData.name,
-            oldStatus,
-            newStatus,
-            quantity: formData.quantity,
-            unitOfMeasure: formData.unitOfMeasure,
-            specs: formData.specs,
-            color: formData.color,
-            size: formData.size,
-            estimatedProductionDelay: formData.estimatedProductionDelay,
-          }),
-        });
-        toast({ title: "📧 Notification envoyée", description: `Email de mise à jour envoyé à ${clientEmail}` });
+        // Look up client email from clientAccess collection by clientName + adminUid
+        const clientAccessRef = collection(firestore, 'clientAccess');
+        const q = query(clientAccessRef,
+          where('adminUid', '==', user.uid),
+          where('clientName', '==', clientName)
+        );
+        const snap = await getDocs(q);
+        const clientEmail = snap.empty ? null : (snap.docs[0].data().email as string | undefined);
+
+        if (clientEmail) {
+          const res = await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientEmail,
+              clientName,
+              articleName: formData.categoryId || formData.name,
+              oldStatus,
+              newStatus,
+              quantity: formData.quantity,
+              unitOfMeasure: formData.unitOfMeasure,
+              specs: formData.specs,
+              color: formData.color,
+              size: formData.size,
+              estimatedProductionDelay: formData.estimatedProductionDelay,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            toast({ title: '📧 Notification envoyée', description: `Email envoyé à ${clientEmail}` });
+          } else {
+            toast({ title: '⚠️ Email non envoyé', description: data.error || 'Erreur inconnue.', variant: 'destructive' });
+          }
+        } else {
+          toast({ title: 'ℹ️ Aucun email client', description: `Configurez d'abord l'accès portail pour "${clientName}" (avec son email).`, variant: 'destructive' });
+        }
       } catch (err) {
         console.error('Notification email failed:', err);
-        toast({ title: "⚠️ Email non envoyé", description: "La mise à jour a été sauvegardée mais l'email n'a pas pu être envoyé.", variant: 'destructive' });
       }
     }
 
-    toast({ title: "Modifié !", description: `L'article a été mis à jour.` });
+    toast({ title: 'Modifié !', description: `L'article a été mis à jour.` });
     onOpenChange(false);
   };
 
@@ -498,6 +513,19 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
 
+            {/* Délai de production estimé — dans le formulaire principal */}
+            <div className="space-y-1.5 md:col-span-2">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Délai de production estimé
+              </Label>
+              <Input
+                placeholder="Ex: 30 jours, 6 semaines..."
+                value={formData.estimatedProductionDelay || ''}
+                onChange={e => setFormData((prev: any) => ({ ...prev, estimatedProductionDelay: e.target.value }))}
+                className="h-12 border-stone-200 font-bold rounded-xl"
+              />
+            </div>
+
 
             <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
               <div className="md:col-span-2">
@@ -585,42 +613,19 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 />
               </div>
               {formData.isPreorder && (
-                <div className="mt-3 space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                      <UserCircle2 className="w-3 h-3" /> Nom du Client
-                    </Label>
-                    <Input
-                      placeholder="Ex: Zara, H&M, Client X..."
-                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                      value={formData.clientName || ''}
-                      onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                      <Mail className="w-3 h-3" /> Email du Client
-                      <span className="ml-1 text-[8px] font-bold text-indigo-300 normal-case tracking-normal">(pour notifications)</span>
-                    </Label>
-                    <Input
-                      type="email"
-                      placeholder="client@example.com"
-                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                      value={formData.clientEmail || ''}
-                      onChange={e => setFormData((p: any) => ({ ...p, clientEmail: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Délai de production estimé
-                    </Label>
-                    <Input
-                      placeholder="Ex: 30 jours, 6 semaines..."
-                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                      value={formData.estimatedProductionDelay || ''}
-                      onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
-                    />
-                  </div>
+                <div className="mt-3 space-y-1.5">
+                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                    <UserCircle2 className="w-3 h-3" /> Nom du Client
+                  </Label>
+                  <Input
+                    placeholder="Ex: Zara, H&M, Client X..."
+                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                    value={formData.clientName || ''}
+                    onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                  />
+                  <p className="text-[9px] text-indigo-400 font-bold mt-1">
+                    📧 L&apos;email du client est récupéré automatiquement depuis son accès portail.
+                  </p>
                 </div>
               )}
               {!formData.isPreorder && (
