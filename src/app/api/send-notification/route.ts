@@ -5,8 +5,11 @@ import nodemailer from 'nodemailer';
 const STATUS_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
   TO_ORDER:  { label: 'À Commander',             emoji: '📋', color: '#6B7280' },
   PI:        { label: 'Production Lancée (PI)',   emoji: '🏭', color: '#F59E0B' },
-  SHIPPED:   { label: 'Expédié / En Transit',     emoji: '🚢', color: '#3B82F6' },
-  DELIVERED: { label: 'Livré',                   emoji: '✅', color: '#10B981' },
+  SHIPPED:   { label: 'Expédié',                 emoji: '✈️', color: '#3B82F6' },
+  TRANSIT:   { label: 'En Transit',              emoji: '🚢', color: '#6366F1' },
+  CUSTOMS:   { label: 'En Dédouanement',         emoji: '🛃', color: '#8B5CF6' },
+  STOCK:     { label: 'En Stock',                emoji: '✅', color: '#10B981' },
+  DELIVERED: { label: 'Livré',                   emoji: '📦', color: '#059669' },
 };
 
 export async function POST(req: NextRequest) {

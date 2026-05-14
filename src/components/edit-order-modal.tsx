@@ -219,39 +219,39 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     updateDocumentNonBlocking(docRef, finalData);
 
-    // ── Send Gmail notification if status changed and it's a preorder with a named client ──
+    // ── Send Gmail notification if status changed and clientName is set ──
     const oldStatus = article.status;
     const newStatus = formData.status;
-    const clientName = formData.clientName?.trim();
+    const clientName = (formData.clientName || '').trim();
 
     console.log('[Notification] oldStatus:', oldStatus, '→ newStatus:', newStatus);
-    console.log('[Notification] isPreorder:', formData.isPreorder, '| clientName:', clientName);
+    console.log('[Notification] clientName:', clientName);
 
-    if (oldStatus === newStatus) {
-      // Statut inchangé — pas de notification, c'est normal
-    } else if (!formData.isPreorder) {
-      toast({ title: 'ℹ️ Pas une précommande', description: 'Activez "Précommande Client" pour envoyer des notifications.', variant: 'destructive' });
-    } else if (!clientName) {
-      toast({ title: 'ℹ️ Nom client manquant', description: 'Renseignez le nom du client dans la section Précommande.', variant: 'destructive' });
-    } else {
+    if (oldStatus !== newStatus && clientName) {
       try {
-        // Look up client email from clientAccess collection by clientName + adminUid
+        // Fetch all clientAccess docs for this admin, then match clientName case-insensitively
         const clientAccessRef = collection(firestore, 'clientAccess');
-        const q = query(clientAccessRef,
-          where('adminUid', '==', user.uid),
-          where('clientName', '==', clientName)
-        );
+        const q = query(clientAccessRef, where('adminUid', '==', user.uid));
         const snap = await getDocs(q);
-        console.log('[Notification] clientAccess docs found:', snap.size);
-        snap.docs.forEach(d => console.log('  doc:', d.id, d.data()));
+        console.log('[Notification] total clientAccess docs for admin:', snap.size);
 
-        const docData = snap.empty ? null : snap.docs[0].data();
-        // Use notificationEmail if set, otherwise fallback to the portal login email
+        const clientNameLower = clientName.toLowerCase();
+        const matchDoc = snap.docs.find(d => {
+          const stored = (d.data().clientName || '').toLowerCase().trim();
+          return stored === clientNameLower ||
+                 stored.includes(clientNameLower) ||
+                 clientNameLower.includes(stored);
+        });
+
+        console.log('[Notification] match found:', matchDoc ? matchDoc.data().clientName : 'NONE');
+
+        const docData = matchDoc?.data() || null;
         const clientEmail = docData
-          ? (docData.notificationEmail?.trim() || docData.email || null)
+          ? ((docData.notificationEmail || '').trim() || docData.email || null)
           : null;
 
         if (clientEmail) {
+          toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientEmail}` });
           const res = await fetch('/api/send-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -271,20 +271,16 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           });
           const data = await res.json();
           if (res.ok) {
-            toast({ title: '📧 Notification envoyée', description: `Email envoyé à ${clientEmail}` });
+            toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${clientEmail}` });
           } else {
             toast({ title: '⚠️ Erreur envoi email', description: data.error || 'Erreur inconnue.', variant: 'destructive' });
           }
         } else {
-          toast({
-            title: '⚠️ Email client introuvable',
-            description: `Aucun accès portail trouvé pour "${clientName}". Créez l'accès client via la fiche client (bouton 🔑).`,
-            variant: 'destructive'
-          });
+          console.log('[Notification] No email found for client:', clientName, '— no clientAccess or no email set');
         }
       } catch (err: any) {
         console.error('[Notification] Error:', err);
-        toast({ title: '⚠️ Erreur', description: err.message || 'Erreur inconnue.', variant: 'destructive' });
+        toast({ title: '⚠️ Erreur notification', description: err.message || 'Erreur inconnue.', variant: 'destructive' });
       }
     }
 
