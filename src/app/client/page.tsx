@@ -7,7 +7,7 @@ import { Loader2, Lock, LogOut, ShieldCheck, ArrowRight, RefreshCw } from 'lucid
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, onSnapshot } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 function getClientApp() {
@@ -74,18 +74,28 @@ export default function ClientPortalPage() {
     }
     setDataLoading(true);
     setDataError(false);
-    Promise.all([
-      getDocs(collection(db, 'users', adminUid, 'articles')),
-      getDocs(collection(db, 'users', adminUid, 'factures')),
-      getDocs(collection(db, 'users', adminUid, 'categories')),
-    ])
-      .then(([artSnap, facSnap, catSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        setDataLoading(false);
-      })
-      .catch(() => { setDataLoading(false); setDataError(true); });
+
+    // ── Real-time listeners so the portal updates instantly when admin changes status ──
+    let artLoaded = false, facLoaded = false, catLoaded = false;
+    const checkDone = () => { if (artLoaded && facLoaded && catLoaded) setDataLoading(false); };
+
+    const unsubArt = onSnapshot(
+      collection(db, 'users', adminUid, 'articles'),
+      (snap) => { setArticles(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))); artLoaded = true; checkDone(); },
+      () => { setDataLoading(false); setDataError(true); }
+    );
+    const unsubFac = onSnapshot(
+      collection(db, 'users', adminUid, 'factures'),
+      (snap) => { setFactures(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))); facLoaded = true; checkDone(); },
+      () => {}
+    );
+    const unsubCat = onSnapshot(
+      collection(db, 'users', adminUid, 'categories'),
+      (snap) => { setCategories(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))); catLoaded = true; checkDone(); },
+      () => {}
+    );
+
+    return () => { unsubArt(); unsubFac(); unsubCat(); };
   }, [state.status]);
 
   const handleLogin = async (e: React.FormEvent) => {
