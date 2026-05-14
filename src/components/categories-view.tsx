@@ -677,6 +677,16 @@ export default function CategoriesView({
           </div>
         </header>
 
+        {/* ── Design Library — Zipper / Slider / Puller ── */}
+        {currentCategoryObj && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('SLIDER') || (selectedCategory || '').toUpperCase().includes('PULLER')) && (
+          <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden p-6">
+            <DesignLibrary
+              categoryId={currentCategoryObj.id}
+              categoryName={selectedCategory}
+            />
+          </div>
+        )}
+
         {/* ── Tabbed Manifeste Section ── */}
         <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden">
           {/* Tab bar */}
@@ -1008,16 +1018,6 @@ export default function CategoriesView({
             </CardContent>
           </Card>
         </div>
-
-        {/* ── Design Library — shown for Zipper / Slider / Puller categories ── */}
-        {currentCategoryObj && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('SLIDER') || (selectedCategory || '').toUpperCase().includes('PULLER')) && (
-          <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden p-6">
-            <DesignLibrary
-              categoryId={currentCategoryObj.id}
-              categoryName={selectedCategory}
-            />
-          </div>
-        )}
 
         {editingArticle && (
           <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
