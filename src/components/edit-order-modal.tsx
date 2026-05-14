@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch';
 import { Check, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
+import DesignPicker from './design-picker';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -79,6 +80,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         clientName: article.clientName || '',
         estimatedProductionDelay: article.estimatedProductionDelay || '',
         imageUrl: article.imageUrl || '',
+        designRef: article.designRef || '',
+        designImageUrl: article.designImageUrl || '',
       });
       setSelectedGenCatId(article.generalCategoryId || '');
       setColorBreakdown(article.colorBreakdown || null);
@@ -173,6 +176,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const upper = formData?.categoryId?.toUpperCase() || "";
     return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
   }, [formData?.categoryId]);
+
+  const isSlider = useMemo(() => {
+    const upper = formData?.categoryId?.toUpperCase() || '';
+    return upper.includes('SLIDER') || upper.includes('PULLER');
+  }, [formData?.categoryId]);
+
+  const isDesignCategory = isZipper || isSlider;
 
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
@@ -447,6 +457,20 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 )}
               </div>
             </div>
+
+            {/* ── Design Picker — zipper & slider ── */}
+            {isDesignCategory && formData.categoryId && (
+              <div className="md:col-span-2">
+                <DesignPicker
+                  categoryName={formData.categoryId}
+                  subCategories={subCategories || []}
+                  value={formData.designRef}
+                  onChange={(ref, imageUrl) =>
+                    setFormData((prev: any) => ({ ...prev, designRef: ref, designImageUrl: imageUrl || '' }))
+                  }
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">

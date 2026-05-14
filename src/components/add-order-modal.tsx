@@ -22,6 +22,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
+import DesignPicker from './design-picker';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -50,6 +51,8 @@ const EMPTY_FORM = {
   clientName: '',
   clientEmail: '',
   estimatedProductionDelay: '',
+  designRef: '',
+  designImageUrl: '',
 };
 
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
@@ -119,6 +122,13 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     const upper = (formData.categoryId || '').toUpperCase();
     return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
   }, [formData.categoryId]);
+
+  const isSlider = useMemo(() => {
+    const upper = (formData.categoryId || '').toUpperCase();
+    return upper.includes('SLIDER') || upper.includes('PULLER');
+  }, [formData.categoryId]);
+
+  const isDesignCategory = isZipper || isSlider;
 
   // Validation
   const errors = useMemo(() => {
@@ -480,6 +490,18 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               onChange={e => setFormData((p: any) => ({ ...p, specs: e.target.value }))}
             />
           </div>
+
+          {/* ── Design Picker — zipper & slider ── */}
+          {isDesignCategory && formData.categoryId && (
+            <DesignPicker
+              categoryName={formData.categoryId}
+              subCategories={subCategories || []}
+              value={formData.designRef}
+              onChange={(ref, imageUrl) =>
+                setFormData((p: any) => ({ ...p, designRef: ref, designImageUrl: imageUrl || '' }))
+              }
+            />
+          )}
 
           {/* ── Section 3a: Tailles Multi ──────────────────────────────────── */}
           <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} />

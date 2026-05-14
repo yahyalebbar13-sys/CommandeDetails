@@ -1009,8 +1009,8 @@ export default function CategoriesView({
           </Card>
         </div>
 
-        {/* ── Design Library — shown only for Zipper / Slider categories ── */}
-        {currentCategoryObj && isTechnicalZipper(selectedCategory) && (
+        {/* ── Design Library — shown for Zipper / Slider / Puller categories ── */}
+        {currentCategoryObj && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('SLIDER') || (selectedCategory || '').toUpperCase().includes('PULLER')) && (
           <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden p-6">
             <DesignLibrary
               categoryId={currentCategoryObj.id}
