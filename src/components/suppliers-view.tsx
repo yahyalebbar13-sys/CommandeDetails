@@ -14,7 +14,7 @@ import {
 import CoutDeRevientModal from './cout-de-revient-modal';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, serverTimestamp, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, setDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -1687,15 +1687,17 @@ function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; order
             {canCreateAccount ? (
               <div className="flex items-center gap-1.5">
                 <button
+                  type="button"
                   className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-500 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50 transition-colors"
-                  onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsAccessModalOpen(true); }}
                 >
                   <KeyRound className="w-3 h-3" />
                   Créer accès
                 </button>
                 <button
+                  type="button"
                   className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-stone-500 border border-stone-200 rounded-lg px-2.5 py-1.5 hover:bg-stone-50 transition-colors"
-                  onClick={(e) => { e.stopPropagation(); setIsManageModalOpen(true); }}
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsManageModalOpen(true); }}
                 >
                   <Settings className="w-3 h-3" />
                   Gérer
@@ -1876,6 +1878,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
 
   const [loading, setLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [accessDoc, setAccessDoc] = useState<{ id: string; email: string; notificationEmail?: string } | null>(null);
   const [notificationEmail, setNotificationEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -1885,6 +1889,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   useEffect(() => {
     if (!open || !user || !firestore) return;
     setAccessDoc(null);
+    setNotFound(false);
+    setSearching(true);
     setNotificationEmail('');
     setNewPassword('');
     setCurrentPassword('');
@@ -1902,9 +1908,14 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
           const data = d.data();
           setAccessDoc({ id: d.id, email: data.email, notificationEmail: data.notificationEmail || '' });
           setNotificationEmail(data.notificationEmail || '');
+        } else {
+          setNotFound(true);
         }
       } catch (err: any) {
-        toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+        setNotFound(true);
+        toast({ variant: 'destructive', title: 'Erreur Firestore', description: err.message });
+      } finally {
+        setSearching(false);
       }
     })();
   }, [open, user, firestore, clientName]);
@@ -1985,13 +1996,23 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
         </div>
 
         <div className="p-6 space-y-6">
-          {!accessDoc ? (
+          {searching ? (
             <div className="text-center py-8">
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-stone-300 mb-3" />
-              <p className="text-[11px] font-bold text-stone-400 uppercase">Recherche du compte client...</p>
-              <p className="text-[10px] text-stone-300 mt-1">Vérifiez qu&apos;un accès portail a été créé pour ce client.</p>
+              <p className="text-[11px] font-bold text-stone-400 uppercase">Chargement...</p>
             </div>
-          ) : (
+          ) : notFound ? (
+            <div className="text-center py-8 space-y-3">
+              <div className="w-12 h-12 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center mx-auto">
+                <KeyRound className="w-5 h-5 text-amber-500" />
+              </div>
+              <p className="text-[12px] font-black text-stone-700 uppercase">Aucun accès portail</p>
+              <p className="text-[10px] text-stone-400 font-medium leading-relaxed">
+                Ce client n&apos;a pas encore de compte portail.<br />
+                Utilisez le bouton <strong>🔑 Créer accès</strong> pour en créer un.
+              </p>
+            </div>
+          ) : accessDoc ? (
             <>
               {/* Portal credentials section */}
               <div className="space-y-3">
@@ -2082,7 +2103,7 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
                 )}
               </div>
             </>
-          )}
+          ) : null}
         </div>
 
         <DialogFooter className="p-4 bg-stone-50 border-t">
