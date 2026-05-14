@@ -6,10 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock, ImagePlus, X as XIcon } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
@@ -52,6 +54,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
   const [colorOpen, setColorOpen] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
 
   const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
     setColorBreakdown(rows);
@@ -73,15 +77,67 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
         estimatedProductionDelay: article.estimatedProductionDelay || '',
+        imageUrl: article.imageUrl || '',
       });
       setSelectedGenCatId(article.generalCategoryId || '');
-      // Load existing color breakdown if present
       setColorBreakdown(article.colorBreakdown || null);
     } else {
       setFormData(null);
       setColorBreakdown(null);
     }
   }, [article]);
+
+  // ── Upload product image to Firebase Storage ──
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !article) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: 'destructive', title: 'Format invalide', description: 'Sélectionnez une image (JPG, PNG, WEBP...)' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ variant: 'destructive', title: 'Fichier trop grand', description: 'Maximum 5 MB par image.' });
+      return;
+    }
+    setImageUploading(true);
+    setImageUploadProgress(0);
+    try {
+      const storage = getStorage(getApp());
+      const path = `users/${user.uid}/articles/${article.id}/product-image`;
+      const imageRef = storageRef(storage, path);
+      const uploadTask = uploadBytesResumable(imageRef, file);
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snap) => setImageUploadProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+          reject,
+          async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            setFormData((prev: any) => ({ ...prev, imageUrl: url }));
+            resolve();
+          }
+        );
+      });
+      toast({ title: '📸 Photo ajoutée', description: 'La photo du produit a été uploadée.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur upload', description: err.message });
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!user || !article || !formData?.imageUrl) return;
+    try {
+      const storage = getStorage(getApp());
+      const path = `users/${user.uid}/articles/${article.id}/product-image`;
+      await deleteObject(storageRef(storage, path)).catch(() => {}); // ignore if already deleted
+      setFormData((prev: any) => ({ ...prev, imageUrl: '' }));
+      toast({ title: 'Photo supprimée' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    }
+  };
 
   const filteredSubCategories = useMemo(() => {
     if (!selectedGenCatId || !subCategories) return [];
@@ -545,6 +601,56 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 onChange={e => setFormData((prev: any) => ({ ...prev, estimatedProductionDelay: e.target.value }))}
                 className="h-12 border-stone-200 font-bold rounded-xl"
               />
+            </div>
+
+            {/* ── Photo du Produit ─────────────────────────────────────────── */}
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                <ImagePlus className="w-3 h-3" /> Photo du Produit
+                <span className="ml-1 text-[8px] font-bold text-stone-300 normal-case">(visible dans le portail client)</span>
+              </Label>
+
+              {formData.imageUrl ? (
+                <div className="relative rounded-xl overflow-hidden border border-stone-200 bg-stone-50 h-40 flex items-center justify-center">
+                  <img
+                    src={formData.imageUrl}
+                    alt="Photo produit"
+                    className="h-full w-full object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className={`flex flex-col items-center justify-center h-28 border-2 border-dashed rounded-xl cursor-pointer transition-all ${imageUploading ? 'border-indigo-300 bg-indigo-50' : 'border-stone-200 bg-stone-50 hover:border-indigo-300 hover:bg-indigo-50/50'}`}>
+                  {imageUploading ? (
+                    <div className="flex flex-col items-center gap-2 w-full px-6">
+                      <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                      <div className="w-full bg-indigo-100 rounded-full h-1.5">
+                        <div className="bg-indigo-500 h-1.5 rounded-full transition-all" style={{ width: `${imageUploadProgress}%` }} />
+                      </div>
+                      <span className="text-[10px] font-bold text-indigo-600">{imageUploadProgress}%</span>
+                    </div>
+                  ) : (
+                    <>
+                      <ImagePlus className="w-6 h-6 text-stone-300 mb-1.5" />
+                      <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Cliquer pour uploader</span>
+                      <span className="text-[9px] text-stone-300 mt-0.5">JPG, PNG, WEBP — max 5 MB</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                    disabled={imageUploading}
+                  />
+                </label>
+              )}
             </div>
 
 

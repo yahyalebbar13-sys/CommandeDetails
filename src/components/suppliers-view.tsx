@@ -1982,6 +1982,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md rounded-2xl p-0 border-none overflow-hidden">
+        {/* Hidden focus trap — prevents browser from auto-focusing email input and triggering address bar search */}
+        <div tabIndex={0} className="sr-only" aria-hidden />
         {/* Header */}
         <div className="bg-stone-900 p-6 text-white">
           <div className="flex items-center gap-3">
@@ -2277,6 +2279,16 @@ function GroupedArticleList({
                       >
                         {/* Desktop layout */}
                         <div className="hidden sm:flex items-center gap-4 px-4 py-3">
+                          {/* Product thumbnail */}
+                          {a.imageUrl ? (
+                            <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-stone-100 bg-stone-50">
+                              <img src={a.imageUrl} alt={a.categoryId} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="shrink-0 w-12 h-12 rounded-lg bg-stone-50 border border-stone-100 flex items-center justify-center">
+                              <Package className="w-5 h-5 text-stone-200" />
+                            </div>
+                          )}
                           {/* Article info */}
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
@@ -2670,6 +2682,18 @@ export function ClientDetailView({
                   {/* Gold separator */}
                   <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #c4a062 0%, transparent 100%)' }} />
                 </div>
+
+                {/* Product image — shown below header if available */}
+                {selectedArticle.imageUrl && (
+                  <div className="w-full bg-white border-b border-stone-100 flex items-center justify-center" style={{ maxHeight: 220 }}>
+                    <img
+                      src={selectedArticle.imageUrl}
+                      alt={selectedArticle.categoryId}
+                      className="max-h-52 w-full object-contain"
+                    />
+                  </div>
+                )}
+
                 
                 <div className="p-5 space-y-4 shrink-0" style={{ background: '#f8f9fa' }}>
                   {/* Spec grid */}
