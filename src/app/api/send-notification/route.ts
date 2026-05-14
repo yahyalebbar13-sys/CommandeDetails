@@ -12,11 +12,67 @@ const STATUS_LABELS: Record<string, { label: string; emoji: string; color: strin
   DELIVERED: { label: 'Livré',                   emoji: '📦', color: '#059669' },
 };
 
+// Per-status contextual message block
+function getStatusBlock(newStatus: string, estimatedProductionDelay?: string): string {
+  switch (newStatus) {
+    case 'TO_ORDER':
+      return `
+        <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1.5px solid #e2e8f0;border-left:4px solid #6B7280;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#374151;font-weight:800;display:flex;align-items:center;gap:6px">
+            📋 <strong>Votre commande a été enregistrée</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.7">
+            Nous avons bien pris en compte votre précommande. Notre équipe va lancer la procédure de commande auprès du fournisseur. Vous serez informé dès le début de la production.
+          </p>
+        </div>`;
+    case 'PI':
+      return `
+        <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #fde68a;border-left:4px solid #F59E0B;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#92400E;font-weight:800;display:flex;align-items:center;gap:6px">
+            🏭 <strong>La production de votre commande a démarré !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#92400E;line-height:1.7">
+            Notre fournisseur a officiellement lancé la fabrication de votre commande.
+            ${estimatedProductionDelay
+              ? `<br/><br/>⏱️ <strong>Délai de production estimé : ${estimatedProductionDelay}</strong>`
+              : ''
+            }
+            <br/><br/>Vous serez notifié dès que le conteneur est expédié.
+          </p>
+        </div>`;
+    case 'SHIPPED':
+      return `
+        <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-left:4px solid #3B82F6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#1E40AF;font-weight:800;display:flex;align-items:center;gap:6px">
+            ✈️ <strong>Votre commande est en route !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.7">
+            Le conteneur a quitté l'usine et est actuellement en cours d'acheminement vers le Maroc. 
+            La marchandise est en transit maritime. Vous serez informé dès l'arrivée au port et la date de livraison prévue.
+          </p>
+        </div>`;
+    case 'DELIVERED':
+      return `
+        <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #a7f3d0;border-left:4px solid #059669;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#065F46;font-weight:800;display:flex;align-items:center;gap:6px">
+            ✅ <strong>Votre commande a été livrée avec succès !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#065F46;line-height:1.7">
+            Nous avons le plaisir de vous confirmer que votre commande vous a été remise. 
+            Nous vous remercions pour votre confiance et espérons que vous serez satisfait de votre livraison.<br/><br/>
+            Pour toute question, n'hésitez pas à nous contacter.
+          </p>
+        </div>`;
+    default:
+      return '';
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      clientEmail,   // passed directly from edit-order-modal after Firestore lookup on client side
+      clientEmail,
       clientName,
       articleName,
       oldStatus,
@@ -39,50 +95,63 @@ export async function POST(req: NextRequest) {
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
-      secure: false, // STARTTLS
+      secure: false,
       auth: {
         user: process.env.GMAIL_USER,
         pass: appPass,
       },
       tls: {
-        rejectUnauthorized: false, // Fix self-signed certificate error on Windows
+        rejectUnauthorized: false,
       },
     });
 
     const newStatusInfo = STATUS_LABELS[newStatus] || { label: newStatus, emoji: '📦', color: '#6B7280' };
     const oldStatusInfo = STATUS_LABELS[oldStatus] || { label: oldStatus || '-', emoji: '📦', color: '#6B7280' };
 
+    // Build order detail rows
     const detailRows = [
-      specs                    && `<tr><td style="padding:6px 12px;color:#6B7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Spécifications</td><td style="padding:6px 12px;font-weight:600;font-size:13px;color:#111827">${specs}</td></tr>`,
-      color                    && `<tr><td style="padding:6px 12px;color:#6B7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Couleur</td><td style="padding:6px 12px;font-weight:600;font-size:13px;color:#111827;text-transform:uppercase">${color}</td></tr>`,
-      size                     && `<tr><td style="padding:6px 12px;color:#6B7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Taille</td><td style="padding:6px 12px;font-weight:600;font-size:13px;color:#111827">${size}</td></tr>`,
-      quantity                 && `<tr><td style="padding:6px 12px;color:#6B7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Quantité</td><td style="padding:6px 12px;font-weight:600;font-size:13px;color:#111827">${Number(quantity).toLocaleString('fr-FR')} ${unitOfMeasure || ''}</td></tr>`,
-      estimatedProductionDelay && `<tr><td style="padding:6px 12px;color:#6B7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Délai estimé</td><td style="padding:6px 12px;font-weight:600;font-size:13px;color:#111827">${estimatedProductionDelay}</td></tr>`,
+      specs     && `<tr><td style="padding:8px 14px;color:#6B7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:#f9fafb;border-bottom:1px solid #f3f4f6">Spécifications</td><td style="padding:8px 14px;font-weight:600;font-size:12px;color:#111827;border-bottom:1px solid #f3f4f6">${specs}</td></tr>`,
+      color     && `<tr><td style="padding:8px 14px;color:#6B7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:#f9fafb;border-bottom:1px solid #f3f4f6">Couleur</td><td style="padding:8px 14px;font-weight:600;font-size:12px;color:#111827;text-transform:uppercase;border-bottom:1px solid #f3f4f6">${color}</td></tr>`,
+      size      && `<tr><td style="padding:8px 14px;color:#6B7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:#f9fafb;border-bottom:1px solid #f3f4f6">Taille</td><td style="padding:8px 14px;font-weight:600;font-size:12px;color:#111827;border-bottom:1px solid #f3f4f6">${size}</td></tr>`,
+      quantity  && `<tr><td style="padding:8px 14px;color:#6B7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:#f9fafb">Quantité</td><td style="padding:8px 14px;font-weight:700;font-size:13px;color:#111827">${Number(quantity).toLocaleString('fr-FR')} ${unitOfMeasure || ''}</td></tr>`,
     ].filter(Boolean).join('');
+
+    const statusBlock = getStatusBlock(newStatus, estimatedProductionDelay);
+
+    // Subject line varies per status
+    const subjectMap: Record<string, string> = {
+      TO_ORDER:  `📋 Commande enregistrée — ${articleName}`,
+      PI:        `🏭 Production lancée — ${articleName}`,
+      SHIPPED:   `✈️ En route ! Votre commande est expédiée — ${articleName}`,
+      DELIVERED: `✅ Livraison confirmée — ${articleName}`,
+    };
+    const subject = subjectMap[newStatus] || `${newStatusInfo.emoji} Mise à jour commande : ${articleName} — ${newStatusInfo.label}`;
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mise à jour de votre commande</title>
+  <title>${subject}</title>
 </head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:40px 20px">
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:40px 16px">
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
 
         <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);padding:32px 40px;border-radius:16px 16px 0 0">
+        <tr><td style="background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);padding:32px 40px 28px;border-radius:20px 20px 0 0">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
             <td>
-              <p style="margin:0 0 4px 0;color:#c4a062;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.2em">Portail Client · LEBTEX</p>
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em">Mise à jour<br/><span style="color:#c4a062">de votre commande</span></h1>
+              <p style="margin:0 0 4px;color:#c4a062;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.25em">Portail Client · LEBTEX</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;line-height:1.2">
+                Mise à jour<br/><span style="color:#c4a062">de votre commande</span>
+              </h1>
             </td>
             <td align="right" style="vertical-align:top">
-              <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px 16px;text-align:center">
-                <div style="font-size:28px">${newStatusInfo.emoji}</div>
-                <p style="margin:4px 0 0;color:rgba(255,255,255,0.5);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.15em">NOUVEAU STATUT</p>
+              <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px 18px;text-align:center;min-width:64px">
+                <div style="font-size:30px;line-height:1">${newStatusInfo.emoji}</div>
+                <p style="margin:6px 0 0;color:rgba(255,255,255,0.45);font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:0.15em">NOUVEAU STATUT</p>
               </div>
             </td>
           </tr></table>
@@ -90,48 +159,52 @@ export async function POST(req: NextRequest) {
 
         <!-- Body -->
         <tr><td style="background:#ffffff;padding:32px 40px">
-          <p style="margin:0 0 24px;font-size:15px;color:#374151;font-weight:500">Bonjour <strong style="color:#111827">${clientName}</strong>,</p>
-          <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.6">Le statut de votre commande <strong style="color:#111827;text-transform:uppercase">${articleName}</strong> vient d'être mis à jour.</p>
 
-          <!-- Status change -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
-            <tr><td style="background:#f9fafb;border:2px solid #f3f4f6;border-radius:12px;padding:20px">
+          <p style="margin:0 0 6px;font-size:13px;color:#6B7280;font-weight:500">Bonjour,</p>
+          <p style="margin:0 0 24px;font-size:16px;color:#111827;font-weight:800;text-transform:uppercase;letter-spacing:0.02em">${clientName}</p>
+
+          <!-- Status change timeline -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px">
+            <tr><td style="background:#f9fafb;border:2px solid #f3f4f6;border-radius:14px;padding:16px 20px">
               <table width="100%" cellpadding="0" cellspacing="0"><tr>
                 <td align="center" width="40%">
-                  <p style="margin:0 0 6px;font-size:10px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.1em">Ancien statut</p>
-                  <span style="background:${oldStatusInfo.color}20;color:${oldStatusInfo.color};font-size:12px;font-weight:800;text-transform:uppercase;padding:6px 14px;border-radius:99px">${oldStatusInfo.label}</span>
+                  <p style="margin:0 0 6px;font-size:9px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.12em">Ancien statut</p>
+                  <span style="background:${oldStatusInfo.color}18;color:${oldStatusInfo.color};font-size:10px;font-weight:800;text-transform:uppercase;padding:5px 12px;border-radius:99px;display:inline-block">${oldStatusInfo.label}</span>
                 </td>
-                <td align="center" width="20%"><span style="font-size:20px">→</span></td>
+                <td align="center" width="20%">
+                  <span style="font-size:18px;color:#9CA3AF">→</span>
+                </td>
                 <td align="center" width="40%">
-                  <p style="margin:0 0 6px;font-size:10px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.1em">Nouveau statut</p>
-                  <span style="background:${newStatusInfo.color}25;color:${newStatusInfo.color};font-size:12px;font-weight:800;text-transform:uppercase;padding:6px 14px;border-radius:99px;border:1px solid ${newStatusInfo.color}40">${newStatusInfo.label}</span>
+                  <p style="margin:0 0 6px;font-size:9px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.12em">Nouveau statut</p>
+                  <span style="background:${newStatusInfo.color}20;color:${newStatusInfo.color};font-size:10px;font-weight:800;text-transform:uppercase;padding:5px 12px;border-radius:99px;border:1.5px solid ${newStatusInfo.color}35;display:inline-block">${newStatusInfo.label}</span>
                 </td>
               </tr></table>
             </td></tr>
           </table>
 
-          <!-- Details table -->
-          <p style="margin:0 0 12px;font-size:10px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.15em">Détails de la commande</p>
-          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #f3f4f6;border-radius:12px;overflow:hidden;margin-bottom:28px">
-            <tr style="background:#f9fafb">
-              <td style="padding:6px 12px;color:#6B7280;font-size:12px;font-weight:700;text-transform:uppercase">Article</td>
-              <td style="padding:6px 12px;font-weight:800;font-size:13px;color:#111827;text-transform:uppercase">${articleName}</td>
+          <!-- Contextual status message -->
+          ${statusBlock}
+
+          <!-- Order details table -->
+          <p style="margin:0 0 10px;font-size:9px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.18em">Détails de la commande</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1.5px solid #f3f4f6;border-radius:12px;overflow:hidden;margin-bottom:28px">
+            <tr style="background:#0f172a">
+              <td style="padding:8px 14px;color:#c4a062;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em">Article</td>
+              <td style="padding:8px 14px;font-weight:800;font-size:11px;color:#ffffff;text-transform:uppercase">${articleName}</td>
             </tr>
             ${detailRows}
           </table>
 
-          ${newStatus === 'PI' ? `<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:16px 20px;margin-bottom:24px"><p style="margin:0;font-size:13px;color:#92400E;font-weight:600;line-height:1.6">🏭 <strong>Votre commande est en cours de production.</strong><br/>Notre équipe surveille activement la fabrication. Vous serez notifié dès l'expédition.</p></div>` : ''}
-          ${newStatus === 'SHIPPED' ? `<div style="background:#DBEAFE;border:1px solid #BFDBFE;border-radius:12px;padding:16px 20px;margin-bottom:24px"><p style="margin:0;font-size:13px;color:#1E40AF;font-weight:600;line-height:1.6">🚢 <strong>Votre commande est en transit.</strong><br/>La marchandise est en route. Vous serez informé de la date d'arrivée.</p></div>` : ''}
-          ${newStatus === 'DELIVERED' ? `<div style="background:#D1FAE5;border:1px solid #A7F3D0;border-radius:12px;padding:16px 20px;margin-bottom:24px"><p style="margin:0;font-size:13px;color:#065F46;font-weight:600;line-height:1.6">✅ <strong>Votre commande a été livrée !</strong><br/>Merci de votre confiance. Contactez-nous pour toute question.</p></div>` : ''}
-
-          <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6">Pour toute question, contactez notre équipe ou consultez votre <strong style="color:#111827">portail client</strong>.</p>
+          <p style="margin:0;font-size:12px;color:#9CA3AF;line-height:1.7">
+            Pour toute question, contactez notre équipe ou consultez votre <strong style="color:#111827">portail client</strong>.
+          </p>
         </td></tr>
 
         <!-- Footer -->
-        <tr><td style="background:#f9fafb;border-top:1px solid #f3f4f6;padding:20px 40px;border-radius:0 0 16px 16px">
+        <tr><td style="background:#f9fafb;border-top:1.5px solid #f3f4f6;padding:18px 40px;border-radius:0 0 20px 20px">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td><p style="margin:0;font-size:12px;color:#9CA3AF;font-weight:700">© 2025 LEBTEX Textile Import</p><p style="margin:2px 0 0;font-size:10px;color:#D1D5DB">Email automatique — mise à jour commande.</p></td>
-            <td align="right"><p style="margin:0;font-size:10px;color:#D1D5DB;font-weight:700;text-transform:uppercase">🔒 Portail Sécurisé</p></td>
+            <td><p style="margin:0;font-size:11px;color:#9CA3AF;font-weight:700">© 2025 LEBTEX Textile Import</p><p style="margin:2px 0 0;font-size:9px;color:#D1D5DB">Email automatique — mise à jour de votre commande.</p></td>
+            <td align="right"><p style="margin:0;font-size:9px;color:#D1D5DB;font-weight:700;text-transform:uppercase">🔒 Portail Sécurisé</p></td>
           </tr></table>
         </td></tr>
 
@@ -144,7 +217,7 @@ export async function POST(req: NextRequest) {
     await transporter.sendMail({
       from: `"LEBTEX Textile Import" <${process.env.GMAIL_USER}>`,
       to: clientEmail,
-      subject: `${newStatusInfo.emoji} Mise à jour commande : ${articleName} — ${newStatusInfo.label}`,
+      subject,
       html,
     });
 

@@ -2201,10 +2201,12 @@ const STATUS_GROUPS = [
 // ── GroupedArticleList ──────────────────────────────────────────────────────
 function GroupedArticleList({
   articles,
+  categories,
   statusLabel,
   onSelect,
 }: {
   articles: any[];
+  categories: any[];
   statusLabel: (s: string) => { label: string; cls: string; dot: string; icon: string };
   onSelect: (id: string) => void;
 }) {
@@ -2278,6 +2280,13 @@ function GroupedArticleList({
                 <div className="p-3 space-y-2">
                   {groupArticles.map(a => {
                     const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
+                    // Resolve image: article own image first, then matching category fallback
+                    const catName = (a.categoryId || '').trim().toLowerCase();
+                    const cat = categories.find((c: any) => {
+                      const cName = (c.name || '').trim().toLowerCase();
+                      return cName === catName || c.id === a.categoryId;
+                    });
+                    const displayImage = a.imageUrl || cat?.imageUrl || null;
                     return (
                       <div
                         key={a.id}
@@ -2287,9 +2296,9 @@ function GroupedArticleList({
                         {/* Desktop layout */}
                         <div className="hidden sm:flex items-center gap-4 px-4 py-3">
                           {/* Product thumbnail */}
-                          {a.imageUrl ? (
+                          {displayImage ? (
                             <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-stone-100 bg-stone-50">
-                              <img src={a.imageUrl} alt={a.categoryId} className="w-full h-full object-cover" />
+                              <img src={displayImage} alt={a.categoryId} className="w-full h-full object-cover" />
                             </div>
                           ) : (
                             <div className="shrink-0 w-12 h-12 rounded-lg bg-stone-50 border border-stone-100 flex items-center justify-center">
@@ -2346,7 +2355,14 @@ function GroupedArticleList({
                         </div>
 
                         {/* Mobile layout */}
-                        <div className="sm:hidden p-3 space-y-2">
+                        <div className="sm:hidden overflow-hidden">
+                          {/* Image banner on mobile */}
+                          {displayImage && (
+                            <div className="w-full h-32 bg-stone-50 border-b border-stone-100">
+                              <img src={displayImage} alt={a.categoryId} className="w-full h-full object-contain" />
+                            </div>
+                          )}
+                          <div className="p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
@@ -2376,6 +2392,7 @@ function GroupedArticleList({
                           >
                             <Info className="w-3.5 h-3.5" /> Voir Détails
                           </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -2639,6 +2656,7 @@ export function ClientDetailView({
         {/* ── GROUPED BY STATUS ── */}
         <GroupedArticleList
           articles={clientArticles}
+          categories={categories}
           statusLabel={statusLabel}
           onSelect={setSelectedArticleId}
         />
@@ -2694,10 +2712,10 @@ export function ClientDetailView({
                 </div>
 
                 {/* Product image — shown below header if available */}
-                {selectedArticle.imageUrl && (
+                {(selectedArticle.imageUrl || selectedCategory?.imageUrl) && (
                   <div className="w-full bg-white border-b border-stone-100 flex items-center justify-center" style={{ maxHeight: 220 }}>
                     <img
-                      src={selectedArticle.imageUrl}
+                      src={selectedArticle.imageUrl || selectedCategory?.imageUrl}
                       alt={selectedArticle.categoryId}
                       className="max-h-52 w-full object-contain"
                     />

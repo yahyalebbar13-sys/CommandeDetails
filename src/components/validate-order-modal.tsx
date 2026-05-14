@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { Ship, CalendarDays, CheckCircle2 } from 'lucide-react';
+import { sendStatusNotification } from '@/lib/send-status-notification';
+import { Ship, CalendarDays, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface ValidateOrderModalProps {
   open: boolean;
@@ -29,6 +30,7 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     arrivalDate: ''
   });
   const [autofillVisible, setAutofillVisible] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -49,24 +51,52 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !order || !formData.factureId || !formData.arrivalDate) return;
+
+    setIsSending(true);
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', order.id);
     
     updateDocumentNonBlocking(docRef, {
       factureId: formData.factureId,
       arrivalDate: formData.arrivalDate,
-      status: 'SHIPPED', // Move to Shipped status
+      status: 'SHIPPED',
       validatedAt: serverTimestamp()
     });
 
     toast({ 
-      title: "Commande validée !", 
-      description: `L'article ${order.name} est maintenant associé à la facture ${formData.factureId}.` 
+      title: "Commande expédiée !", 
+      description: `L'article ${order.name} est associé à la facture ${formData.factureId}.` 
     });
-    
+
+    // ── Send notification if article has a clientName ──
+    const clientName = (order.clientName || '').trim();
+    if (clientName && order.isPreorder) {
+      toast({ title: '📧 Envoi en cours...', description: `Notification client → ${clientName}` });
+      const result = await sendStatusNotification({
+        firestore,
+        adminUid: user.uid,
+        clientName,
+        articleName: order.categoryId || order.name,
+        oldStatus: 'PI',
+        newStatus: 'SHIPPED',
+        quantity: order.quantity,
+        unitOfMeasure: order.unitOfMeasure,
+        specs: order.specs,
+        color: order.color,
+        size: order.size,
+        estimatedProductionDelay: order.estimatedProductionDelay,
+      });
+      if (result.ok) {
+        toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
+      } else if (result.error) {
+        toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
+      }
+    }
+
+    setIsSending(false);
     onOpenChange(false);
   };
 
@@ -80,14 +110,19 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
             <Ship className="w-6 h-6" /> Validation d'Expédition
           </DialogTitle>
           <DialogDescription className="text-stone-500">
-            Assignez un numéro de facture et une date d'arrivée pour confirmer l'envoi de cette commande.
+            Assignez un numéro de facture et une date d'arrivée pour confirmer l'expédition.
           </DialogDescription>
         </DialogHeader>
 
         <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 mb-2">
           <div className="text-[10px] text-stone-500 uppercase font-bold mb-1">Article en cours</div>
           <div className="font-bold text-stone-800">{order.name}</div>
-          <div className="text-sm text-stone-600">{order.quantity.toLocaleString()} {order.unitOfMeasure} • {order.supplierId}</div>
+          <div className="text-sm text-stone-600">{order.quantity?.toLocaleString()} {order.unitOfMeasure} • {order.supplierId}</div>
+          {order.isPreorder && order.clientName && (
+            <div className="mt-1 text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-flex items-center gap-1">
+              📧 Notification client : {order.clientName}
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -132,8 +167,16 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         </form>
 
         <DialogFooter className="border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">Confirmer l'expédition</Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSending || !formData.factureId || !formData.arrivalDate}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"
+          >
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ship className="w-4 h-4" />}
+            Confirmer l'expédition
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

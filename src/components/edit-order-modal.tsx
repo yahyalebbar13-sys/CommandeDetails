@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock, ImagePlus, X as XIcon } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { sendStatusNotification } from '@/lib/send-status-notification';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
@@ -224,63 +225,26 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const newStatus = formData.status;
     const clientName = (formData.clientName || '').trim();
 
-    console.log('[Notification] oldStatus:', oldStatus, '→ newStatus:', newStatus);
-    console.log('[Notification] clientName:', clientName);
-
     if (oldStatus !== newStatus && clientName) {
-      try {
-        // Fetch all clientAccess docs for this admin, then match clientName case-insensitively
-        const clientAccessRef = collection(firestore, 'clientAccess');
-        const q = query(clientAccessRef, where('adminUid', '==', user.uid));
-        const snap = await getDocs(q);
-        console.log('[Notification] total clientAccess docs for admin:', snap.size);
-
-        const clientNameLower = clientName.toLowerCase();
-        const matchDoc = snap.docs.find(d => {
-          const stored = (d.data().clientName || '').toLowerCase().trim();
-          return stored === clientNameLower ||
-                 stored.includes(clientNameLower) ||
-                 clientNameLower.includes(stored);
-        });
-
-        console.log('[Notification] match found:', matchDoc ? matchDoc.data().clientName : 'NONE');
-
-        const docData = matchDoc?.data() || null;
-        const clientEmail = docData
-          ? ((docData.notificationEmail || '').trim() || docData.email || null)
-          : null;
-
-        if (clientEmail) {
-          toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientEmail}` });
-          const res = await fetch('/api/send-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              clientEmail,
-              clientName,
-              articleName: formData.categoryId || formData.name,
-              oldStatus,
-              newStatus,
-              quantity: formData.quantity,
-              unitOfMeasure: formData.unitOfMeasure,
-              specs: formData.specs,
-              color: formData.color,
-              size: formData.size,
-              estimatedProductionDelay: formData.estimatedProductionDelay,
-            }),
-          });
-          const data = await res.json();
-          if (res.ok) {
-            toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${clientEmail}` });
-          } else {
-            toast({ title: '⚠️ Erreur envoi email', description: data.error || 'Erreur inconnue.', variant: 'destructive' });
-          }
-        } else {
-          console.log('[Notification] No email found for client:', clientName, '— no clientAccess or no email set');
-        }
-      } catch (err: any) {
-        console.error('[Notification] Error:', err);
-        toast({ title: '⚠️ Erreur notification', description: err.message || 'Erreur inconnue.', variant: 'destructive' });
+      toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName}` });
+      const result = await sendStatusNotification({
+        firestore,
+        adminUid: user.uid,
+        clientName,
+        articleName: formData.categoryId || formData.name,
+        oldStatus,
+        newStatus,
+        quantity: formData.quantity,
+        unitOfMeasure: formData.unitOfMeasure,
+        specs: formData.specs,
+        color: formData.color,
+        size: formData.size,
+        estimatedProductionDelay: formData.estimatedProductionDelay,
+      });
+      if (result.ok) {
+        toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
+      } else if (result.error) {
+        toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
       }
     }
 

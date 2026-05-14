@@ -9,7 +9,8 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale, Container } from 'lucide-react';
+import { sendStatusNotification } from '@/lib/send-status-notification';
+import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale, Container, Loader2 } from 'lucide-react';
 
 interface LaunchOrderModalProps {
   open: boolean;
@@ -30,6 +31,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
     purchasePricePerUnit: 0,
     containerRef: '',
   });
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (open && article) {
@@ -44,15 +46,17 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
     }
   }, [open, article]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !article || !formData.supplierId || !formData.orderDate) return;
+
+    setIsSending(true);
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
 
     updateDocumentNonBlocking(docRef, {
       ...formData,
-      status: 'PI', // Move to Production
+      status: 'PI',
       launchedAt: serverTimestamp()
     });
 
@@ -61,6 +65,32 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
       description: `L'article ${article.name} est maintenant en production (PI).`
     });
 
+    // ── Send notification PI if article is a client preorder ──
+    const clientName = (article.clientName || '').trim();
+    if (clientName && article.isPreorder) {
+      toast({ title: '📧 Envoi notification...', description: `Notification client → ${clientName}` });
+      const result = await sendStatusNotification({
+        firestore,
+        adminUid: user.uid,
+        clientName,
+        articleName: article.categoryId || article.name,
+        oldStatus: article.status || 'TO_ORDER',
+        newStatus: 'PI',
+        quantity: article.quantity,
+        unitOfMeasure: article.unitOfMeasure,
+        specs: article.specs,
+        color: article.color,
+        size: article.size,
+        estimatedProductionDelay: article.estimatedProductionDelay,
+      });
+      if (result.ok) {
+        toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
+      } else if (result.error) {
+        toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
+      }
+    }
+
+    setIsSending(false);
     onOpenChange(false);
   };
 
@@ -81,7 +111,12 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
         <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 mb-2">
           <div className="text-[10px] text-stone-500 uppercase font-bold mb-1">Besoin identifié</div>
           <div className="font-bold text-stone-800">{article.name}</div>
-          <div className="text-sm text-stone-600">{article.quantity.toLocaleString()} {article.unitOfMeasure} • {article.categoryId}</div>
+          <div className="text-sm text-stone-600">{article.quantity?.toLocaleString()} {article.unitOfMeasure} • {article.categoryId}</div>
+          {article.isPreorder && article.clientName && (
+            <div className="mt-1 text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-flex items-center gap-1">
+              📧 Notification client : {article.clientName}
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -114,7 +149,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
           <div className="space-y-1">
             <Label className="font-bold flex items-center gap-1">
               <Container className="w-4 h-4 text-orange-500" /> Référence Conteneur
-              <span className="text-[9px] font-normal text-stone-400 ml-1">(optionnel — pour regrouper plusieurs commandes)</span>
+              <span className="text-[9px] font-normal text-stone-400 ml-1">(optionnel)</span>
             </Label>
             <Input
               value={formData.containerRef}
@@ -172,8 +207,16 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
         </form>
 
         <DialogFooter className="border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">Lancer la Commande (PI)</Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSending}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
+          >
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+            Lancer la Commande (PI)
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
