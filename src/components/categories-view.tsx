@@ -27,7 +27,10 @@ import {
   MousePointer2,
   Pencil,
   Palette,
-  Hash
+  Hash,
+  ImagePlus,
+  Loader2,
+  X as XIcon
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import { 
@@ -38,6 +41,8 @@ import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBloc
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { doc } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 
 interface CategoriesViewProps {
@@ -78,6 +83,8 @@ export default function CategoriesView({
   const [todayStr, setTodayStr] = useState('');
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
 
   // Debounce search: only filter after 200ms of inactivity
   useEffect(() => {
@@ -127,6 +134,59 @@ export default function CategoriesView({
     });
     toast({ title: 'Données douanières mises à jour' });
     setIsCustomsModalOpen(false);
+  };
+
+  // ── Upload / supprimer la photo de la catégorie ──
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !currentCategoryObj) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: 'destructive', title: 'Format invalide', description: 'Sélectionnez une image (JPG, PNG, WEBP...)' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ variant: 'destructive', title: 'Fichier trop grand', description: 'Maximum 5 MB.' });
+      return;
+    }
+    setImageUploading(true);
+    setImageUploadProgress(0);
+    try {
+      const storage = getStorage(getApp());
+      const path = `users/${user.uid}/categories/${currentCategoryObj.id}/photo`;
+      const imgRef = storageRef(storage, path);
+      const task = uploadBytesResumable(imgRef, file);
+      await new Promise<void>((resolve, reject) => {
+        task.on(
+          'state_changed',
+          (snap) => setImageUploadProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+          reject,
+          async () => {
+            const url = await getDownloadURL(task.snapshot.ref);
+            const docRef = doc(firestore!, 'users', user.uid, 'categories', currentCategoryObj.id);
+            updateDocumentNonBlocking(docRef, { ...currentCategoryObj, imageUrl: url });
+            resolve();
+          }
+        );
+      });
+      toast({ title: '📸 Photo ajoutée', description: 'Photo de la catégorie mise à jour.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur upload', description: err.message });
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleRemoveCategoryImage = async () => {
+    if (!user || !firestore || !currentCategoryObj) return;
+    try {
+      const storage = getStorage(getApp());
+      await deleteObject(storageRef(storage, `users/${user.uid}/categories/${currentCategoryObj.id}/photo`)).catch(() => {});
+      const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
+      updateDocumentNonBlocking(docRef, { ...currentCategoryObj, imageUrl: null });
+      toast({ title: 'Photo supprimée' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    }
   };
 
   useEffect(() => {
@@ -535,6 +595,44 @@ export default function CategoriesView({
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Photo de la catégorie */}
+              <div className="shrink-0 self-start">
+                {currentCategoryObj?.imageUrl ? (
+                  <div className="relative w-28 h-28 rounded-2xl overflow-hidden border border-white/10 bg-white/5 shadow-xl">
+                    <img src={currentCategoryObj.imageUrl} alt={selectedCategory || ''} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={handleRemoveCategoryImage}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow transition-colors"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`flex flex-col items-center justify-center w-28 h-28 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${
+                    imageUploading
+                      ? 'border-amber-400/50 bg-amber-500/10'
+                      : 'border-white/20 bg-white/5 hover:border-amber-400/50 hover:bg-amber-500/10'
+                  }`}>
+                    {imageUploading ? (
+                      <div className="flex flex-col items-center gap-1.5">
+                        <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
+                        <div className="w-16 bg-white/10 rounded-full h-1">
+                          <div className="bg-amber-400 h-1 rounded-full transition-all" style={{ width: `${imageUploadProgress}%` }} />
+                        </div>
+                        <span className="text-[9px] font-bold text-amber-400">{imageUploadProgress}%</span>
+                      </div>
+                    ) : (
+                      <>
+                        <ImagePlus className="w-5 h-5 text-white/30 mb-1" />
+                        <span className="text-[8px] font-black text-white/30 uppercase text-center leading-tight">Ajouter<br/>Photo</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleCategoryImageUpload} disabled={imageUploading} />
+                  </label>
+                )}
               </div>
 
               {/* KPI cards */}
