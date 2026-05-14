@@ -9,3 +9,7 @@ env:
     secret: GOOGLE_GENAI_API_KEY
   - variable: GEMINI_API_KEY
     secret: GOOGLE_GENAI_API_KEY
+  - variable: GMAIL_USER
+    value: yahya.lebbar13@gmail.com
+  - variable: GMAIL_APP_PASSWORD
+    value: goaqptrilxzeznvy
