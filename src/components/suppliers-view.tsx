@@ -280,6 +280,7 @@ export default function SuppliersView({ articles, factures, payments, categories
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => handleTabChange(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
                   isActive
@@ -313,6 +314,7 @@ export default function SuppliersView({ articles, factures, payments, categories
           />
         </div>
         <button
+          type="button"
           onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
           className="flex items-center gap-2 h-11 px-5 bg-white border border-stone-200 rounded-xl text-[10px] font-black text-stone-500 hover:text-stone-900 hover:border-stone-300 transition-all shadow-sm uppercase tracking-wider shrink-0"
         >
@@ -984,6 +986,7 @@ function SupplierDetailView({
                   </div>
                 )}
                 <button
+                  type="button"
                   onClick={() => setIsSupplierInfoOpen(true)}
                   className="w-full mt-1 h-8 text-[8px] font-black uppercase tracking-widest text-stone-400 hover:text-amber-600 border border-stone-100 hover:border-amber-200 rounded-xl transition-colors"
                 >
@@ -2082,7 +2085,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
                 </div>
                 <div className="flex gap-2">
                   <Input
-                    type="email"
+                    type="text"
+                    autoComplete="off"
                     placeholder={`Par défaut : ${accessDoc.email}`}
                     value={notificationEmail}
                     onChange={e => setNotificationEmail(e.target.value)}
@@ -2238,6 +2242,7 @@ function GroupedArticleList({
           <div key={group.key} className="rounded-2xl overflow-hidden shadow-sm border border-white/60">
             {/* Group header — collapsible */}
             <button
+              type="button"
               onClick={() => toggleGroup(group.key)}
               className="w-full flex items-center justify-between px-5 py-3.5 transition-opacity hover:opacity-90"
               style={{ background: group.headerBg }}
@@ -2327,6 +2332,7 @@ function GroupedArticleList({
                           {/* Action */}
                           <div className="shrink-0 pl-4 border-l border-stone-100">
                             <button
+                              type="button"
                               onClick={() => onSelect(a.id)}
                               className="h-9 px-3 text-white font-black uppercase text-[9px] tracking-widest rounded-lg transition-all flex items-center gap-1.5"
                               style={{ background: group.headerBg }}
@@ -2361,6 +2367,7 @@ function GroupedArticleList({
                             )}
                           </div>
                           <button
+                            type="button"
                             onClick={() => onSelect(a.id)}
                             className="w-full h-9 text-white font-black uppercase text-[9px] tracking-widest rounded-lg flex items-center justify-center gap-1.5"
                             style={{ background: group.headerBg }}
@@ -2660,6 +2667,7 @@ export function ClientDetailView({
                   
                   {/* Close button */}
                   <button
+                    type="button"
                     onClick={() => setSelectedArticleId(null)}
                     className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
                   >
