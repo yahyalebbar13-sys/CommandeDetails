@@ -90,14 +90,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Remove spaces from App Password (Google shows them for readability)
-    const appPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
+    // Fallback to hardcoded values if env vars are not available (Firebase App Hosting plan limitation)
+    const gmailUser = process.env.GMAIL_USER || 'yahya.lebbar13@gmail.com';
+    const appPass = (process.env.GMAIL_APP_PASSWORD || 'goaqptrilxzeznvy').replace(/\s/g, '');
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
       secure: false,
       auth: {
-        user: process.env.GMAIL_USER,
+        user: gmailUser,
         pass: appPass,
       },
       tls: {

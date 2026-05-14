@@ -11,5 +11,9 @@ env:
     secret: GOOGLE_GENAI_API_KEY
   - variable: GMAIL_USER
     value: yahya.lebbar13@gmail.com
+    availability:
+      - RUNTIME
   - variable: GMAIL_APP_PASSWORD
     value: goaqptrilxzeznvy
+    availability:
+      - RUNTIME
