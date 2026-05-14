@@ -46,7 +46,23 @@ export default function DesignPicker({ categoryName, subCategories, value, onCha
   const { data: rawDesigns } = useCollection(designsRef);
   const designs: Design[] = (rawDesigns || []) as Design[];
 
-  if (!categoryName || designs.length === 0) return null;
+  if (!categoryName || !categoryId) return null;
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  if (designs.length === 0) {
+    return (
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1.5">
+          <BookImage className="w-3 h-3 text-amber-600" />
+          Design / Modèle
+        </label>
+        <div className="flex items-center gap-2 p-3 bg-stone-50 border border-dashed border-stone-200 rounded-xl text-[9px] text-stone-400 font-bold uppercase tracking-widest">
+          <BookImage className="w-3.5 h-3.5 shrink-0" />
+          Aucun design enregistré — ajoutez-en dans l&apos;onglet Catégories
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
