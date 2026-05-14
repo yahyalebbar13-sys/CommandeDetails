@@ -485,7 +485,17 @@ function AdminApp() {
                 <SheetHeader className="bg-stone-900 p-6 text-left">
                   <SheetTitle className="text-xl font-black tracking-tighter text-white uppercase">STOCK<span className="text-amber-500">VUE</span></SheetTitle>
                 </SheetHeader>
-                <div className="p-4"><NavButtons vertical /></div>
+                <div className="p-4 space-y-2">
+                  <NavButtons vertical />
+                  <div className="pt-2 border-t border-stone-100">
+                    <Button
+                      onClick={() => { setIsOrderModalOpen(true); setIsMobileMenuOpen(false); }}
+                      className="w-full bg-stone-900 hover:bg-black text-white h-11 rounded-xl gap-2 text-[10px] uppercase font-black tracking-widest"
+                    >
+                      <Plus className="w-4 h-4" /> Nouveau Produit
+                    </Button>
+                  </div>
+                </div>
               </SheetContent>
             </Sheet>
             <button onClick={resetToHome} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
@@ -494,11 +504,11 @@ function AdminApp() {
             <div className="h-6 w-px bg-stone-200 hidden xl:block" />
             <div className="hidden xl:flex items-center space-x-1"><NavButtons /></div>
           </div>
-          <div className="flex items-center space-x-3">
-            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-4 py-2 h-9 rounded-xl shadow-lg flex items-center gap-2 text-[10px] uppercase font-black tracking-widest">
-              <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nouveau Produit</span>
+          <div className="flex items-center space-x-2">
+            <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-3 py-2 h-9 rounded-xl shadow-lg flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest whitespace-nowrap">
+              <Plus className="w-3.5 h-3.5 shrink-0" /><span>Nouveau Produit</span>
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50">
+            <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 shrink-0">
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
