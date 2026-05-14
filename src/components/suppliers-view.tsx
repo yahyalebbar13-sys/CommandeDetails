@@ -301,29 +301,31 @@ export default function SuppliersView({ articles, factures, payments, categories
         </div>
       </div>
 
-      {/* ── Search + Sort ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
-          <input
-            type="text"
-            placeholder={`Rechercher…`}
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full h-11 pl-10 pr-4 bg-white border border-stone-200 rounded-xl text-[11px] font-bold text-stone-700 placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-200 shadow-sm"
-          />
+      {/* ── Search + Sort — masqué sur l'onglet Clients ─────────────────────── */}
+      {activeTab !== 'clients' && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
+            <input
+              type="text"
+              placeholder={`Rechercher…`}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 bg-white border border-stone-200 rounded-xl text-[11px] font-bold text-stone-700 placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-200 shadow-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
+            className="flex items-center gap-2 h-11 px-5 bg-white border border-stone-200 rounded-xl text-[10px] font-black text-stone-500 hover:text-stone-900 hover:border-stone-300 transition-all shadow-sm uppercase tracking-wider shrink-0"
+          >
+            {sortOrder === 'desc'
+              ? <><SortDesc className="w-4 h-4" /> Décroissant</>
+              : <><SortAsc className="w-4 h-4" /> Croissant</>
+            }
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
-          className="flex items-center gap-2 h-11 px-5 bg-white border border-stone-200 rounded-xl text-[10px] font-black text-stone-500 hover:text-stone-900 hover:border-stone-300 transition-all shadow-sm uppercase tracking-wider shrink-0"
-        >
-          {sortOrder === 'desc'
-            ? <><SortDesc className="w-4 h-4" /> Décroissant</>
-            : <><SortAsc className="w-4 h-4" /> Croissant</>
-          }
-        </button>
-      </div>
+      )}
 
       {/* ── FOURNISSEURS ── */}
       {activeTab === 'suppliers' && (() => {
