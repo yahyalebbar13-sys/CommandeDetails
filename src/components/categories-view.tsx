@@ -33,6 +33,7 @@ import {
   X as XIcon
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
+import DesignLibrary from './design-library';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
@@ -1007,6 +1008,16 @@ export default function CategoriesView({
             </CardContent>
           </Card>
         </div>
+
+        {/* ── Design Library — shown only for Zipper / Slider categories ── */}
+        {currentCategoryObj && isTechnicalZipper(selectedCategory) && (
+          <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden p-6">
+            <DesignLibrary
+              categoryId={currentCategoryObj.id}
+              categoryName={selectedCategory}
+            />
+          </div>
+        )}
 
         {editingArticle && (
           <EditOrderModal article={editingArticle} onOpenChange={(open) => !open && setEditingArticle(null)} factures={factures} />
