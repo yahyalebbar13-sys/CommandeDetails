@@ -168,7 +168,16 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const newStatus = formData.status;
     const clientName = formData.clientName?.trim();
 
-    if (oldStatus !== newStatus && formData.isPreorder && clientName) {
+    console.log('[Notification] oldStatus:', oldStatus, '→ newStatus:', newStatus);
+    console.log('[Notification] isPreorder:', formData.isPreorder, '| clientName:', clientName);
+
+    if (oldStatus === newStatus) {
+      // Statut inchangé — pas de notification, c'est normal
+    } else if (!formData.isPreorder) {
+      toast({ title: 'ℹ️ Pas une précommande', description: 'Activez "Précommande Client" pour envoyer des notifications.', variant: 'destructive' });
+    } else if (!clientName) {
+      toast({ title: 'ℹ️ Nom client manquant', description: 'Renseignez le nom du client dans la section Précommande.', variant: 'destructive' });
+    } else {
       try {
         // Look up client email from clientAccess collection by clientName + adminUid
         const clientAccessRef = collection(firestore, 'clientAccess');
@@ -177,6 +186,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           where('clientName', '==', clientName)
         );
         const snap = await getDocs(q);
+        console.log('[Notification] clientAccess docs found:', snap.size);
+        snap.docs.forEach(d => console.log('  doc:', d.id, d.data()));
+
         const clientEmail = snap.empty ? null : (snap.docs[0].data().email as string | undefined);
 
         if (clientEmail) {
@@ -201,13 +213,18 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           if (res.ok) {
             toast({ title: '📧 Notification envoyée', description: `Email envoyé à ${clientEmail}` });
           } else {
-            toast({ title: '⚠️ Email non envoyé', description: data.error || 'Erreur inconnue.', variant: 'destructive' });
+            toast({ title: '⚠️ Erreur envoi email', description: data.error || 'Erreur inconnue.', variant: 'destructive' });
           }
         } else {
-          toast({ title: 'ℹ️ Aucun email client', description: `Configurez d'abord l'accès portail pour "${clientName}" (avec son email).`, variant: 'destructive' });
+          toast({
+            title: '⚠️ Email client introuvable',
+            description: `Aucun accès portail trouvé pour "${clientName}". Créez l'accès client via la fiche client (bouton 🔑).`,
+            variant: 'destructive'
+          });
         }
-      } catch (err) {
-        console.error('Notification email failed:', err);
+      } catch (err: any) {
+        console.error('[Notification] Error:', err);
+        toast({ title: '⚠️ Erreur', description: err.message || 'Erreur inconnue.', variant: 'destructive' });
       }
     }
 
