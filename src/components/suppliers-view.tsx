@@ -8,12 +8,13 @@ import {
   Users, ChevronLeft, Package, Calendar, Clock, ClipboardList,
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
   Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle,
-  Search, SortAsc, SortDesc, TrendingUp, ChevronRight, Calculator, MapPin, User
+  Search, SortAsc, SortDesc, TrendingUp, ChevronRight, Calculator, MapPin, User,
+  Mail, Settings, RefreshCw
 } from 'lucide-react';
 import CoutDeRevientModal from './cout-de-revient-modal';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -23,7 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { exportSupplierPDF, exportCompanyPDF, exportShippingPDF, exportForwarderPDF, exportClientDossierPDF } from '@/lib/pdf-export';
 import SupplierInfoModal from './supplier-info-modal';
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
 interface SuppliersViewProps {
@@ -1617,6 +1618,7 @@ function ForwarderDetailView({
 
 function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; orders: number; categories: Set<string> }; rank: number; pct: number; onSelect: () => void }) {
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const { user } = useUser();
   const canCreateAccount = user?.email === 'yahya.lebbar13@gmail.com';
 
@@ -1683,13 +1685,22 @@ function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; order
           {/* Access button (admin only) + CTA */}
           <div className="mt-4 flex items-center justify-between">
             {canCreateAccount ? (
-              <button
-                className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-wider text-indigo-500 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50 transition-colors"
-                onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
-              >
-                <KeyRound className="w-3 h-3" />
-                Créer accès
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-500 border border-indigo-200 rounded-lg px-2.5 py-1.5 hover:bg-indigo-50 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); setIsAccessModalOpen(true); }}
+                >
+                  <KeyRound className="w-3 h-3" />
+                  Créer accès
+                </button>
+                <button
+                  className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-stone-500 border border-stone-200 rounded-lg px-2.5 py-1.5 hover:bg-stone-50 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); setIsManageModalOpen(true); }}
+                >
+                  <Settings className="w-3 h-3" />
+                  Gérer
+                </button>
+              </div>
             ) : <div />}
             <div className="flex items-center text-[9px] font-black uppercase tracking-widest text-stone-300 group-hover:text-indigo-600 transition-colors">
               Voir détails <ChevronRight className="w-3 h-3 ml-0.5" />
@@ -1700,6 +1711,11 @@ function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; order
       <CreateClientAccessModal
         open={isAccessModalOpen}
         onOpenChange={setIsAccessModalOpen}
+        clientName={stat.name}
+      />
+      <ManageClientAccessModal
+        open={isManageModalOpen}
+        onOpenChange={setIsManageModalOpen}
         clientName={stat.name}
       />
     </>
@@ -1845,6 +1861,233 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-11 font-black uppercase text-[10px] tracking-widest flex-1" disabled={loading}>Annuler</Button>
           <Button onClick={handleCreate} className="h-11 bg-indigo-700 hover:bg-indigo-800 text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-indigo-200 gap-2" disabled={loading}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><KeyRound className="w-3.5 h-3.5" /> Créer l'Accès</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Manage Client Access Modal ──────────────────────────────────────────────
+function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boolean; onOpenChange: (o: boolean) => void; clientName: string }) {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [accessDoc, setAccessDoc] = useState<{ id: string; email: string; notificationEmail?: string } | null>(null);
+  const [notificationEmail, setNotificationEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+
+  // Load clientAccess doc when modal opens
+  useEffect(() => {
+    if (!open || !user || !firestore) return;
+    setAccessDoc(null);
+    setNotificationEmail('');
+    setNewPassword('');
+    setCurrentPassword('');
+
+    (async () => {
+      try {
+        const q = query(
+          collection(firestore, 'clientAccess'),
+          where('adminUid', '==', user.uid),
+          where('clientName', '==', clientName)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          const data = d.data();
+          setAccessDoc({ id: d.id, email: data.email, notificationEmail: data.notificationEmail || '' });
+          setNotificationEmail(data.notificationEmail || '');
+        }
+      } catch (err: any) {
+        toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+      }
+    })();
+  }, [open, user, firestore, clientName]);
+
+  // Save notification email
+  const handleSaveNotifEmail = async () => {
+    if (!user || !firestore || !accessDoc) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(firestore, 'clientAccess', accessDoc.id), { notificationEmail });
+      setAccessDoc(prev => prev ? { ...prev, notificationEmail } : prev);
+      toast({ title: '✅ Email de notification mis à jour', description: `Les notifications seront envoyées à ${notificationEmail || accessDoc.email}` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Change client password via secondary Firebase app
+  const handleChangePassword = async () => {
+    if (!accessDoc || !newPassword || !currentPassword) return;
+    if (newPassword.length < 8) {
+      toast({ variant: 'destructive', title: 'Mot de passe trop court', description: 'Minimum 8 caractères.' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const appName = 'clientUpdate_' + Date.now();
+      const secondaryApp = initializeApp(firebaseConfig, appName);
+      const secondaryAuth = getAuth(secondaryApp);
+      // Sign in as the client to verify current password, then update
+      const cred = await signInWithEmailAndPassword(secondaryAuth, accessDoc.email, currentPassword);
+      await cred.user.updatePassword(newPassword);
+      await deleteApp(secondaryApp);
+      toast({ title: '✅ Mot de passe modifié', description: `Le mot de passe de ${clientName} a été mis à jour.` });
+      setNewPassword('');
+      setCurrentPassword('');
+    } catch (err: any) {
+      let msg = err.message || 'Erreur inconnue.';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Mot de passe actuel incorrect.';
+      if (err.code === 'auth/weak-password') msg = 'Nouveau mot de passe trop faible (min. 8 caractères).';
+      toast({ variant: 'destructive', title: 'Erreur', description: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Send password reset email via Firebase Auth
+  const handleSendResetEmail = async () => {
+    if (!accessDoc) return;
+    setResetting(true);
+    try {
+      const auth = getAuth();
+      await sendPasswordResetEmail(auth, accessDoc.email);
+      toast({ title: '📧 Email de réinitialisation envoyé', description: `Un lien a été envoyé à ${accessDoc.email}` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-2xl p-0 border-none overflow-hidden">
+        {/* Header */}
+        <div className="bg-stone-900 p-6 text-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/10 rounded-lg">
+              <Settings className="w-5 h-5 text-stone-300" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-black uppercase tracking-tight">Gérer l&apos;Accès</DialogTitle>
+              <p className="text-stone-400 text-[9px] font-bold uppercase tracking-widest mt-0.5">{clientName}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {!accessDoc ? (
+            <div className="text-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto text-stone-300 mb-3" />
+              <p className="text-[11px] font-bold text-stone-400 uppercase">Recherche du compte client...</p>
+              <p className="text-[10px] text-stone-300 mt-1">Vérifiez qu&apos;un accès portail a été créé pour ce client.</p>
+            </div>
+          ) : (
+            <>
+              {/* Portal credentials section */}
+              <div className="space-y-3">
+                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <KeyRound className="w-3 h-3" /> Identifiants Portail Client
+                </p>
+
+                {/* Login email (read-only) */}
+                <div className="space-y-1">
+                  <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Email de connexion (portail)</Label>
+                  <div className="h-10 bg-stone-50 border border-stone-200 rounded-xl px-3 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-stone-700">{accessDoc.email}</span>
+                    <span className="text-[8px] font-black text-stone-300 uppercase">Lecture seule</span>
+                  </div>
+                </div>
+
+                {/* Change password */}
+                <div className="bg-stone-50 rounded-xl border border-stone-200 p-3 space-y-2">
+                  <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Changer le mot de passe</p>
+                  <Input
+                    type="password"
+                    placeholder="Mot de passe actuel du client"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    className="h-9 text-[11px] font-bold border-stone-200 rounded-lg"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Nouveau mot de passe (min. 8 car.)"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="h-9 text-[11px] font-bold border-stone-200 rounded-lg"
+                  />
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      onClick={handleChangePassword}
+                      disabled={loading || !newPassword || !currentPassword}
+                      className="flex-1 h-9 bg-stone-800 hover:bg-black text-white font-black text-[9px] uppercase tracking-widest rounded-lg gap-1.5"
+                    >
+                      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
+                      Changer
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSendResetEmail}
+                      disabled={resetting}
+                      className="flex-1 h-9 font-black text-[9px] uppercase tracking-widest rounded-lg gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      {resetting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      Reset par email
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification email section */}
+              <div className="space-y-3">
+                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Mail className="w-3 h-3" /> Email de Notification
+                </p>
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-[10px] text-indigo-700 font-bold">
+                  Cet email reçoit les notifications de changement de statut. S&apos;il est vide, l&apos;email de connexion est utilisé.
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder={`Par défaut : ${accessDoc.email}`}
+                    value={notificationEmail}
+                    onChange={e => setNotificationEmail(e.target.value)}
+                    className="h-10 text-[11px] font-bold border-indigo-200 rounded-xl flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveNotifEmail}
+                    disabled={loading}
+                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl px-4 gap-1.5 shadow-md shadow-indigo-100"
+                  >
+                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                    Sauver
+                  </Button>
+                </div>
+                {accessDoc.notificationEmail && (
+                  <p className="text-[9px] text-indigo-600 font-bold">
+                    📧 Actuellement : {accessDoc.notificationEmail}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <DialogFooter className="p-4 bg-stone-50 border-t">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full h-10 font-black uppercase text-[10px] tracking-widest">
+            Fermer
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -189,7 +189,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         console.log('[Notification] clientAccess docs found:', snap.size);
         snap.docs.forEach(d => console.log('  doc:', d.id, d.data()));
 
-        const clientEmail = snap.empty ? null : (snap.docs[0].data().email as string | undefined);
+        const docData = snap.empty ? null : snap.docs[0].data();
+        // Use notificationEmail if set, otherwise fallback to the portal login email
+        const clientEmail = docData
+          ? (docData.notificationEmail?.trim() || docData.email || null)
+          : null;
 
         if (clientEmail) {
           const res = await fetch('/api/send-notification', {
