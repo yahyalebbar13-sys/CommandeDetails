@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy } from 'lucide-react';
+import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Mail, Clock } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
@@ -72,6 +72,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         priority: article.priority || 'todo',
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
+        clientEmail: article.clientEmail || '',
+        estimatedProductionDelay: article.estimatedProductionDelay || '',
       });
       setSelectedGenCatId(article.generalCategoryId || '');
       // Load existing color breakdown if present
@@ -132,7 +134,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !article || !formData) return;
 
@@ -162,6 +164,37 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     };
 
     updateDocumentNonBlocking(docRef, finalData);
+
+    // ── Send Gmail notification if status changed and client email is set ──
+    const oldStatus = article.status;
+    const newStatus = formData.status;
+    const clientEmail = formData.clientEmail?.trim();
+
+    if (oldStatus !== newStatus && clientEmail && formData.isPreorder) {
+      try {
+        await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientEmail,
+            clientName: formData.clientName || 'Client',
+            articleName: formData.categoryId || formData.name,
+            oldStatus,
+            newStatus,
+            quantity: formData.quantity,
+            unitOfMeasure: formData.unitOfMeasure,
+            specs: formData.specs,
+            color: formData.color,
+            size: formData.size,
+            estimatedProductionDelay: formData.estimatedProductionDelay,
+          }),
+        });
+        toast({ title: "📧 Notification envoyée", description: `Email de mise à jour envoyé à ${clientEmail}` });
+      } catch (err) {
+        console.error('Notification email failed:', err);
+        toast({ title: "⚠️ Email non envoyé", description: "La mise à jour a été sauvegardée mais l'email n'a pas pu être envoyé.", variant: 'destructive' });
+      }
+    }
 
     toast({ title: "Modifié !", description: `L'article a été mis à jour.` });
     onOpenChange(false);
@@ -552,16 +585,42 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 />
               </div>
               {formData.isPreorder && (
-                <div className="mt-3 space-y-1.5">
-                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                    <UserCircle2 className="w-3 h-3" /> Nom du Client
-                  </Label>
-                  <Input
-                    placeholder="Ex: Zara, H&M, Client X..."
-                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                    value={formData.clientName || ''}
-                    onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
-                  />
+                <div className="mt-3 space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                      <UserCircle2 className="w-3 h-3" /> Nom du Client
+                    </Label>
+                    <Input
+                      placeholder="Ex: Zara, H&M, Client X..."
+                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                      value={formData.clientName || ''}
+                      onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> Email du Client
+                      <span className="ml-1 text-[8px] font-bold text-indigo-300 normal-case tracking-normal">(pour notifications)</span>
+                    </Label>
+                    <Input
+                      type="email"
+                      placeholder="client@example.com"
+                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                      value={formData.clientEmail || ''}
+                      onChange={e => setFormData((p: any) => ({ ...p, clientEmail: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Délai de production estimé
+                    </Label>
+                    <Input
+                      placeholder="Ex: 30 jours, 6 semaines..."
+                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                      value={formData.estimatedProductionDelay || ''}
+                      onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
+                    />
+                  </div>
                 </div>
               )}
               {!formData.isPreorder && (

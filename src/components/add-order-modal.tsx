@@ -17,7 +17,7 @@ import {
 import {
   Layers, Package, Save, Palette, Ruler, ClipboardList,
   Maximize, Settings2, MousePointer2, Scissors, UserCircle2,
-  AlertCircle, DollarSign, Building2, Star, ChevronRight
+  AlertCircle, DollarSign, Building2, Star, ChevronRight, Mail, Clock
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
@@ -48,6 +48,8 @@ const EMPTY_FORM = {
   priority: 'todo',
   isPreorder: false,
   clientName: '',
+  clientEmail: '',
+  estimatedProductionDelay: '',
 };
 
 export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
@@ -640,20 +642,46 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
               </div>
               <Switch
                 checked={formData.isPreorder}
-                onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '' }))}
+                onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '', clientEmail: v ? p.clientEmail : '', estimatedProductionDelay: v ? p.estimatedProductionDelay : '' }))}
               />
             </div>
             {formData.isPreorder && (
-              <div className="px-3.5 pb-3.5 space-y-1.5">
-                <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                  <UserCircle2 className="w-3 h-3" /> Nom du Client
-                </Label>
-                <Input
-                  placeholder="Ex: Zara, H&M, Client X..."
-                  className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                  value={formData.clientName}
-                  onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
-                />
+              <div className="px-3.5 pb-3.5 space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                    <UserCircle2 className="w-3 h-3" /> Nom du Client
+                  </Label>
+                  <Input
+                    placeholder="Ex: Zara, H&M, Client X..."
+                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                    value={formData.clientName}
+                    onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                    <Mail className="w-3 h-3" /> Email du Client
+                    <span className="ml-1 text-[8px] font-bold text-indigo-300 normal-case tracking-normal">(pour notifications Gmail)</span>
+                  </Label>
+                  <Input
+                    type="email"
+                    placeholder="client@example.com"
+                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                    value={formData.clientEmail}
+                    onChange={e => setFormData((p: any) => ({ ...p, clientEmail: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Délai de production estimé
+                  </Label>
+                  <Input
+                    placeholder="Ex: 30 jours, 6 semaines..."
+                    className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                    value={formData.estimatedProductionDelay}
+                    onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
+                  />
+                </div>
               </div>
             )}
             {!formData.isPreorder && (
