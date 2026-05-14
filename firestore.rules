@@ -31,6 +31,15 @@ service cloud.firestore {
         allow write: if isOwner(userId);
       }
 
+      // designs: sub-collection of categories — same access as parent category
+      // (owner writes; valid client can read for portal display)
+      match /categories/{catId}/designs/{designId} {
+        allow read: if isOwner(userId)
+          || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
+              && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
+        allow write: if isOwner(userId);
+      }
+
       // suppliers: owner only (financially sensitive)
       match /suppliers/{id} {
         allow read, write: if isOwner(userId);
