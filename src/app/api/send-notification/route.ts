@@ -30,14 +30,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields (clientEmail, newStatus)' }, { status: 400 });
     }
 
-    // Remove any spaces from App Password (Google shows them for readability but they must be stripped)
+    // Remove spaces from App Password (Google shows them for readability)
     const appPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // STARTTLS
       auth: {
         user: process.env.GMAIL_USER,
         pass: appPass,
+      },
+      tls: {
+        rejectUnauthorized: false, // Fix self-signed certificate error on Windows
       },
     });
 

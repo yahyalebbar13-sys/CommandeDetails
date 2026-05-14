@@ -83,6 +83,9 @@ service cloud.firestore {
       // Client reads their own access doc
       allow get: if isSignedIn() && request.auth.uid == clientUid;
 
+      // Admin can LIST to find clients by clientName (needed for email notifications)
+      allow list: if isSignedIn();
+
       // Admin creates/updates: the writer must be the adminUid stored in the document
       allow create: if isSignedIn()
         && request.resource.data.adminUid == request.auth.uid
@@ -95,9 +98,6 @@ service cloud.firestore {
         && request.resource.data.adminUid == resource.data.adminUid;
 
       allow delete: if isSignedIn() && resource.data.adminUid == request.auth.uid;
-
-      // No list access — only direct get by the client themselves
-      // (no allow list rule means listing is denied)
     }
   }
 }
