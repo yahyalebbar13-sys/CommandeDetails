@@ -2747,38 +2747,104 @@ export function ClientDetailView({
                     </div>
                   </div>
 
-                  {/* Tax rates */}
-                  <div className="rounded-xl overflow-hidden border border-stone-200">
-                    <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: '#0f172a' }}>
-                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Taux Douaniers</span>
-                      <span className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Info tarifaire</span>
-                    </div>
-                    <div className="bg-white grid grid-cols-4 divide-x divide-stone-100">
-                      {[
-                        { label: 'D.I', value: (selectedArticle.importDutyRate ?? selectedCategory?.importDutyRate) },
-                        { label: 'TPI', value: (selectedArticle.tpiRate ?? selectedCategory?.tpiRate) },
-                        { label: 'TIC', value: (selectedArticle.ticRate ?? selectedCategory?.ticRate) },
-                        { label: 'TVA', value: (selectedArticle.tvaRate ?? selectedCategory?.tvaRate) },
-                      ].map((t, i) => (
-                        <div key={i} className="flex flex-col items-center justify-center py-3 px-2">
-                          <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">{t.label}</span>
-                          <span className="text-sm font-black" style={{ color: t.value != null ? '#059669' : '#d1d5db' }}>
-                            {t.value != null ? `${t.value}%` : '—'}
-                          </span>
+                  {/* ── SHIPPING TIMELINE ── */}
+                  {(() => {
+                    const STEPS = [
+                      { key: 'TO_ORDER', icon: '📋', label: 'Commande' },
+                      { key: 'PI',       icon: '🏭', label: 'Production' },
+                      { key: 'SHIPPED',  icon: '✈️', label: 'Expédition' },
+                      { key: 'TRANSIT',  icon: '🚢', label: 'Transit' },
+                      { key: 'CUSTOMS',  icon: '🛃', label: 'Dédouanement' },
+                      { key: 'STOCK',    icon: '✅', label: 'Stock' },
+                    ];
+                    const STATUS_ORDER = ['TO_ORDER','PI','SHIPPED','TRANSIT','CUSTOMS','STOCK','DELIVERED'];
+                    const currentIdx = STATUS_ORDER.indexOf(selectedArticle.status);
+                    const isDelivered = selectedArticle.status === 'DELIVERED';
+                    return (
+                      <div className="rounded-2xl overflow-hidden border border-stone-200">
+                        <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #0f172a, #1e1b4b)' }}>
+                          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Suivi de la Commande</span>
+                          {isDelivered && <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">✓ Livré</span>}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {selectedArticle.factureId && (
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
-                      <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-2">Ref. Dossier</p>
-                      <div className="flex items-center justify-between gap-2">
-                        <div><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N Facture</p><p className="text-[12px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p></div>
-                        {selectedArticle.factureNoBL && (<div className="text-right"><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N BL</p><p className="text-[12px] font-black text-indigo-700 uppercase">{selectedArticle.factureNoBL}</p></div>)}
+                        <div className="bg-white p-4">
+                          <div className="relative flex flex-col gap-0">
+                            {STEPS.map((step, i) => {
+                              const stepIdx = STATUS_ORDER.indexOf(step.key);
+                              const isDone = isDelivered || stepIdx < currentIdx;
+                              const isActive = !isDelivered && stepIdx === currentIdx;
+                              const isPending = !isDelivered && stepIdx > currentIdx;
+                              return (
+                                <div key={step.key} className="flex items-start gap-3 relative">
+                                  {/* Vertical line */}
+                                  {i < STEPS.length - 1 && (
+                                    <div
+                                      className="absolute left-[17px] top-9 w-0.5 h-[calc(100%-8px)] z-0"
+                                      style={{ background: isDone ? 'linear-gradient(180deg,#10b981,#10b981)' : isActive ? 'linear-gradient(180deg,#6366f1,#e2e8f0)' : '#e2e8f0' }}
+                                    />
+                                  )}
+                                  {/* Dot */}
+                                  <div className="relative z-10 shrink-0" style={{ marginTop: 2 }}>
+                                    <div
+                                      className={`w-9 h-9 rounded-full flex items-center justify-center text-base transition-all ${
+                                        isDone ? 'ring-2 ring-emerald-300 ring-offset-1' :
+                                        isActive ? 'ring-2 ring-indigo-400 ring-offset-1 shadow-lg shadow-indigo-100' : ''
+                                      }`}
+                                      style={{
+                                        background: isDone ? '#d1fae5' : isActive ? 'linear-gradient(135deg,#4f46e5,#6366f1)' : '#f1f5f9',
+                                      }}
+                                    >
+                                      <span style={{ filter: isPending ? 'grayscale(1) opacity(0.4)' : 'none' }}>{step.icon}</span>
+                                    </div>
+                                  </div>
+                                  {/* Label */}
+                                  <div className="py-1.5 pb-5">
+                                    <p
+                                      className={`text-[11px] font-black uppercase tracking-wider leading-none ${
+                                        isDone ? 'text-emerald-600' : isActive ? 'text-indigo-700' : 'text-stone-300'
+                                      }`}
+                                    >
+                                      {step.label}
+                                      {isActive && (
+                                        <span className="ml-2 inline-flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse inline-block" />
+                                          <span className="text-[9px] text-indigo-400 font-bold normal-case tracking-normal">En cours</span>
+                                        </span>
+                                      )}
+                                      {isDone && <span className="ml-1.5 text-[9px] text-emerald-400 font-bold normal-case">✓</span>}
+                                    </p>
+                                    {isActive && selectedArticle.arrivalDate && (
+                                      <p className="text-[9px] text-indigo-400 font-bold mt-0.5">Arrivée prévue : {selectedArticle.arrivalDate}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {isDelivered && (
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-stone-800 ring-2 ring-stone-600 ring-offset-1 text-base">📦</div>
+                                <p className="text-[11px] font-black uppercase tracking-wider text-stone-700">Livré <span className="ml-1 text-[9px] font-bold text-stone-400 normal-case">Commande clôturée</span></p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* Ref dossier footer */}
+                        {selectedArticle.factureId && (
+                          <div className="border-t border-stone-100 bg-stone-50 px-4 py-3 flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° Dossier</p>
+                              <p className="text-[11px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p>
+                            </div>
+                            {selectedArticle.factureNoBL && (
+                              <div className="text-right">
+                                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° BL</p>
+                                <p className="text-[11px] font-black uppercase" style={{ color: '#c4a062' }}>{selectedArticle.factureNoBL}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Breakdowns */}
                   {safeSizeBreakdown.length > 0 && (
@@ -2831,16 +2897,7 @@ export function ClientDetailView({
                     </div>
                   )}
 
-                  {/* Dossier ref */}
-                  {selectedArticle.factureId && (
-                    <div className="bg-white rounded-xl border border-stone-200 p-4">
-                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2">Réf. Dossier</p>
-                      <div className="flex items-center justify-between gap-2">
-                        <div><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N Facture</p><p className="text-[12px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p></div>
-                        {selectedArticle.factureNoBL && (<div className="text-right"><p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N BL</p><p className="text-[12px] font-black uppercase" style={{ color: '#c4a062' }}>{selectedArticle.factureNoBL}</p></div>)}
-                      </div>
-                    </div>
-                  )}
+                  {/* Dossier ref — now shown in the timeline footer above */}
 
                   {/* Dates */}
                   <div className="grid grid-cols-2 gap-3">

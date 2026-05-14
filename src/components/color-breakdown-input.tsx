@@ -60,6 +60,8 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
   const [rows, setRows] = useState<ColorBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
+  // rawInputs holds intermediate string values while user is typing (e.g. "1," or "1.5")
+  const [rawInputs, setRawInputs] = useState<Record<number, string>>({});
 
   // Sync from parent when value changes externally (e.g. loading an existing article)
   useEffect(() => {
@@ -102,10 +104,28 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
     }
   };
 
+  const handleRollsChange = (index: number, val: string) => {
+    // Normalise comma -> dot for parsing
+    const normalised = val.replace(',', '.');
+    // Keep raw string so the input isn't reset while still typing
+    setRawInputs(prev => ({ ...prev, [index]: val }));
+    const parsed = parseFloat(normalised);
+    const next = rows.map((r, i) =>
+      i !== index ? r : { ...r, rolls: isNaN(parsed) ? 0 : parsed }
+    );
+    setRows(next);
+    notifyParent(next, enabled);
+  };
+
+  const handleRollsBlur = (index: number) => {
+    // On blur, clear the raw override so the input shows the stored number
+    setRawInputs(prev => { const n = { ...prev }; delete n[index]; return n; });
+  };
+
   const handleRowChange = (index: number, field: keyof ColorBreakdownRow, val: string) => {
+    if (field === 'rolls') { handleRollsChange(index, val); return; }
     const next = rows.map((r, i) => {
       if (i !== index) return r;
-      if (field === 'rolls') return { ...r, [field]: parseFloat(val) || 0 };
       if (field === 'priceOverride') return { ...r, [field]: val === '' ? '' : parseFloat(val) || 0 };
       return { ...r, [field]: val };
     });
@@ -114,6 +134,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
   };
 
   const handleDeleteRow = (index: number) => {
+    setRawInputs(prev => { const n = { ...prev }; delete n[index]; return n; });
     const next = rows.filter((_, i) => i !== index);
     setRows(next);
     notifyParent(next, enabled);
@@ -256,10 +277,12 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
                     </div>
                     <div className="px-2 py-1">
                       <Input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         min={0}
-                        value={row.rolls === 0 ? '' : row.rolls}
-                        onChange={e => handleRowChange(i, 'rolls', e.target.value)}
+                        value={rawInputs[i] !== undefined ? rawInputs[i] : (row.rolls === 0 ? '' : String(row.rolls))}
+                        onChange={e => handleRollsChange(i, e.target.value)}
+                        onBlur={() => handleRollsBlur(i)}
                         className="h-8 border-0 bg-transparent font-black text-[11px] text-stone-900 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
                         placeholder="0"
                       />
