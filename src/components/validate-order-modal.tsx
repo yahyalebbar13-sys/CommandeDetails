@@ -75,6 +75,23 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     const clientName = (order.clientName || '').trim();
     if (clientName && order.isPreorder) {
       toast({ title: '📧 Envoi en cours...', description: `Notification client → ${clientName}` });
+      
+      let transitDuration: string | undefined;
+      const transitArrivalDate = formData.arrivalDate;
+      if (transitArrivalDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const eta = new Date(transitArrivalDate);
+        eta.setHours(0, 0, 0, 0);
+        const diffMs = eta.getTime() - today.getTime();
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          transitDuration = diffDays === 1 ? '1 jour' : `${diffDays} jours`;
+        } else if (diffDays === 0) {
+          transitDuration = "aujourd'hui";
+        }
+      }
+
       const result = await sendStatusNotification({
         firestore,
         adminUid: user.uid,
@@ -89,6 +106,8 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         size: order.size,
         estimatedProductionDelay: order.estimatedProductionDelay,
         imageUrl: order.imageUrl || undefined,
+        transitArrivalDate,
+        transitDuration,
       });
       if (result.ok) {
         toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
