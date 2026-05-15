@@ -44,24 +44,13 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
       return `
         <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-left:4px solid #3B82F6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
           <p style="margin:0 0 6px;font-size:13px;color:#1E40AF;font-weight:800;display:flex;align-items:center;gap:6px">
-            ✈️ <strong>Votre commande est en route !</strong>
+            🚢 <strong>Votre commande est expédiée et en transit maritime !</strong>
           </p>
           <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.7">
-            Le conteneur a quitté l'usine et est actuellement en cours d'acheminement vers le Maroc. 
-            La marchandise est en transit maritime. Vous serez informé dès l'arrivée au port et la date de livraison prévue.
-          </p>
-        </div>`;
-    case 'TRANSIT':
-      return `
-        <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #ddd6fe;border-left:4px solid #6366F1;border-radius:12px;padding:18px 20px;margin-bottom:24px">
-          <p style="margin:0 0 6px;font-size:13px;color:#3730A3;font-weight:800;display:flex;align-items:center;gap:6px">
-            🚢 <strong>Votre commande est en transit maritime !</strong>
-          </p>
-          <p style="margin:0;font-size:13px;color:#3730A3;line-height:1.7">
-            Le conteneur est actuellement en mer, en cours d'acheminement vers le Maroc.
+            Le conteneur a quitté l'usine et est actuellement en mer, en cours d'acheminement vers le Maroc.
             ${
               transitArrivalDate
-                ? `<br/><br/>📅 <strong>Date d'arrivée estimée : ${transitArrivalDate}</strong>${transitDuration ? ` <span style="color:#6366F1;font-size:12px">(${transitDuration})</span>` : ''}`
+                ? `<br/><br/>📅 <strong>Date d'arrivée estimée : ${transitArrivalDate}</strong>${transitDuration ? ` <span style="color:#3B82F6;font-size:12px">(${transitDuration})</span>` : ''}`
                 : ''
             }
             <br/><br/>Vous serez notifié dès le passage en dédouanement.

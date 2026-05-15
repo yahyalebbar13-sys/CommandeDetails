@@ -238,14 +238,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (oldStatus !== newStatus && clientName) {
       toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName}` });
 
-      // Compute transit info from the linked facture if transitioning to TRANSIT
+      // Compute transit arrival date + duration from the linked facture when shipping
       let transitArrivalDate: string | undefined;
       let transitDuration: string | undefined;
-      if (newStatus === 'TRANSIT' && finalFactureId) {
+      if (newStatus === 'SHIPPED' && finalFactureId) {
         const linkedFacture = (factures || []).find((f: any) => f.id === finalFactureId);
         if (linkedFacture?.arrivalDate) {
           transitArrivalDate = linkedFacture.arrivalDate;
-          // Compute days remaining from today
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const eta = new Date(linkedFacture.arrivalDate);
@@ -681,8 +680,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <SelectContent>
                     <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
                     <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
-                    <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">Expédié (Sur Facture)</SelectItem>
-                    <SelectItem value="TRANSIT" className="font-bold text-indigo-600 uppercase">🚢 En Transit</SelectItem>
+                    <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">🚢 Expédié / En Transit</SelectItem>
                     <SelectItem value="CUSTOMS" className="font-bold text-purple-600 uppercase">🛃 En Dédouanement</SelectItem>
                     <SelectItem value="STOCK" className="font-bold text-teal-600 uppercase">✅ En Stock</SelectItem>
                     <SelectItem 
