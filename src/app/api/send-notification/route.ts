@@ -67,6 +67,28 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
             <br/><br/>Vous serez notifié dès le passage en dédouanement.
           </p>
         </div>`;
+    case 'CUSTOMS':
+      return `
+        <div style="background:linear-gradient(135deg,#faf5ff,#f3e8ff);border:1.5px solid #e9d5ff;border-left:4px solid #8B5CF6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#5B21B6;font-weight:800;display:flex;align-items:center;gap:6px">
+            🛃 <strong>Votre commande est en cours de dédouanement !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#5B21B6;line-height:1.7">
+            Le conteneur est arrivé au port et est actuellement en cours de traitement douanier.<br/><br/>
+            Vous serez notifié dès que la marchandise est disponible en stock.
+          </p>
+        </div>`;
+    case 'STOCK':
+      return `
+        <div style="background:linear-gradient(135deg,#f0fdfa,#ccfbf1);border:1.5px solid #99f6e4;border-left:4px solid #10B981;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#065F46;font-weight:800;display:flex;align-items:center;gap:6px">
+            ✅ <strong>Votre commande est disponible en stock !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#065F46;line-height:1.7">
+            La marchandise a passé les contrôles douaniers et est désormais disponible dans nos entrepôts.<br/><br/>
+            Notre équipe vous contactera prochainement pour organiser la livraison.
+          </p>
+        </div>`;
     case 'DELIVERED':
       return `
         <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #a7f3d0;border-left:4px solid #059669;border-radius:12px;padding:18px 20px;margin-bottom:24px">
@@ -145,6 +167,8 @@ export async function POST(req: NextRequest) {
       PI:        `🏭 Production lancée — ${articleName}`,
       SHIPPED:   `✈️ En route ! Votre commande est expédiée — ${articleName}`,
       TRANSIT:   `🚢 En transit — ${articleName}`,
+      CUSTOMS:   `🛃 En dédouanement — ${articleName}`,
+      STOCK:     `✅ En stock — ${articleName}`,
       DELIVERED: `✅ Livraison confirmée — ${articleName}`,
     };
     const subject = subjectMap[newStatus] || `${newStatusInfo.emoji} Mise à jour commande : ${articleName} — ${newStatusInfo.label}`;

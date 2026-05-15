@@ -682,6 +682,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
                     <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
                     <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">Expédié (Sur Facture)</SelectItem>
+                    <SelectItem value="TRANSIT" className="font-bold text-indigo-600 uppercase">🚢 En Transit</SelectItem>
+                    <SelectItem value="CUSTOMS" className="font-bold text-purple-600 uppercase">🛃 En Dédouanement</SelectItem>
+                    <SelectItem value="STOCK" className="font-bold text-teal-600 uppercase">✅ En Stock</SelectItem>
                     <SelectItem 
                       value="DELIVERED" 
                       className="font-bold text-emerald-600 uppercase"
