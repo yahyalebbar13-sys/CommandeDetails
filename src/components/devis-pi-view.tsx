@@ -84,9 +84,65 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     const globalFraisChangeMad = Number(fraisChange) || 0;
     const globalFraisSuppMad = Number(fraisSupp) || 0;
 
-    return Array.from(selectedArticleIds).map(id => {
-      const article = articles.find(a => a.id === id);
-      if (!article) return null;
+    return Array.from(selectedArticleIds).flatMap(id => {
+      const parentArticle = articles.find(a => a.id === id);
+      if (!parentArticle) return [];
+
+      const cb = Array.isArray(parentArticle.colorBreakdown) ? parentArticle.colorBreakdown : [];
+      const sb = Array.isArray(parentArticle.sizeBreakdown) ? parentArticle.sizeBreakdown : [];
+      const parentQty = Number(parentArticle.quantity) || 1;
+
+      let variants: any[] = [];
+
+      if (cb.length > 0) {
+        const groups = new Map<number, any[]>();
+        cb.forEach(r => {
+          const p = (r.priceOverride !== '' && r.priceOverride != null) ? Number(r.priceOverride) : Number(parentArticle.purchasePricePerUnit || 0);
+          if (!groups.has(p)) groups.set(p, []);
+          groups.get(p)!.push(r);
+        });
+        groups.forEach((rows, p) => {
+          const groupQty = rows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+          const ratio = groupQty / parentQty;
+          variants.push({
+            ...parentArticle,
+            id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id,
+            originalId: parentArticle.id,
+            purchasePricePerUnit: p,
+            quantity: groupQty,
+            colorBreakdown: rows,
+            sizeBreakdown: null,
+            netWeight: (Number(parentArticle.netWeight) || 0) * ratio,
+            cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio,
+          });
+        });
+      } else if (sb.length > 0) {
+        const groups = new Map<number, any[]>();
+        sb.forEach(r => {
+          const p = (r.priceOverride !== '' && r.priceOverride != null) ? Number(r.priceOverride) : Number(parentArticle.purchasePricePerUnit || 0);
+          if (!groups.has(p)) groups.set(p, []);
+          groups.get(p)!.push(r);
+        });
+        groups.forEach((rows, p) => {
+          const groupQty = rows.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
+          const ratio = groupQty / parentQty;
+          variants.push({
+            ...parentArticle,
+            id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id,
+            originalId: parentArticle.id,
+            purchasePricePerUnit: p,
+            quantity: groupQty,
+            sizeBreakdown: rows,
+            colorBreakdown: null,
+            netWeight: (Number(parentArticle.netWeight) || 0) * ratio,
+            cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio,
+          });
+        });
+      } else {
+        variants.push({ ...parentArticle, originalId: parentArticle.id });
+      }
+
+      return variants.map(article => {
       
       const qty = Number(article.quantity) || 0;
       const prix = Number(article.purchasePricePerUnit) || 0;
@@ -181,6 +237,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           hasCustData: true,
         }
       };
+      });
     }).filter(Boolean);
   }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, articles, factures, categories, avgFreightPerCbm]);
 
@@ -212,22 +269,36 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const handleConfirm = () => {
     if (computedArray.length === 0 || hasIncomplete || !user || !firestore) return;
     
+    // Group variants back to their original document to accumulate totals
+    const updates = new Map<string, any>();
+    
     computedArray.forEach(c => {
       if (!c) return;
-      const articleId = c.article.id;
-      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+      const articleId = c.article.originalId || c.article.id;
       
-      updateDocumentNonBlocking(docRef, {
-        devisTauxChange: Number(tauxChange),
-        devisMargePercent: Number(margePercent),
-        devisPrixVenteUniteMad: c.computed.prixVenteUniteMad,
-        devisPrixVenteTotalMad: c.computed.prixVenteTotalMad,
-        devisCoutTotalMad: c.computed.coutTotalMad,
-        devisDate: new Date().toISOString()
-      });
+      if (!updates.has(articleId)) {
+        updates.set(articleId, {
+          devisTauxChange: Number(tauxChange),
+          devisMargePercent: Number(margePercent),
+          devisPrixVenteTotalMad: 0,
+          devisCoutTotalMad: 0,
+          devisDate: new Date().toISOString(),
+          // We keep the last unit price, though for mixed prices it's an average/approximate concept at the DB level
+          devisPrixVenteUniteMad: c.computed.prixVenteUniteMad,
+        });
+      }
+      
+      const current = updates.get(articleId);
+      current.devisPrixVenteTotalMad += c.computed.prixVenteTotalMad;
+      current.devisCoutTotalMad += c.computed.coutTotalMad;
     });
 
-    toast({ title: "Devis Confirmé", description: `${computedArray.length} article(s) mis à jour avec le prix de vente fixé.` });
+    updates.forEach((data, articleId) => {
+      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+      updateDocumentNonBlocking(docRef, data);
+    });
+
+    toast({ title: "Devis Confirmé", description: `${updates.size} article(s) mis à jour avec le prix de vente fixé.` });
   };
 
   const isAllSelected = piArticles.length > 0 && selectedArticleIds.size === piArticles.length;
