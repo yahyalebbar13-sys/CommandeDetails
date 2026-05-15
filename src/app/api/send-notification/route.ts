@@ -13,7 +13,7 @@ const STATUS_LABELS: Record<string, { label: string; emoji: string; color: strin
 };
 
 // Per-status contextual message block
-function getStatusBlock(newStatus: string, estimatedProductionDelay?: string): string {
+function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, transitArrivalDate?: string, transitDuration?: string): string {
   switch (newStatus) {
     case 'TO_ORDER':
       return `
@@ -51,6 +51,22 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string): s
             La marchandise est en transit maritime. Vous serez informé dès l'arrivée au port et la date de livraison prévue.
           </p>
         </div>`;
+    case 'TRANSIT':
+      return `
+        <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #ddd6fe;border-left:4px solid #6366F1;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#3730A3;font-weight:800;display:flex;align-items:center;gap:6px">
+            🚢 <strong>Votre commande est en transit maritime !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#3730A3;line-height:1.7">
+            Le conteneur est actuellement en mer, en cours d'acheminement vers le Maroc.
+            ${
+              transitArrivalDate
+                ? `<br/><br/>📅 <strong>Date d'arrivée estimée : ${transitArrivalDate}</strong>${transitDuration ? ` <span style="color:#6366F1;font-size:12px">(${transitDuration})</span>` : ''}`
+                : ''
+            }
+            <br/><br/>Vous serez notifié dès le passage en dédouanement.
+          </p>
+        </div>`;
     case 'DELIVERED':
       return `
         <div style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #a7f3d0;border-left:4px solid #059669;border-radius:12px;padding:18px 20px;margin-bottom:24px">
@@ -83,6 +99,9 @@ export async function POST(req: NextRequest) {
       color,
       size,
       estimatedProductionDelay,
+      imageUrl,
+      transitArrivalDate,
+      transitDuration,
     } = body;
 
     if (!clientEmail || !newStatus) {
@@ -118,16 +137,26 @@ export async function POST(req: NextRequest) {
       quantity  && `<tr><td style="padding:8px 14px;color:#6B7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:#f9fafb">Quantité</td><td style="padding:8px 14px;font-weight:700;font-size:13px;color:#111827">${Number(quantity).toLocaleString('fr-FR')} ${unitOfMeasure || ''}</td></tr>`,
     ].filter(Boolean).join('');
 
-    const statusBlock = getStatusBlock(newStatus, estimatedProductionDelay);
+    const statusBlock = getStatusBlock(newStatus, estimatedProductionDelay, transitArrivalDate, transitDuration);
 
     // Subject line varies per status
     const subjectMap: Record<string, string> = {
       TO_ORDER:  `📋 Commande enregistrée — ${articleName}`,
       PI:        `🏭 Production lancée — ${articleName}`,
       SHIPPED:   `✈️ En route ! Votre commande est expédiée — ${articleName}`,
+      TRANSIT:   `🚢 En transit — ${articleName}`,
       DELIVERED: `✅ Livraison confirmée — ${articleName}`,
     };
     const subject = subjectMap[newStatus] || `${newStatusInfo.emoji} Mise à jour commande : ${articleName} — ${newStatusInfo.label}`;
+
+    // Product image block (shown only when imageUrl is provided)
+    const productImageBlock = imageUrl ? `
+      <tr><td style="background:#ffffff;padding:0 40px 24px">
+        <p style="margin:0 0 10px;font-size:9px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.18em">Photo du produit</p>
+        <div style="border:1.5px solid #f3f4f6;border-radius:14px;overflow:hidden;text-align:center;background:#f9fafb;padding:12px">
+          <img src="${imageUrl}" alt="Photo produit" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;display:block;margin:0 auto" />
+        </div>
+      </td></tr>` : '';
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -201,6 +230,8 @@ export async function POST(req: NextRequest) {
             Pour toute question, contactez notre équipe ou consultez votre <strong style="color:#111827">portail client</strong>.
           </p>
         </td></tr>
+
+        ${productImageBlock}
 
         <!-- Footer -->
         <tr><td style="background:#f9fafb;border-top:1.5px solid #f3f4f6;padding:18px 40px;border-radius:0 0 20px 20px">

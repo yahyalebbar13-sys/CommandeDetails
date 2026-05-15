@@ -237,6 +237,29 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     if (oldStatus !== newStatus && clientName) {
       toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName}` });
+
+      // Compute transit info from the linked facture if transitioning to TRANSIT
+      let transitArrivalDate: string | undefined;
+      let transitDuration: string | undefined;
+      if (newStatus === 'TRANSIT' && finalFactureId) {
+        const linkedFacture = (factures || []).find((f: any) => f.id === finalFactureId);
+        if (linkedFacture?.arrivalDate) {
+          transitArrivalDate = linkedFacture.arrivalDate;
+          // Compute days remaining from today
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const eta = new Date(linkedFacture.arrivalDate);
+          eta.setHours(0, 0, 0, 0);
+          const diffMs = eta.getTime() - today.getTime();
+          const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+          if (diffDays > 0) {
+            transitDuration = diffDays === 1 ? '1 jour' : `${diffDays} jours`;
+          } else if (diffDays === 0) {
+            transitDuration = "aujourd'hui";
+          }
+        }
+      }
+
       const result = await sendStatusNotification({
         firestore,
         adminUid: user.uid,
@@ -250,6 +273,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         color: formData.color,
         size: formData.size,
         estimatedProductionDelay: formData.estimatedProductionDelay,
+        imageUrl: formData.imageUrl || undefined,
+        transitArrivalDate,
+        transitDuration,
       });
       if (result.ok) {
         toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });

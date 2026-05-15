@@ -88,6 +88,7 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         color: order.color,
         size: order.size,
         estimatedProductionDelay: order.estimatedProductionDelay,
+        imageUrl: order.imageUrl || undefined,
       });
       if (result.ok) {
         toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });

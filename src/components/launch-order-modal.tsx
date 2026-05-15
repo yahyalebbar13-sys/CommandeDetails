@@ -82,6 +82,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
         color: article.color,
         size: article.size,
         estimatedProductionDelay: article.estimatedProductionDelay,
+        imageUrl: article.imageUrl || undefined,
       });
       if (result.ok) {
         toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });

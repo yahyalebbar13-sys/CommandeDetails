@@ -18,6 +18,9 @@ interface NotifyParams {
   color?: string;
   size?: string;
   estimatedProductionDelay?: string;
+  imageUrl?: string;
+  transitArrivalDate?: string;
+  transitDuration?: string;
 }
 
 /**
@@ -70,6 +73,9 @@ export async function sendStatusNotification(params: NotifyParams): Promise<{
     color,
     size,
     estimatedProductionDelay,
+    imageUrl,
+    transitArrivalDate,
+    transitDuration,
   } = params;
 
   if (!clientName || oldStatus === newStatus) return { ok: false };
@@ -93,6 +99,9 @@ export async function sendStatusNotification(params: NotifyParams): Promise<{
         color,
         size,
         estimatedProductionDelay,
+        imageUrl,
+        transitArrivalDate,
+        transitDuration,
       }),
     });
 
