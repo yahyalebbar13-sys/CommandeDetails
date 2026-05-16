@@ -34,8 +34,9 @@ export interface StatusInfo {
 const STATUS_MAP: Record<EffectiveStatus, Omit<StatusInfo, 'status'>> = {
   TO_ORDER:  { label: 'À Commander',       emoji: '📋', color: '#6B7280', bgClass: 'bg-stone-100',   textClass: 'text-stone-600',   borderClass: 'border-stone-300' },
   PI:        { label: 'En Production',     emoji: '🏭', color: '#F59E0B', bgClass: 'bg-amber-100',   textClass: 'text-amber-700',   borderClass: 'border-amber-300' },
+  // SHIPPED and TRANSIT share the same display (boat transport, same stage)
   TRANSIT:   { label: 'En Transit',        emoji: '🚢', color: '#3B82F6', bgClass: 'bg-blue-100',    textClass: 'text-blue-700',    borderClass: 'border-blue-300'  },
-  SHIPPED:   { label: 'Expédié',           emoji: '✈️', color: '#6366F1', bgClass: 'bg-indigo-100',  textClass: 'text-indigo-700',  borderClass: 'border-indigo-300'},
+  SHIPPED:   { label: 'En Transit',        emoji: '🚢', color: '#3B82F6', bgClass: 'bg-blue-100',    textClass: 'text-blue-700',    borderClass: 'border-blue-300'  },
   CUSTOMS:   { label: 'En Dédouanement',   emoji: '🛃', color: '#8B5CF6', bgClass: 'bg-violet-100',  textClass: 'text-violet-700',  borderClass: 'border-violet-300'},
   STOCK:     { label: 'En Stock',          emoji: '✅', color: '#10B981', bgClass: 'bg-emerald-100', textClass: 'text-emerald-700', borderClass: 'border-emerald-300'},
   DELIVERED: { label: 'Livré au Client',   emoji: '📦', color: '#059669', bgClass: 'bg-green-100',   textClass: 'text-green-700',   borderClass: 'border-green-300' },

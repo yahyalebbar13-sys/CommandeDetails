@@ -5,8 +5,9 @@ import nodemailer from 'nodemailer';
 const STATUS_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
   TO_ORDER:  { label: 'À Commander',             emoji: '📋', color: '#6B7280' },
   PI:        { label: 'Production Lancée (PI)',   emoji: '🏭', color: '#F59E0B' },
-  SHIPPED:   { label: 'Expédié',                 emoji: '✈️', color: '#6366F1' },
-  TRANSIT:   { label: 'En Transit',              emoji: '🚢', color: '#3B82F6' },
+  // SHIPPED = same display as TRANSIT (boat transport only)
+  SHIPPED:   { label: 'En Transit',               emoji: '🚢', color: '#3B82F6' },
+  TRANSIT:   { label: 'En Transit',               emoji: '🚢', color: '#3B82F6' },
   CUSTOMS:   { label: 'En Dédouanement',         emoji: '🛃', color: '#8B5CF6' },
   STOCK:     { label: 'En Stock',                emoji: '✅', color: '#10B981' },
   DELIVERED: { label: 'Livré',                   emoji: '📦', color: '#059669' },
@@ -41,16 +42,6 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
           </p>
         </div>`;
     case 'SHIPPED':
-      return `
-        <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #c7d2fe;border-left:4px solid #6366F1;border-radius:12px;padding:18px 20px;margin-bottom:24px">
-          <p style="margin:0 0 6px;font-size:13px;color:#3730A3;font-weight:800;display:flex;align-items:center;gap:6px">
-            ✈️ <strong>Votre commande a été expédiée !</strong>
-          </p>
-          <p style="margin:0;font-size:13px;color:#3730A3;line-height:1.7">
-            Le conteneur a quitté l'usine et est en cours d'acheminement.<br/><br/>
-            Vous serez notifié dès que la date de transit est confirmée.
-          </p>
-        </div>`;
     case 'TRANSIT':
       return `
         <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-left:4px solid #3B82F6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
@@ -170,7 +161,7 @@ export async function POST(req: NextRequest) {
     const subjectMap: Record<string, string> = {
       TO_ORDER:  `📋 Commande enregistrée — ${articleName}`,
       PI:        `🏭 Production lancée — ${articleName}`,
-      SHIPPED:   `✈️ En route ! Votre commande est expédiée — ${articleName}`,
+      SHIPPED:   `🚢 En transit maritime — ${articleName}`,
       TRANSIT:   `🚢 En transit — ${articleName}`,
       CUSTOMS:   `🛃 En dédouanement — ${articleName}`,
       STOCK:     `✅ En stock — ${articleName}`,
