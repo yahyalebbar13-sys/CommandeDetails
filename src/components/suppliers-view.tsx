@@ -2326,6 +2326,15 @@ function GroupedArticleList({
                             <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">{a.unitOfMeasure || ''}</p>
                           </div>
 
+                          {/* Prix confirmé */}
+                          {a.devisConfirmed && a.devisPrixVenteUniteMad && (
+                            <div className="shrink-0 text-center px-4 border-l border-emerald-100 bg-emerald-50/50 rounded-lg py-1">
+                              <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">🔒 Prix Confirmé</p>
+                              <p className="text-sm font-black text-emerald-700">{Number(a.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                              <p className="text-[8px] font-bold text-emerald-500">MAD/u</p>
+                            </div>
+                          )}
+
                           {/* Arrival date */}
                           <div className="shrink-0 text-center px-4 border-l border-stone-100">
                             <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Arrivée Prévue</p>
@@ -2384,6 +2393,13 @@ function GroupedArticleList({
                               </span>
                             )}
                           </div>
+                          {/* Prix confirmé mobile */}
+                          {a.devisConfirmed && a.devisPrixVenteUniteMad && (
+                            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                              <span className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">🔒 Prix confirmé</span>
+                              <span className="text-sm font-black text-emerald-700">{Number(a.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD/u</span>
+                            </div>
+                          )}
                           <button
                             type="button"
                             onClick={() => onSelect(a.id)}
@@ -2898,6 +2914,52 @@ export function ClientDetailView({
                   )}
 
                   {/* Dossier ref — now shown in the timeline footer above */}
+
+                  {/* ── PRIX DE VENTE CONFIRMÉ ── */}
+                  {selectedArticle.devisConfirmed && selectedArticle.devisPrixVenteUniteMad && (
+                    <div className="rounded-2xl overflow-hidden border-2 border-emerald-300 shadow-lg shadow-emerald-100">
+                      {/* Header */}
+                      <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ background: 'linear-gradient(135deg, #065f46, #047857)' }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🔒</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-emerald-100">Prix de Vente Officiel</span>
+                        </div>
+                        <span className="text-[8px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-900/40 px-2 py-0.5 rounded-full">CONFIRMÉ</span>
+                      </div>
+                      {/* Price display */}
+                      <div className="bg-emerald-50 p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Prix Unitaire</p>
+                            <p className="text-3xl font-black text-emerald-700 leading-none">
+                              {Number(selectedArticle.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <span className="text-base ml-1 font-bold text-emerald-500">MAD</span>
+                            </p>
+                          </div>
+                          {selectedArticle.devisPrixVenteTotalMad && (
+                            <div className="text-right">
+                              <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total</p>
+                              <p className="text-lg font-black text-emerald-700">
+                                {Number(selectedArticle.devisPrixVenteTotalMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {selectedArticle.devisConfirmedAt && (
+                          <div className="pt-2 border-t border-emerald-200 text-right">
+                            <p className="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-0.5">Confirmé le</p>
+                            <p className="text-[10px] font-black text-emerald-700">
+                              {new Date(selectedArticle.devisConfirmedAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 bg-emerald-100 rounded-xl px-3 py-2">
+                          <span className="text-emerald-600 text-[9px]">🔒</span>
+                          <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">Ce prix est fixé et ne peut pas être modifié</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Dates */}
                   <div className="grid grid-cols-2 gap-3">

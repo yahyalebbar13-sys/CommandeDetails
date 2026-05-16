@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Check } from 'lucide-react';
+import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Check, Lock, AlertTriangle, X } from 'lucide-react';
 import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -32,6 +32,8 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [fraisChange, setFraisChange] = useState(String(DEFAULT_FRAIS.change));
   const [fraisSupp, setFraisSupp] = useState(String(DEFAULT_FRAIS.supp));
   const [isExporting, setIsExporting] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Only PI articles that have a clientName assigned
   const piArticles = useMemo(() =>
@@ -266,8 +268,9 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     } finally { setIsExporting(false); }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (computedArray.length === 0 || hasIncomplete || !user || !firestore) return;
+    setIsConfirming(true);
     
     // Group variants back to their original document to accumulate totals
     const updates = new Map<string, any>();
@@ -283,6 +286,8 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           devisPrixVenteTotalMad: 0,
           devisCoutTotalMad: 0,
           devisDate: new Date().toISOString(),
+          devisConfirmedAt: new Date().toISOString(),
+          devisConfirmed: true,
           // We keep the last unit price, though for mixed prices it's an average/approximate concept at the DB level
           devisPrixVenteUniteMad: c.computed.prixVenteUniteMad,
         });
@@ -298,7 +303,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       updateDocumentNonBlocking(docRef, data);
     });
 
-    toast({ title: "Devis Confirmé", description: `${updates.size} article(s) mis à jour avec le prix de vente fixé.` });
+    setIsConfirming(false);
+    setShowConfirmDialog(false);
+    toast({ 
+      title: "✅ Prix de Vente Fixé", 
+      description: `${updates.size} article(s) confirmé(s). Le prix est maintenant visible dans l'espace client et ne peut plus être modifié.` 
+    });
   };
 
   const isAllSelected = piArticles.length > 0 && selectedArticleIds.size === piArticles.length;
@@ -456,14 +466,32 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                     </div>
                   </div>
 
-                  {/* Result */}
+                  {/* Result per article */}
                   {computedArray.length > 0 && totalCoutTotalMad > 0 && (
                     <div className="bg-stone-900 rounded-2xl p-5 relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
-                      <div className="relative z-10">
-                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-4">Total pour {computedArray.length} article(s)</p>
+                      <div className="relative z-10 space-y-3">
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Récapitulatif — {computedArray.length} ligne(s)</p>
                         
-                        <div className="border-b border-stone-700 pb-4 mb-4 flex items-center justify-between">
+                        {/* Per-article breakdown */}
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {computedArray.map((c, i) => c && (
+                            <div key={i} className="bg-stone-800/60 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[9px] font-black text-stone-400 uppercase truncate">{c.article.clientName || '—'}</p>
+                                <p className="text-[10px] font-black text-white uppercase truncate">{c.article.categoryId || c.article.name}</p>
+                                <p className="text-[8px] font-bold text-stone-500">{Number(c.computed.qty).toLocaleString('fr-MA')} {c.article.unitOfMeasure}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-[8px] font-black text-stone-500 uppercase">P.V. Unitaire</p>
+                                <p className="text-sm font-black text-amber-400">{fmtMAD(c.computed.prixVenteUniteMad)}</p>
+                                <p className="text-[8px] font-bold text-stone-500">{fmtMAD(c.computed.prixVenteTotalMad)} total</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="border-t border-stone-700 pt-3 flex items-center justify-between">
                           <div>
                             <p className="text-[8px] font-black text-stone-500 uppercase">Total prix de vente</p>
                             <p className="text-2xl font-black text-amber-400">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
@@ -480,12 +508,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                   {/* Export and Confirm */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                      onClick={handleConfirm}
+                      onClick={() => setShowConfirmDialog(true)}
                       disabled={computedArray.length === 0 || isExporting}
                       className="w-full sm:w-1/2 h-14 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[11px] tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-xl shadow-emerald-500/20"
                     >
-                      <Check className="w-5 h-5" />
-                      Confirmer les Devis
+                      <Lock className="w-5 h-5" />
+                      Confirmer &amp; Fixer Prix
                     </button>
                     <button
                       onClick={handleExport}
@@ -502,6 +530,85 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           )}
         </div>
       </div>
+
+      {/* ── CONFIRMATION DIALOG ── */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="bg-stone-900 px-6 py-5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+              <button type="button" onClick={() => setShowConfirmDialog(false)} className="absolute top-4 right-4 text-stone-500 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Action irréversible</p>
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight">Confirmer le Devis Client</h3>
+                </div>
+              </div>
+            </div>
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-black text-stone-900">Ce prix devient le prix de vente officiel</p>
+                  <p className="text-xs font-bold text-stone-500 mt-1">Une fois confirmé, le prix sera affiché dans l'espace client et verrouillé. Vous ne pourrez plus le modifier librement.</p>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-stone-50 border border-stone-100 rounded-2xl p-4 space-y-2">
+                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">Résumé des prix à confirmer</p>
+                {computedArray.slice(0, 4).map((c, i) => c && (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-stone-700 uppercase truncate">{c.article.clientName} · {c.article.categoryId || c.article.name}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-black text-emerald-600">{fmtMAD(c.computed.prixVenteUniteMad)} MAD/u</p>
+                    </div>
+                  </div>
+                ))}
+                {computedArray.length > 4 && (
+                  <p className="text-[9px] font-bold text-stone-400 text-center pt-1">+ {computedArray.length - 4} autre(s)...</p>
+                )}
+                <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between">
+                  <p className="text-[10px] font-black text-stone-500 uppercase">Prix de vente total</p>
+                  <p className="text-sm font-black text-emerald-600">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDialog(false)}
+                  className="flex-1 h-12 bg-stone-100 hover:bg-stone-200 text-stone-700 font-black uppercase text-[10px] tracking-widest rounded-2xl transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={isConfirming}
+                  className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-500/30"
+                >
+                  {isConfirming ? (
+                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Confirmation...</>
+                  ) : (
+                    <><Lock className="w-4 h-4" />Confirmer &amp; Fixer</>  
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
