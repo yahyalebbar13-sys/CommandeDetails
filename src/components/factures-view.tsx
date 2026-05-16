@@ -19,6 +19,7 @@ import { doc, collection, getDocs } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
+import { getStatusInfo } from '@/lib/status-utils';
 
 interface FacturesViewProps {
   articles: any[];
@@ -380,6 +381,7 @@ export default function FacturesView({
               <TableHeader className="bg-stone-50/50">
                 <TableRow>
                   <TableHead className="text-[10px] font-black uppercase py-5 px-8 text-stone-500">Article</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Statut</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Taille</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Couleur</TableHead>
                   <TableHead className="text-[10px] font-black uppercase py-5 text-stone-500">Technique / Spécifications</TableHead>
@@ -415,6 +417,16 @@ export default function FacturesView({
                             <Pencil className="w-3 h-3" />
                           </Button>
                         </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        {(() => {
+                          const si = getStatusInfo(o);
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${si.bgClass} ${si.textClass}`}>
+                              {si.emoji} {si.label}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="py-3 text-[10px]">{o.size || '-'}</TableCell>
                       <TableCell className="py-3 text-[10px]">
