@@ -23,11 +23,30 @@ export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
       const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
       const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
 
-      // KEY FIX: When an article belongs to a dossier (facture), its effective status
-      // is ALWAYS derived from the dossier's dates — regardless of what is stored in
-      // a.status in Firestore. This ensures stockEntryDate/arrivalDate always win.
-      // Only articles without a linked dossier use their stored Firestore status directly.
-      const baseStatus = facture ? 'SHIPPED' : a.status;
+      // ─── STATUS SYSTEM ─────────────────────────────────────────────────────
+      // Manual statuses — always respected, NEVER overridden by dates:
+      //   TO_ORDER   → article not yet ordered
+      //   PI         → in production
+      //   DELIVERED  → delivered to client (end of lifecycle)
+      //
+      // Automatic statuses — derived from dossier dates:
+      //   TRANSIT    → arrivalDate in future
+      //   CUSTOMS    → arrivalDate passed, no stockEntryDate yet
+      //   STOCK      → stockEntryDate reached
+      // ───────────────────────────────────────────────────────────────────────
+
+      const MANUAL_STATUSES = ['TO_ORDER', 'PI', 'DELIVERED'];
+      const storedStatus = a.status;
+
+      // If the article has a manual status, never override it with dates
+      if (MANUAL_STATUSES.includes(storedStatus)) {
+        return a; // return as-is, no enrichment needed
+      }
+
+      // For all other articles (SHIPPED, TRANSIT, CUSTOMS, STOCK, or anything else):
+      // if they belong to a dossier with dates, always re-derive from dates.
+      // This ensures changing the dossier's stockEntryDate → STOCK, etc.
+      const baseStatus = facture && (arrivalDate || stockEntryDate) ? 'SHIPPED' : storedStatus;
 
       // Compute the effective status — TRANSIT / CUSTOMS / STOCK based on dates
       const effectiveStatus = computeEffectiveStatus({

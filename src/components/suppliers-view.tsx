@@ -2489,8 +2489,11 @@ export function ClientDetailView({
         const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
         const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
 
-        // KEY FIX: articles linked to a dossier always derive their status from dates
-        const baseStatus = facture ? 'SHIPPED' : a.status;
+        // Respect manual statuses — never override with dates
+        const MANUAL_STATUSES = ['TO_ORDER', 'PI', 'DELIVERED'];
+        const baseStatus = (!MANUAL_STATUSES.includes(a.status) && facture && (arrivalDate || stockEntryDate))
+          ? 'SHIPPED'
+          : a.status;
         const derivedStatus = computeEffectiveStatus({
           status: baseStatus,
           arrivalDate,
