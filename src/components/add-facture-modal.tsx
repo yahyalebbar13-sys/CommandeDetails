@@ -156,11 +156,16 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           stockEntryDate: newStockEntryDate,
         });
 
+        const statusChanged = effectiveOld !== effectiveNew;
+        const arrivalDateChanged = oldArrivalDate !== newArrivalDate;
+
         console.log(`[Facture] Article ${article.id} (${clientName}): rawStatus=${rawStatus} | old=${effectiveOld} (arr=${oldArrivalDate}, stk=${oldStockEntryDate}) → new=${effectiveNew} (arr=${newArrivalDate}, stk=${newStockEntryDate})`);
 
-        if (effectiveOld === effectiveNew) {
-          console.log(`[Facture] Skip ${article.id}: no status transition (${effectiveOld} → ${effectiveNew})`);
-          continue; // No transition — skip
+        // We trigger an email if the status transitioned (e.g. CUSTOMS -> STOCK)
+        // OR if the arrival date changed (even if still TRANSIT, to notify client of new ETA)
+        if (!statusChanged && !arrivalDateChanged) {
+          console.log(`[Facture] Skip ${article.id}: no status transition and no date change.`);
+          continue; 
         }
 
         // Compute transit info for the email

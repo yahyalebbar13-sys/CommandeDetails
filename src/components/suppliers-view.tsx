@@ -2485,9 +2485,9 @@ export function ClientDetailView({
       })
       .map(a => {
         const facture = factures.find((f: any) => f.id === a.factureId);
-        // Prefer article-level dates, fallback to facture dates
-        const arrivalDate = a.arrivalDate || facture?.arrivalDate || null;
-        const stockEntryDate = a.stockEntryDate || facture?.stockEntryDate || null;
+        // Facture is the single source of truth for dates
+        const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
+        const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
 
         // Compute the effective status using the centralized logic
         // (same function used for emails and admin views)
