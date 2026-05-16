@@ -2449,7 +2449,7 @@ export function ClientDetailView({
     if (isPortal || !user || !firestore || categories.length === 0 || articles.length === 0) return;
     const nameLower = (clientName || '').trim().toLowerCase();
     const clientArts = articles.filter(a => {
-      if (!a.isPreorder) return false;
+      if (!a.clientName) return false;
       const aName = (a.clientName || '').trim().toLowerCase();
       return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
     });
@@ -2479,9 +2479,9 @@ export function ClientDetailView({
     const todayStr = new Date().toISOString().split('T')[0];
     return articles
       .filter(a => {
-        if (!a.isPreorder) return false;
+        // Show all articles belonging to this client (isPreorder is not required)
         const aName = (a.clientName || '').trim().toLowerCase();
-        return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
+        return aName && (aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName));
       })
       .map(a => {
         const facture = factures.find((f: any) => f.id === a.factureId);
