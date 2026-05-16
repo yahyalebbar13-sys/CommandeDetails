@@ -139,21 +139,32 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
         // 2. Send email only for articles with a client (clientName is enough)
         const clientName = (article.clientName || '').trim();
-        if (!clientName) continue;
+        if (!clientName) {
+          console.log(`[Facture] Skip ${article.id}: no clientName`);
+          continue;
+        }
+
+        // The raw status stored in Firestore (before enrichment)
+        const rawStatus = article.rawStatus || article.status;
 
         // Compute old vs new effective status
         const effectiveOld = computeEffectiveStatus({
-          status: article.rawStatus || article.status,
+          status: rawStatus,
           arrivalDate: oldArrivalDate,
           stockEntryDate: oldStockEntryDate,
         });
         const effectiveNew = computeEffectiveStatus({
-          status: article.rawStatus || article.status,
+          status: rawStatus,
           arrivalDate: newArrivalDate,
           stockEntryDate: newStockEntryDate,
         });
 
-        if (effectiveOld === effectiveNew) continue; // No transition — skip
+        console.log(`[Facture] Article ${article.id} (${clientName}): rawStatus=${rawStatus} | old=${effectiveOld} (arr=${oldArrivalDate}, stk=${oldStockEntryDate}) → new=${effectiveNew} (arr=${newArrivalDate}, stk=${newStockEntryDate})`);
+
+        if (effectiveOld === effectiveNew) {
+          console.log(`[Facture] Skip ${article.id}: no status transition (${effectiveOld} → ${effectiveNew})`);
+          continue; // No transition — skip
+        }
 
         // Compute transit info for the email
         let transitArrivalDate: string | undefined;

@@ -17,9 +17,11 @@ export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
       // Find the linked dossier (facture)
       const facture = factures.find((f: any) => f.id === a.factureId);
 
-      // Prefer article-level dates, then fall back to facture dates
-      const arrivalDate = a.arrivalDate || facture?.arrivalDate || null;
-      const stockEntryDate = a.stockEntryDate || facture?.stockEntryDate || null;
+      // Facture (dossier) is the source of truth for dates.
+      // When an article belongs to a dossier, always use the dossier's dates.
+      // Fall back to the article's own dates only when there is no linked dossier.
+      const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
+      const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
 
       // Compute the effective status — TRANSIT / CUSTOMS / STOCK based on dates
       const effectiveStatus = computeEffectiveStatus({
