@@ -24,8 +24,13 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
 
   const transitOrders = useMemo(() => {
     return (articles || [])
-      .filter(o => o.status === 'SHIPPED' && o.arrivalDate && new Date(o.arrivalDate) > now)
-      .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+      // Articles enrichis ont status = 'TRANSIT' quand arrivalDate est dans le futur
+      // Fallback : inclure aussi les SHIPPED avec arrivalDate future (articles non enrichis)
+      .filter(o =>
+        o.status === 'TRANSIT' ||
+        (o.status === 'SHIPPED' && o.arrivalDate && new Date(o.arrivalDate) > now)
+      )
+      .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
   }, [articles, now]);
 
   const stats = useMemo(() => {

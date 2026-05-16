@@ -38,6 +38,7 @@ import { firebaseConfig } from '@/firebase/config';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
 } from '@/components/ui/sheet';
+import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Only this email sees the admin dashboard — enforced ALSO by Firestore rules
@@ -417,7 +418,9 @@ function AdminApp() {
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
 
   const factures = rawFactures || [];
-  const articles = rawArticles || [];
+  const rawArticles_ = rawArticles || [];
+  // Enrich articles with facture dates → computes effective status (TRANSIT/CUSTOMS/STOCK) automatically
+  const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
   const payments = rawPayments || [];
