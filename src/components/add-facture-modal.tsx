@@ -11,6 +11,8 @@ import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2 } from 'lucide-react';
+import { computeEffectiveStatus } from '@/lib/status-utils';
+import { sendStatusNotification } from '@/lib/send-status-notification';
 
 interface AddFactureModalProps {
   open: boolean;
@@ -118,22 +120,85 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
+    // ─── Propagate date changes to linked articles + send client notifications ───
     if (editFacture && (formData.arrivalDate !== editFacture.arrivalDate || formData.stockEntryDate !== editFacture.stockEntryDate) && associatedArticles && associatedArticles.length > 0) {
-      associatedArticles.forEach((article: any) => {
+      const newArrivalDate = formData.arrivalDate || null;
+      const newStockEntryDate = formData.stockEntryDate || null;
+      const oldArrivalDate = editFacture.arrivalDate || null;
+      const oldStockEntryDate = editFacture.stockEntryDate || null;
+
+      let notifCount = 0;
+
+      for (const article of associatedArticles) {
+        // 1. Update dates on each article
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
         const updates: any = {};
-        if (formData.arrivalDate !== editFacture.arrivalDate) updates.arrivalDate = formData.arrivalDate;
-        if (formData.stockEntryDate !== editFacture.stockEntryDate) updates.stockEntryDate = formData.stockEntryDate;
+        if (formData.arrivalDate !== editFacture.arrivalDate) updates.arrivalDate = newArrivalDate;
+        if (formData.stockEntryDate !== editFacture.stockEntryDate) updates.stockEntryDate = newStockEntryDate;
         updateDocumentNonBlocking(articleRef, updates);
-      });
-      toast({ 
-        title: "Dossier et articles synchronisés", 
-        description: `Mises à jour propagées à ${associatedArticles.length} articles liés.` 
+
+        // 2. Send email only for preorder articles with a client
+        const clientName = (article.clientName || '').trim();
+        if (!clientName || !article.isPreorder) continue;
+
+        // Compute old vs new effective status
+        const effectiveOld = computeEffectiveStatus({
+          status: article.rawStatus || article.status,
+          arrivalDate: oldArrivalDate,
+          stockEntryDate: oldStockEntryDate,
+        });
+        const effectiveNew = computeEffectiveStatus({
+          status: article.rawStatus || article.status,
+          arrivalDate: newArrivalDate,
+          stockEntryDate: newStockEntryDate,
+        });
+
+        if (effectiveOld === effectiveNew) continue; // No transition — skip
+
+        // Compute transit info for the email
+        let transitArrivalDate: string | undefined;
+        let transitDuration: string | undefined;
+        if (newArrivalDate) {
+          transitArrivalDate = newArrivalDate;
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const eta = new Date(newArrivalDate); eta.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((eta.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > 0) transitDuration = diffDays === 1 ? '1 jour' : `${diffDays} jours`;
+          else if (diffDays === 0) transitDuration = "aujourd'hui";
+        } else if (effectiveNew === 'STOCK' && newStockEntryDate) {
+          transitArrivalDate = newStockEntryDate;
+        }
+
+        sendStatusNotification({
+          firestore,
+          adminUid: user.uid,
+          clientName,
+          articleName: article.categoryId || article.name,
+          oldStatus: effectiveOld,
+          newStatus: effectiveNew,
+          quantity: article.quantity,
+          unitOfMeasure: article.unitOfMeasure,
+          specs: article.specs,
+          color: article.color,
+          size: article.size,
+          imageUrl: article.imageUrl || undefined,
+          transitArrivalDate,
+          transitDuration,
+        }).then(result => {
+          if (!result.ok) console.warn(`[Facture] Notification failed for ${clientName}:`, result.error);
+        });
+
+        notifCount++;
+      }
+
+      toast({
+        title: 'Dossier et articles synchronisés',
+        description: `Dates propagées à ${associatedArticles.length} articles${notifCount > 0 ? ` — ${notifCount} notification${notifCount > 1 ? 's' : ''} envoyée${notifCount > 1 ? 's' : ''}` : ''}.`,
       });
     } else {
-      toast({ 
-        title: editFacture?.isOrphaned ? "Dossier régularisé" : "Facture enregistrée", 
-        description: `Référence ${factureId} activée.` 
+      toast({
+        title: editFacture?.isOrphaned ? 'Dossier régularisé' : 'Facture enregistrée',
+        description: `Référence ${factureId} activée.`,
       });
     }
   };
