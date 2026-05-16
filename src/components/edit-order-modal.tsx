@@ -210,27 +210,23 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     const docRef = doc(firestore, 'users', user.uid, 'articles', article.id);
 
-    let arrivalDate = formData.arrivalDate || '';
-    let stockEntryDate = formData.stockEntryDate || '';
     const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
 
-    if (formData.status === 'SHIPPED' && finalFactureId) {
-      const selectedFacture = (factures || []).find(f => f.id === finalFactureId);
-      if (selectedFacture) {
-        arrivalDate = selectedFacture.arrivalDate;
-        stockEntryDate = selectedFacture.stockEntryDate || '';
-      }
-    }
+    // When article has a dossier, NEVER write dates into the article document.
+    // The dossier (facture) is the single source of truth for arrivalDate & stockEntryDate.
+    // Only save 'DELIVERED' if admin explicitly marked it, otherwise keep 'SHIPPED' as base.
+    const statusToSave = finalFactureId
+      ? (formData.status === 'DELIVERED' ? 'DELIVERED' : 'SHIPPED')
+      : formData.status;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { effectiveStatus: _es, rawStatus: _rs, ...cleanFormData } = formData;
+    const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...cleanFormData } = formData;
     const finalData = {
       ...cleanFormData,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       factureId: finalFactureId,
-      arrivalDate,
-      stockEntryDate,
+      status: statusToSave,
       colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
     };
 
@@ -698,12 +694,29 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* If article has a dossier → status is automatic, show read-only */}
+                {/* If article has a dossier → status is automatic (TRANSIT/CUSTOMS/STOCK) */}
                 {formData.factureId && formData.factureId !== 'NONE' ? (
-                  <div className="h-12 border border-stone-200 bg-stone-50 rounded-xl px-4 flex items-center gap-3">
-                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Statut :</span>
-                    <span className="text-[11px] font-black text-stone-700 uppercase">{article?.status || formData.status}</span>
-                    <span className="ml-auto text-[9px] text-stone-400 font-medium italic">Géré par le dossier</span>
+                  <div className="md:col-span-2 space-y-2">
+                    {/* Auto status display */}
+                    <div className="h-12 border border-stone-200 bg-stone-50 rounded-xl px-4 flex items-center gap-3">
+                      <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Statut logistique :</span>
+                      <span className="text-[11px] font-black text-stone-900 uppercase">{article?.status || formData.status}</span>
+                      <span className="ml-auto text-[9px] text-stone-400 font-medium italic">🔄 Calculé depuis le dossier {formData.factureId}</span>
+                    </div>
+                    {/* Only manual action possible at this stage: mark as delivered */}
+                    {formData.isPreorder && formData.clientName && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData((p: any) => ({ ...p, status: p.status === 'DELIVERED' ? 'SHIPPED' : 'DELIVERED' }))}
+                        className={`w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                          formData.status === 'DELIVERED'
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                        }`}
+                      >
+                        {formData.status === 'DELIVERED' ? '✅ Livré au client (cliquer pour annuler)' : '📦 Marquer comme Livré au Client'}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({ ...p, status: v }))}>
