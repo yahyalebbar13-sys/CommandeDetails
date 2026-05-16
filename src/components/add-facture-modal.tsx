@@ -143,45 +143,30 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       const oldStockEntryDate = capturedEditFacture.stockEntryDate || null;
 
       let notifCount = 0;
+      let skippedNoClient = 0;
 
       for (const article of capturedArticles) {
-        // NOTE: We no longer write dates to each article individually.
-        // The hook (use-enriched-articles) reads dates directly from the facture — single source of truth.
-        // This means any facture date change is instantly reflected in all linked articles' statuses.
-
-        // 2. Send email only for articles with a client (clientName is enough)
         const clientName = (article.clientName || '').trim();
         if (!clientName) {
-          console.log(`[Facture] Skip ${article.id}: no clientName`);
+          skippedNoClient++;
+          console.log(`[Facture] ⏭ Skip "${article.name || article.categoryId || article.id}": PAS DE clientName (isPreorder=${article.isPreorder})`);
           continue;
         }
 
-        // Articles linked to a dossier ALWAYS use date-based status logic.
-        // Force 'SHIPPED' as the base so computeEffectiveStatus uses dates, not stored status.
+        // Force 'SHIPPED' as base so computeEffectiveStatus uses dates, not stored status.
         const rawStatus = 'SHIPPED';
-
-        // Compute old vs new effective status
-        const effectiveOld = computeEffectiveStatus({
-          status: rawStatus,
-          arrivalDate: oldArrivalDate,
-          stockEntryDate: oldStockEntryDate,
-        });
-        const effectiveNew = computeEffectiveStatus({
-          status: rawStatus,
-          arrivalDate: newArrivalDate,
-          stockEntryDate: newStockEntryDate,
-        });
+        const effectiveOld = computeEffectiveStatus({ status: rawStatus, arrivalDate: oldArrivalDate, stockEntryDate: oldStockEntryDate });
+        const effectiveNew = computeEffectiveStatus({ status: rawStatus, arrivalDate: newArrivalDate, stockEntryDate: newStockEntryDate });
 
         const statusChanged = effectiveOld !== effectiveNew;
         const arrivalDateChanged = oldArrivalDate !== newArrivalDate;
         const stockEntryDateChanged = oldStockEntryDate !== newStockEntryDate;
 
-        console.log(`[Facture] Article ${article.id} (${clientName}): rawStatus=${rawStatus} | ${effectiveOld} → ${effectiveNew} | statusChanged=${statusChanged} | arrivalDateChanged=${arrivalDateChanged} | stockEntryDateChanged=${stockEntryDateChanged}`);
+        console.log(`[Facture] 📦 "${article.name || article.categoryId}" → client="${clientName}" | ${effectiveOld} → ${effectiveNew} | statusChanged=${statusChanged} | arrivalChanged=${arrivalDateChanged} | stockChanged=${stockEntryDateChanged}`);
 
-        // Send email if: status changed, OR arrival date changed, OR stock entry date added/changed
         if (!statusChanged && !arrivalDateChanged && !stockEntryDateChanged) {
-          console.log(`[Facture] Skip ${article.id}: no relevant changes.`);
-          continue; 
+          console.log(`[Facture] ⏭ Skip: aucun changement pertinent.`);
+          continue;
         }
 
         // Compute transit info for the email
@@ -214,17 +199,31 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           transitArrivalDate,
           transitDuration,
         }).then(result => {
-          if (!result.ok) console.warn(`[Facture] Notification failed for ${clientName}:`, result.error);
+          if (result.ok) {
+            console.log(`[Facture] ✅ Email envoyé → ${clientName} (${result.email})`);
+          } else {
+            console.warn(`[Facture] ❌ Email ÉCHOUÉ → "${clientName}":`, result.error || 'email introuvable dans clientAccess/clientEmails');
+          }
         });
 
         notifCount++;
       }
 
+      console.log(`[Facture] Résumé: ${notifCount} emails lancés, ${skippedNoClient}/${capturedArticles.length} articles sans clientName`);
+
       toast({
-        title: 'Dossier et articles synchronisés',
-        description: `Dates propagées à ${associatedArticles.length} articles${notifCount > 0 ? ` — ${notifCount} notification${notifCount > 1 ? 's' : ''} envoyée${notifCount > 1 ? 's' : ''}` : ''}.`,
+        title: 'Dossier enregistré',
+        description: skippedNoClient === capturedArticles.length
+          ? `⚠️ Aucun email — les articles n'ont pas de "Nom client" défini (activer Précommande dans Modifier article)`
+          : `${capturedArticles.length} articles liés${notifCount > 0 ? ` — ${notifCount} notification${notifCount > 1 ? 's' : ''} envoyée${notifCount > 1 ? 's' : ''}` : ''}.`,
       });
     } else {
+      console.log(`[Facture:save] Pas de notification:`, {
+        hasEditFacture: !!capturedEditFacture,
+        arrivalDateChanged: formData.arrivalDate !== capturedEditFacture?.arrivalDate,
+        stockEntryDateChanged: formData.stockEntryDate !== capturedEditFacture?.stockEntryDate,
+        articlesCount: capturedArticles.length,
+      });
       toast({
         title: editFacture?.isOrphaned ? 'Dossier régularisé' : 'Facture enregistrée',
         description: `Référence ${factureId} activée.`,
