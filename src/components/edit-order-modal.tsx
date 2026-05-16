@@ -71,6 +71,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (article) {
       setFormData({
         ...article,
+        // Use rawStatus (real Firestore status) if article was enriched,
+        // otherwise fall back to article.status
+        status: article.rawStatus || article.status,
         factureId: article.factureId || 'NONE',
         size: article.size || '',
         zipperType: article.zipperType || '',
@@ -219,8 +222,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { effectiveStatus: _es, rawStatus: _rs, ...cleanFormData } = formData;
     const finalData = {
-      ...formData,
+      ...cleanFormData,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       factureId: finalFactureId,
@@ -232,25 +237,29 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     updateDocumentNonBlocking(docRef, finalData);
 
     // ── Send Gmail notification if status changed and client is a preorder ──
-    const oldStatus = article.status;
-    const newStatus = formData.status;
+    // article.rawStatus = real Firestore status (SHIPPED/PI/etc)
+    // article.status   = enriched effective status (TRANSIT/CUSTOMS/STOCK)
+    const storedOldStatus = article.rawStatus || article.status; // true Firestore value before edit
+    const storedNewStatus = formData.status;                      // what admin chose in the form
     const clientName = (formData.clientName || '').trim();
 
     if (clientName && formData.isPreorder) {
-      // Compute the effective (displayed) status for both old and new states
-      // so the email reflects what the client actually sees (TRANSIT, CUSTOMS, STOCK)
+      // Compute effective status for old state (before this save)
       const effectiveOld = computeEffectiveStatus({
-        status: oldStatus,
+        status: storedOldStatus,
         arrivalDate: article.arrivalDate,
         stockEntryDate: article.stockEntryDate,
       });
+      // Compute effective status for new state (after this save)
       const effectiveNew = computeEffectiveStatus({
-        status: newStatus,
+        status: storedNewStatus,
         arrivalDate: arrivalDate,
         stockEntryDate: stockEntryDate,
       });
 
-      if (effectiveOld !== effectiveNew) {
+      const oldDisplayStatus = article.effectiveStatus || effectiveOld; // use pre-enriched value if available
+
+      if (oldDisplayStatus !== effectiveNew) {
         toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName} (${effectiveNew})` });
 
         // Compute transit info from the linked facture
