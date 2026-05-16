@@ -25,6 +25,9 @@ interface NotifyParams {
 
 /**
  * Returns the email of the client or null if not found.
+ * Lookup order:
+ * 1. clientAccess collection (clients with portal accounts) → notificationEmail or email
+ * 2. users/{adminUid}/clientEmails collection (lightweight email-only records, no portal needed)
  */
 async function resolveClientEmail(
   firestore: any,
@@ -34,6 +37,7 @@ async function resolveClientEmail(
   const clientNameLower = clientName.trim().toLowerCase();
   if (!clientNameLower) return null;
 
+  // ── 1. Check clientAccess (portal accounts) ─────────────────────────────
   const clientAccessRef = collection(firestore, 'clientAccess');
   const q = query(clientAccessRef, where('adminUid', '==', adminUid));
   const snap = await getDocs(q);
@@ -47,9 +51,23 @@ async function resolveClientEmail(
     );
   });
 
-  if (!matchDoc) return null;
-  const data = matchDoc.data();
-  return (data.notificationEmail || '').trim() || data.email || null;
+  if (matchDoc) {
+    const data = matchDoc.data();
+    const email = (data.notificationEmail || '').trim() || (data.email || '').trim();
+    if (email) return email;
+  }
+
+  // ── 2. Fallback: clientEmails sub-collection (no portal needed) ──────────
+  // Document ID = sanitized client name (lowercase, spaces→underscores)
+  const clientEmailsRef = collection(firestore, 'users', adminUid, 'clientEmails');
+  const q2 = query(clientEmailsRef, where('clientName', '==', clientName.trim()));
+  const snap2 = await getDocs(q2);
+  if (!snap2.empty) {
+    const email = (snap2.docs[0].data().email || '').trim();
+    if (email) return email;
+  }
+
+  return null;
 }
 
 /**

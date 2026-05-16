@@ -1890,6 +1890,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   const [notificationEmail, setNotificationEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
+  // For clients without a portal account — store email in clientEmails sub-collection
+  const [simpleEmailSaving, setSimpleEmailSaving] = useState(false);
 
   // Load clientAccess doc when modal opens
   useEffect(() => {
@@ -1903,6 +1905,7 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
 
     (async () => {
       try {
+        // 1. Try portal account first
         const q = query(
           collection(firestore, 'clientAccess'),
           where('adminUid', '==', user.uid),
@@ -1915,7 +1918,16 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
           setAccessDoc({ id: d.id, email: data.email, notificationEmail: data.notificationEmail || '' });
           setNotificationEmail(data.notificationEmail || '');
         } else {
+          // 2. No portal account — check clientEmails for a simple notification email
           setNotFound(true);
+          const q2 = query(
+            collection(firestore, 'users', user.uid, 'clientEmails'),
+            where('clientName', '==', clientName)
+          );
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty) {
+            setNotificationEmail(snap2.docs[0].data().email || '');
+          }
         }
       } catch (err: any) {
         setNotFound(true);
@@ -1925,6 +1937,28 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
       }
     })();
   }, [open, user, firestore, clientName]);
+
+  // Save notification email for clients WITHOUT a portal account
+  const handleSaveSimpleEmail = async () => {
+    if (!user || !firestore || !notificationEmail.trim()) return;
+    setSimpleEmailSaving(true);
+    try {
+      const clientEmailsRef = collection(firestore, 'users', user.uid, 'clientEmails');
+      const q = query(clientEmailsRef, where('clientName', '==', clientName));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        await updateDoc(doc(firestore, 'users', user.uid, 'clientEmails', snap.docs[0].id), { email: notificationEmail.trim(), clientName });
+      } else {
+        const { addDoc } = await import('firebase/firestore');
+        await addDoc(clientEmailsRef, { email: notificationEmail.trim(), clientName });
+      }
+      toast({ title: '✅ Email enregistré', description: `Les notifications iront à ${notificationEmail}` });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setSimpleEmailSaving(false);
+    }
+  };
 
   // Save notification email
   const handleSaveNotifEmail = async () => {
@@ -2010,15 +2044,41 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
               <p className="text-[11px] font-bold text-stone-400 uppercase">Chargement...</p>
             </div>
           ) : notFound ? (
-            <div className="text-center py-8 space-y-3">
-              <div className="w-12 h-12 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center mx-auto">
-                <KeyRound className="w-5 h-5 text-amber-500" />
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                <KeyRound className="w-4 h-4 text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-black text-amber-700 uppercase">Pas de compte portail</p>
+                  <p className="text-[9px] text-amber-600 font-medium">Vous pouvez quand même définir un email pour les notifications.</p>
+                </div>
               </div>
-              <p className="text-[12px] font-black text-stone-700 uppercase">Aucun accès portail</p>
-              <p className="text-[10px] text-stone-400 font-medium leading-relaxed">
-                Ce client n&apos;a pas encore de compte portail.<br />
-                Utilisez le bouton <strong>🔑 Créer accès</strong> pour en créer un.
-              </p>
+              {/* Simple notification email — no portal needed */}
+              <div className="space-y-2">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest flex items-center gap-1.5">
+                  <Mail className="w-3 h-3" /> Email de Notification
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="email@client.com"
+                    value={notificationEmail}
+                    onChange={e => setNotificationEmail(e.target.value)}
+                    className="h-10 text-[11px] font-bold border-stone-200 rounded-xl flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveSimpleEmail}
+                    disabled={simpleEmailSaving || !notificationEmail.trim()}
+                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl px-4 gap-1.5"
+                  >
+                    {simpleEmailSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                    Sauver
+                  </Button>
+                </div>
+                <p className="text-[9px] text-stone-400 font-medium">Cet email recevra les notifications de changement de statut des commandes.</p>
+              </div>
             </div>
           ) : accessDoc ? (
             <>
