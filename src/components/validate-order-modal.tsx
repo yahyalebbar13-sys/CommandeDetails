@@ -61,7 +61,6 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     
     updateDocumentNonBlocking(docRef, {
       factureId: formData.factureId,
-      arrivalDate: formData.arrivalDate,
       status: 'SHIPPED',
       validatedAt: serverTimestamp()
     });
@@ -73,7 +72,7 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
 
     // ── Send notification if article has a clientName ──
     const clientName = (order.clientName || '').trim();
-    if (clientName && order.isPreorder) {
+    if (clientName) {
       toast({ title: '📧 Envoi en cours...', description: `Notification client → ${clientName}` });
       
       let transitDuration: string | undefined;

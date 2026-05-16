@@ -130,12 +130,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       let notifCount = 0;
 
       for (const article of associatedArticles) {
-        // 1. Update dates on each article
-        const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
-        const updates: any = {};
-        if (formData.arrivalDate !== editFacture.arrivalDate) updates.arrivalDate = newArrivalDate;
-        if (formData.stockEntryDate !== editFacture.stockEntryDate) updates.stockEntryDate = newStockEntryDate;
-        updateDocumentNonBlocking(articleRef, updates);
+        // NOTE: We no longer write dates to each article individually.
+        // The hook (use-enriched-articles) reads dates directly from the facture — single source of truth.
+        // This means any facture date change is instantly reflected in all linked articles' statuses.
 
         // 2. Send email only for articles with a client (clientName is enough)
         const clientName = (article.clientName || '').trim();
