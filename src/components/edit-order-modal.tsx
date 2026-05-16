@@ -697,26 +697,32 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 />
               </div>
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({ ...p, status: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TO_ORDER" className="font-bold uppercase">À Commander</SelectItem>
-                    <SelectItem value="PI" className="font-bold text-amber-600 uppercase">Production Lancée (PI)</SelectItem>
-                    <SelectItem value="SHIPPED" className="font-bold text-blue-600 uppercase">🚢 Expédié / En Transit</SelectItem>
-                    <SelectItem value="CUSTOMS" className="font-bold text-purple-600 uppercase">🛃 En Dédouanement</SelectItem>
-                    <SelectItem value="STOCK" className="font-bold text-teal-600 uppercase">✅ En Stock</SelectItem>
-                    <SelectItem 
-                      value="DELIVERED" 
-                      className="font-bold text-emerald-600 uppercase"
-                      disabled={!formData.isPreorder || !formData.clientName}
-                    >
-                      ✓ Livré au Client {!formData.isPreorder || !formData.clientName ? '(Req. Client)' : ''}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* If article has a dossier → status is automatic, show read-only */}
+                {formData.factureId && formData.factureId !== 'NONE' ? (
+                  <div className="h-12 border border-stone-200 bg-stone-50 rounded-xl px-4 flex items-center gap-3">
+                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Statut :</span>
+                    <span className="text-[11px] font-black text-stone-700 uppercase">{article?.status || formData.status}</span>
+                    <span className="ml-auto text-[9px] text-stone-400 font-medium italic">Géré par le dossier</span>
+                  </div>
+                ) : (
+                  <Select value={formData.status} onValueChange={v => setFormData((p: any) => ({ ...p, status: v }))}>
+                    <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TO_ORDER" className="font-bold uppercase">📋 À Commander</SelectItem>
+                      <SelectItem value="PI" className="font-bold text-amber-600 uppercase">🏭 Production Lancée (PI)</SelectItem>
+                      <SelectItem
+                        value="DELIVERED"
+                        className="font-bold text-emerald-600 uppercase"
+                        disabled={!formData.isPreorder || !formData.clientName}
+                      >
+                        📦 Livré au Client {!formData.isPreorder || !formData.clientName ? '(Req. Client)' : ''}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
 
                 {formData.status !== 'TO_ORDER' && (
                   <Select value={formData.factureId || 'NONE'} onValueChange={v => setFormData((p: any) => ({ ...p, factureId: v }))}>
