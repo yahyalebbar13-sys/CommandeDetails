@@ -2218,14 +2218,15 @@ const STATUS_GROUPS = [
     dotColor: '#3b82f6',
   },
   {
+    // SHIPPED = same display as TRANSIT (bateau uniquement)
     key: 'SHIPPED',
-    label: 'Expédié',
-    description: 'Départ usine effectué',
-    icon: '✈️',
-    headerBg: 'linear-gradient(135deg, #075985, #0284c7)',
-    badgeBg: '#e0f2fe', badgeText: '#075985',
-    borderColor: '#7dd3fc',
-    dotColor: '#0ea5e9',
+    label: 'En Transit',
+    description: 'Acheminement maritime en cours',
+    icon: '🚢',
+    headerBg: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)',
+    badgeBg: '#eff6ff', badgeText: '#1e3a8a',
+    borderColor: '#93c5fd',
+    dotColor: '#3b82f6',
   },
   {
     key: 'PI',
@@ -2625,8 +2626,9 @@ export function ClientDetailView({
   const statusLabel = (status: string) => {
     if (status === 'TO_ORDER') return { label: 'À Commander', cls: 'bg-stone-100 text-stone-600 border-stone-200', dot: 'bg-stone-400', icon: '📋' };
     if (status === 'PI') return { label: 'En Production', cls: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400', icon: '🏭' };
-    if (status === 'SHIPPED') return { label: 'Expédié', cls: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-400', icon: '✈️' };
-    if (status === 'TRANSIT') return { label: 'En Transit', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-400', icon: '🚢' };
+    // SHIPPED = same display as TRANSIT (transport bateau uniquement)
+    if (status === 'SHIPPED') return { label: 'En Transit', cls: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-400', icon: '🚢' };
+    if (status === 'TRANSIT') return { label: 'En Transit', cls: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-400', icon: '🚢' };
     if (status === 'CUSTOMS') return { label: 'En Dédouanement', cls: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500', icon: '🛃' };
     if (status === 'STOCK') return { label: 'En Stock', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', icon: '✅' };
     if (status === 'DELIVERED') return { label: 'Livré', cls: 'bg-stone-800 text-stone-200 border-stone-700', dot: 'bg-stone-600', icon: '📦' };
@@ -2815,13 +2817,14 @@ export function ClientDetailView({
                     const STEPS = [
                       { key: 'TO_ORDER', icon: '📋', label: 'Commande' },
                       { key: 'PI',       icon: '🏭', label: 'Production' },
-                      { key: 'SHIPPED',  icon: '✈️', label: 'Expédition' },
-                      { key: 'TRANSIT',  icon: '🚢', label: 'Transit' },
+                      { key: 'TRANSIT',  icon: '🚢', label: 'Transit Maritime' },
                       { key: 'CUSTOMS',  icon: '🛃', label: 'Dédouanement' },
                       { key: 'STOCK',    icon: '✅', label: 'Stock' },
                     ];
-                    const STATUS_ORDER = ['TO_ORDER','PI','SHIPPED','TRANSIT','CUSTOMS','STOCK','DELIVERED'];
-                    const currentIdx = STATUS_ORDER.indexOf(selectedArticle.status);
+                    // SHIPPED and TRANSIT are the same stage — normalize to TRANSIT for the timeline
+                    const normalizedStatus = selectedArticle.status === 'SHIPPED' ? 'TRANSIT' : selectedArticle.status;
+                    const STATUS_ORDER = ['TO_ORDER','PI','TRANSIT','CUSTOMS','STOCK','DELIVERED'];
+                    const currentIdx = STATUS_ORDER.indexOf(normalizedStatus);
                     const isDelivered = selectedArticle.status === 'DELIVERED';
                     return (
                       <div className="rounded-2xl overflow-hidden border border-stone-200">
