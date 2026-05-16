@@ -5,8 +5,8 @@ import nodemailer from 'nodemailer';
 const STATUS_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
   TO_ORDER:  { label: 'À Commander',             emoji: '📋', color: '#6B7280' },
   PI:        { label: 'Production Lancée (PI)',   emoji: '🏭', color: '#F59E0B' },
-  SHIPPED:   { label: 'Expédié',                 emoji: '✈️', color: '#3B82F6' },
-  TRANSIT:   { label: 'En Transit',              emoji: '🚢', color: '#6366F1' },
+  SHIPPED:   { label: 'Expédié',                 emoji: '✈️', color: '#6366F1' },
+  TRANSIT:   { label: 'En Transit',              emoji: '🚢', color: '#3B82F6' },
   CUSTOMS:   { label: 'En Dédouanement',         emoji: '🛃', color: '#8B5CF6' },
   STOCK:     { label: 'En Stock',                emoji: '✅', color: '#10B981' },
   DELIVERED: { label: 'Livré',                   emoji: '📦', color: '#059669' },
@@ -42,18 +42,29 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
         </div>`;
     case 'SHIPPED':
       return `
+        <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #c7d2fe;border-left:4px solid #6366F1;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+          <p style="margin:0 0 6px;font-size:13px;color:#3730A3;font-weight:800;display:flex;align-items:center;gap:6px">
+            ✈️ <strong>Votre commande a été expédiée !</strong>
+          </p>
+          <p style="margin:0;font-size:13px;color:#3730A3;line-height:1.7">
+            Le conteneur a quitté l'usine et est en cours d'acheminement.<br/><br/>
+            Vous serez notifié dès que la date de transit est confirmée.
+          </p>
+        </div>`;
+    case 'TRANSIT':
+      return `
         <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-left:4px solid #3B82F6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
           <p style="margin:0 0 6px;font-size:13px;color:#1E40AF;font-weight:800;display:flex;align-items:center;gap:6px">
-            🚢 <strong>Votre commande est expédiée et en transit maritime !</strong>
+            🚢 <strong>Votre commande est en transit maritime !</strong>
           </p>
           <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.7">
-            Le conteneur a quitté l'usine et est actuellement en mer, en cours d'acheminement vers le Maroc.
+            Le conteneur est actuellement en mer, en cours d'acheminement vers le Maroc.
             ${
               transitArrivalDate
-                ? `<br/><br/>📅 <strong>Date d'arrivée estimée : ${transitArrivalDate}</strong>${transitDuration ? ` <span style="color:#3B82F6;font-size:12px">(${transitDuration})</span>` : ''}`
+                ? `<br/><br/>📅 <strong>Date d'arrivée estimée : ${transitArrivalDate}</strong>${transitDuration ? ` <span style="color:#3B82F6;font-size:12px">(${transitDuration} restants)</span>` : ''}`
                 : ''
             }
-            <br/><br/>Vous serez notifié dès le passage en dédouanement.
+            <br/><br/>Vous serez notifié dès l'arrivée au port et le passage en dédouanement.
           </p>
         </div>`;
     case 'CUSTOMS':
@@ -63,7 +74,7 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
             🛃 <strong>Votre commande est en cours de dédouanement !</strong>
           </p>
           <p style="margin:0;font-size:13px;color:#5B21B6;line-height:1.7">
-            Le conteneur est arrivé au port et est actuellement en cours de traitement douanier.<br/><br/>
+            Le conteneur est arrivé au port et est actuellement en cours de traitement douanier.${transitArrivalDate ? `<br/><br/>📅 <strong>Date d'arrivée port : ${transitArrivalDate}</strong>` : ''}<br/><br/>
             Vous serez notifié dès que la marchandise est disponible en stock.
           </p>
         </div>`;
@@ -74,7 +85,7 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
             ✅ <strong>Votre commande est disponible en stock !</strong>
           </p>
           <p style="margin:0;font-size:13px;color:#065F46;line-height:1.7">
-            La marchandise a passé les contrôles douaniers et est désormais disponible dans nos entrepôts.<br/><br/>
+            La marchandise a passé les contrôles douaniers et est désormais disponible dans nos entrepôts.${transitArrivalDate ? `<br/><br/>📦 <strong>Entrée en stock le : ${transitArrivalDate}</strong>` : ''}<br/><br/>
             Notre équipe vous contactera prochainement pour organiser la livraison.
           </p>
         </div>`;

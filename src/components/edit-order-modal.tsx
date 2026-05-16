@@ -15,6 +15,7 @@ import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { sendStatusNotification } from '@/lib/send-status-notification';
+import { computeEffectiveStatus } from '@/lib/status-utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
@@ -230,24 +231,37 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     updateDocumentNonBlocking(docRef, finalData);
 
-    // ── Send Gmail notification if status changed and clientName is set ──
+    // ── Send Gmail notification if status changed and client is a preorder ──
     const oldStatus = article.status;
     const newStatus = formData.status;
     const clientName = (formData.clientName || '').trim();
 
-    if (oldStatus !== newStatus && clientName && formData.isPreorder) {
-      toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName}` });
+    if (clientName && formData.isPreorder) {
+      // Compute the effective (displayed) status for both old and new states
+      // so the email reflects what the client actually sees (TRANSIT, CUSTOMS, STOCK)
+      const effectiveOld = computeEffectiveStatus({
+        status: oldStatus,
+        arrivalDate: article.arrivalDate,
+        stockEntryDate: article.stockEntryDate,
+      });
+      const effectiveNew = computeEffectiveStatus({
+        status: newStatus,
+        arrivalDate: arrivalDate,
+        stockEntryDate: stockEntryDate,
+      });
 
-      // Compute transit arrival date + duration from the linked facture when shipping
-      let transitArrivalDate: string | undefined;
-      let transitDuration: string | undefined;
-      if (newStatus === 'SHIPPED' && finalFactureId) {
-        const linkedFacture = (factures || []).find((f: any) => f.id === finalFactureId);
-        if (linkedFacture?.arrivalDate) {
-          transitArrivalDate = linkedFacture.arrivalDate;
+      if (effectiveOld !== effectiveNew) {
+        toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName} (${effectiveNew})` });
+
+        // Compute transit info from the linked facture
+        let transitArrivalDate: string | undefined;
+        let transitDuration: string | undefined;
+
+        if (arrivalDate) {
+          transitArrivalDate = arrivalDate;
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          const eta = new Date(linkedFacture.arrivalDate);
+          const eta = new Date(arrivalDate);
           eta.setHours(0, 0, 0, 0);
           const diffMs = eta.getTime() - today.getTime();
           const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -256,30 +270,32 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           } else if (diffDays === 0) {
             transitDuration = "aujourd'hui";
           }
+        } else if (effectiveNew === 'STOCK' && stockEntryDate) {
+          transitArrivalDate = stockEntryDate;
         }
-      }
 
-      const result = await sendStatusNotification({
-        firestore,
-        adminUid: user.uid,
-        clientName,
-        articleName: formData.categoryId || formData.name,
-        oldStatus,
-        newStatus,
-        quantity: formData.quantity,
-        unitOfMeasure: formData.unitOfMeasure,
-        specs: formData.specs,
-        color: formData.color,
-        size: formData.size,
-        estimatedProductionDelay: formData.estimatedProductionDelay,
-        imageUrl: formData.imageUrl || undefined,
-        transitArrivalDate,
-        transitDuration,
-      });
-      if (result.ok) {
-        toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
-      } else if (result.error) {
-        toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
+        const result = await sendStatusNotification({
+          firestore,
+          adminUid: user.uid,
+          clientName,
+          articleName: formData.categoryId || formData.name,
+          oldStatus: effectiveOld,
+          newStatus: effectiveNew,
+          quantity: formData.quantity,
+          unitOfMeasure: formData.unitOfMeasure,
+          specs: formData.specs,
+          color: formData.color,
+          size: formData.size,
+          estimatedProductionDelay: formData.estimatedProductionDelay,
+          imageUrl: formData.imageUrl || undefined,
+          transitArrivalDate,
+          transitDuration,
+        });
+        if (result.ok) {
+          toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email} — ${effectiveNew}` });
+        } else if (result.error) {
+          toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
+        }
       }
     }
 

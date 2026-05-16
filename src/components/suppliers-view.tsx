@@ -26,6 +26,7 @@ import SupplierInfoModal from './supplier-info-modal';
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
+import { computeEffectiveStatus } from '@/lib/status-utils';
 
 interface SuppliersViewProps {
   articles: any[];
@@ -2483,37 +2484,19 @@ export function ClientDetailView({
         return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
       })
       .map(a => {
-        const facture = factures.find(f => f.id === a.factureId);
-        let derivedStatus = a.status;
-        const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
+        const facture = factures.find((f: any) => f.id === a.factureId);
+        // Prefer article-level dates, fallback to facture dates
+        const arrivalDate = a.arrivalDate || facture?.arrivalDate || null;
+        const stockEntryDate = a.stockEntryDate || facture?.stockEntryDate || null;
 
-        if (a.status === 'DELIVERED') {
-          derivedStatus = 'DELIVERED';
-        } else if (facture) {
-          const now = new Date();
-          const isArrived = arrivalDate ? new Date(arrivalDate) <= now : false;
-          // A facture indicates a real shipment dossier exists.
-          // Only escalate beyond PI if the facture has real shipping data (noBL or shippingLine)
-          // or if the facture is already in stock/customs phase.
-          const hasShippingInfo = !!(facture.noBL || facture.shippingLine);
-          if (facture.inStock || facture.stockEntryDate) {
-            derivedStatus = 'STOCK';
-          } else if (isArrived) {
-            derivedStatus = 'CUSTOMS';
-          } else if (hasShippingInfo) {
-            // Real BL exists → it's genuinely in transit
-            derivedStatus = 'TRANSIT';
-          } else if (a.status === 'PI') {
-            // Facture exists but no BL yet → still in production
-            derivedStatus = 'PI';
-          } else {
-            derivedStatus = 'TRANSIT';
-          }
-        } else if (!a.factureId) {
-          // No facture linked → use raw article status (PI, TO_ORDER, etc.)
-          derivedStatus = a.status;
-        }
-        
+        // Compute the effective status using the centralized logic
+        // (same function used for emails and admin views)
+        const derivedStatus = computeEffectiveStatus({
+          status: a.status,
+          arrivalDate,
+          stockEntryDate,
+        });
+
         let orderDate = '-';
         if (facture?.orderDate) {
           orderDate = facture.orderDate;
@@ -2529,6 +2512,7 @@ export function ClientDetailView({
           ...a,
           status: derivedStatus,
           arrivalDate,
+          stockEntryDate,
           orderDate,
           factureNoBL: facture?.noBL || null,
         };
@@ -2587,9 +2571,9 @@ export function ClientDetailView({
   };
 
   // ── computed stats ──
-  const inStockCount = clientArticles.filter(a => a.status === 'STOCK').length;
-  const inTransitCount = clientArticles.filter(a => ['TRANSIT','SHIPPED','CUSTOMS'].includes(a.status)).length;
-  const inProductionCount = clientArticles.filter(a => ['PI','TO_ORDER'].includes(a.status)).length;
+  const inStockCount = clientArticles.filter(a => computeEffectiveStatus(a) === 'STOCK').length;
+  const inTransitCount = clientArticles.filter(a => ['TRANSIT','SHIPPED','CUSTOMS'].includes(computeEffectiveStatus(a))).length;
+  const inProductionCount = clientArticles.filter(a => ['PI','TO_ORDER'].includes(computeEffectiveStatus(a))).length;
 
   return (
     <div className="space-y-6 fade-in">
