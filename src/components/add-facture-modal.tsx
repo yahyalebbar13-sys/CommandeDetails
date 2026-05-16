@@ -137,9 +137,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
         if (formData.stockEntryDate !== editFacture.stockEntryDate) updates.stockEntryDate = newStockEntryDate;
         updateDocumentNonBlocking(articleRef, updates);
 
-        // 2. Send email only for preorder articles with a client
+        // 2. Send email only for articles with a client (clientName is enough)
         const clientName = (article.clientName || '').trim();
-        if (!clientName || !article.isPreorder) continue;
+        if (!clientName) continue;
 
         // Compute old vs new effective status
         const effectiveOld = computeEffectiveStatus({

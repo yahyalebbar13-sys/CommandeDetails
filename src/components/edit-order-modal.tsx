@@ -243,7 +243,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const storedNewStatus = formData.status;                      // what admin chose in the form
     const clientName = (formData.clientName || '').trim();
 
-    if (clientName && formData.isPreorder) {
+    if (clientName) {
       // Compute effective status for old state (before this save)
       const effectiveOld = computeEffectiveStatus({
         status: storedOldStatus,

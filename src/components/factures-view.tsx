@@ -725,6 +725,7 @@ export default function FacturesView({
         onOpenChange={setIsEditModalOpen}
         factures={factures}
         editFacture={modalInitialData}
+        associatedArticles={modalInitialData ? articles.filter((a: any) => a.factureId === modalInitialData.id) : []}
       />
     </div>
   );
