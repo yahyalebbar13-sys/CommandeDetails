@@ -2489,10 +2489,10 @@ export function ClientDetailView({
         const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
         const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
 
-        // Compute the effective status using the centralized logic
-        // (same function used for emails and admin views)
+        // KEY FIX: articles linked to a dossier always derive their status from dates
+        const baseStatus = facture ? 'SHIPPED' : a.status;
         const derivedStatus = computeEffectiveStatus({
-          status: a.status,
+          status: baseStatus,
           arrivalDate,
           stockEntryDate,
         });

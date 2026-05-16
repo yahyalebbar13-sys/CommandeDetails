@@ -102,8 +102,14 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onOpenChange(false);
     if (!user || !firestore || !formData.id) return;
+
+    // Capture these BEFORE closing the modal — closing triggers re-render
+    // which can cause editFacture / associatedArticles props to change
+    const capturedEditFacture = editFacture;
+    const capturedArticles = associatedArticles ? [...associatedArticles] : [];
+    
+    onOpenChange(false);
 
     const factureId = formData.id.toUpperCase().trim();
     const facturesRef = collection(firestore, 'users', user.uid, 'factures');
@@ -120,16 +126,25 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
     setDocumentNonBlocking(docRef, factureData, { merge: true });
 
+    // ─── DEBUG ───────────────────────────────────────────────────────────────
+    console.log('[Facture:save] capturedEditFacture:', capturedEditFacture?.id, 
+      '| old arrivalDate:', capturedEditFacture?.arrivalDate, 
+      '| new arrivalDate:', formData.arrivalDate,
+      '| old stockEntryDate:', capturedEditFacture?.stockEntryDate,
+      '| new stockEntryDate:', formData.stockEntryDate,
+      '| capturedArticles count:', capturedArticles.length);
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ─── Propagate date changes to linked articles + send client notifications ───
-    if (editFacture && (formData.arrivalDate !== editFacture.arrivalDate || formData.stockEntryDate !== editFacture.stockEntryDate) && associatedArticles && associatedArticles.length > 0) {
+    if (capturedEditFacture && (formData.arrivalDate !== capturedEditFacture.arrivalDate || formData.stockEntryDate !== capturedEditFacture.stockEntryDate) && capturedArticles.length > 0) {
       const newArrivalDate = formData.arrivalDate || null;
       const newStockEntryDate = formData.stockEntryDate || null;
-      const oldArrivalDate = editFacture.arrivalDate || null;
-      const oldStockEntryDate = editFacture.stockEntryDate || null;
+      const oldArrivalDate = capturedEditFacture.arrivalDate || null;
+      const oldStockEntryDate = capturedEditFacture.stockEntryDate || null;
 
       let notifCount = 0;
 
-      for (const article of associatedArticles) {
+      for (const article of capturedArticles) {
         // NOTE: We no longer write dates to each article individually.
         // The hook (use-enriched-articles) reads dates directly from the facture — single source of truth.
         // This means any facture date change is instantly reflected in all linked articles' statuses.
@@ -141,8 +156,9 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           continue;
         }
 
-        // The raw status stored in Firestore (before enrichment)
-        const rawStatus = article.rawStatus || article.status;
+        // Articles linked to a dossier ALWAYS use date-based status logic.
+        // Force 'SHIPPED' as the base so computeEffectiveStatus uses dates, not stored status.
+        const rawStatus = 'SHIPPED';
 
         // Compute old vs new effective status
         const effectiveOld = computeEffectiveStatus({
@@ -158,13 +174,13 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
 
         const statusChanged = effectiveOld !== effectiveNew;
         const arrivalDateChanged = oldArrivalDate !== newArrivalDate;
+        const stockEntryDateChanged = oldStockEntryDate !== newStockEntryDate;
 
-        console.log(`[Facture] Article ${article.id} (${clientName}): rawStatus=${rawStatus} | old=${effectiveOld} (arr=${oldArrivalDate}, stk=${oldStockEntryDate}) → new=${effectiveNew} (arr=${newArrivalDate}, stk=${newStockEntryDate})`);
+        console.log(`[Facture] Article ${article.id} (${clientName}): rawStatus=${rawStatus} | ${effectiveOld} → ${effectiveNew} | statusChanged=${statusChanged} | arrivalDateChanged=${arrivalDateChanged} | stockEntryDateChanged=${stockEntryDateChanged}`);
 
-        // We trigger an email if the status transitioned (e.g. CUSTOMS -> STOCK)
-        // OR if the arrival date changed (even if still TRANSIT, to notify client of new ETA)
-        if (!statusChanged && !arrivalDateChanged) {
-          console.log(`[Facture] Skip ${article.id}: no status transition and no date change.`);
+        // Send email if: status changed, OR arrival date changed, OR stock entry date added/changed
+        if (!statusChanged && !arrivalDateChanged && !stockEntryDateChanged) {
+          console.log(`[Facture] Skip ${article.id}: no relevant changes.`);
           continue; 
         }
 

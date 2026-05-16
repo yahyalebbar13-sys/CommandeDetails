@@ -23,9 +23,15 @@ export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
       const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
       const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
 
+      // KEY FIX: When an article belongs to a dossier (facture), its effective status
+      // is ALWAYS derived from the dossier's dates — regardless of what is stored in
+      // a.status in Firestore. This ensures stockEntryDate/arrivalDate always win.
+      // Only articles without a linked dossier use their stored Firestore status directly.
+      const baseStatus = facture ? 'SHIPPED' : a.status;
+
       // Compute the effective status — TRANSIT / CUSTOMS / STOCK based on dates
       const effectiveStatus = computeEffectiveStatus({
-        status: a.status,
+        status: baseStatus,
         arrivalDate,
         stockEntryDate,
       });
