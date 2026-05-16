@@ -137,6 +137,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Verify SMTP connection before sending
+    await transporter.verify().catch(() => {
+      // Non-fatal: continue anyway, sendMail will throw if truly broken
+    });
+
     const newStatusInfo = STATUS_LABELS[newStatus] || { label: newStatus, emoji: '📦', color: '#6B7280' };
     const oldStatusInfo = STATUS_LABELS[oldStatus] || { label: oldStatus || '-', emoji: '📦', color: '#6B7280' };
 
@@ -162,12 +167,17 @@ export async function POST(req: NextRequest) {
     };
     const subject = subjectMap[newStatus] || `${newStatusInfo.emoji} Mise à jour commande : ${articleName} — ${newStatusInfo.label}`;
 
-    // Product image block (shown only when imageUrl is provided)
+    // Product image block
+    // Firebase Storage URLs are often blocked by email clients (Gmail, Outlook) due to security policies.
+    // We embed the image as a linked image but with a safe fallback message if blocked.
+    // For best deliverability, images should be hosted on a public CDN (not Firebase Storage with auth tokens).
+    const isFirebaseStorageUrl = imageUrl && imageUrl.includes('firebasestorage.googleapis.com');
     const productImageBlock = imageUrl ? `
       <tr><td style="background:#ffffff;padding:0 40px 24px">
         <p style="margin:0 0 10px;font-size:9px;color:#9CA3AF;font-weight:800;text-transform:uppercase;letter-spacing:0.18em">Photo du produit</p>
         <div style="border:1.5px solid #f3f4f6;border-radius:14px;overflow:hidden;text-align:center;background:#f9fafb;padding:12px">
-          <img src="${imageUrl}" alt="Photo produit" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;display:block;margin:0 auto" />
+          <img src="${imageUrl}" alt="Photo produit" width="300" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;display:block;margin:0 auto" />
+          ${isFirebaseStorageUrl ? `<p style="margin:8px 0 0;font-size:9px;color:#9CA3AF">Si l'image ne s'affiche pas, consultez votre portail client.</p>` : ''}
         </div>
       </td></tr>` : '';
 
@@ -261,7 +271,7 @@ export async function POST(req: NextRequest) {
 </html>`;
 
     await transporter.sendMail({
-      from: `"LEBTEX Textile Import" <${process.env.GMAIL_USER}>`,
+      from: `"LEBTEX Textile Import" <${gmailUser}>`,
       to: clientEmail,
       subject,
       html,

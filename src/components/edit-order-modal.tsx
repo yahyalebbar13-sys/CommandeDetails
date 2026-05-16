@@ -235,7 +235,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const newStatus = formData.status;
     const clientName = (formData.clientName || '').trim();
 
-    if (oldStatus !== newStatus && clientName) {
+    if (oldStatus !== newStatus && clientName && formData.isPreorder) {
       toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName}` });
 
       // Compute transit arrival date + duration from the linked facture when shipping
