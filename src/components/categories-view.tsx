@@ -39,6 +39,7 @@ import {
   Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
 } from 'recharts';
 import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { computeEffectiveStatus } from '@/lib/status-utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { doc } from 'firebase/firestore';
@@ -232,7 +233,10 @@ export default function CategoriesView({
       let totalValue = 0;
       
       const futureArrivals = groupArticles
-        .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr)
+        .filter(a => {
+          const eff = computeEffectiveStatus(a);
+          return (eff === 'TRANSIT' || eff === 'SHIPPED') && a.arrivalDate && a.arrivalDate > todayStr;
+        })
         .map(a => a.arrivalDate as string);
       
       const nextArrival = futureArrivals.length > 0 
@@ -264,7 +268,10 @@ export default function CategoriesView({
         let totalValue = 0;
         
         const futureArrivals = catArticles
-          .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr)
+          .filter(a => {
+            const eff = computeEffectiveStatus(a);
+            return (eff === 'TRANSIT' || eff === 'SHIPPED') && a.arrivalDate && a.arrivalDate > todayStr;
+          })
           .map(a => a.arrivalDate as string);
         
         const nextArrival = futureArrivals.length > 0 
@@ -295,12 +302,16 @@ export default function CategoriesView({
     if (!selectedCategory || !todayStr) return null;
     
     return {
-      transit: currentArticles.filter(a => a.status === 'SHIPPED' && (!a.stockEntryDate || a.stockEntryDate > todayStr)),
-      arrived: currentArticles.filter(a => 
-        (a.status === 'SHIPPED' && a.stockEntryDate && a.stockEntryDate <= todayStr)
-      ),
-      production: currentArticles.filter(a => a.status === 'PI'),
-      pending: currentArticles.filter(a => a.status === 'TO_ORDER')
+      transit: currentArticles.filter(a => {
+        const eff = computeEffectiveStatus(a);
+        return eff === 'TRANSIT' || eff === 'SHIPPED' || eff === 'CUSTOMS';
+      }),
+      arrived: currentArticles.filter(a => {
+        const eff = computeEffectiveStatus(a);
+        return eff === 'STOCK' || eff === 'DELIVERED';
+      }),
+      production: currentArticles.filter(a => computeEffectiveStatus(a) === 'PI'),
+      pending: currentArticles.filter(a => computeEffectiveStatus(a) === 'TO_ORDER')
     };
   }, [currentArticles, selectedCategory, todayStr]);
 
@@ -311,7 +322,10 @@ export default function CategoriesView({
     const totalQty = currentArticles.reduce((s, a) => s + (Number(a.quantity) || 0), 0);
 
     const futureArrivals = currentArticles
-      .filter(a => a.status === 'SHIPPED' && a.arrivalDate && a.arrivalDate > todayStr)
+      .filter(a => {
+        const eff = computeEffectiveStatus(a);
+        return (eff === 'TRANSIT' || eff === 'SHIPPED') && a.arrivalDate && a.arrivalDate > todayStr;
+      })
       .map(a => a.arrivalDate as string);
     
     const nextArrival = futureArrivals.length > 0 
