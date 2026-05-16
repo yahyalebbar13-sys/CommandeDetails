@@ -39,6 +39,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
 } from '@/components/ui/sheet';
 import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
+import { useAutoStatusNotifier } from '@/hooks/use-auto-status-notifier';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Only this email sees the admin dashboard — enforced ALSO by Firestore rules
@@ -424,6 +425,18 @@ function AdminApp() {
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
   const payments = rawPayments || [];
+
+  // ─── Auto-detect status transitions and send emails ────────────────────────────────────
+  // Runs once per day when admin opens the app.
+  // Detects TRANSIT→CUSTOMS (arrivalDate passed) and CUSTOMS→STOCK (stockEntryDate reached)
+  // and sends notification emails to all linked preorder clients automatically.
+  useAutoStatusNotifier({
+    firestore,
+    adminUid: user?.uid ?? null,
+    factures,
+    articles: rawArticles_, // use raw articles (not enriched) to read stored status
+    enabled: !!user && !isFacturesLoading && !isArticlesLoading,
+  });
 
   const resetToHome = () => {
     setActiveTab('dashboard'); setSelectedFactureId(null);
