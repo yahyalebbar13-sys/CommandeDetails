@@ -9,6 +9,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Fermetures éclair en nylon de qualité supérieure — toutes tailles et couleurs',
     icon: '🔒',
     color: '#3B82F6',
+    image: '/fermetures.jpg',
   },
   {
     id: 'fermetures-resine',
