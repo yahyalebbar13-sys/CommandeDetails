@@ -6,7 +6,7 @@ import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from '@/lib/shop-products-data';
 import type { ShopCategory } from '@/lib/shop-types';
-import { ChevronRight, Grid3X3, Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 
 export default function CategoriesPage() {
   const [customCats, setCustomCats] = useState<ShopCategory[]>([]);
@@ -46,28 +46,32 @@ export default function CategoriesPage() {
   return (
     <div className="min-h-screen bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
 
-      {/* ─── Hero ───────────────────────────────────────────────────────── */}
-      <div
-        className="relative py-20 px-6 text-center overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #0F0F0F 0%, #1a0508 100%)' }}
-      >
-        <div
-          className="absolute top-1/2 left-1/2 w-[600px] h-[600px] rounded-full opacity-10 pointer-events-none"
-          style={{ background: 'radial-gradient(circle, #C8102E, transparent)', transform: 'translate(-50%, -60%)' }}
+      {/* ─── Compact Banner ──────────────────────────────────────────── */}
+      <div className="relative h-44 sm:h-52 overflow-hidden">
+        {/* Photo background */}
+        <img
+          src="/categories-banner.png"
+          alt="Accessoires textiles"
+          className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="relative z-10 max-w-xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 mb-5">
-            <Grid3X3 className="w-3.5 h-3.5 text-[#D4A843]" />
-            <span className="text-white/70 text-xs font-semibold uppercase tracking-widest">Catalogue</span>
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            Nos <span style={{ background: 'linear-gradient(90deg, #C8102E, #D4A843)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Catégories</span>
+        {/* Dark overlay for readability */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.1) 100%)' }} />
+
+        {/* Text content */}
+        <div className="relative h-full flex flex-col justify-center px-6 sm:px-12 max-w-6xl mx-auto">
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-1.5 text-[11px] text-white/50 mb-2">
+            <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
+            <span>›</span>
+            <span className="text-white/80">Catégories</span>
+          </nav>
+          <h1 className="text-2xl sm:text-3xl font-black text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            Nos Catégories
           </h1>
-          <p className="text-gray-400 text-base leading-relaxed">
-            Tout ce qu&apos;il vous faut pour la mercerie et la couture professionnelle
-          </p>
+          <p className="text-white/60 text-sm mt-1">{allCats.length} catégories disponibles</p>
         </div>
       </div>
+
 
       {/* ─── Categories Grid ────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-5 py-12">
