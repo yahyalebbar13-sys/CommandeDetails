@@ -18,6 +18,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Fermetures en résine (plastique) robustes et colorées',
     icon: '🎨',
     color: '#8B5CF6',
+    image: '/fermetures-plastique.jpg',
   },
   {
     id: 'fermetures-metal',
