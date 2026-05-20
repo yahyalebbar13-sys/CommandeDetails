@@ -14,21 +14,22 @@ import {
   Truck,
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
+import { useLanguage } from "@/contexts/language-context";
 import { SHOP_CATEGORIES } from "@/lib/shop-products-data";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
-  label: string;
+  labelKey: string;
   href: string;
   hasDropdown?: boolean;
 }
 
 const NAV_LINKS: NavLink[] = [
-  { label: "Accueil", href: "/shop" },
-  { label: "Boutique", href: "/shop/boutique" },
-  { label: "Catégories", href: "/shop/categories", hasDropdown: true },
-  { label: "Promotions", href: "/shop/promotions" },
-  { label: "Contact", href: "/shop/contact" },
+  { labelKey: "nav_home", href: "/shop" },
+  { labelKey: "nav_shop", href: "/shop/boutique" },
+  { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
+  { labelKey: "nav_promos", href: "/shop/promotions" },
+  { labelKey: "nav_contact", href: "/shop/contact" },
 ];
 
 const PROMO_TEXT =
@@ -37,6 +38,7 @@ const PROMO_TEXT =
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ShopHeader() {
   const { itemCount, openCart } = useShopCart();
+  const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
 
   const [isScrolled, setIsScrolled] = useState(false);
@@ -175,7 +177,7 @@ export default function ShopHeader() {
                           : "text-gray-700 hover:text-[#C8102E] hover:bg-gray-50"
                       }`}
                     >
-                      {link.label}
+                      {t(link.labelKey)}
                       <ChevronDown
                         className={`w-3.5 h-3.5 transition-transform duration-200 ${
                           isCategoriesOpen ? "rotate-180" : ""
@@ -192,7 +194,7 @@ export default function ShopHeader() {
                         {/* Header */}
                         <div className="col-span-3 pb-2 mb-1 border-b border-gray-100">
                           <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                            Toutes les catégories
+                            {t('nav_categories')}
                           </p>
                         </div>
                         {SHOP_CATEGORIES.map((cat) => (
@@ -218,7 +220,7 @@ export default function ShopHeader() {
                             className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
                             style={{ backgroundColor: "#C8102E" }}
                           >
-                            Voir tous les produits
+                            {t('all_products')}
                             <ChevronRight className="w-4 h-4" />
                           </Link>
                         </div>
@@ -235,7 +237,7 @@ export default function ShopHeader() {
                         : "text-gray-700 hover:text-[#C8102E] hover:bg-gray-50"
                     }`}
                   >
-                    {link.label}
+                    {t(link.labelKey)}
                   </Link>
                 )
               )}
@@ -243,6 +245,16 @@ export default function ShopHeader() {
 
             {/* ── Right Actions ─────────────────────────────────────────── */}
             <div className="flex items-center gap-1 sm:gap-2">
+              
+              {/* Language Toggle */}
+              <button
+                onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
+                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors mr-1"
+                title="Changer de langue / تغيير اللغة"
+              >
+                {language === 'fr' ? 'AR' : 'FR'}
+              </button>
+
               {/* Search */}
               <div className="relative" ref={categoriesRef}>
                 {isSearchOpen ? (
@@ -385,7 +397,7 @@ export default function ShopHeader() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher un produit…"
+                placeholder={t('search_placeholder')}
                 className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] bg-gray-50"
               />
             </div>
@@ -403,7 +415,7 @@ export default function ShopHeader() {
                   }
                   className="flex items-center justify-between w-full px-5 py-3.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
                 >
-                  <span>{link.label}</span>
+                  <span>{t(link.labelKey)}</span>
                   <ChevronDown
                     className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
                       isMobileCategoriesOpen ? "rotate-180" : ""
@@ -429,7 +441,7 @@ export default function ShopHeader() {
                       className="flex items-center gap-2 mx-5 mt-2 mb-1 py-2 px-3 rounded-lg text-sm font-semibold text-[#C8102E] bg-red-50 hover:bg-red-100 transition-colors"
                     >
                       <Truck className="w-4 h-4" />
-                      Tous les produits
+                      {t('all_products')}
                     </Link>
                   </div>
                 )}
@@ -445,7 +457,7 @@ export default function ShopHeader() {
                     : "text-gray-800 hover:bg-gray-50"
                 }`}
               >
-                {link.label}
+                {t(link.labelKey)}
                 {isActive(link.href) && (
                   <ChevronRight className="w-4 h-4 text-[#C8102E]" />
                 )}
@@ -463,7 +475,7 @@ export default function ShopHeader() {
             className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-600 transition-colors"
           >
             <Phone className="w-4 h-4" />
-            Contacter sur WhatsApp
+            {t('whatsapp_cta')}
           </a>
           <button
             onClick={() => {
@@ -474,15 +486,23 @@ export default function ShopHeader() {
             style={{ backgroundColor: "#C8102E" }}
           >
             <ShoppingCart className="w-4 h-4" />
-            Mon Panier
+            {t('cart_title')}
             {itemCount > 0 && (
               <span className="bg-white text-[#C8102E] text-xs font-bold px-1.5 py-0.5 rounded-full">
                 {itemCount}
               </span>
             )}
           </button>
+          {/* Language toggle for mobile */}
+          <button
+            onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
+            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <span className="text-base">{language === 'fr' ? '🇸🇦' : '🇫🇷'}</span>
+            {language === 'fr' ? 'عربي / Passer en arabe' : 'Français / الفرنسية'}
+          </button>
           <p className="text-center text-xs text-gray-400">
-            🇲🇦 Livraison partout au Maroc
+            🇲🇦 {t('trust_delivery')}
           </p>
         </div>
       </div>

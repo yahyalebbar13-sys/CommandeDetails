@@ -16,6 +16,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
+import { useLanguage } from "@/contexts/language-context";
 import { formatPrice, FREE_DELIVERY_THRESHOLD } from "@/lib/shop-utils";
 import type { CartItem } from "@/lib/shop-types";
 
@@ -140,11 +141,12 @@ function CartLineItem({
   );
 }
 
-/** Free delivery progress bar */
-function FreeDeliveryBar({ subtotal }: { subtotal: number }) {
-  const remaining = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
-  const progress = Math.min(100, (subtotal / FREE_DELIVERY_THRESHOLD) * 100);
-  const isUnlocked = subtotal >= FREE_DELIVERY_THRESHOLD;
+/** Progress bar for free delivery */
+function FreeDeliveryProgress({ subtotal }: { subtotal: number }) {
+  const { t } = useLanguage();
+  const progress = Math.min((subtotal / FREE_DELIVERY_THRESHOLD) * 100, 100);
+  const remaining = FREE_DELIVERY_THRESHOLD - subtotal;
+  const isUnlocked = progress >= 100;
 
   return (
     <div
@@ -165,8 +167,8 @@ function FreeDeliveryBar({ subtotal }: { subtotal: number }) {
             style={{ color: isUnlocked ? "#10B981" : "#D4A843" }}
           >
             {isUnlocked
-              ? "🎉 Livraison GRATUITE débloquée !"
-              : `Plus que ${formatPrice(remaining)} pour la livraison gratuite`}
+              ? t('free_delivery_unlocked')
+              : t('free_delivery_progress', { amount: formatPrice(remaining) })}
           </span>
         </div>
         <span
@@ -192,6 +194,7 @@ function FreeDeliveryBar({ subtotal }: { subtotal: number }) {
 
 /** Empty cart state */
 function EmptyCartState({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center flex-1 py-16 px-6 text-center">
       {/* Illustration */}
@@ -214,27 +217,27 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
         className="font-display text-xl font-bold mb-2"
         style={{ color: "#0F0F0F" }}
       >
-        Votre panier est vide
+        {t('cart_empty')}
       </h3>
       <p className="text-sm text-gray-400 mb-8 max-w-[220px] leading-relaxed">
-        Découvrez notre large sélection de mercerie marocaine.
+        {t('cart_empty_sub')}
       </p>
 
       {/* Trust badges */}
       <div className="grid grid-cols-2 gap-2 w-full max-w-[240px] mb-8">
         {[
-          { icon: "🚚", text: "Livraison gratuite dès 500 MAD" },
-          { icon: "✅", text: "Qualité garantie" },
-          { icon: "💬", text: "Support WhatsApp 7j/7" },
-          { icon: "🔄", text: "Retour 14 jours" },
+          { icon: "🚚", textKey: "trust_delivery" },
+          { icon: "✅", textKey: "trust_return" },
+          { icon: "💬", textKey: "trust_support" },
+          { icon: "🔄", textKey: "trust_payment" },
         ].map((badge) => (
           <div
-            key={badge.text}
+            key={badge.textKey}
             className="flex items-center gap-1.5 p-2 rounded-lg bg-gray-50 border border-gray-100"
           >
             <span className="text-sm">{badge.icon}</span>
             <span className="text-[10px] text-gray-500 leading-tight">
-              {badge.text}
+              {t(badge.textKey)}
             </span>
           </div>
         ))}
@@ -247,7 +250,7 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
         style={{ backgroundColor: "#C8102E" }}
       >
         <ShoppingCart className="w-4 h-4" />
-        Continuer les achats
+        {t('continue_shopping')}
         <ChevronRight className="w-4 h-4" />
       </Link>
     </div>
@@ -328,7 +331,7 @@ export default function CartDrawer() {
                 className="font-display text-base font-bold leading-tight"
                 style={{ color: "#0F0F0F" }}
               >
-                Mon Panier
+                {t('cart_title')}
               </h2>
               {itemCount > 0 && (
                 <p className="text-[11px] text-gray-400 leading-none mt-0.5">
@@ -389,7 +392,7 @@ export default function CartDrawer() {
                 className="flex items-center gap-1.5 text-xs font-medium mt-3 mb-2 py-2.5 px-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-[#C8102E] hover:border-[#C8102E]/30 hover:bg-red-50/50 transition-all"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
-                Continuer les achats
+                {t('continue_shopping')}
               </Link>
             </div>
 
@@ -404,14 +407,14 @@ export default function CartDrawer() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">
-                    Sous-total ({itemCount} article{itemCount !== 1 ? "s" : ""})
+                    {t('subtotal')} ({itemCount})
                   </span>
                   <span className="font-semibold text-gray-800">
                     {formatPrice(subtotal)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Livraison</span>
+                  <span className="text-gray-500">{t('delivery_cost')}</span>
                   <span
                     className="text-xs font-semibold"
                     style={{
@@ -422,8 +425,8 @@ export default function CartDrawer() {
                     }}
                   >
                     {subtotal >= FREE_DELIVERY_THRESHOLD
-                      ? "GRATUITE 🎉"
-                      : "Calculée à la commande"}
+                       ? t('delivery_free')
+                       : t('delivery_calc')}
                   </span>
                 </div>
                 <div
@@ -432,7 +435,7 @@ export default function CartDrawer() {
                 />
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-gray-900 text-base">
-                    Total estimé
+                    {t('total')}
                   </span>
                   <span
                     className="font-black text-xl"
@@ -453,14 +456,14 @@ export default function CartDrawer() {
                   boxShadow: "0 8px 24px -4px rgba(200,16,46,0.35)",
                 }}
               >
-                Commander maintenant
+                {t('checkout')}
                 <ChevronRight className="w-5 h-5" />
               </Link>
 
               {/* Payment assurance */}
               <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
                 <Banknote className="w-3.5 h-3.5" style={{ color: "#10B981" }} />
-                <span>Paiement à la livraison</span>
+                <span>{t('cod_payment')}</span>
                 <span className="text-gray-200">·</span>
                 <span>💵 Cash on Delivery</span>
               </div>

@@ -10,6 +10,7 @@ import {
 import { SHOP_CATEGORIES, getFeaturedProducts, getNewProducts } from '@/lib/shop-products-data';
 import { FREE_DELIVERY_THRESHOLD, formatPrice } from '@/lib/shop-utils';
 import ProductCard from '@/components/shop/ProductCard';
+import { useLanguage } from '@/contexts/language-context';
 
 // ─── Intersection Observer Hook ───────────────────────────────────────────────
 function useReveal() {
@@ -121,6 +122,8 @@ const TESTIMONIALS = [
 
 // ─── Page Component ───────────────────────────────────────────────────────────
 export default function ShopPage() {
+  const { t } = useLanguage();
+
   return (
     <main className="min-h-screen bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
 
@@ -131,7 +134,7 @@ export default function ShopPage() {
         {/* Photo background */}
         <img
           src="/hero-banner.png"
-          alt="Mercerie professionnelle"
+          alt={t('hero_badge')}
           className="absolute inset-0 w-full h-full object-cover"
         />
         {/* Dark overlay for readability */}
@@ -142,18 +145,18 @@ export default function ShopPage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/15 mb-6">
             <span className="text-sm">🇲🇦</span>
-            <span className="text-white/80 text-xs font-semibold tracking-widest uppercase">Mercerie Professionnelle</span>
+            <span className="text-white/80 text-xs font-semibold tracking-widest uppercase">{t('hero_badge')}</span>
           </div>
 
           {/* Headline */}
           <h1 className="font-black leading-none tracking-tight mb-5" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            <span className="text-white block text-5xl sm:text-6xl lg:text-7xl">Qualité</span>
-            <span className="shop-gradient-text block text-5xl sm:text-6xl lg:text-7xl">Professionnelle</span>
+            <span className="text-white block text-5xl sm:text-6xl lg:text-7xl">{t('hero_title_1')}</span>
+            <span className="shop-gradient-text block text-5xl sm:text-6xl lg:text-7xl">{t('hero_title_2')}</span>
           </h1>
 
           {/* Subtitle */}
           <p className="text-gray-400 text-base sm:text-lg leading-relaxed mb-8 max-w-md mx-auto">
-            Fermetures, boutons, élastiques, rubans — tout pour vos créations. Livraison partout au Maroc.
+            {t('hero_subtitle')}
           </p>
 
           {/* CTA Buttons */}
@@ -163,7 +166,7 @@ export default function ShopPage() {
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl text-white font-bold text-base shadow-xl shadow-red-900/40 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               style={{ background: 'linear-gradient(135deg, #C8102E, #a00d25)' }}
             >
-              Découvrir la boutique
+              {t('btn_discover')}
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
@@ -171,19 +174,19 @@ export default function ShopPage() {
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-bold text-base border border-white/20 text-white/80 hover:bg-white/10 transition-all duration-200"
             >
               <Zap className="w-4 h-4 text-[#D4A843]" />
-              Promotions
+              {t('btn_promos')}
             </Link>
           </div>
 
           {/* Trust strip — one simple row */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-gray-500 text-xs">
-            <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-[#D4A843]" /> Livraison 24-48h</span>
+            <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-[#D4A843]" /> {t('trust_delivery')}</span>
             <span className="text-white/10">|</span>
-            <span className="flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5 text-[#D4A843]" /> Retour 14j</span>
+            <span className="flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5 text-[#D4A843]" /> {t('trust_return')}</span>
             <span className="text-white/10">|</span>
-            <span className="flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5 text-[#D4A843]" /> WhatsApp support</span>
+            <span className="flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5 text-[#D4A843]" /> {t('trust_support')}</span>
             <span className="text-white/10">|</span>
-            <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-[#D4A843]" /> Paiement livraison</span>
+            <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-[#D4A843]" /> {t('trust_payment')}</span>
           </div>
         </div>
       </section>
