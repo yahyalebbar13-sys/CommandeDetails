@@ -158,7 +158,7 @@ export default function ShopPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-10">
             <Link
-              href="/shop/boutique"
+              href="/shop/categories"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl text-white font-bold text-base shadow-xl shadow-red-900/40 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               style={{ background: 'linear-gradient(135deg, #C8102E, #a00d25)' }}
             >
@@ -224,7 +224,7 @@ export default function ShopPage() {
           </p>
           <p className="text-gray-400 mb-6">Livraison disponible partout au Maroc — Casablanca, Rabat, Marrakech et +</p>
           <Link
-            href="/shop/boutique"
+            href="/shop/categories"
             className="shop-btn-press inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold text-[#0F0F0F] transition-all duration-200 hover:scale-105 shadow-xl"
             style={{ background: 'linear-gradient(135deg, #D4A843, #e4be6a)' }}
           >
