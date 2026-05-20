@@ -32,8 +32,11 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
 
-const PROMO_TEXT =
-  "🚚 Livraison GRATUITE dès 500 MAD\u00a0\u00a0|\u00a0\u00a0📦 Commande avant 14h → Expédition le jour même\u00a0\u00a0|\u00a0\u00a0💬 WhatsApp: +212 760 998 347\u00a0\u00a0|\u00a0\u00a0🇲🇦 Livraison partout au Maroc\u00a0\u00a0|\u00a0\u00a0🚚 Livraison GRATUITE dès 500 MAD\u00a0\u00a0|\u00a0\u00a0📦 Commande avant 14h → Expédition le jour même\u00a0\u00a0|\u00a0\u00a0💬 WhatsApp: +212 760 998 347\u00a0\u00a0|\u00a0\u00a0🇲🇦 Livraison partout au Maroc";
+const PROMO_TEXT_FR =
+  "🚚 Livraison GRATUITE dès 500 MAD\u00a0\u00a0|\u00a0\u00a0📦 Commande avant 14h → Expédition le jour même\u00a0\u00a0|\u00a0\u00a0💬 WhatsApp: +212 760 998 347\u00a0\u00a0|\u00a0\u00a0🇲🇦 Livraison partout au Maroc";
+
+const PROMO_TEXT_AR =
+  "🚚 توصيل مجاني من 500 درهم\u00a0\u00a0|\u00a0\u00a0📦 اطلب قبل 2 ظهرا → التوصيل نفس اليوم\u00a0\u00a0|\u00a0\u00a0💬 واتساب: 0760998347\u00a0\u00a0|\u00a0\u00a0🇲🇦 توصيل لجميع أنحاء المغرب";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ShopHeader() {
@@ -129,8 +132,8 @@ export default function ShopHeader() {
           style={{ backgroundColor: "#C8102E" }}
         >
           <div className="shop-marquee-inner inline-flex items-center gap-0">
-            <span className="pr-8">{PROMO_TEXT}</span>
-            <span className="pr-8">{PROMO_TEXT}</span>
+            <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
+            <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
           </div>
         </div>
 

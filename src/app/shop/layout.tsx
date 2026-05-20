@@ -5,6 +5,7 @@ import { LanguageProvider } from '@/contexts/language-context';
 import ShopHeader from '@/components/shop/ShopHeader';
 import ShopFooter from '@/components/shop/ShopFooter';
 import CartDrawer from '@/components/shop/CartDrawer';
+import WhatsAppFloat from '@/components/shop/WhatsAppFloat';
 
 export const metadata: Metadata = {
   title: 'LEBTEX — Mercerie & Accessoires Textiles au Maroc',
@@ -23,6 +24,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
           >
             <ShopHeader />
             <CartDrawer />
+            <WhatsAppFloat />
             <main className="flex-grow">{children}</main>
             <ShopFooter />
           </div>
