@@ -258,71 +258,90 @@ function MetricCard({
   );
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
+// ─── Sidebar (desktop) + Bottom Nav (mobile) ───────────────────────────────────────────
 function Sidebar({ activeNav, onNav }: { activeNav: string; onNav: (v: string) => void }) {
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'commandes', label: 'Commandes', icon: <Package className="w-4 h-4" /> },
-    { id: 'produits', label: 'Produits', icon: <ShoppingBag className="w-4 h-4" /> },
-    { id: 'categories', label: 'Catégories', icon: <Grid3X3 className="w-4 h-4" /> },
-    { id: 'clients', label: 'Clients', icon: <Users className="w-4 h-4" /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: 'commandes', label: 'Commandes', icon: <Package className="w-5 h-5" /> },
+    { id: 'produits', label: 'Produits', icon: <ShoppingBag className="w-5 h-5" /> },
+    { id: 'categories', label: 'Catégories', icon: <Grid3X3 className="w-5 h-5" /> },
+    { id: 'clients', label: 'Clients', icon: <Users className="w-5 h-5" /> },
   ];
 
   return (
-    <aside className="w-60 flex-shrink-0 bg-[#0F0F0F] border-r border-white/5 flex flex-col min-h-screen">
-      {/* Logo */}
-      <div className="px-5 py-6 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center flex-shrink-0">
-            <Shield className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <p className="text-white font-bold text-sm tracking-wide">LEBTEX</p>
-            <p className="text-gray-500 text-xs">Administration</p>
+    <>
+      {/* ─── Desktop Sidebar ─── */}
+      <aside className="hidden md:flex w-60 flex-shrink-0 bg-[#0F0F0F] border-r border-white/5 flex-col min-h-screen">
+        {/* Logo */}
+        <div className="px-5 py-6 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center flex-shrink-0">
+              <Shield className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-sm tracking-wide">LEBTEX</p>
+              <p className="text-gray-500 text-xs">Administration</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {navItems.map((item) => {
+            const active = activeNav === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onNav(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  active
+                    ? 'bg-[#C8102E] text-white shadow-lg shadow-[#C8102E]/25'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            );
+          })}
+
+          <div className="pt-4 border-t border-white/5 mt-4">
+            <a
+              href="/shop"
+              target="_blank"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Voir la boutique
+            </a>
+          </div>
+        </nav>
+
+        {/* Version */}
+        <div className="px-5 py-4 border-t border-white/5">
+          <p className="text-xs text-gray-600">LEBTEX Admin v1.0</p>
+        </div>
+      </aside>
+
+      {/* ─── Mobile Bottom Navigation Bar ─── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0F0F0F] border-t border-white/10 flex items-center justify-around px-2 py-2 safe-area-bottom">
         {navItems.map((item) => {
           const active = activeNav === item.id;
           return (
             <button
               key={item.id}
               onClick={() => onNav(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                active
-                  ? 'bg-[#C8102E] text-white shadow-lg shadow-[#C8102E]/25'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all ${
+                active ? 'text-[#C8102E]' : 'text-gray-500'
               }`}
             >
               {item.icon}
-              {item.label}
-              {item.id === 'commandes' && activeNav === 'dashboard' && (
-                <span className="ml-auto w-2 h-2 rounded-full bg-[#C8102E]" />
-              )}
+              <span className="text-[9px] font-semibold uppercase tracking-wide">{item.label}</span>
             </button>
           );
         })}
-
-        <div className="pt-4 border-t border-white/5 mt-4">
-          <a
-            href="/shop"
-            target="_blank"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Voir la boutique
-          </a>
-        </div>
       </nav>
-
-      {/* Version */}
-      <div className="px-5 py-4 border-t border-white/5">
-        <p className="text-xs text-gray-600">LEBTEX Admin v1.0</p>
-      </div>
-    </aside>
+    </>
   );
 }
 
@@ -365,7 +384,7 @@ function DashboardView({ orders }: { orders: ShopOrder[] }) {
   const recentOrders = [...orders].slice(0, 10);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-20">
       {/* Metric cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard
@@ -619,7 +638,7 @@ function CommandesView({ orders: initialOrders }: { orders: ShopOrder[] }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-20">
       <div className="flex flex-col sm:flex-row gap-3">
         <input
           type="text"
@@ -647,6 +666,261 @@ function CommandesView({ orders: initialOrders }: { orders: ShopOrder[] }) {
       </div>
 
       <RecentOrdersTable orders={filtered} />
+    </div>
+  );
+}
+
+// ─── Modal: Éditer Catégorie ────────────────────────────────────────────────
+function EditCategorieModal({
+  cat,
+  onClose,
+  onUpdated,
+}: {
+  cat: { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; isCustom?: boolean };
+  onClose: () => void;
+  onUpdated: (updated: any) => void;
+}) {
+  const [form, setForm] = useState({
+    name: cat.name || '',
+    image: (cat.image as string) || '',
+    description: (cat.description as string) || '',
+    color: cat.color || '#C8102E',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) { setError('Le nom est requis'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const update = {
+        name: form.name.trim(),
+        image: form.image.trim() || null,
+        description: form.description.trim() || null,
+        color: form.color,
+      };
+      if (cat.isCustom) {
+        // Update custom category document
+        await updateDoc(doc(db, 'shop_custom_categories', cat.id), update);
+      } else {
+        // Save override for hardcoded categories
+        await setDoc(doc(db, 'shop_category_overrides', cat.slug), { ...update, slug: cat.slug }, { merge: true });
+      }
+      onUpdated({ ...cat, ...update });
+    } catch (err: any) {
+      setError('Erreur: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1A1A1A]">
+          <h2 className="text-white font-bold text-base flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-[#D4A843]" /> Modifier « {cat.name} »
+          </h2>
+          <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </div>
+          )}
+
+          {/* Nom */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom *</label>
+            <input
+              type="text" value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
+            />
+          </div>
+
+          {/* Photo URL */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" /> Photo de couverture (URL)
+            </label>
+            <input
+              type="text" value={form.image}
+              onChange={e => setForm(p => ({ ...p, image: e.target.value }))}
+              placeholder="https://..."
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
+            />
+            {form.image && (
+              <div className="rounded-xl overflow-hidden border border-white/10 aspect-video">
+                <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              rows={3}
+              placeholder="Description affichée sur la page de la catégorie"
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600 resize-none"
+            />
+          </div>
+
+          {/* Couleur */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleur accent</label>
+            <div className="flex gap-3 items-center">
+              <input
+                type="color" value={form.color}
+                onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
+                className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+              />
+              <span className="text-gray-400 text-sm font-mono">{form.color}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-white/10 flex gap-3 sticky bottom-0 bg-[#1A1A1A]">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-medium hover:bg-white/5 transition-all">Annuler</button>
+          <button
+            onClick={handleSubmit} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#D4A843] text-black text-sm font-semibold hover:bg-[#c49b3a] transition-all disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Categories View ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+function CategoriesView() {
+  type CatItem = { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; isCustom: boolean };
+  const [customCats, setCustomCats] = useState<CatItem[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, Partial<CatItem>>>({});
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingCat, setEditingCat] = useState<CatItem | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      getDocs(collection(db, 'shop_custom_categories')),
+      getDocs(collection(db, 'shop_category_overrides')),
+    ]).then(([ccSnap, ovSnap]) => {
+      setCustomCats(ccSnap.docs.map(d => ({ id: d.id, ...d.data(), isCustom: true } as CatItem)));
+      const ov: Record<string, any> = {};
+      ovSnap.docs.forEach(d => { ov[d.id] = d.data(); });
+      setOverrides(ov);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  // Merge hardcoded + custom
+  const allCats: CatItem[] = [
+    ...SHOP_CATEGORIES.map(c => ({
+      ...c,
+      isCustom: false,
+      ...(overrides[c.slug] || {}),
+    })),
+    ...customCats,
+  ];
+
+  return (
+    <div className="space-y-5 pb-24 md:pb-0">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-semibold">Catégories</h2>
+          <p className="text-gray-500 text-xs mt-0.5">{allCats.length} catégories au total</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#D4A843] text-black text-sm font-semibold hover:bg-[#c49b3a] transition-all"
+        >
+          <FolderPlus className="w-4 h-4" /> Nouvelle
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center min-h-[200px] gap-3">
+          <Loader2 className="w-5 h-5 animate-spin text-[#D4A843]" />
+          <span className="text-gray-400 text-sm">Chargement…</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {allCats.map(cat => (
+            <div
+              key={cat.id}
+              className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border transition-all hover:border-white/15 ${
+                cat.isCustom ? 'border-[#D4A843]/30' : 'border-white/5'
+              }`}
+            >
+              {/* Photo header */}
+              <div className="relative h-28 overflow-hidden">
+                {cat.image ? (
+                  <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${cat.color || '#C8102E'}40, ${cat.color || '#C8102E'}10)` }}>
+                    <span className="text-4xl opacity-30">{(cat as any).icon || '👚'}</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-transparent to-transparent" />
+                {cat.isCustom && (
+                  <span className="absolute top-2 right-2 text-[9px] font-bold text-[#D4A843] bg-[#0F0F0F]/80 px-1.5 py-0.5 rounded-full">Custom</span>
+                )}
+              </div>
+              {/* Info */}
+              <div className="p-4">
+                <p className="text-white font-semibold text-sm">{cat.name}</p>
+                <p className="text-gray-500 text-xs mt-1 line-clamp-2">{cat.description || 'Aucune description'}</p>
+                <div className="flex items-center justify-between mt-3">
+                  <p className="text-gray-600 text-[10px] font-mono">/{cat.slug}</p>
+                  <div className="flex items-center gap-2">
+                    <a href={`/shop/categorie/${cat.slug}`} target="_blank" className="text-[10px] text-[#D4A843] hover:underline">Voir →</a>
+                    <button
+                      onClick={() => setEditingCat(cat)}
+                      className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-2 py-1 rounded-lg transition-all"
+                    >
+                      <Pencil className="w-3 h-3" /> Modifier
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <NouvelleCategorieModal
+          onClose={() => setShowModal(false)}
+          onCreated={cat => { setCustomCats(prev => [...prev, { ...cat, isCustom: true } as CatItem]); setShowModal(false); }}
+        />
+      )}
+
+      {editingCat && (
+        <EditCategorieModal
+          cat={editingCat}
+          onClose={() => setEditingCat(null)}
+          onUpdated={updated => {
+            if (updated.isCustom) {
+              setCustomCats(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+            } else {
+              setOverrides(prev => ({ ...prev, [updated.slug]: updated }));
+            }
+            setEditingCat(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -790,7 +1064,7 @@ function ProduitsView() {
 
   return (
     <>
-    <div className="space-y-5">
+    <div className="space-y-5 pb-24">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -1450,60 +1724,6 @@ function NouvelleCategorieModal({
   );
 }
 
-// ─── Categories View ──────────────────────────────────────────────────────────
-function CategoriesView() {
-  const [customCats, setCustomCats] = useState<Array<{ id: string; slug: string; name: string; icon?: string; description?: string; color?: string }>>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-
-  useEffect(() => {
-    getDocs(collection(db, 'shop_custom_categories'))
-      .then(snap => setCustomCats(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const allCats = [
-    ...SHOP_CATEGORIES.map(c => ({ ...c, isCustom: false })),
-    ...customCats.map(c => ({ ...c, isCustom: true })),
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-white font-semibold">Catégories</h2>
-          <p className="text-gray-500 text-xs mt-0.5">{allCats.length} catégories au total</p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#D4A843] text-black text-sm font-semibold hover:bg-[#c49b3a] transition-all"
-        >
-          <FolderPlus className="w-4 h-4" /> Nouvelle catégorie
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center min-h-[200px] gap-3">
-          <Loader2 className="w-5 h-5 animate-spin text-[#D4A843]" />
-          <span className="text-gray-400 text-sm">Chargement…</span>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {allCats.map(cat => (
-            <div
-              key={cat.id}
-              className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border transition-all hover:border-white/15 ${
-                (cat as any).isCustom ? 'border-[#D4A843]/30' : 'border-white/5'
-              }`}
-            >
-              {/* Photo header */}
-              <div className="relative h-28 overflow-hidden">
-                {(cat as any).image ? (
-                  <img src={(cat as any).image} alt={cat.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${cat.color || '#C8102E'}40, ${cat.color || '#C8102E'}10)` }}>
-                    <span className="text-4xl opacity-30">{cat.icon || '👚'}</span>
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-transparent to-transparent" />
@@ -1571,24 +1791,80 @@ function AccessDenied() {
 
 // ─── Login screen for admin ────────────────────────────────────────────────────
 function AdminLogin() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (email.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      setError('Accès refusé. Identifiant non autorisé.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { signInWithEmailAndPassword: signIn } = await import('firebase/auth');
+      await signIn(auth, email.trim(), password);
+    } catch (err: any) {
+      const code = err?.code || '';
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') setError('Mot de passe incorrect.');
+      else if (code === 'auth/too-many-requests') setError('Trop de tentatives. Réessayez dans quelques minutes.');
+      else setError('Erreur de connexion. Vérifiez vos identifiants.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4">
-      <div className="text-center space-y-4 max-w-sm">
-        <div className="w-20 h-20 rounded-2xl bg-[#C8102E]/10 flex items-center justify-center mx-auto">
-          <Shield className="w-10 h-10 text-[#C8102E]" />
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-[#C8102E] flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-red-900/40">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-black text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            LEB<span className="text-[#C8102E]">TEX</span>
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">Espace Administration</p>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-white">LEBTEX Administration</h1>
-          <p className="text-gray-500 text-sm mt-2">
-            Connectez-vous avec votre compte administrateur.
-          </p>
-        </div>
-        <a
-          href="/shop/compte"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a50d25] transition-colors"
-        >
-          Se connecter
-        </a>
+
+        <form onSubmit={handleLogin} className="bg-[#1A1A1A] rounded-2xl border border-white/10 p-6 space-y-4 shadow-2xl">
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Identifiant</label>
+            <input
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="votre@email.com" required autoComplete="username"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600 transition-all"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Mot de passe</label>
+            <div className="relative">
+              <input
+                type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••" required autoComplete="current-password"
+                className="w-full px-4 py-3 pr-12 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600 transition-all"
+              />
+              <button type="button" onClick={() => setShowPwd(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors p-1">
+                {showPwd ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <button type="submit" disabled={loading || !email || !password}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a50d25] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2">
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Connexion…</> : <><Shield className="w-4 h-4" /> Se connecter</>}
+          </button>
+        </form>
+        <p className="text-center text-gray-700 text-xs mt-6">Accès réservé à l'administrateur uniquement</p>
       </div>
     </div>
   );
