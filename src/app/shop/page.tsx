@@ -130,7 +130,7 @@ export default function ShopPage() {
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
         {/* Photo background */}
         <img
-          src="/categories-banner.png"
+          src="/hero-banner.png"
           alt="Mercerie professionnelle"
           className="absolute inset-0 w-full h-full object-cover"
         />
