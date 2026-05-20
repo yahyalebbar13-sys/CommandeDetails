@@ -127,14 +127,15 @@ export default function ShopPage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 1: HERO                                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="shop-hero-gradient relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        {/* Subtle background glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div
-            className="absolute top-1/2 left-1/2 w-[700px] h-[700px] rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, #C8102E 0%, transparent 65%)', transform: 'translate(-50%, -60%)' }}
-          />
-        </div>
+      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
+        {/* Photo background */}
+        <img
+          src="/categories-banner.png"
+          alt="Mercerie professionnelle"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Dark overlay for readability */}
+        <div className="absolute inset-0 bg-black/65" />
 
         <div className="relative z-10 w-full max-w-2xl mx-auto px-5 text-center py-20">
 
