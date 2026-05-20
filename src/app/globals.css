@@ -1,9 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+
 @layer base {
   :root {
+    /* ── Shop E-Commerce Variables ── */
+    --shop-primary: #C8102E;
+    --shop-primary-light: #e8193a;
+    --shop-primary-dark: #a00d25;
+    --shop-gold: #D4A843;
+    --shop-gold-light: #e4be6a;
+    --shop-dark: #0F0F0F;
+    --shop-cream: #FBF8F3;
+    --shop-cream-dark: #F3EFE8;
+    --shop-border: #E8E4DF;
+    --shop-text: #1A1A1A;
+    --shop-text-muted: #6B6B6B;
+    --shop-success: #10B981;
+    --shop-warning: #F59E0B;
+    --shop-info: #3B82F6;
     --background: 40 30% 96%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -60,3 +78,125 @@
 .status-glow-blue {
   box-shadow: 0 0 15px -5px rgba(59, 130, 246, 0.4);
 }
+
+/* ── Shop Specific Styles ── */
+.shop-font-display {
+  font-family: 'Outfit', sans-serif;
+}
+
+.shop-font-body {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Hero gradient animation */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.shop-hero-gradient {
+  background: linear-gradient(135deg, #0F0F0F 0%, #1a0a0e 40%, #2d0d16 70%, #0F0F0F 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
+}
+
+/* Product card hover */
+.shop-product-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shop-product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shop-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Slide-in animation */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.shop-slide-in-right { animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.shop-slide-in-left { animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.shop-slide-in-up { animation: slideInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+/* Pulse badge */
+@keyframes pulseBadge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.shop-badge-pulse { animation: pulseBadge 2s ease-in-out infinite; }
+
+/* Button press effect */
+.shop-btn-press:active { transform: scale(0.97); }
+
+/* Cart drawer overlay */
+.shop-cart-overlay {
+  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.5);
+}
+
+/* Smooth quantity input */
+.shop-qty-input::-webkit-inner-spin-button,
+.shop-qty-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Stars rating */
+.shop-stars { color: #D4A843; letter-spacing: 2px; }
+
+/* Custom scrollbar for cart */
+.shop-scrollbar::-webkit-scrollbar { width: 4px; }
+.shop-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.shop-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+/* Gradient text */
+.shop-gradient-text {
+  background: linear-gradient(135deg, #C8102E, #D4A843);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Image zoom container */
+.shop-img-zoom { overflow: hidden; }
+.shop-img-zoom img { transition: transform 0.5s ease; }
+.shop-img-zoom:hover img { transform: scale(1.08); }
+
+/* Sticky add-to-cart bar */
+@keyframes slideUpBar {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.shop-sticky-bar { animation: slideUpBar 0.3s ease forwards; }
+
+/* Promo banner scroll */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.shop-marquee-inner { animation: marquee 20s linear infinite; white-space: nowrap; }

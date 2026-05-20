@@ -1,0 +1,1748 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  type User,
+} from 'firebase/auth';
+import {
+  getFirestore,
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  doc,
+  updateDoc,
+  setDoc,
+  serverTimestamp,
+  limit,
+  where,
+  Timestamp,
+} from 'firebase/firestore';
+import { firebaseConfig } from '@/firebase/config';
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
+  type ShopOrder,
+  type OrderStatus,
+} from '@/lib/shop-types';
+import { formatPrice } from '@/lib/shop-utils';
+import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
+import type { ShopProduct } from '@/lib/shop-types';
+import type { ProductOverride } from '@/contexts/shop-products-context';
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+  Users,
+  LogOut,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+  MapPin,
+  BarChart2,
+  ChevronDown,
+  Shield,
+  ExternalLink,
+  Calendar,
+  DollarSign,
+  ArrowUpRight,
+  Save,
+  Image as ImageIcon,
+  Tag,
+  Star,
+  Zap,
+  Sparkles,
+  X,
+  Check,
+  Pencil,
+  Search,
+  Plus,
+  FolderPlus,
+  Trash2,
+  Grid3X3,
+} from 'lucide-react';
+
+// ─── Firebase init ─────────────────────────────────────────────────────────────
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function isToday(ts: any): boolean {
+  if (!ts) return false;
+  try {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  } catch {
+    return false;
+  }
+}
+
+function formatDate(ts: any): string {
+  if (!ts) return '—';
+  try {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('fr-MA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return '—';
+  }
+}
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: OrderStatus }) {
+  const color = ORDER_STATUS_COLORS[status] || '#6B7280';
+  const label = ORDER_STATUS_LABELS[status] || status;
+  return (
+    <span
+      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+      style={{ background: `${color}18`, color }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─── Status Dropdown ──────────────────────────────────────────────────────────
+const STATUS_FLOW: OrderStatus[] = [
+  'pending',
+  'confirmed',
+  'processing',
+  'shipped',
+  'out_for_delivery',
+  'delivered',
+  'cancelled',
+  'returned',
+];
+
+function StatusDropdown({
+  orderId,
+  currentStatus,
+  onUpdated,
+}: {
+  orderId: string;
+  currentStatus: OrderStatus;
+  onUpdated: (id: string, status: OrderStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = async (newStatus: OrderStatus) => {
+    if (newStatus === currentStatus) {
+      setOpen(false);
+      return;
+    }
+    setLoading(true);
+    setOpen(false);
+    try {
+      await updateDoc(doc(db, 'shop_orders', orderId), {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+      onUpdated(orderId, newStatus);
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        disabled={loading}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs font-medium text-gray-600 transition-all disabled:opacity-60"
+      >
+        {loading ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : (
+          <>
+            Modifier <ChevronDown className="w-3 h-3" />
+          </>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 top-8 z-20 bg-white rounded-xl shadow-xl border border-gray-100 py-1 min-w-[180px] animate-in slide-in-from-top-2 duration-150">
+            {STATUS_FLOW.map((s) => {
+              const color = ORDER_STATUS_COLORS[s] || '#6B7280';
+              const label = ORDER_STATUS_LABELS[s];
+              const isCurrent = s === currentStatus;
+              return (
+                <button
+                  key={s}
+                  onClick={() => handleChange(s)}
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-left hover:bg-gray-50 transition-colors ${
+                    isCurrent ? 'bg-gray-50' : ''
+                  }`}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ background: color }}
+                  />
+                  <span className={isCurrent ? 'font-semibold text-gray-800' : 'text-gray-600'}>
+                    {label}
+                  </span>
+                  {isCurrent && (
+                    <CheckCircle2 className="w-3 h-3 ml-auto text-gray-400" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Metric Card ──────────────────────────────────────────────────────────────
+function MetricCard({
+  title,
+  value,
+  sub,
+  icon,
+  color,
+  trend,
+}: {
+  title: string;
+  value: string | number;
+  sub?: string;
+  icon: React.ReactNode;
+  color: string;
+  trend?: string;
+}) {
+  return (
+    <div className="bg-[#1A1A1A] rounded-2xl p-5 border border-white/5 hover:border-white/10 transition-all group">
+      <div className="flex items-start justify-between mb-4">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{ background: `${color}20` }}
+        >
+          <div style={{ color }}>{icon}</div>
+        </div>
+        {trend && (
+          <div className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full">
+            <ArrowUpRight className="w-3 h-3" />
+            {trend}
+          </div>
+        )}
+      </div>
+      <p className="text-2xl font-bold text-white mb-1">{value}</p>
+      <p className="text-xs text-gray-400 font-medium">{title}</p>
+      {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function Sidebar({ activeNav, onNav }: { activeNav: string; onNav: (v: string) => void }) {
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'commandes', label: 'Commandes', icon: <Package className="w-4 h-4" /> },
+    { id: 'produits', label: 'Produits', icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: 'categories', label: 'Catégories', icon: <Grid3X3 className="w-4 h-4" /> },
+    { id: 'clients', label: 'Clients', icon: <Users className="w-4 h-4" /> },
+  ];
+
+  return (
+    <aside className="w-60 flex-shrink-0 bg-[#0F0F0F] border-r border-white/5 flex flex-col min-h-screen">
+      {/* Logo */}
+      <div className="px-5 py-6 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center flex-shrink-0">
+            <Shield className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-white font-bold text-sm tracking-wide">LEBTEX</p>
+            <p className="text-gray-500 text-xs">Administration</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-1">
+        {navItems.map((item) => {
+          const active = activeNav === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNav(item.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                active
+                  ? 'bg-[#C8102E] text-white shadow-lg shadow-[#C8102E]/25'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {item.icon}
+              {item.label}
+              {item.id === 'commandes' && activeNav === 'dashboard' && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-[#C8102E]" />
+              )}
+            </button>
+          );
+        })}
+
+        <div className="pt-4 border-t border-white/5 mt-4">
+          <a
+            href="/shop"
+            target="_blank"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Voir la boutique
+          </a>
+        </div>
+      </nav>
+
+      {/* Version */}
+      <div className="px-5 py-4 border-t border-white/5">
+        <p className="text-xs text-gray-600">LEBTEX Admin v1.0</p>
+      </div>
+    </aside>
+  );
+}
+
+// ─── Dashboard view ────────────────────────────────────────────────────────────
+function DashboardView({ orders }: { orders: ShopOrder[] }) {
+  const totalOrders = orders.length;
+  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
+  const revenue = orders
+    .filter((o) => o.status !== 'cancelled' && o.status !== 'returned')
+    .reduce((s, o) => s + (o.total || 0), 0);
+  const todayOrders = orders.filter((o) => isToday(o.createdAt)).length;
+
+  // Top cities
+  const cityMap: Record<string, number> = {};
+  orders.forEach((o) => {
+    const city = o.shippingAddress?.city || 'Inconnue';
+    cityMap[city] = (cityMap[city] || 0) + 1;
+  });
+  const topCities = Object.entries(cityMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const maxCityCount = topCities[0]?.[1] || 1;
+
+  // Top products
+  const productMap: Record<string, { name: string; qty: number; revenue: number }> = {};
+  orders.forEach((o) => {
+    o.items?.forEach((item) => {
+      if (!productMap[item.productId]) {
+        productMap[item.productId] = { name: item.productName, qty: 0, revenue: 0 };
+      }
+      productMap[item.productId].qty += item.quantity;
+      productMap[item.productId].revenue += item.price * item.quantity;
+    });
+  });
+  const topProducts = Object.values(productMap)
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 5);
+
+  // Recent 10 orders
+  const recentOrders = [...orders].slice(0, 10);
+
+  return (
+    <div className="space-y-8">
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <MetricCard
+          title="Total commandes"
+          value={totalOrders}
+          icon={<Package className="w-5 h-5" />}
+          color="#C8102E"
+          sub="Toutes périodes"
+        />
+        <MetricCard
+          title="En attente"
+          value={pendingOrders}
+          icon={<Clock className="w-5 h-5" />}
+          color="#F59E0B"
+          sub="À confirmer"
+        />
+        <MetricCard
+          title="Chiffre d'affaires"
+          value={formatPrice(revenue)}
+          icon={<TrendingUp className="w-5 h-5" />}
+          color="#10B981"
+          sub="Hors annulations"
+        />
+        <MetricCard
+          title="Aujourd'hui"
+          value={todayOrders}
+          icon={<Calendar className="w-5 h-5" />}
+          color="#8B5CF6"
+          sub="Nouvelles commandes"
+        />
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Top cities */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-6 border border-white/5">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-[#C8102E]" />
+              Top Villes
+            </h3>
+            <span className="text-xs text-gray-500">{topCities.length} villes</span>
+          </div>
+          {topCities.length === 0 ? (
+            <p className="text-gray-500 text-sm">Aucune donnée</p>
+          ) : (
+            <div className="space-y-3">
+              {topCities.map(([city, count]) => (
+                <div key={city} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-300 font-medium">{city}</span>
+                    <span className="text-gray-500">
+                      {count} commande{count !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${(count / maxCityCount) * 100}%`,
+                        background: 'linear-gradient(90deg, #C8102E, #D4A843)',
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Top products */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-6 border border-white/5">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-[#D4A843]" />
+              Produits les plus commandés
+            </h3>
+          </div>
+          {topProducts.length === 0 ? (
+            <p className="text-gray-500 text-sm">Aucune donnée</p>
+          ) : (
+            <div className="space-y-3">
+              {topProducts.map((p, i) => (
+                <div
+                  key={p.name}
+                  className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0"
+                >
+                  <span
+                    className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{
+                      background:
+                        i === 0
+                          ? '#D4A84320'
+                          : i === 1
+                          ? '#C8102E15'
+                          : '#ffffff08',
+                      color:
+                        i === 0 ? '#D4A843' : i === 1 ? '#C8102E' : '#6B7280',
+                    }}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-300 text-xs font-medium truncate">{p.name}</p>
+                    <p className="text-gray-600 text-xs">{p.qty} unités vendues</p>
+                  </div>
+                  <p className="text-xs text-gray-400 flex-shrink-0">
+                    {formatPrice(p.revenue)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent orders table */}
+      <RecentOrdersTable orders={recentOrders} />
+    </div>
+  );
+}
+
+// ─── Recent Orders Table ───────────────────────────────────────────────────────
+function RecentOrdersTable({
+  orders: initialOrders,
+}: {
+  orders: ShopOrder[];
+}) {
+  const [orders, setOrders] = useState<ShopOrder[]>(initialOrders);
+
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
+
+  const handleStatusUpdate = (orderId: string, newStatus: OrderStatus) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+    );
+  };
+
+  return (
+    <div className="bg-[#1A1A1A] rounded-2xl border border-white/5 overflow-hidden">
+      <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+        <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+          <Package className="w-4 h-4 text-[#C8102E]" />
+          Commandes récentes
+        </h3>
+        <span className="text-xs text-gray-500">{orders.length} commandes</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-white/5">
+              {['N° Commande', 'Client', 'Ville', 'Total', 'Statut', 'Date', 'Actions'].map(
+                (h) => (
+                  <th
+                    key={h}
+                    className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wide whitespace-nowrap"
+                  >
+                    {h}
+                  </th>
+                )
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {orders.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                  Aucune commande
+                </td>
+              </tr>
+            ) : (
+              orders.map((order) => (
+                <tr
+                  key={order.id}
+                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                >
+                  <td className="px-4 py-3 font-mono text-gray-300 font-medium whitespace-nowrap">
+                    {order.orderNumber}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div>
+                      <p className="text-gray-200 font-medium whitespace-nowrap">
+                        {order.customerName}
+                      </p>
+                      {order.customerEmail && (
+                        <p className="text-gray-600 text-[10px] truncate max-w-[140px]">
+                          {order.customerEmail}
+                        </p>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
+                    {order.shippingAddress?.city || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-white font-semibold whitespace-nowrap">
+                    {formatPrice(order.total)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={order.status} />
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                    {formatDate(order.createdAt)}
+                  </td>
+                  <td className="px-4 py-3">
+                    {order.id && (
+                      <StatusDropdown
+                        orderId={order.id}
+                        currentStatus={order.status}
+                        onUpdated={handleStatusUpdate}
+                      />
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── All Orders View ───────────────────────────────────────────────────────────
+function CommandesView({ orders: initialOrders }: { orders: ShopOrder[] }) {
+  const [orders, setOrders] = useState<ShopOrder[]>(initialOrders);
+  const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
+
+  const filtered = orders.filter((o) => {
+    const matchStatus = filterStatus === 'all' || o.status === filterStatus;
+    const q = search.toLowerCase();
+    const matchSearch =
+      !q ||
+      o.orderNumber?.toLowerCase().includes(q) ||
+      o.customerName?.toLowerCase().includes(q) ||
+      o.shippingAddress?.city?.toLowerCase().includes(q) ||
+      o.customerEmail?.toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+
+  const handleStatusUpdate = (orderId: string, newStatus: OrderStatus) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher par numéro, client, ville…"
+          className="flex-1 px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-[#C8102E]/50 transition-colors"
+        />
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value as OrderStatus | 'all')}
+          className="px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm focus:outline-none focus:border-[#C8102E]/50 transition-colors appearance-none"
+        >
+          <option value="all">Tous les statuts</option>
+          {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="text-xs text-gray-500">
+        {filtered.length} commande{filtered.length !== 1 ? 's' : ''} trouvée{filtered.length !== 1 ? 's' : ''}
+      </div>
+
+      <RecentOrdersTable orders={filtered} />
+    </div>
+  );
+}
+
+// ─── Placeholder views ─────────────────────────────────────────────────────────
+function ComingSoonView({ title, icon }: { title: string; icon: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+      <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-gray-500">
+        {icon}
+      </div>
+      <div className="text-center">
+        <p className="text-gray-300 font-semibold">{title}</p>
+        <p className="text-gray-600 text-sm mt-1">Section en cours de développement</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Products View ─────────────────────────────────────────────────────────────
+function ProduitsView() {
+  const [overrides, setOverrides] = useState<Record<string, ProductOverride>>({});
+  const [customProducts, setCustomProducts] = useState<ShopProduct[]>([]);
+  const [loadingOverrides, setLoadingOverrides] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<ProductOverride>({});
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [showNewProductModal, setShowNewProductModal] = useState(false);
+
+  const [allCategoriesLocal, setAllCategoriesLocal] = useState(SHOP_CATEGORIES as Array<{ slug: string; name: string; icon?: string }>);
+
+  // Load overrides + custom products + custom categories from Firestore
+  useEffect(() => {
+    Promise.all([
+      getDocs(collection(db, 'shop_product_overrides')),
+      getDocs(collection(db, 'shop_custom_products')),
+      getDocs(collection(db, 'shop_custom_categories')),
+    ]).then(([ovSnap, cpSnap, ccSnap]) => {
+      const ov: Record<string, ProductOverride> = {};
+      ovSnap.docs.forEach(d => { ov[d.id] = d.data() as ProductOverride; });
+      setOverrides(ov);
+      setCustomProducts(cpSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct)));
+      const customCats = ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      if (customCats.length > 0) {
+        const existingSlugs = new Set(SHOP_CATEGORIES.map(c => c.slug));
+        setAllCategoriesLocal([
+          ...SHOP_CATEGORIES,
+          ...customCats.filter((c: any) => !existingSlugs.has(c.slug)),
+        ]);
+      }
+    }).catch(() => {}).finally(() => setLoadingOverrides(false));
+  }, []);
+
+  // Get merged product (hardcoded + override)
+  const getMergedProduct = (p: ShopProduct): ShopProduct => {
+    const ov = overrides[p.id];
+    if (!ov) return p;
+    return { ...p, ...ov } as ShopProduct;
+  };
+
+  // Filter products (hardcoded + custom)
+  const allProducts = [
+    ...SHOP_PRODUCTS_DATA,
+    ...customProducts.filter(cp => !SHOP_PRODUCTS_DATA.find(p => p.id === cp.id)),
+  ];
+  const filteredProducts = allProducts.filter(p => {
+    const merged = getMergedProduct(p);
+    const matchCategory = filterCategory === 'all' || p.categorySlug === filterCategory;
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || merged.name.toLowerCase().includes(q) || (merged.categoryName || '').toLowerCase().includes(q);
+    return matchCategory && matchSearch;
+  });
+
+  const startEdit = (product: ShopProduct) => {
+    const merged = getMergedProduct(product);
+    setEditingId(product.id);
+    setEditForm({
+      price: merged.price,
+      comparePrice: merged.comparePrice || undefined,
+      images: [...merged.images],
+      isFeatured: merged.isFeatured || false,
+      isNew: merged.isNew || false,
+      isPromo: merged.isPromo || false,
+      inStock: merged.inStock,
+      stockQty: merged.stockQty,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const saveEdit = async (productId: string) => {
+    setSaving(true);
+    try {
+      const override: ProductOverride = { ...editForm };
+      // Remove undefined values
+      Object.keys(override).forEach(key => {
+        if ((override as any)[key] === undefined) delete (override as any)[key];
+      });
+      await setDoc(doc(db, 'shop_product_overrides', productId), override, { merge: true });
+      setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...override } }));
+      setEditingId(null);
+      setSavedId(productId);
+      setTimeout(() => setSavedId(null), 2000);
+    } catch (err) {
+      console.error('Error saving override:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateEditImage = (index: number, url: string) => {
+    const imgs = [...(editForm.images || [])];
+    imgs[index] = url;
+    setEditForm(prev => ({ ...prev, images: imgs }));
+  };
+
+  const addEditImage = () => {
+    setEditForm(prev => ({ ...prev, images: [...(prev.images || []), ''] }));
+  };
+
+  const removeEditImage = (index: number) => {
+    const imgs = [...(editForm.images || [])];
+    imgs.splice(index, 1);
+    setEditForm(prev => ({ ...prev, images: imgs }));
+  };
+
+  if (loadingOverrides) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-[#C8102E]" />
+        <span className="text-gray-400 text-sm">Chargement des produits…</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+    <div className="space-y-5">
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Rechercher un produit…"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-[#C8102E]/50 transition-colors"
+          />
+        </div>
+        <select
+          value={filterCategory}
+          onChange={e => setFilterCategory(e.target.value)}
+          className="px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm focus:outline-none focus:border-[#C8102E]/50 transition-colors appearance-none"
+        >
+          <option value="all">Toutes les catégories</option>
+          {SHOP_CATEGORIES.map(c => (
+            <option key={c.slug} value={c.slug}>{c.icon} {c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500">{filteredProducts.length} produit{filteredProducts.length !== 1 ? 's' : ''}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-gray-600 hidden sm:block">💡 Modifications instantanées sur la boutique</p>
+          <button
+            onClick={() => setShowNewProductModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#C8102E] text-white text-xs font-semibold hover:bg-[#a50d25] transition-all"
+          >
+            <Plus className="w-3.5 h-3.5" /> Nouveau produit
+          </button>
+        </div>
+      </div>
+
+      {/* Products list */}
+      <div className="space-y-3">
+        {filteredProducts.map(product => {
+          const merged = getMergedProduct(product);
+          const isEditing = editingId === product.id;
+          const justSaved = savedId === product.id;
+          const hasOverride = !!overrides[product.id];
+          const isCustom = customProducts.some(cp => cp.id === product.id);
+
+          return (
+            <div
+              key={product.id}
+              className={`bg-[#1A1A1A] rounded-2xl border transition-all ${
+                isEditing ? 'border-[#C8102E]/50 ring-1 ring-[#C8102E]/20' :
+                justSaved ? 'border-emerald-500/50' :
+                isCustom ? 'border-[#C8102E]/25' :
+                hasOverride ? 'border-[#D4A843]/30' : 'border-white/5'
+              }`}
+            >
+              <div className="p-4 flex gap-4">
+                {/* Image */}
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 flex-shrink-0">
+                  {merged.images[0] ? (
+                    <img src={merged.images[0]} alt={merged.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-600">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-white text-sm font-semibold truncate">{merged.name}</p>
+                      <p className="text-gray-500 text-xs">
+                        {merged.categoryName} · {product.id}
+                        {isCustom && <span className="ml-1.5 text-[9px] font-bold text-[#C8102E] bg-[#C8102E]/10 px-1.5 py-0.5 rounded-full">Nouveau</span>}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {hasOverride && !isEditing && (
+                        <span className="text-[10px] font-bold text-[#D4A843] bg-[#D4A843]/10 px-2 py-0.5 rounded-full">Modifié</span>
+                      )}
+                      {justSaved && (
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Sauvegardé
+                        </span>
+                      )}
+                      {!isEditing ? (
+                        <button
+                          onClick={() => startEdit(product)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 text-xs font-medium transition-all"
+                        >
+                          <Pencil className="w-3 h-3" /> Modifier
+                        </button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={cancelEdit}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white text-xs font-medium transition-all"
+                          >
+                            <X className="w-3 h-3" /> Annuler
+                          </button>
+                          <button
+                            onClick={() => saveEdit(product.id)}
+                            disabled={saving}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#C8102E] text-white text-xs font-semibold hover:bg-[#a50d25] transition-all disabled:opacity-50"
+                          >
+                            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                            Sauvegarder
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Current values (display mode) */}
+                  {!isEditing && (
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="text-white font-bold text-sm">{formatPrice(merged.price)}</span>
+                      {merged.comparePrice && (
+                        <span className="text-gray-500 text-xs line-through">{formatPrice(merged.comparePrice)}</span>
+                      )}
+                      <div className="flex gap-1.5 ml-auto">
+                        {merged.isFeatured && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold">⭐ Vedette</span>}
+                        {merged.isNew && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">✨ Nouveau</span>}
+                        {merged.isPromo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">🏷️ Promo</span>}
+                        {!merged.inStock && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">Rupture</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Edit form */}
+              {isEditing && (
+                <div className="px-4 pb-4 pt-0 border-t border-white/5 mt-0">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    {/* Price */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        <DollarSign className="w-3 h-3" /> Prix (MAD)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={editForm.price || ''}
+                        onChange={e => setEditForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm font-bold focus:outline-none focus:border-[#C8102E]/50"
+                      />
+                    </div>
+
+                    {/* Compare Price */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        <Tag className="w-3 h-3" /> Ancien prix (barré)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={editForm.comparePrice || ''}
+                        onChange={e => setEditForm(prev => ({ ...prev, comparePrice: parseFloat(e.target.value) || null }))}
+                        placeholder="Laisser vide si pas de promo"
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
+                      />
+                    </div>
+
+                    {/* Stock */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Stock</label>
+                      <input
+                        type="number"
+                        value={editForm.stockQty || ''}
+                        onChange={e => setEditForm(prev => ({ ...prev, stockQty: parseInt(e.target.value) || 0, inStock: (parseInt(e.target.value) || 0) > 0 }))}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/50"
+                      />
+                    </div>
+
+                    {/* Toggles */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Badges</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { key: 'isFeatured', label: '⭐ Vedette', color: 'amber' },
+                          { key: 'isNew', label: '✨ Nouveau', color: 'emerald' },
+                          { key: 'isPromo', label: '🏷️ Promo', color: 'red' },
+                        ].map(({ key, label, color }) => (
+                          <button
+                            key={key}
+                            onClick={() => setEditForm(prev => ({ ...prev, [key]: !(prev as any)[key] }))}
+                            className={`text-[10px] px-2 py-1 rounded-lg font-bold transition-all border ${
+                              (editForm as any)[key]
+                                ? `bg-${color}-500/20 text-${color}-400 border-${color}-500/30`
+                                : 'bg-white/5 text-gray-500 border-white/10'
+                            }`}
+                            style={
+                              (editForm as any)[key]
+                                ? { background: `var(--tw-${color}-bg, rgba(200,16,46,0.15))`, color: `var(--tw-${color}-text, #f87171)`, borderColor: `var(--tw-${color}-border, rgba(200,16,46,0.3))` }
+                                : {}
+                            }
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Images */}
+                  <div className="mt-4 space-y-2">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" /> Images (URLs)
+                    </label>
+                    <div className="space-y-2">
+                      {(editForm.images || []).map((img, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          {img && (
+                            <img src={img} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />
+                          )}
+                          <input
+                            type="text"
+                            value={img}
+                            onChange={e => updateEditImage(i, e.target.value)}
+                            placeholder="https://...jpg"
+                            className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
+                          />
+                          <button
+                            onClick={() => removeEditImage(i)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all flex-shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={addEditImage}
+                        className="text-xs text-gray-500 hover:text-[#C8102E] transition-colors font-medium"
+                      >
+                        + Ajouter une image
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* Modal Nouveau Produit */}
+    {showNewProductModal && (
+      <NouveauProduitModal
+        allCategories={allCategoriesLocal}
+        onClose={() => setShowNewProductModal(false)}
+        onCreated={product => {
+          setCustomProducts(prev => [...prev, product]);
+          setShowNewProductModal(false);
+        }}
+      />
+    )}
+    </>
+  );
+}
+
+// ─── Modal: Nouveau Produit ───────────────────────────────────────────────────
+function NouveauProduitModal({
+  onClose,
+  onCreated,
+  allCategories,
+}: {
+  onClose: () => void;
+  onCreated: (p: ShopProduct) => void;
+  allCategories: Array<{ slug: string; name: string; icon?: string }>;
+}) {
+  const [form, setForm] = useState({
+    name: '',
+    shortDescription: '',
+    description: '',
+    categorySlug: allCategories[0]?.slug || '',
+    price: '',
+    comparePrice: '',
+    stockQty: '0',
+    images: [''],
+    tags: '',
+    isFeatured: false,
+    isNew: true,
+    isPromo: false,
+    minOrderQty: '1',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) { setError('Le nom est requis'); return; }
+    if (!form.price || isNaN(parseFloat(form.price))) { setError('Le prix est requis'); return; }
+    if (!form.categorySlug) { setError('La catégorie est requise'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const cat = allCategories.find(c => c.slug === form.categorySlug);
+      const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const product: ShopProduct = {
+        id,
+        slug,
+        name: form.name.trim(),
+        shortDescription: form.shortDescription.trim() || null as any,
+        description: form.description.trim() || form.name,
+        categorySlug: form.categorySlug,
+        categoryName: cat?.name || form.categorySlug,
+        images: form.images.filter(Boolean),
+        price: parseFloat(form.price),
+        comparePrice: form.comparePrice ? parseFloat(form.comparePrice) : null as any,
+        inStock: parseInt(form.stockQty) > 0,
+        stockQty: parseInt(form.stockQty) || 0,
+        variants: [],
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        isFeatured: form.isFeatured,
+        isNew: form.isNew,
+        isPromo: form.isPromo,
+        rating: 5,
+        reviewCount: 0,
+        minOrderQty: parseInt(form.minOrderQty) || 1,
+      };
+      await setDoc(doc(db, 'shop_custom_products', id), product);
+      onCreated(product);
+    } catch (err: any) {
+      setError('Erreur lors de la sauvegarde: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-[#1A1A1A] px-6 py-4 border-b border-white/10 flex items-center justify-between z-10">
+          <h2 className="text-white font-bold text-base flex items-center gap-2">
+            <Plus className="w-5 h-5 text-[#C8102E]" /> Nouveau Produit
+          </h2>
+          <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+            </div>
+          )}
+
+          {/* Nom + Catégorie */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom du produit *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="Ex: Fermeture Nylon NO5 30cm"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie *</label>
+              <select
+                value={form.categorySlug}
+                onChange={e => setForm(p => ({ ...p, categorySlug: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-[#111] border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 appearance-none"
+              >
+                {allCategories.map(c => (
+                  <option key={c.slug} value={c.slug}>{c.icon || ''} {c.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Description courte */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description courte</label>
+            <input
+              type="text"
+              value={form.shortDescription}
+              onChange={e => setForm(p => ({ ...p, shortDescription: e.target.value }))}
+              placeholder="Résumé en 1 ligne"
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description complète</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              rows={3}
+              placeholder="Description détaillée du produit..."
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600 resize-none"
+            />
+          </div>
+
+          {/* Prix */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Prix (MAD) *</label>
+              <input
+                type="number" step="0.5" min="0"
+                value={form.price}
+                onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+                placeholder="0.00"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-bold focus:outline-none focus:border-[#C8102E]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Ancien prix (barré)</label>
+              <input
+                type="number" step="0.5" min="0"
+                value={form.comparePrice}
+                onChange={e => setForm(p => ({ ...p, comparePrice: e.target.value }))}
+                placeholder="0.00"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Stock</label>
+              <input
+                type="number" min="0"
+                value={form.stockQty}
+                onChange={e => setForm(p => ({ ...p, stockQty: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Qté min.</label>
+              <input
+                type="number" min="1"
+                value={form.minOrderQty}
+                onChange={e => setForm(p => ({ ...p, minOrderQty: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+              />
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Tags (séparés par virgule)</label>
+            <input
+              type="text"
+              value={form.tags}
+              onChange={e => setForm(p => ({ ...p, tags: e.target.value }))}
+              placeholder="nylon, fermeture, no5"
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+            />
+          </div>
+
+          {/* Images */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" /> Images (URLs)
+            </label>
+            {form.images.map((img, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                {img && <img src={img} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />}
+                <input
+                  type="text" value={img}
+                  onChange={e => {
+                    const imgs = [...form.images];
+                    imgs[i] = e.target.value;
+                    setForm(p => ({ ...p, images: imgs }));
+                  }}
+                  placeholder="https://...jpg"
+                  className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
+                />
+                {form.images.length > 1 && (
+                  <button
+                    onClick={() => setForm(p => ({ ...p, images: p.images.filter((_, j) => j !== i) }))}
+                    className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setForm(p => ({ ...p, images: [...p.images, ''] }))}
+              className="text-xs text-gray-500 hover:text-[#C8102E] transition-colors font-medium"
+            >
+              + Ajouter une image
+            </button>
+          </div>
+
+          {/* Badges */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Badges</label>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { key: 'isFeatured', label: '⭐ Vedette' },
+                { key: 'isNew', label: '✨ Nouveau' },
+                { key: 'isPromo', label: '🏷️ Promo' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setForm(p => ({ ...p, [key]: !(p as any)[key] }))}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all border ${
+                    (form as any)[key]
+                      ? 'bg-[#C8102E]/20 text-[#ff6b6b] border-[#C8102E]/40'
+                      : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-[#1A1A1A] px-6 py-4 border-t border-white/10 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-medium hover:bg-white/5 transition-all"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a50d25] transition-all disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Créer le produit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal: Nouvelle Catégorie ────────────────────────────────────────────────
+function NouvelleCategorieModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (c: { id: string; slug: string; name: string; image?: string; description?: string; color?: string }) => void;
+}) {
+  const [form, setForm] = useState({ name: '', image: '', description: '', color: '#C8102E' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) { setError('Le nom est requis'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const id = `cat_${slug}_${Date.now()}`;
+      const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color };
+      await setDoc(doc(db, 'shop_custom_categories', id), cat);
+      onCreated(cat as any);
+    } catch (err: any) {
+      setError('Erreur: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+          <h2 className="text-white font-bold text-base flex items-center gap-2">
+            <FolderPlus className="w-5 h-5 text-[#D4A843]" /> Nouvelle Catégorie
+          </h2>
+          <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </div>
+          )}
+
+          {/* Nom */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom de la catégorie *</label>
+            <input
+              type="text" value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              placeholder="Ex: Boutons Pression"
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+            />
+          </div>
+
+          {/* Photo URL */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" /> Photo de la catégorie (URL)
+            </label>
+            <input
+              type="text" value={form.image}
+              onChange={e => setForm(p => ({ ...p, image: e.target.value }))}
+              placeholder="https://exemple.com/photo-categorie.jpg"
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+            />
+            {form.image && (
+              <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-video">
+                <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <div className="absolute inset-0 flex items-center justify-center bg-white/5 text-gray-500 text-xs" style={{ display: 'none' }}>Image invalide</div>
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description de la page</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              rows={3}
+              placeholder="Décrivez cette catégorie et ses produits..."
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600 resize-none"
+            />
+          </div>
+
+          {/* Couleur */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleur accent</label>
+            <div className="flex gap-3 items-center">
+              <input
+                type="color" value={form.color}
+                onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
+                className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+              />
+              <span className="text-gray-400 text-sm font-mono">{form.color}</span>
+            </div>
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-white/10 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-medium hover:bg-white/5 transition-all">Annuler</button>
+          <button
+            onClick={handleSubmit} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#D4A843] text-black text-sm font-semibold hover:bg-[#c49b3a] transition-all disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderPlus className="w-4 h-4" />}
+            Créer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Categories View ──────────────────────────────────────────────────────────
+function CategoriesView() {
+  const [customCats, setCustomCats] = useState<Array<{ id: string; slug: string; name: string; icon?: string; description?: string; color?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    getDocs(collection(db, 'shop_custom_categories'))
+      .then(snap => setCustomCats(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const allCats = [
+    ...SHOP_CATEGORIES.map(c => ({ ...c, isCustom: false })),
+    ...customCats.map(c => ({ ...c, isCustom: true })),
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-semibold">Catégories</h2>
+          <p className="text-gray-500 text-xs mt-0.5">{allCats.length} catégories au total</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#D4A843] text-black text-sm font-semibold hover:bg-[#c49b3a] transition-all"
+        >
+          <FolderPlus className="w-4 h-4" /> Nouvelle catégorie
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center min-h-[200px] gap-3">
+          <Loader2 className="w-5 h-5 animate-spin text-[#D4A843]" />
+          <span className="text-gray-400 text-sm">Chargement…</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {allCats.map(cat => (
+            <div
+              key={cat.id}
+              className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border transition-all hover:border-white/15 ${
+                (cat as any).isCustom ? 'border-[#D4A843]/30' : 'border-white/5'
+              }`}
+            >
+              {/* Photo header */}
+              <div className="relative h-28 overflow-hidden">
+                {(cat as any).image ? (
+                  <img src={(cat as any).image} alt={cat.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${cat.color || '#C8102E'}40, ${cat.color || '#C8102E'}10)` }}>
+                    <span className="text-4xl opacity-30">{cat.icon || '👚'}</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-transparent to-transparent" />
+                {(cat as any).isCustom && (
+                  <span className="absolute top-2 right-2 text-[9px] font-bold text-[#D4A843] bg-[#0F0F0F]/80 px-1.5 py-0.5 rounded-full">Custom</span>
+                )}
+              </div>
+              {/* Info */}
+              <div className="p-4">
+                <p className="text-white font-semibold text-sm">{cat.name}</p>
+                <p className="text-gray-500 text-xs mt-1 line-clamp-2">{cat.description || 'Aucune description'}</p>
+                <div className="flex items-center justify-between mt-3">
+                  <p className="text-gray-600 text-[10px] font-mono">/{cat.slug}</p>
+                  <a href={`/shop/categorie/${cat.slug}`} target="_blank" className="text-[10px] text-[#D4A843] hover:underline">Voir la page →</a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <NouvelleCategorieModal
+          onClose={() => setShowModal(false)}
+          onCreated={cat => { setCustomCats(prev => [...prev, cat as any]); setShowModal(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Access Denied ─────────────────────────────────────────────────────────────
+function AccessDenied() {
+  return (
+    <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4">
+      <div className="text-center space-y-4 max-w-sm">
+        <div className="w-20 h-20 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto">
+          <Shield className="w-10 h-10 text-red-500" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">Accès refusé</h1>
+          <p className="text-gray-500 text-sm mt-2">
+            Vous n'avez pas les permissions nécessaires pour accéder à cette section.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <a
+            href="/shop"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a50d25] transition-colors"
+          >
+            Retour à la boutique
+          </a>
+          <button
+            onClick={() => signOut(auth)}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-medium hover:bg-white/5 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Login screen for admin ────────────────────────────────────────────────────
+function AdminLogin() {
+  return (
+    <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-4">
+      <div className="text-center space-y-4 max-w-sm">
+        <div className="w-20 h-20 rounded-2xl bg-[#C8102E]/10 flex items-center justify-center mx-auto">
+          <Shield className="w-10 h-10 text-[#C8102E]" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">LEBTEX Administration</h1>
+          <p className="text-gray-500 text-sm mt-2">
+            Connectez-vous avec votre compte administrateur.
+          </p>
+        </div>
+        <a
+          href="/shop/compte"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a50d25] transition-colors"
+        >
+          Se connecter
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Admin Page ───────────────────────────────────────────────────────────
+export default function AdminShopPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [orders, setOrders] = useState<ShopOrder[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [activeNav, setActiveNav] = useState('dashboard');
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const fetchOrders = useCallback(async () => {
+    setLoadingOrders(true);
+    try {
+      const q = query(
+        collection(db, 'shop_orders'),
+        orderBy('createdAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ShopOrder));
+      setOrders(data);
+      setLastRefreshed(new Date());
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user && user.email === ADMIN_EMAIL) {
+      fetchOrders();
+    }
+  }, [user, fetchOrders]);
+
+  // Loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 animate-spin text-[#C8102E]" />
+          <p className="text-gray-500 text-sm">Chargement…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in
+  if (!user) return <AdminLogin />;
+
+  // Wrong user
+  if (user.email !== ADMIN_EMAIL) return <AccessDenied />;
+
+  // Render dashboard
+  const totalOrders = orders.length;
+  const pendingCount = orders.filter((o) => o.status === 'pending').length;
+
+  return (
+    <div className="min-h-screen bg-[#0F0F0F] flex">
+      {/* Sidebar */}
+      <Sidebar activeNav={activeNav} onNav={setActiveNav} />
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar */}
+        <header className="h-16 bg-[#0F0F0F] border-b border-white/5 flex items-center justify-between px-6 sticky top-0 z-10 flex-shrink-0">
+          <div>
+            <h1 className="text-white font-bold text-base capitalize">{activeNav}</h1>
+            {lastRefreshed && (
+              <p className="text-gray-600 text-xs">
+                Actualisé à{' '}
+                {lastRefreshed.toLocaleTimeString('fr-MA', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Pending badge */}
+            {pendingCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-amber-400 text-xs font-semibold">
+                  {pendingCount} en attente
+                </span>
+              </div>
+            )}
+
+            {/* Refresh */}
+            <button
+              onClick={fetchOrders}
+              disabled={loadingOrders}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all text-xs font-medium disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? 'animate-spin' : ''}`} />
+              Actualiser
+            </button>
+
+            {/* User info + logout */}
+            <div className="flex items-center gap-3 pl-3 border-l border-white/10">
+              <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center text-white text-xs font-bold">
+                {(user.displayName || user.email || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-white text-xs font-medium">{user.displayName || 'Admin'}</p>
+                <p className="text-gray-600 text-[10px]">{user.email}</p>
+              </div>
+              <button
+                onClick={() => signOut(auth)}
+                className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                title="Se déconnecter"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Content area */}
+        <main className="flex-1 p-6 overflow-auto">
+          {loadingOrders && orders.length === 0 ? (
+            <div className="flex items-center justify-center min-h-[400px] gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-[#C8102E]" />
+              <p className="text-gray-500 text-sm">Chargement des commandes…</p>
+            </div>
+          ) : (
+            <>
+              {activeNav === 'dashboard' && <DashboardView orders={orders} />}
+              {activeNav === 'commandes' && <CommandesView orders={orders} />}
+              {activeNav === 'produits' && <ProduitsView />}
+              {activeNav === 'categories' && <CategoriesView />}
+              {activeNav === 'clients' && (
+                <ComingSoonView
+                  title="Gestion des clients"
+                  icon={<Users className="w-8 h-8" />}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}

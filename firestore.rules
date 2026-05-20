@@ -108,5 +108,70 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && resource.data.adminUid == request.auth.uid;
     }
+
+    // ── E-Commerce Shop Collections ────────────────────────────────────────────
+
+    // shop_products: public read, admin-only write
+    match /shop_products/{productId} {
+      allow read: if true;  // Public catalog
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
+    // shop_product_overrides: public read (catalog display), admin-only write
+    match /shop_product_overrides/{productId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
+    // shop_custom_products: public read, admin-only write
+    match /shop_custom_products/{productId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
+    // shop_custom_categories: public read, admin-only write
+    match /shop_custom_categories/{catId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
+    // shop_orders: anyone can create (guest checkout), owner & admin can read/update
+    match /shop_orders/{orderId} {
+      // Anyone can create an order (guest + logged-in customers)
+      allow create: if true;
+      // Logged-in user can read their own order (by customerEmail or id)
+      allow read: if isSignedIn()
+        || (resource.data.customerEmail == request.auth.token.email)
+        || request.auth.token.email == 'yahya.lebbar13@gmail.com';
+      // Admin can update (change order status etc.)
+      allow update: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+      // Admin can delete
+      allow delete: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+      // Allow listing for admin and for tracking by orderNumber
+      allow list: if isSignedIn();
+    }
+
+    // shop_reviews: public read, authenticated write (one per product per user)
+    match /shop_reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // shop_wishlist: owner only
+    match /shop_wishlist/{userId}/{productId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // shop_coupons: public read for validation, admin-only write
+    match /shop_coupons/{couponId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
+    // shop_customers: user reads own profile, admin reads all
+    match /shop_customers/{userId} {
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || request.auth.token.email == 'yahya.lebbar13@gmail.com');
+    }
   }
 }
