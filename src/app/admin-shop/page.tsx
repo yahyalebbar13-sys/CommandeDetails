@@ -1724,36 +1724,6 @@ function NouvelleCategorieModal({
   );
 }
 
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-transparent to-transparent" />
-                {(cat as any).isCustom && (
-                  <span className="absolute top-2 right-2 text-[9px] font-bold text-[#D4A843] bg-[#0F0F0F]/80 px-1.5 py-0.5 rounded-full">Custom</span>
-                )}
-              </div>
-              {/* Info */}
-              <div className="p-4">
-                <p className="text-white font-semibold text-sm">{cat.name}</p>
-                <p className="text-gray-500 text-xs mt-1 line-clamp-2">{cat.description || 'Aucune description'}</p>
-                <div className="flex items-center justify-between mt-3">
-                  <p className="text-gray-600 text-[10px] font-mono">/{cat.slug}</p>
-                  <a href={`/shop/categorie/${cat.slug}`} target="_blank" className="text-[10px] text-[#D4A843] hover:underline">Voir la page →</a>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showModal && (
-        <NouvelleCategorieModal
-          onClose={() => setShowModal(false)}
-          onCreated={cat => { setCustomCats(prev => [...prev, cat as any]); setShowModal(false); }}
-        />
-      )}
-    </div>
-  );
-}
 
 // ─── Access Denied ─────────────────────────────────────────────────────────────
 function AccessDenied() {

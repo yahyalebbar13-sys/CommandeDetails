@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Truck, ShieldCheck, RotateCcw, MessageCircle,
-  Zap, Package, Star, MapPin,
-  ArrowRight,
+  Zap, Package, Star, MapPin, ChevronRight,
+  ArrowRight, Phone, Sparkles,
 } from 'lucide-react';
 import { SHOP_CATEGORIES, getFeaturedProducts, getNewProducts } from '@/lib/shop-products-data';
 import { FREE_DELIVERY_THRESHOLD, formatPrice } from '@/lib/shop-utils';
