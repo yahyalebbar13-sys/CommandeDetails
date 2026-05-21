@@ -38,12 +38,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     return text;
   };
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) return null;
-
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>
-      <div dir={language === 'ar' ? 'rtl' : 'ltr'} className={language === 'ar' ? 'font-arabic' : ''}>
+      <div dir={language === 'ar' ? 'rtl' : 'ltr'}>
         {children}
       </div>
     </LanguageContext.Provider>
