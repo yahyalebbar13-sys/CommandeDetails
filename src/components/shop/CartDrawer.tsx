@@ -370,7 +370,7 @@ export default function CartDrawer() {
               {/* Free delivery nudge (top) */}
               {subtotal < FREE_DELIVERY_THRESHOLD && (
                 <div className="mt-2 mb-1">
-                  <FreeDeliveryBar subtotal={subtotal} />
+                  <FreeDeliveryProgress subtotal={subtotal} />
                 </div>
               )}
 
@@ -402,7 +402,7 @@ export default function CartDrawer() {
               style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             >
               {/* Free delivery bar (bottom) when subtotal > 0 */}
-              <FreeDeliveryBar subtotal={subtotal} />
+              <FreeDeliveryProgress subtotal={subtotal} />
 
               {/* Order summary */}
               <div className="space-y-1.5">
