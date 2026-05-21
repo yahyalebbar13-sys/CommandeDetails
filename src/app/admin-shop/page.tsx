@@ -67,6 +67,8 @@ import {
   FolderPlus,
   Trash2,
   Grid3X3,
+  MessageCircle,
+  Phone,
 } from 'lucide-react';
 
 // ─── Firebase init ─────────────────────────────────────────────────────────────
@@ -920,6 +922,410 @@ function CategoriesView() {
             setEditingCat(null);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Client aggregation type ──────────────────────────────────────────────────
+interface AggregatedClient {
+  phone: string;
+  name: string;
+  email: string | null;
+  city: string;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderDate: any;
+  lastOrderStatus: OrderStatus;
+  orders: ShopOrder[];
+}
+
+// ─── Clients View ─────────────────────────────────────────────────────────────
+function ClientsView({ orders }: { orders: ShopOrder[] }) {
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'orders' | 'spent' | 'recent'>('recent');
+  const [selectedClient, setSelectedClient] = useState<AggregatedClient | null>(null);
+
+  // Aggregate clients from orders by phone number
+  const clients = React.useMemo(() => {
+    const map = new Map<string, AggregatedClient>();
+    for (const order of orders) {
+      const phone = order.customerPhone || order.shippingAddress?.phone || '';
+      if (!phone) continue;
+      const cleanPhone = phone.replace(/[\s\-]/g, '');
+      const existing = map.get(cleanPhone);
+      if (existing) {
+        existing.totalOrders += 1;
+        existing.totalSpent += order.total || 0;
+        existing.orders.push(order);
+        // Keep the latest order info
+        const existDate = existing.lastOrderDate?.toDate?.() || new Date(0);
+        const orderDate = order.createdAt?.toDate?.() || new Date(0);
+        if (orderDate > existDate) {
+          existing.lastOrderDate = order.createdAt;
+          existing.lastOrderStatus = order.status;
+          existing.name = order.customerName || existing.name;
+          existing.email = order.customerEmail || existing.email;
+          existing.city = order.shippingAddress?.city || existing.city;
+        }
+      } else {
+        map.set(cleanPhone, {
+          phone: cleanPhone,
+          name: order.customerName || order.shippingAddress?.fullName || '—',
+          email: order.customerEmail || null,
+          city: order.shippingAddress?.city || '—',
+          totalOrders: 1,
+          totalSpent: order.total || 0,
+          lastOrderDate: order.createdAt,
+          lastOrderStatus: order.status,
+          orders: [order],
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [orders]);
+
+  // Sort
+  const sorted = React.useMemo(() => {
+    const arr = [...clients];
+    if (sortBy === 'orders') arr.sort((a, b) => b.totalOrders - a.totalOrders);
+    else if (sortBy === 'spent') arr.sort((a, b) => b.totalSpent - a.totalSpent);
+    else {
+      arr.sort((a, b) => {
+        const da = a.lastOrderDate?.toDate?.() || new Date(0);
+        const db2 = b.lastOrderDate?.toDate?.() || new Date(0);
+        return db2.getTime() - da.getTime();
+      });
+    }
+    return arr;
+  }, [clients, sortBy]);
+
+  // Filter
+  const filtered = sorted.filter((c) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.phone.includes(q) ||
+      c.city.toLowerCase().includes(q) ||
+      (c.email && c.email.toLowerCase().includes(q))
+    );
+  });
+
+  // Stats
+  const totalClients = clients.length;
+  const totalRevenue = clients.reduce((s, c) => s + c.totalSpent, 0);
+  const repeatClients = clients.filter((c) => c.totalOrders > 1).length;
+  const topCity = clients.reduce((acc, c) => {
+    acc[c.city] = (acc[c.city] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const topCityName = Object.entries(topCity).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  return (
+    <div className="space-y-5 pb-20">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard
+          title="Total clients"
+          value={totalClients}
+          icon={<Users className="w-5 h-5" />}
+          color="#C8102E"
+        />
+        <MetricCard
+          title="Clients fidèles"
+          value={repeatClients}
+          sub={`${totalClients > 0 ? Math.round((repeatClients / totalClients) * 100) : 0}% du total`}
+          icon={<Star className="w-5 h-5" />}
+          color="#D4A843"
+        />
+        <MetricCard
+          title="Chiffre d'affaires"
+          value={formatPrice(totalRevenue)}
+          icon={<DollarSign className="w-5 h-5" />}
+          color="#10B981"
+        />
+        <MetricCard
+          title="Ville principale"
+          value={topCityName}
+          sub={`${topCity[topCityName] || 0} clients`}
+          icon={<MapPin className="w-5 h-5" />}
+          color="#3B82F6"
+        />
+      </div>
+
+      {/* Search + Sort */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher par nom, téléphone, ville, email…"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm placeholder-gray-600 focus:outline-none focus:border-[#C8102E]/50 transition-colors"
+          />
+        </div>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className="px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm focus:outline-none focus:border-[#C8102E]/50 transition-colors appearance-none"
+        >
+          <option value="recent">Plus récent</option>
+          <option value="orders">Plus de commandes</option>
+          <option value="spent">Plus gros CA</option>
+        </select>
+      </div>
+
+      <p className="text-xs text-gray-500">
+        {filtered.length} client{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
+      </p>
+
+      {/* Client list */}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <Users className="w-10 h-10 text-gray-600" />
+          <p className="text-gray-400 text-sm font-medium">Aucun client trouvé</p>
+        </div>
+      ) : (
+        <div className="bg-[#1A1A1A] rounded-2xl border border-white/5 overflow-hidden">
+          {/* Header (desktop) */}
+          <div className="hidden lg:grid grid-cols-12 gap-3 px-5 py-3 border-b border-white/5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+            <div className="col-span-3">Client</div>
+            <div className="col-span-2">Téléphone</div>
+            <div className="col-span-2">Ville</div>
+            <div className="col-span-1 text-center">Cmd</div>
+            <div className="col-span-2 text-right">Total dépensé</div>
+            <div className="col-span-2 text-right">Dernière cmd</div>
+          </div>
+
+          {filtered.map((client) => {
+            const lastDate = client.lastOrderDate?.toDate
+              ? client.lastOrderDate.toDate().toLocaleDateString('fr-MA', {
+                  day: '2-digit',
+                  month: 'short',
+                })
+              : '—';
+            const statusColor = ORDER_STATUS_COLORS[client.lastOrderStatus] || '#6B7280';
+
+            return (
+              <button
+                key={client.phone}
+                onClick={() => setSelectedClient(client)}
+                className="w-full text-left hover:bg-white/3 transition-colors border-b border-white/5 last:border-0"
+              >
+                {/* Desktop row */}
+                <div className="hidden lg:grid grid-cols-12 gap-3 px-5 py-3.5 items-center">
+                  <div className="col-span-3 flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#C8102E]/15 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[#C8102E] font-bold text-sm">
+                        {client.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">{client.name}</p>
+                      {client.email && (
+                        <p className="text-gray-600 text-xs truncate">{client.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-span-2 text-gray-300 text-sm font-mono">{client.phone}</div>
+                  <div className="col-span-2 text-gray-400 text-sm">{client.city}</div>
+                  <div className="col-span-1 text-center">
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${
+                      client.totalOrders > 1
+                        ? 'bg-[#D4A843]/15 text-[#D4A843]'
+                        : 'bg-white/5 text-gray-400'
+                    }`}>
+                      {client.totalOrders}
+                    </span>
+                  </div>
+                  <div className="col-span-2 text-right text-white font-semibold text-sm">
+                    {formatPrice(client.totalSpent)}
+                  </div>
+                  <div className="col-span-2 text-right flex items-center justify-end gap-2">
+                    <span className="text-gray-400 text-xs">{lastDate}</span>
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: statusColor }}
+                    />
+                  </div>
+                </div>
+
+                {/* Mobile card */}
+                <div className="lg:hidden px-4 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#C8102E]/15 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[#C8102E] font-bold text-base">
+                        {client.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold truncate">{client.name}</p>
+                      <p className="text-gray-500 text-xs">{client.phone} · {client.city}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-white text-sm font-bold">{formatPrice(client.totalSpent)}</p>
+                      <p className="text-gray-500 text-xs">
+                        {client.totalOrders} cmd{client.totalOrders > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Client detail drawer */}
+      {selectedClient && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedClient(null)}
+          />
+          <div className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-lg bg-[#141414] border-l border-white/10 overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-[#141414] border-b border-white/5 px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#C8102E]/15 flex items-center justify-center">
+                  <span className="text-[#C8102E] font-bold text-lg">
+                    {selectedClient.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-white font-bold text-base">{selectedClient.name}</h2>
+                  <p className="text-gray-500 text-xs">{selectedClient.phone}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedClient(null)}
+                className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Client stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-[#1A1A1A] rounded-xl p-3 border border-white/5 text-center">
+                  <p className="text-xl font-bold text-white">{selectedClient.totalOrders}</p>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Commandes</p>
+                </div>
+                <div className="bg-[#1A1A1A] rounded-xl p-3 border border-white/5 text-center">
+                  <p className="text-xl font-bold text-[#D4A843]">{formatPrice(selectedClient.totalSpent)}</p>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Total</p>
+                </div>
+                <div className="bg-[#1A1A1A] rounded-xl p-3 border border-white/5 text-center">
+                  <p className="text-xl font-bold text-white">{formatPrice(Math.round(selectedClient.totalSpent / selectedClient.totalOrders))}</p>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Panier moy.</p>
+                </div>
+              </div>
+
+              {/* Client info */}
+              <div className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5 space-y-2.5">
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">Informations</h3>
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-gray-300 font-mono">{selectedClient.phone}</span>
+                </div>
+                {selectedClient.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Tag className="w-3.5 h-3.5 text-gray-500" />
+                    <span className="text-gray-300">{selectedClient.email}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-gray-300">{selectedClient.city}</span>
+                </div>
+              </div>
+
+              {/* WhatsApp CTA */}
+              <a
+                href={`https://wa.me/${selectedClient.phone.startsWith('0') ? '212' + selectedClient.phone.slice(1) : selectedClient.phone}?text=${encodeURIComponent(`Bonjour ${selectedClient.name} 👋\n\nMerci pour votre commande chez LEBTEX !\n`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-[#25D366] text-white font-bold text-sm hover:bg-[#1da851] transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Contacter sur WhatsApp
+              </a>
+
+              {/* Orders list */}
+              <div>
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">
+                  Historique des commandes ({selectedClient.orders.length})
+                </h3>
+                <div className="space-y-2.5">
+                  {selectedClient.orders
+                    .sort((a, b) => {
+                      const da = a.createdAt?.toDate?.() || new Date(0);
+                      const db2 = b.createdAt?.toDate?.() || new Date(0);
+                      return db2.getTime() - da.getTime();
+                    })
+                    .map((order) => {
+                      const oDate = order.createdAt?.toDate
+                        ? order.createdAt.toDate().toLocaleDateString('fr-MA', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : '—';
+                      const oColor = ORDER_STATUS_COLORS[order.status] || '#6B7280';
+                      const oLabel = ORDER_STATUS_LABELS[order.status] || order.status;
+                      const itemCount = order.items?.reduce((s, i) => s + i.quantity, 0) || 0;
+                      return (
+                        <div
+                          key={order.id}
+                          className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-mono text-xs font-bold">{order.orderNumber}</span>
+                              <span
+                                className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                                style={{ background: `${oColor}18`, color: oColor }}
+                              >
+                                {oLabel}
+                              </span>
+                            </div>
+                            <span className="text-gray-500 text-xs">{oDate}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-400 text-xs">
+                              {itemCount} article{itemCount > 1 ? 's' : ''}
+                            </span>
+                            <span className="text-white font-bold text-sm">{formatPrice(order.total)}</span>
+                          </div>
+                          {/* Items preview */}
+                          {order.items && order.items.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+                              {order.items.slice(0, 3).map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-500 truncate max-w-[200px]">
+                                    {item.quantity}× {item.productName}
+                                  </span>
+                                  <span className="text-gray-400">{formatPrice(item.price * item.quantity)}</span>
+                                </div>
+                              ))}
+                              {order.items.length > 3 && (
+                                <p className="text-[10px] text-gray-600">
+                                  +{order.items.length - 3} autre{order.items.length - 3 > 1 ? 's' : ''}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1979,12 +2385,7 @@ export default function AdminShopPage() {
               {activeNav === 'commandes' && <CommandesView orders={orders} />}
               {activeNav === 'produits' && <ProduitsView />}
               {activeNav === 'categories' && <CategoriesView />}
-              {activeNav === 'clients' && (
-                <ComingSoonView
-                  title="Gestion des clients"
-                  icon={<Users className="w-8 h-8" />}
-                />
-              )}
+              {activeNav === 'clients' && <ClientsView orders={orders} />}
             </>
           )}
         </main>
