@@ -261,6 +261,7 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
 export default function CartDrawer() {
   const { items, isOpen, subtotal, itemCount, closeCart, removeItem, updateQty } =
     useShopCart();
+  const { t } = useLanguage();
 
   // Close on Escape key
   useEffect(() => {
