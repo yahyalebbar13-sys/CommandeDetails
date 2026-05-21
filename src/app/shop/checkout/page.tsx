@@ -355,11 +355,11 @@ export default function CheckoutPage() {
         const shippingAddress: ShippingAddress = {
           fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
           phone: form.phone.trim(),
-          phone2: form.phone2.trim() || null,
+          ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
           address: form.address.trim(),
           city: form.city,
-          region: form.region.trim() || null,
-          postalCode: form.postalCode.trim() || null,
+          ...(form.region.trim() ? { region: form.region.trim() } : {}),
+          ...(form.postalCode.trim() ? { postalCode: form.postalCode.trim() } : {}),
         };
 
         const docRef = await addDoc(collection(db, "shop_orders"), {
@@ -387,8 +387,15 @@ export default function CheckoutPage() {
           updatedAt: serverTimestamp(),
         });
 
-        clearCart();
+        // Save customer info for auto-tracking on suivi page
+        localStorage.setItem('lebtex_customer_phone', form.phone.trim());
+        localStorage.setItem('lebtex_last_order_id', docRef.id);
+        localStorage.setItem('lebtex_last_order_number', orderNumber);
+
+        // IMPORTANT: redirect FIRST, then clear cart
+        // If we clearCart first, items.length === 0 causes the component to unmount before navigation
         router.push(`/shop/confirmation/${docRef.id}`);
+        clearCart();
       } catch (err) {
         console.error("Order submission error:", err);
         setSubmitError(
