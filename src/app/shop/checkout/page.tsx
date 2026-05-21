@@ -355,11 +355,11 @@ export default function CheckoutPage() {
         const shippingAddress: ShippingAddress = {
           fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
           phone: form.phone.trim(),
-          phone2: form.phone2.trim() || undefined,
+          phone2: form.phone2.trim() || null,
           address: form.address.trim(),
           city: form.city,
-          region: form.region.trim() || undefined,
-          postalCode: form.postalCode.trim() || undefined,
+          region: form.region.trim() || null,
+          postalCode: form.postalCode.trim() || null,
         };
 
         const docRef = await addDoc(collection(db, "shop_orders"), {
