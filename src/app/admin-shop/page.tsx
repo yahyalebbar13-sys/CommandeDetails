@@ -22,6 +22,12 @@ import {
   where,
   Timestamp,
 } from 'firebase/firestore';
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from 'firebase/storage';
 import { firebaseConfig } from '@/firebase/config';
 import {
   ORDER_STATUS_LABELS,
@@ -69,14 +75,234 @@ import {
   Grid3X3,
   MessageCircle,
   Phone,
+  Upload,
 } from 'lucide-react';
 
 // ─── Firebase init ─────────────────────────────────────────────────────────────
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 
 const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
+
+// ─── Image Uploader Component ──────────────────────────────────────────────────
+function ImageUploader({
+  value,
+  onChange,
+  folder = 'shop/images',
+  label,
+  aspectRatio = 'aspect-video',
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  folder?: string;
+  label?: string;
+  aspectRatio?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const uploadFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const uniqueName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const fileRef = storageRef(storage, uniqueName);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      onChange(url);
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadFile(file);
+  };
+
+  return (
+    <div className="space-y-2">
+      {label && (
+        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+          <ImageIcon className="w-3 h-3" /> {label}
+        </label>
+      )}
+
+      {value ? (
+        <div className={`relative group rounded-xl overflow-hidden border border-white/10 ${aspectRatio}`}>
+          <img
+            src={value}
+            alt="Aperçu"
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+          />
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
+            >
+              Changer
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/30 transition-colors"
+            >
+              Supprimer
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-2 py-6 ${
+            dragOver
+              ? 'border-[#C8102E] bg-[#C8102E]/10'
+              : 'border-white/10 hover:border-white/25 bg-white/[0.02]'
+          }`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="w-6 h-6 text-[#C8102E] animate-spin" />
+              <p className="text-xs text-gray-400">Téléversement…</p>
+            </>
+          ) : (
+            <>
+              <Upload className="w-6 h-6 text-gray-500" />
+              <div className="text-center">
+                <p className="text-xs text-gray-400">
+                  <span className="text-[#C8102E] font-semibold">Cliquer</span> ou glisser une image
+                </p>
+                <p className="text-[10px] text-gray-600 mt-0.5">PNG, JPG, WebP · Max 5 MB</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* URL input toggle */}
+      {!value && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            {showUrlInput ? '✕ Fermer' : '🔗 Ou coller une URL'}
+          </button>
+          {showUrlInput && (
+            <input
+              type="text"
+              placeholder="https://..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onChange((e.target as HTMLInputElement).value);
+                  setShowUrlInput(false);
+                }
+              }}
+              onBlur={(e) => {
+                if (e.target.value.trim()) {
+                  onChange(e.target.value.trim());
+                  setShowUrlInput(false);
+                }
+              }}
+              className="mt-1 w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
+            />
+          )}
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+    </div>
+  );
+}
+
+// ─── Multi-Image Uploader ─────────────────────────────────────────────────────
+function MultiImageUploader({
+  images,
+  onChange,
+  folder = 'shop/products',
+}: {
+  images: string[];
+  onChange: (images: string[]) => void;
+  folder?: string;
+}) {
+  const handleImageChange = (index: number, url: string) => {
+    const newImages = [...images];
+    newImages[index] = url;
+    onChange(newImages);
+  };
+
+  const handleRemove = (index: number) => {
+    onChange(images.filter((_, i) => i !== index));
+  };
+
+  const handleAdd = () => {
+    onChange([...images, '']);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+        <ImageIcon className="w-3 h-3" /> Images
+      </label>
+
+      <div className="grid grid-cols-2 gap-2">
+        {images.map((img, i) => (
+          <div key={i} className="relative">
+            <ImageUploader
+              value={img}
+              onChange={(url) => handleImageChange(i, url)}
+              folder={folder}
+              aspectRatio="aspect-square"
+            />
+            {images.length > 1 && img && (
+              <button
+                type="button"
+                onClick={() => handleRemove(i)}
+                className="absolute top-1 right-1 z-10 p-1 rounded-md bg-black/60 text-red-400 hover:text-red-300 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleAdd}
+        className="text-xs text-gray-500 hover:text-[#C8102E] transition-colors font-medium flex items-center gap-1"
+      >
+        <Plus className="w-3 h-3" /> Ajouter une image
+      </button>
+    </div>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function isToday(ts: any): boolean {
@@ -950,23 +1176,13 @@ function EditCategorieModal({
             />
           </div>
 
-          {/* Photo URL */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-              <ImageIcon className="w-3 h-3" /> Photo de couverture (URL)
-            </label>
-            <input
-              type="text" value={form.image}
-              onChange={e => setForm(p => ({ ...p, image: e.target.value }))}
-              placeholder="https://..."
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
-            />
-            {form.image && (
-              <div className="rounded-xl overflow-hidden border border-white/10 aspect-video">
-                <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
-              </div>
-            )}
-          </div>
+          {/* Photo */}
+          <ImageUploader
+            value={form.image}
+            onChange={(url) => setForm(p => ({ ...p, image: url }))}
+            folder="shop/categories"
+            label="Photo de couverture"
+          />
 
           {/* Description */}
           <div className="space-y-1.5">
@@ -1882,38 +2098,12 @@ function ProduitsView() {
                   </div>
 
                   {/* Images */}
-                  <div className="mt-4 space-y-2">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3" /> Images (URLs)
-                    </label>
-                    <div className="space-y-2">
-                      {(editForm.images || []).map((img, i) => (
-                        <div key={i} className="flex gap-2 items-center">
-                          {img && (
-                            <img src={img} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />
-                          )}
-                          <input
-                            type="text"
-                            value={img}
-                            onChange={e => updateEditImage(i, e.target.value)}
-                            placeholder="https://...jpg"
-                            className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
-                          />
-                          <button
-                            onClick={() => removeEditImage(i)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all flex-shrink-0"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        onClick={addEditImage}
-                        className="text-xs text-gray-500 hover:text-[#C8102E] transition-colors font-medium"
-                      >
-                        + Ajouter une image
-                      </button>
-                    </div>
+                  <div className="mt-4">
+                    <MultiImageUploader
+                      images={editForm.images || []}
+                      onChange={(imgs) => setEditForm(prev => ({ ...prev, images: imgs }))}
+                      folder="shop/products"
+                    />
                   </div>
                 </div>
               )}
@@ -2133,40 +2323,11 @@ function NouveauProduitModal({
           </div>
 
           {/* Images */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-              <ImageIcon className="w-3 h-3" /> Images (URLs)
-            </label>
-            {form.images.map((img, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                {img && <img src={img} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0" />}
-                <input
-                  type="text" value={img}
-                  onChange={e => {
-                    const imgs = [...form.images];
-                    imgs[i] = e.target.value;
-                    setForm(p => ({ ...p, images: imgs }));
-                  }}
-                  placeholder="https://...jpg"
-                  className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
-                />
-                {form.images.length > 1 && (
-                  <button
-                    onClick={() => setForm(p => ({ ...p, images: p.images.filter((_, j) => j !== i) }))}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              onClick={() => setForm(p => ({ ...p, images: [...p.images, ''] }))}
-              className="text-xs text-gray-500 hover:text-[#C8102E] transition-colors font-medium"
-            >
-              + Ajouter une image
-            </button>
-          </div>
+          <MultiImageUploader
+            images={form.images}
+            onChange={(imgs) => setForm(p => ({ ...p, images: imgs }))}
+            folder="shop/products"
+          />
 
           {/* Badges */}
           <div className="space-y-2">
