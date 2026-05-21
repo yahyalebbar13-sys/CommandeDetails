@@ -29,6 +29,7 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_shop", href: "/shop/boutique" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
+  { labelKey: "nav_tracking", href: "/shop/suivi" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
 
