@@ -516,6 +516,7 @@ function RecentOrdersTable({
   orders: ShopOrder[];
 }) {
   const [orders, setOrders] = useState<ShopOrder[]>(initialOrders);
+  const [selectedOrder, setSelectedOrder] = useState<ShopOrder | null>(null);
 
   useEffect(() => {
     setOrders(initialOrders);
@@ -525,6 +526,9 @@ function RecentOrdersTable({
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
     );
+    if (selectedOrder?.id === orderId) {
+      setSelectedOrder((prev) => prev ? { ...prev, status: newStatus } : null);
+    }
   };
 
   return (
@@ -563,7 +567,8 @@ function RecentOrdersTable({
               orders.map((order) => (
                 <tr
                   key={order.id}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                  className="border-b border-white/5 hover:bg-white/[0.03] transition-colors cursor-pointer"
+                  onClick={() => setSelectedOrder(order)}
                 >
                   <td className="px-4 py-3 font-mono text-gray-300 font-medium whitespace-nowrap">
                     {order.orderNumber}
@@ -592,7 +597,7 @@ function RecentOrdersTable({
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                     {formatDate(order.createdAt)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     {order.id && (
                       <StatusDropdown
                         orderId={order.id}
@@ -607,6 +612,204 @@ function RecentOrdersTable({
           </tbody>
         </table>
       </div>
+
+      {/* ── Order Detail Drawer ── */}
+      {selectedOrder && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSelectedOrder(null)}
+          />
+          <div className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-xl bg-[#141414] border-l border-white/10 overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-[#141414] border-b border-white/5 px-6 py-4 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-white font-bold text-base flex items-center gap-2">
+                  <Package className="w-5 h-5 text-[#C8102E]" />
+                  Commande {selectedOrder.orderNumber}
+                </h2>
+                <p className="text-gray-500 text-xs mt-0.5">{formatDate(selectedOrder.createdAt)}</p>
+              </div>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Status + change */}
+              <div className="flex items-center justify-between bg-[#1A1A1A] rounded-xl p-4 border border-white/5">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-400 text-xs font-semibold uppercase">Statut</span>
+                  <StatusBadge status={selectedOrder.status} />
+                </div>
+                {selectedOrder.id && (
+                  <StatusDropdown
+                    orderId={selectedOrder.id}
+                    currentStatus={selectedOrder.status}
+                    onUpdated={handleStatusUpdate}
+                  />
+                )}
+              </div>
+
+              {/* Customer info */}
+              <div className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5 space-y-3">
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Client</h3>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#C8102E]/15 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[#C8102E] font-bold text-base">
+                      {(selectedOrder.customerName || '?').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">{selectedOrder.customerName}</p>
+                    {selectedOrder.customerEmail && (
+                      <p className="text-gray-500 text-xs">{selectedOrder.customerEmail}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Phone + WhatsApp */}
+                {(selectedOrder.customerPhone || selectedOrder.shippingAddress?.phone) && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="w-3.5 h-3.5 text-gray-500" />
+                      <span className="text-gray-300 font-mono">
+                        {selectedOrder.customerPhone || selectedOrder.shippingAddress?.phone}
+                      </span>
+                    </div>
+                    <a
+                      href={`https://wa.me/${(selectedOrder.customerPhone || selectedOrder.shippingAddress?.phone || '').replace(/^0/, '212').replace(/[\s\-]/g, '')}?text=${encodeURIComponent(`Bonjour ${selectedOrder.customerName} 👋\n\nConcernant votre commande ${selectedOrder.orderNumber} chez LEBTEX :\n`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/15 text-[#25D366] text-xs font-semibold hover:bg-[#25D366]/25 transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      WhatsApp
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Shipping address */}
+              {selectedOrder.shippingAddress && (
+                <div className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5 space-y-2">
+                  <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Adresse de livraison</h3>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-[#C8102E] flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-gray-300 space-y-0.5">
+                      <p className="font-semibold text-white">{selectedOrder.shippingAddress.fullName}</p>
+                      <p>{selectedOrder.shippingAddress.address}</p>
+                      <p>
+                        {selectedOrder.shippingAddress.city}
+                        {selectedOrder.shippingAddress.region && `, ${selectedOrder.shippingAddress.region}`}
+                        {selectedOrder.shippingAddress.postalCode && ` ${selectedOrder.shippingAddress.postalCode}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Articles */}
+              <div className="bg-[#1A1A1A] rounded-xl border border-white/5 overflow-hidden">
+                <div className="px-4 py-3 border-b border-white/5">
+                  <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                    Articles ({selectedOrder.items?.reduce((s, i) => s + i.quantity, 0) || 0})
+                  </h3>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {selectedOrder.items?.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 px-4 py-3">
+                      {item.productImage ? (
+                        <img
+                          src={item.productImage}
+                          alt={item.productName}
+                          className="w-12 h-12 rounded-lg object-cover border border-white/10 flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                          <ShoppingBag className="w-5 h-5 text-gray-600" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-semibold truncate">{item.productName}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {item.variant?.color && (
+                            <span className="text-gray-500 text-xs">Couleur: {item.variant.color}</span>
+                          )}
+                          {item.variant?.size && (
+                            <span className="text-gray-500 text-xs">Taille: {item.variant.size}</span>
+                          )}
+                        </div>
+                        <p className="text-gray-500 text-xs mt-0.5">
+                          {item.quantity} × {formatPrice(item.price)}
+                        </p>
+                      </div>
+                      <p className="text-white font-bold text-sm flex-shrink-0">
+                        {formatPrice(item.price * item.quantity)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price breakdown */}
+              <div className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5 space-y-2">
+                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Récapitulatif</h3>
+                <div className="flex justify-between text-sm text-gray-400">
+                  <span>Sous-total</span>
+                  <span>{formatPrice(selectedOrder.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-400">
+                  <span>Livraison</span>
+                  <span>{selectedOrder.deliveryFee === 0 ? <span className="text-green-400">Gratuite</span> : formatPrice(selectedOrder.deliveryFee)}</span>
+                </div>
+                {selectedOrder.discount ? (
+                  <div className="flex justify-between text-sm text-green-400">
+                    <span>Réduction{selectedOrder.couponCode ? ` (${selectedOrder.couponCode})` : ''}</span>
+                    <span>-{formatPrice(selectedOrder.discount)}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between font-bold text-white pt-2 border-t border-white/5 text-base">
+                  <span>Total</span>
+                  <span className="text-[#C8102E]">{formatPrice(selectedOrder.total)}</span>
+                </div>
+              </div>
+
+              {/* Payment method */}
+              <div className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5 flex items-center gap-3">
+                <DollarSign className="w-4 h-4 text-[#D4A843]" />
+                <div>
+                  <p className="text-white text-sm font-semibold">
+                    {selectedOrder.paymentMethod === 'cod' ? 'Paiement à la livraison (COD)' : selectedOrder.paymentMethod || 'COD'}
+                  </p>
+                  <p className="text-gray-500 text-xs">💵 Le client paie à la réception</p>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {selectedOrder.notes && (
+                <div className="bg-[#1A1A1A] rounded-xl p-4 border border-white/5">
+                  <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Notes du client</h3>
+                  <p className="text-gray-300 text-sm italic">"{selectedOrder.notes}"</p>
+                </div>
+              )}
+
+              {/* WhatsApp full CTA */}
+              <a
+                href={`https://wa.me/${(selectedOrder.customerPhone || selectedOrder.shippingAddress?.phone || '').replace(/^0/, '212').replace(/[\s\-]/g, '')}?text=${encodeURIComponent(`Bonjour ${selectedOrder.customerName} 👋\n\nVotre commande ${selectedOrder.orderNumber} chez LEBTEX :\n📦 ${selectedOrder.items?.length || 0} article(s)\n💰 Total: ${formatPrice(selectedOrder.total)}\n\n`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-[#25D366] text-white font-bold text-sm hover:bg-[#1da851] transition-colors shadow-lg shadow-[#25D366]/20"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Contacter le client sur WhatsApp
+              </a>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
