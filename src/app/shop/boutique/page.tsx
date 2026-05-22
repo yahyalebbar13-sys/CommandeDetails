@@ -83,6 +83,7 @@ function ProductCardInline({ product }: { product: ShopProduct }) {
 
 // --- Filter Sidebar ---
 function FilterSidebar({
+  categories,
   selectedCategories, setSelectedCategories,
   priceMin, setPriceMin,
   priceMax, setPriceMax,
@@ -96,7 +97,7 @@ function FilterSidebar({
       <div>
         <h3 className="font-bold text-[#1A1A1A] mb-3 text-sm uppercase tracking-wide" style={{ fontFamily: 'Outfit, sans-serif' }}>Catégories</h3>
         <div className="space-y-2">
-          {SHOP_CATEGORIES.map(cat => (
+          {categories?.map((cat: any) => (
             <label key={cat.slug} className="flex items-center gap-2 cursor-pointer group">
               <input type="checkbox" checked={selectedCategories.includes(cat.slug)}
                 onChange={e => {
@@ -268,6 +269,7 @@ function BoutiqueContent() {
                 {hasFilters && <button onClick={clearFilters} className="text-xs text-[#C8102E]">Effacer</button>}
               </div>
               <FilterSidebar
+                categories={SHOP_CATEGORIES}
                 selectedCategories={selectedCategories} setSelectedCategories={setSelectedCategories}
                 priceMin={priceMin} setPriceMin={setPriceMin}
                 priceMax={priceMax} setPriceMax={setPriceMax}
@@ -315,6 +317,7 @@ function BoutiqueContent() {
               <button onClick={() => setMobileFilters(false)}><X className="w-5 h-5" /></button>
             </div>
             <FilterSidebar
+              categories={SHOP_CATEGORIES}
               selectedCategories={selectedCategories} setSelectedCategories={setSelectedCategories}
               priceMin={priceMin} setPriceMin={setPriceMin}
               priceMax={priceMax} setPriceMax={setPriceMax}
