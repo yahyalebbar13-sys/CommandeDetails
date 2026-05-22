@@ -1296,7 +1296,9 @@ function CategoriesView() {
                   <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${cat.color || '#C8102E'}40, ${cat.color || '#C8102E'}10)` }}>
-                    <span className="text-4xl opacity-30">{(cat as any).icon || '👚'}</span>
+                    <span className="text-4xl opacity-30 font-bold" style={{ color: cat.color }}>
+                      {cat.name.charAt(0).toUpperCase()}
+                    </span>
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] via-transparent to-transparent" />

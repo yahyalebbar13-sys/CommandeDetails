@@ -209,9 +209,15 @@ export default function ShopHeader() {
                             onClick={() => setIsCategoriesOpen(false)}
                             className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors group"
                           >
-                            <span className="text-lg leading-none">
-                              {cat.icon}
-                            </span>
+                            <div className="flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
+                              {cat.image ? (
+                                <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: cat.color || '#C8102E' }}>
+                                  {cat.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
                             <span className="text-sm font-medium text-gray-700 group-hover:text-[#C8102E] transition-colors leading-tight">
                               {cat.name}
                             </span>

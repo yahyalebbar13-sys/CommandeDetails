@@ -49,6 +49,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   const [overrides, setOverrides] = useState<Record<string, ProductOverride>>({});
   const [customProducts, setCustomProducts] = useState<ShopProduct[]>([]);
   const [customCategories, setCustomCategories] = useState<ShopCategory[]>([]);
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   // Load overrides, custom products, and custom categories from Firestore on mount
@@ -57,22 +58,25 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
       getDocs(collection(db, 'shop_product_overrides')),
       getDocs(collection(db, 'shop_custom_products')),
       getDocs(collection(db, 'shop_custom_categories')),
+      getDocs(collection(db, 'shop_category_overrides')),
     ])
-      .then(([ovSnap, cpSnap, ccSnap]) => {
+      .then(([ovSnap, cpSnap, ccSnap, coSnap]) => {
         const ov: Record<string, ProductOverride> = {};
         ovSnap.docs.forEach(d => { ov[d.id] = d.data() as ProductOverride; });
         setOverrides(ov);
         setCustomProducts(cpSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct)));
         setCustomCategories(ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopCategory)));
+        const catOv: Record<string, Partial<ShopCategory>> = {};
+        if (coSnap) {
+          coSnap.docs.forEach(d => { catOv[d.id] = d.data(); });
+        }
+        setCategoryOverrides(catOv);
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
   }, []);
 
-  const allCategories = useMemo(() => {
-    const existingSlugs = new Set(SHOP_CATEGORIES.map(c => c.slug));
-    return [...SHOP_CATEGORIES, ...customCategories.filter(c => !existingSlugs.has(c.slug))];
-  }, [customCategories]);
+
 
   // Merge hardcoded data with Firestore overrides and custom products
   const products = useMemo(() => {
@@ -99,6 +103,26 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     const existingIds = new Set(hardcoded.map(p => p.id));
     return [...hardcoded, ...customProducts.filter(p => !existingIds.has(p.id))];
   }, [overrides, customProducts]);
+
+  const allCategories = useMemo(() => {
+    const existingSlugs = new Set(SHOP_CATEGORIES.map(c => c.slug));
+    const mergedHardcoded = SHOP_CATEGORIES.map(c => {
+      const ov = categoryOverrides[c.slug];
+      if (!ov) return c;
+      return { ...c, ...ov };
+    });
+    
+    const combined = [...mergedHardcoded, ...customCategories.filter(c => !existingSlugs.has(c.slug))];
+    
+    return combined.map(cat => {
+      if (cat.image) return cat;
+      const firstProduct = products.find(p => p.categorySlug === cat.slug && p.images && p.images.length > 0);
+      if (firstProduct && firstProduct.images[0]) {
+        return { ...cat, image: firstProduct.images[0] };
+      }
+      return cat;
+    });
+  }, [customCategories, categoryOverrides, products]);
 
   const updateProduct = useCallback(async (productId: string, override: ProductOverride) => {
     // Save to Firestore

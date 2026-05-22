@@ -272,12 +272,18 @@ export default function ShopPage() {
                     style={{ background: `radial-gradient(circle, ${cat.color}, transparent)`, transform: 'translate(40%, -40%)' }}
                   />
 
-                  {/* Icon */}
+                  {/* Icon/Image */}
                   <div
-                    className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center text-2xl shadow-sm"
+                    className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center overflow-hidden shadow-sm"
                     style={{ background: `${cat.color}15`, border: `1px solid ${cat.color}25` }}
                   >
-                    {cat.icon}
+                    {cat.image ? (
+                      <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-lg font-bold" style={{ color: cat.color }}>
+                        {cat.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </div>
 
                   {/* Text */}
