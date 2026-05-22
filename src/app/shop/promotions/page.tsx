@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
-import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
+import { useShopProducts } from '@/contexts/shop-products-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
 import type { ShopProduct } from '@/lib/shop-types';
@@ -61,19 +61,23 @@ function PromoCard({ product }: { product: ShopProduct }) {
 }
 
 export default function PromotionsPage() {
-  const promoProducts = SHOP_PRODUCTS_DATA.filter(p => p.isPromo && p.comparePrice);
-  const newProducts = SHOP_PRODUCTS_DATA.filter(p => p.isNew);
+  const { getPromoProducts, getNewProducts, getFeaturedProducts } = useShopProducts();
+  
+  const promoProducts = getPromoProducts(100);
+  const newProducts = getNewProducts(100);
+  const featuredProducts = getFeaturedProducts(100);
+  
   const [activeTab, setActiveTab] = useState<'promos' | 'nouveautes' | 'vedettes'>('promos');
 
   const tabs = [
     { key: 'promos', label: '🏷️ Promotions', count: promoProducts.length },
     { key: 'nouveautes', label: '✨ Nouveautés', count: newProducts.length },
-    { key: 'vedettes', label: '⭐ Vedettes', count: SHOP_PRODUCTS_DATA.filter(p => p.isFeatured).length },
+    { key: 'vedettes', label: '⭐ Vedettes', count: featuredProducts.length },
   ] as const;
 
   const activeProducts = activeTab === 'promos' ? promoProducts
     : activeTab === 'nouveautes' ? newProducts
-    : SHOP_PRODUCTS_DATA.filter(p => p.isFeatured);
+    : featuredProducts;
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">

@@ -3,13 +3,10 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronDown, Grid3X3, List, Filter } from 'lucide-react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
-import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
-import type { ShopProduct } from '@/lib/shop-types';
+import { useShopProducts } from '@/contexts/shop-products-context';
+import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 
 // --- ProductCard inlined to avoid circular imports ---
 function ProductCardInline({ product }: { product: ShopProduct }) {
@@ -172,22 +169,7 @@ function BoutiqueContent() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [mobileFilters, setMobileFilters] = useState(false);
-  const [customProducts, setCustomProducts] = useState<ShopProduct[]>([]);
-
-  // Load custom products from Firestore on mount
-  useEffect(() => {
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    getDocs(collection(db, 'shop_custom_products'))
-      .then(snap => setCustomProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct))))
-      .catch(() => {});
-  }, []);
-
-  // Merge hardcoded + Firestore custom products
-  const allProducts = [
-    ...SHOP_PRODUCTS_DATA,
-    ...customProducts.filter(cp => !SHOP_PRODUCTS_DATA.find(p => p.id === cp.id)),
-  ];
+  const { products: allProducts, categories: SHOP_CATEGORIES } = useShopProducts();
 
   // Filter & sort
   let products = [...allProducts];

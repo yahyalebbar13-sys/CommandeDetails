@@ -7,10 +7,10 @@ import {
   Zap, Package, Star, MapPin, ChevronRight,
   ArrowRight, Phone, Sparkles,
 } from 'lucide-react';
-import { SHOP_CATEGORIES, getFeaturedProducts, getNewProducts } from '@/lib/shop-products-data';
 import { FREE_DELIVERY_THRESHOLD, formatPrice } from '@/lib/shop-utils';
 import ProductCard from '@/components/shop/ProductCard';
 import { useLanguage } from '@/contexts/language-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
 
 // ─── Intersection Observer Hook ───────────────────────────────────────────────
 function useReveal() {
@@ -85,10 +85,6 @@ function RevealSection({ children, className = '', delay = 0 }: { children: Reac
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
-const FEATURED_PRODUCTS = getFeaturedProducts(8);
-const NEW_PRODUCTS = getNewProducts(6);
-
-
 const STATS = [
   { icon: <Truck className="w-8 h-8" />, value: 24, suffix: 'h', label: 'Livraison Casa', sub: '48h reste du Maroc', color: '#C8102E' },
   { icon: <Package className="w-8 h-8" />, value: 500, suffix: '+', label: 'Produits en stock', sub: 'Toutes catégories', color: '#D4A843' },
@@ -123,6 +119,9 @@ const TESTIMONIALS = [
 // ─── Page Component ───────────────────────────────────────────────────────────
 export default function ShopPage() {
   const { t } = useLanguage();
+  const { categories: SHOP_CATEGORIES, getFeaturedProducts, getNewProducts } = useShopProducts();
+  const FEATURED_PRODUCTS = getFeaturedProducts(8);
+  const NEW_PRODUCTS = getNewProducts(6);
 
   return (
     <main className="min-h-screen bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>

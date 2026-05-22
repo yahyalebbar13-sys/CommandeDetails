@@ -1,39 +1,15 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
-import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from '@/lib/shop-products-data';
+import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopCategory } from '@/lib/shop-types';
 import { ChevronRight, Loader2 } from 'lucide-react';
 
 export default function CategoriesPage() {
-  const [customCats, setCustomCats] = useState<ShopCategory[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, Partial<ShopCategory>>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(firebaseApp);
-    Promise.all([
-      getDocs(collection(db, 'shop_custom_categories')),
-      getDocs(collection(db, 'shop_category_overrides')),
-    ]).then(([ccSnap, ovSnap]) => {
-      setCustomCats(ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopCategory)));
-      const ov: Record<string, any> = {};
-      ovSnap.docs.forEach(d => { ov[d.id] = d.data(); });
-      setOverrides(ov);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  const allCats: ShopCategory[] = [
-    ...SHOP_CATEGORIES.map(c => ({ ...c, ...(overrides[c.slug] || {}) })),
-    ...customCats,
-  ];
+  const { categories: allCats, products, isLoading: loading } = useShopProducts();
 
   const productCount = (slug: string) =>
-    SHOP_PRODUCTS_DATA.filter(p => p.categorySlug === slug).length;
+    products.filter(p => p.categorySlug === slug).length;
 
   if (loading) {
     return (

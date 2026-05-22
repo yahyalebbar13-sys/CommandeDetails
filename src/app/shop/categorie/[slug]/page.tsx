@@ -1,11 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { firebaseConfig } from '@/firebase/config';
-import { SHOP_CATEGORIES, SHOP_PRODUCTS_DATA } from '@/lib/shop-products-data';
 import { useShopCart } from '@/contexts/shop-cart-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { ShoppingBag, ArrowLeft, Package } from 'lucide-react';
 
@@ -121,44 +118,21 @@ export default function CategoryPage({ params }: { params: any }) {
   const [notFound, setNotFound] = useState(false);
   const [sort, setSort] = useState('pertinence');
 
+  const { products: allContextProducts, categories: allContextCategories } = useShopProducts();
+
   useEffect(() => {
     if (!slug) return;
 
-    const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db = getFirestore(firebaseApp);
-
-    // Look for category in hardcoded list first
-    const hardcodedCat = SHOP_CATEGORIES.find(c => c.slug === slug);
-
-    Promise.all([
-      getDocs(collection(db, 'shop_custom_categories')),
-      getDocs(collection(db, 'shop_custom_products')),
-    ]).then(([ccSnap, cpSnap]) => {
-      // Find category (hardcoded or custom)
-      const customCats = ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopCategory));
-      const foundCat = hardcodedCat || customCats.find(c => c.slug === slug);
-
-      if (!foundCat) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-      setCategory(foundCat);
-
-      // Merge products
-      const customProds = cpSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct));
-      const allProds = [
-        ...SHOP_PRODUCTS_DATA,
-        ...customProds.filter(cp => !SHOP_PRODUCTS_DATA.find(p => p.id === cp.id)),
-      ];
-      setProducts(allProds.filter(p => p.categorySlug === slug));
-    }).catch(() => {
-      const foundCat = hardcodedCat;
-      if (!foundCat) { setNotFound(true); setLoading(false); return; }
-      setCategory(foundCat);
-      setProducts(SHOP_PRODUCTS_DATA.filter(p => p.categorySlug === slug));
-    }).finally(() => setLoading(false));
-  }, [slug]);
+    const foundCat = allContextCategories.find(c => c.slug === slug);
+    if (!foundCat) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    setCategory(foundCat);
+    setProducts(allContextProducts.filter(p => p.categorySlug === slug));
+    setLoading(false);
+  }, [slug, allContextProducts, allContextCategories]);
 
   // Sort products
   const sortedProducts = [...products].sort((a, b) => {
@@ -323,7 +297,7 @@ export default function CategoryPage({ params }: { params: any }) {
             Autres catégories
           </h2>
           <div className="flex flex-wrap gap-3">
-            {SHOP_CATEGORIES.filter(c => c.slug !== slug).map(cat => (
+            {allContextCategories.filter(c => c.slug !== slug).map(cat => (
               <Link
                 key={cat.slug}
                 href={`/shop/categorie/${cat.slug}`}

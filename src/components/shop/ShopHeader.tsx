@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
-import { SHOP_CATEGORIES } from "@/lib/shop-products-data";
+import { useShopProducts } from "@/contexts/shop-products-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -43,6 +43,7 @@ const PROMO_TEXT_AR =
 export default function ShopHeader() {
   const { itemCount, openCart } = useShopCart();
   const { t, language, setLanguage } = useLanguage();
+  const { categories: SHOP_CATEGORIES } = useShopProducts();
   const pathname = usePathname();
 
   const [isScrolled, setIsScrolled] = useState(false);
