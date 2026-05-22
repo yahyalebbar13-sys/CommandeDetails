@@ -106,7 +106,10 @@ function ImageUploader({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const uploadFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) return;
+    if (!file.type.startsWith('image/')) {
+      alert("Le fichier sélectionné n'est pas une image valide (doit être JPG, PNG, WEBP, etc.).");
+      return;
+    }
     setUploading(true);
     try {
       const ext = file.name.split('.').pop() || 'jpg';
@@ -115,8 +118,9 @@ function ImageUploader({
       await uploadBytes(fileRef, file);
       const url = await getDownloadURL(fileRef);
       onChange(url);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload error:', err);
+      alert(`Erreur lors du téléversement: ${err.message || 'Problème de connexion ou de permissions'}`);
     } finally {
       setUploading(false);
     }
@@ -132,6 +136,7 @@ function ImageUploader({
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (file) uploadFile(file);
+    else alert("Aucun fichier n'a été détecté lors du glisser-déposer.");
   };
 
   return (
