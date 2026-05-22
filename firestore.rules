@@ -123,6 +123,12 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
     }
 
+    // shop_category_overrides: public read, admin-only write
+    match /shop_category_overrides/{catId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
     // shop_custom_products: public read, admin-only write
     match /shop_custom_products/{productId} {
       allow read: if true;
