@@ -10,6 +10,7 @@ export interface ShopCategory {
   image?: string;
   productCount?: number;
   color?: string;
+  priority?: number;
 }
 
 export interface ProductVariant {

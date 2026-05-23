@@ -114,6 +114,16 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     
     const combined = [...mergedHardcoded, ...customCategories.filter(c => !existingSlugs.has(c.slug))];
     
+    // Sort categories by priority descending, then by name
+    combined.sort((a, b) => {
+      const priorityA = a.priority || 0;
+      const priorityB = b.priority || 0;
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    
     return combined.map(cat => {
       if (cat.image) return cat;
       const firstProduct = products.find(p => p.categorySlug === cat.slug && p.images && p.images.length > 0);

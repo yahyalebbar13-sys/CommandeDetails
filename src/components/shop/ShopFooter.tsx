@@ -35,7 +35,7 @@ const BOUTIQUE_LINKS = [
     label: "Accessoires Couture",
     href: "/shop/categories/accessoires-couture",
   },
-  { label: "Voir tout →", href: "/shop/boutique", highlight: true },
+  { label: "Voir tout →", href: "/shop/categories", highlight: true },
 ];
 
 const SERVICE_LINKS = [

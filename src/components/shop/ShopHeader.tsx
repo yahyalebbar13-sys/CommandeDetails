@@ -26,7 +26,7 @@ interface NavLink {
 
 const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
-  { labelKey: "nav_shop", href: "/shop/boutique" },
+  { labelKey: "nav_shop", href: "/shop/categories" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
@@ -226,7 +226,7 @@ export default function ShopHeader() {
                         {/* View all */}
                         <div className="col-span-3 pt-2 mt-1 border-t border-gray-100">
                           <Link
-                            href="/shop/boutique"
+                            href="/shop/categories"
                             onClick={() => setIsCategoriesOpen(false)}
                             className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
                             style={{ backgroundColor: "#C8102E" }}
@@ -447,7 +447,7 @@ export default function ShopHeader() {
                       </Link>
                     ))}
                     <Link
-                      href="/shop/boutique"
+                      href="/shop/categories"
                       onClick={() => setIsMobileMenuOpen(false)}
                       className="flex items-center gap-2 mx-5 mt-2 mb-1 py-2 px-3 rounded-lg text-sm font-semibold text-[#C8102E] bg-red-50 hover:bg-red-100 transition-colors"
                     >

@@ -1108,19 +1108,20 @@ function CommandesView({ orders: initialOrders }: { orders: ShopOrder[] }) {
 
 // ─── Modal: Éditer Catégorie ────────────────────────────────────────────────
 function EditCategorieModal({
-  cat,
+  category,
   onClose,
   onUpdated,
 }: {
-  cat: { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; isCustom?: boolean };
+  category: { id: string; slug: string; name: string; image?: string; description?: string; color?: string; priority?: number };
   onClose: () => void;
-  onUpdated: (updated: any) => void;
+  onUpdated: (c: any) => void;
 }) {
   const [form, setForm] = useState({
-    name: cat.name || '',
-    image: (cat.image as string) || '',
-    description: (cat.description as string) || '',
-    color: cat.color || '#C8102E',
+    name: category.name || '',
+    image: category.image || '',
+    description: category.description || '',
+    color: category.color || '#C8102E',
+    priority: category.priority?.toString() || '0',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1135,15 +1136,15 @@ function EditCategorieModal({
         image: form.image.trim() || null,
         description: form.description.trim() || null,
         color: form.color,
+        priority: parseInt(form.priority) || 0,
       };
-      if (cat.isCustom) {
-        // Update custom category document
-        await updateDoc(doc(db, 'shop_custom_categories', cat.id), update);
+      
+      if (category.id.startsWith('cat_')) {
+        await updateDoc(doc(db, 'shop_custom_categories', category.id), update);
       } else {
-        // Save override for hardcoded categories
-        await setDoc(doc(db, 'shop_category_overrides', cat.slug), { ...update, slug: cat.slug }, { merge: true });
+        await setDoc(doc(db, 'shop_category_overrides', category.slug), { ...update, slug: category.slug }, { merge: true });
       }
-      onUpdated({ ...cat, ...update });
+      onUpdated({ ...category, ...update });
     } catch (err: any) {
       setError('Erreur: ' + err.message);
     } finally {
@@ -1157,7 +1158,7 @@ function EditCategorieModal({
       <div className="relative bg-[#1A1A1A] rounded-2xl border border-white/10 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1A1A1A]">
           <h2 className="text-white font-bold text-base flex items-center gap-2">
-            <Pencil className="w-4 h-4 text-[#D4A843]" /> Modifier « {cat.name} »
+            <Pencil className="w-4 h-4 text-[#D4A843]" /> Modifier « {category.name} »
           </h2>
           <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all">
             <X className="w-4 h-4" />
@@ -1171,14 +1172,39 @@ function EditCategorieModal({
             </div>
           )}
 
-          {/* Nom */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom *</label>
-            <input
-              type="text" value={form.name}
-              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
-            />
+          {/* Nom, Couleur, Priorité */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5 sm:col-span-1">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Priorité (Tri)</label>
+              <input
+                type="number"
+                value={form.priority}
+                onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}
+                placeholder="Ex: 100"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleur d'accent</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
+                  className="w-10 h-10 p-0 border-0 rounded bg-transparent cursor-pointer"
+                />
+                <span className="text-gray-400 text-sm font-mono">{form.color.toUpperCase()}</span>
+              </div>
+            </div>
           </div>
 
           {/* Photo */}
@@ -1200,19 +1226,6 @@ function EditCategorieModal({
               className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600 resize-none"
             />
           </div>
-
-          {/* Couleur */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleur accent</label>
-            <div className="flex gap-3 items-center">
-              <input
-                type="color" value={form.color}
-                onChange={e => setForm(p => ({ ...p, color: e.target.value }))}
-                className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
-              />
-              <span className="text-gray-400 text-sm font-mono">{form.color}</span>
-            </div>
-          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-white/10 flex gap-3 sticky bottom-0 bg-[#1A1A1A]">
@@ -1232,7 +1245,7 @@ function EditCategorieModal({
 
 // ─── Categories View ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 function CategoriesView() {
-  type CatItem = { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; isCustom: boolean };
+  type CatItem = { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean };
   const [customCats, setCustomCats] = useState<CatItem[]>([]);
   const [overrides, setOverrides] = useState<Record<string, Partial<CatItem>>>({});
   const [loading, setLoading] = useState(true);
@@ -1259,7 +1272,7 @@ function CategoriesView() {
       ...(overrides[c.slug] || {}),
     })),
     ...customCats,
-  ];
+  ].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   return (
     <div className="space-y-5 pb-24 md:pb-0">
@@ -1311,7 +1324,7 @@ function CategoriesView() {
                 <p className="text-white font-semibold text-sm">{cat.name}</p>
                 <p className="text-gray-500 text-xs mt-1 line-clamp-2">{cat.description || 'Aucune description'}</p>
                 <div className="flex items-center justify-between mt-3">
-                  <p className="text-gray-600 text-[10px] font-mono">/{cat.slug}</p>
+                  <p className="text-gray-600 text-[10px] font-mono">/{cat.slug} · Prio: {cat.priority || 0}</p>
                   <div className="flex items-center gap-2">
                     <a href={`/shop/categorie/${cat.slug}`} target="_blank" className="text-[10px] text-[#D4A843] hover:underline">Voir →</a>
                     <button
@@ -1337,7 +1350,7 @@ function CategoriesView() {
 
       {editingCat && (
         <EditCategorieModal
-          cat={editingCat}
+          category={editingCat}
           onClose={() => setEditingCat(null)}
           onUpdated={updated => {
             if (updated.isCustom) {
@@ -1915,8 +1928,8 @@ function ProduitsView() {
           className="px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/10 text-gray-200 text-sm focus:outline-none focus:border-[#C8102E]/50 transition-colors appearance-none"
         >
           <option value="all">Toutes les catégories</option>
-          {SHOP_CATEGORIES.map(c => (
-            <option key={c.slug} value={c.slug}>{c.icon} {c.name}</option>
+          {allCategoriesLocal.map(c => (
+            <option key={c.slug} value={c.slug}>{c.icon || ''} {c.name}</option>
           ))}
         </select>
       </div>
@@ -2091,11 +2104,6 @@ function ProduitsView() {
                                 ? `bg-${color}-500/20 text-${color}-400 border-${color}-500/30`
                                 : 'bg-white/5 text-gray-500 border-white/10'
                             }`}
-                            style={
-                              (editForm as any)[key]
-                                ? { background: `var(--tw-${color}-bg, rgba(200,16,46,0.15))`, color: `var(--tw-${color}-text, #f87171)`, borderColor: `var(--tw-${color}-border, rgba(200,16,46,0.3))` }
-                                : {}
-                            }
                           >
                             {label}
                           </button>
@@ -2389,9 +2397,9 @@ function NouvelleCategorieModal({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated: (c: { id: string; slug: string; name: string; image?: string; description?: string; color?: string }) => void;
+  onCreated: (c: { id: string; slug: string; name: string; image?: string; description?: string; color?: string; priority?: number }) => void;
 }) {
-  const [form, setForm] = useState({ name: '', image: '', description: '', color: '#C8102E' });
+  const [form, setForm] = useState({ name: '', image: '', description: '', color: '#C8102E', priority: '0' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -2402,7 +2410,7 @@ function NouvelleCategorieModal({
     try {
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const id = `cat_${slug}_${Date.now()}`;
-      const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color };
+      const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color, priority: parseInt(form.priority) || 0 };
       await setDoc(doc(db, 'shop_custom_categories', id), cat);
       onCreated(cat as any);
     } catch (err: any) {
@@ -2431,15 +2439,26 @@ function NouvelleCategorieModal({
             </div>
           )}
 
-          {/* Nom */}
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom de la catégorie *</label>
-            <input
-              type="text" value={form.name}
-              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-              placeholder="Ex: Boutons Pression"
-              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-            />
+          {/* Nom & Priorité */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom de la catégorie *</label>
+              <input
+                type="text" value={form.name}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="Ex: Boutons Pression"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Priorité (Tri)</label>
+              <input
+                type="number" value={form.priority}
+                onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}
+                placeholder="Ex: 100"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+              />
+            </div>
           </div>
 
           {/* Photo URL */}

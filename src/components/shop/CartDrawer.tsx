@@ -244,7 +244,7 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
       </div>
 
       <Link
-        href="/shop/boutique"
+        href="/shop/categories"
         onClick={onClose}
         className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] shadow-lg shadow-red-200"
         style={{ backgroundColor: "#C8102E" }}
@@ -388,7 +388,7 @@ export default function CartDrawer() {
 
               {/* Continue shopping link */}
               <Link
-                href="/shop/boutique"
+                href="/shop/categories"
                 onClick={closeCart}
                 className="flex items-center gap-1.5 text-xs font-medium mt-3 mb-2 py-2.5 px-3 rounded-xl border border-dashed border-gray-200 text-gray-400 hover:text-[#C8102E] hover:border-[#C8102E]/30 hover:bg-red-50/50 transition-all"
               >
@@ -447,6 +447,15 @@ export default function CartDrawer() {
                 </div>
               </div>
 
+              {/* Aller au panier CTA */}
+              <Link
+                href="/shop/panier"
+                onClick={closeCart}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-sm transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-[0.98]"
+              >
+                Aller au panier
+              </Link>
+              
               {/* Commander CTA */}
               <Link
                 href="/shop/checkout"
