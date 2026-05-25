@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive
 } from 'lucide-react';
 import { exportFacturePDF } from '@/lib/pdf-export';
 import { isZipperCategory } from '@/lib/constants';
@@ -30,6 +30,7 @@ interface FacturesViewProps {
   setSelectedFactureId: (id: string | null) => void;
   onNavigateToCategory: (categoryName: string) => void;
   onBack?: () => void;
+  onPassToStock?: (factureId: string) => void;
 }
 
 export default function FacturesView({ 
@@ -39,7 +40,8 @@ export default function FacturesView({
   selectedFactureId, 
   setSelectedFactureId,
   onNavigateToCategory,
-  onBack
+  onBack,
+  onPassToStock,
 }: FacturesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -705,6 +707,27 @@ export default function FacturesView({
                 </div>
               )}
             </div>
+
+            {/* Bouton Enregistrer en Stock */}
+            {onPassToStock && f.arrivalDate && !f.stockEntryDate && (
+              <div className="mt-4 pt-3 border-t border-emerald-100" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={e => { e.stopPropagation(); onPassToStock(f.id); }}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95"
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  → Enregistrer en Stock
+                </button>
+              </div>
+            )}
+            {f.stockEntryDate && (
+              <div className="mt-4 pt-3 border-t border-stone-100">
+                <div className="flex items-center gap-2 text-emerald-600">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">En stock depuis {f.stockEntryDate}</span>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         

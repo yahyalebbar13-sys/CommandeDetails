@@ -115,7 +115,7 @@ export default function StockSaleFlow({
 
   // ── Actions ──
   const openAddModal = (item: StockItem) => {
-    setAddModal({ open: true, item, qty: 1, unitPrice: item.sellingPrice || item.purchasePricePerUnit });
+    setAddModal({ open: true, item, qty: 1, unitPrice: item.sellingPrice || 0 });
   };
 
   const addToCart = () => {
@@ -498,12 +498,10 @@ export default function StockSaleFlow({
                           <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">Prix ?</span>
                         )}
                         <button
-                          onClick={() => hasPrice && openAddModal(item)}
-                          disabled={!hasPrice}
+                          onClick={() => openAddModal(item)}
                           className={`mt-1 w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm transition-all ${
                             inCart ? 'bg-emerald-500 text-white' :
-                            hasPrice ? 'bg-violet-100 hover:bg-violet-200 text-violet-700' :
-                            'bg-stone-100 text-stone-300 cursor-not-allowed'
+                            'bg-violet-100 hover:bg-violet-200 text-violet-700'
                           }`}
                         >
                           {inCart ? inCart.qty : <Plus className="w-3.5 h-3.5" />}

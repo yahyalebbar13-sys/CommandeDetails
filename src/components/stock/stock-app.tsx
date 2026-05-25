@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell,
-  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText,
+  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2,
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -22,10 +22,11 @@ import StockSales       from './stock-sales';
 import StockClients     from './stock-clients';
 import StockOrders      from './stock-orders';
 import StockInvoices    from './stock-invoices';
+import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView         from '@/components/auth-view';
 import { Button }       from '@/components/ui/button';
 
-type StockView = 'dashboard' | 'sale' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts';
+type StockView = 'dashboard' | 'sale' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 export function computeStockItems(
@@ -107,6 +108,7 @@ export default function StockApp() {
   const ordersRef        = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'saleOrders'),        [firestore, user]);
   const invoicesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'invoices'),          [firestore, user]);
   const paymentsRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'clientPayments'),    [firestore, user]);
+  const facturesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'factures'),          [firestore, user]);
 
   const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
   const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
@@ -117,6 +119,7 @@ export default function StockApp() {
   const { data: rawOrders,      isLoading: loadingOrd  } = useCollection(ordersRef);
   const { data: rawInvoices,    isLoading: loadingInv  } = useCollection(invoicesRef);
   const { data: rawPayments,    isLoading: loadingPay  } = useCollection(paymentsRef);
+  const { data: rawFactures } = useCollection(facturesRef);
 
   const articles        = rawArticles    || [];
   const categories      = rawCategories  || [];
@@ -127,6 +130,7 @@ export default function StockApp() {
   const orders          = (rawOrders     || []) as SaleOrder[];
   const invoices        = (rawInvoices   || []) as Invoice[];
   const payments        = (rawPayments   || []) as ClientPayment[];
+  const factures        = rawFactures    || [];
 
   const stockItems = useMemo(() =>
     computeStockItems(articles, movements, categories),
@@ -135,6 +139,10 @@ export default function StockApp() {
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
+  const pendingArrivals = factures.filter((f: any) => f.arrivalDate && !f.stockEntryDate).length;
+
+  // Pass-to-stock modal (depuis onglet Arrivages)
+  const [passToStockId, setPassToStockId] = useState<string | null>(null);
 
   const isLoading = isUserLoading || loadingArt || loadingCat || loadingMov || loadingSales;
 
@@ -269,6 +277,7 @@ export default function StockApp() {
   const navItems: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string }[] = [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard },
     { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet' },
+    { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber' },
     { id: 'clients',   label: 'Clients',       icon: Users },
     { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
     { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices },
@@ -304,15 +313,17 @@ export default function StockApp() {
                 className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                   activeView === id
                     ? color === 'violet' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
+                    : color === 'amber' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
                     : 'bg-stone-900 text-white shadow-md'
                     : color === 'violet' ? 'text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100'
+                    : color === 'amber' ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
                     : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
                 }`}>
                 <Icon className="w-3.5 h-3.5" />
                 {label}
                 {badge != null && badge > 0 && (
                   <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[7px] font-black flex items-center justify-center ${
-                    id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : 'bg-violet-500'
+                    id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'arrivals' ? 'bg-amber-500' : 'bg-violet-500'
                   }`}>{badge > 9 ? '9+' : badge}</span>
                 )}
               </button>
@@ -423,6 +434,87 @@ export default function StockApp() {
             {activeView === 'alerts' && (
               <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={movements} onNavigate={setActiveView} onAddMovement={handleAddMovement} />
             )}
+            {activeView === 'arrivals' && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {/* Header */}
+                <div className="bg-stone-900 rounded-3xl p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                  <div className="relative z-10">
+                    <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique Import</p>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Arrivages <span className="text-amber-500">StockVue</span></h2>
+                    <p className="text-stone-400 text-sm mt-2">{factures.length} dossier(s) · {pendingArrivals} en attente d'entrée en stock</p>
+                  </div>
+                </div>
+                {/* Liste arrivages */}
+                {factures.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-16 text-center border border-stone-100">
+                    <Anchor className="w-12 h-12 text-stone-200 mx-auto mb-4" />
+                    <p className="text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucun arrivage dans StockVue</p>
+                    <p className="text-stone-200 text-[9px] font-bold mt-1">Déclarez un dossier dans StockVue → Arrivages</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {[...factures].sort((a: any, b: any) => (b.arrivalDate || '').localeCompare(a.arrivalDate || '')).map((f: any) => {
+                      const isInStock = !!f.stockEntryDate;
+                      const artCount  = articles.filter((a: any) => a.factureId === f.id).length;
+                      return (
+                        <div key={f.id} className={`bg-white rounded-2xl border-2 p-6 flex flex-col gap-4 transition-all ${
+                          isInStock ? 'border-emerald-200' : f.arrivalDate ? 'border-amber-200' : 'border-stone-100'
+                        }`}>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || '—'}</p>
+                              <h3 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
+                            </div>
+                            {isInStock ? (
+                              <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
+                                <CheckCircle2 className="w-3 h-3" /> En stock
+                              </span>
+                            ) : f.arrivalDate ? (
+                              <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
+                                <Anchor className="w-3 h-3" /> Arrivé
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 bg-stone-100 text-stone-500 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
+                                En transit
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="bg-stone-50 rounded-xl p-2">
+                              <p className="text-[8px] font-black text-stone-400 uppercase">Arrivée</p>
+                              <p className="text-[10px] font-black text-stone-700">{f.arrivalDate || '—'}</p>
+                            </div>
+                            <div className="bg-stone-50 rounded-xl p-2">
+                              <p className="text-[8px] font-black text-stone-400 uppercase">Articles</p>
+                              <p className="text-[10px] font-black text-stone-700">{artCount}</p>
+                            </div>
+                            <div className="bg-stone-50 rounded-xl p-2">
+                              <p className="text-[8px] font-black text-stone-400 uppercase">Stock le</p>
+                              <p className="text-[10px] font-black text-emerald-600">{f.stockEntryDate || '—'}</p>
+                            </div>
+                          </div>
+                          {!isInStock && f.arrivalDate && (
+                            <button
+                              onClick={() => setPassToStockId(f.id)}
+                              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-500/20 hover:scale-[1.02] active:scale-95"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                              Enregistrer en Stock
+                            </button>
+                          )}
+                          {isInStock && (
+                            <div className="flex items-center gap-2 justify-center text-emerald-600 text-[9px] font-black uppercase">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Entrée validée le {f.stockEntryDate}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -439,6 +531,17 @@ export default function StockApp() {
           </div>
         </div>
       </footer>
+
+      {/* ── Modal Entrée en Stock (depuis onglet Arrivages) ── */}
+      {passToStockId && (
+        <PassToStockModal
+          open={!!passToStockId}
+          onOpenChange={open => !open && setPassToStockId(null)}
+          facture={factures.find((f: any) => f.id === passToStockId)}
+          associatedArticles={articles.filter((a: any) => a.factureId === passToStockId)}
+          subCategories={categories}
+        />
+      )}
     </div>
   );
 }
