@@ -30,9 +30,7 @@ export function computeStockItems(
     const parts: string[] = [];
     if (a.zipperType) parts.push(a.zipperType);
     if (a.slider)     parts.push(a.slider);
-    if (a.color)      parts.push(a.color.toUpperCase());
-    if (a.size)       parts.push(a.size);
-    const productName = parts.length > 0 ? parts.join(' - ') : (a.name || a.specs || 'Produit');
+    const productName = parts.length > 0 ? parts.join(' ') : (a.name || a.specs || a.categoryId || 'Produit');
 
     const artMovements = movements.filter(m => m.articleId === a.id);
     const mouvIN  = artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0);

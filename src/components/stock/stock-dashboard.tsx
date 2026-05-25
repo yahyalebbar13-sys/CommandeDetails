@@ -5,14 +5,15 @@ import { TrendingUp, Boxes, ArrowLeftRight, Bell, DollarSign, ArrowRight, Packag
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import type { StockMovement, StockItem } from '@/lib/types';
+import type { StockMovement, StockItem, Sale } from '@/lib/types';
 
-type StockView = 'dashboard' | 'inventory' | 'movements' | 'alerts';
+type StockView = 'dashboard' | 'pos' | 'inventory' | 'sales' | 'movements' | 'alerts';
 
 interface StockDashboardProps {
   stockItems: StockItem[];
   movements: StockMovement[];
   categories: any[];
+  sales: Sale[];
   onNavigate: (v: StockView) => void;
 }
 
@@ -21,14 +22,21 @@ const EMERALD_SHADES = ['#059669','#10b981','#34d399','#6ee7b7','#a7f3d0','#d1fa
 const fmt$ = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const fmtN = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 
-export default function StockDashboard({ stockItems, movements, categories, onNavigate }: StockDashboardProps) {
+export default function StockDashboard({ stockItems, movements, categories, sales, onNavigate }: StockDashboardProps) {
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
-  const totalValue      = useMemo(() => stockItems.reduce((s, i) => s + i.totalValue, 0), [stockItems]);
-  const totalRefs       = stockItems.length;
-  const movementsMonth  = useMemo(() => movements.filter(m => m.date?.startsWith(currentMonth)).length, [movements, currentMonth]);
-  const alertCount      = useMemo(() => stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length, [stockItems]);
+  const totalValue     = useMemo(() => stockItems.reduce((s, i) => s + i.totalValue, 0), [stockItems]);
+  const totalRefs      = stockItems.length;
+  const movementsMonth = useMemo(() => movements.filter(m => m.date?.startsWith(currentMonth)).length, [movements, currentMonth]);
+  const alertCount     = useMemo(() => stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length, [stockItems]);
+
+  // Stats ventes
+  const caMonth   = useMemo(() => sales.filter(s => s.date?.startsWith(currentMonth)).reduce((t, s) => t + s.totalAmount, 0), [sales, currentMonth]);
+  const caToday   = useMemo(() => sales.filter(s => s.date === todayStr).reduce((t, s) => t + s.totalAmount, 0), [sales, todayStr]);
+  const nbSalesToday = useMemo(() => sales.filter(s => s.date === todayStr).length, [sales, todayStr]);
+  const marginMonth  = useMemo(() => sales.filter(s => s.date?.startsWith(currentMonth)).reduce((t, s) => t + s.totalMargin, 0), [sales, currentMonth]);
 
   // Top 10 catégories par valeur
   const catData = useMemo(() => {
@@ -69,22 +77,26 @@ export default function StockDashboard({ stockItems, movements, categories, onNa
       label: 'Valeur Totale Stock', value: fmt$(totalValue),
       icon: DollarSign, color: 'emerald',
       sub: `${totalRefs} référence${totalRefs > 1 ? 's' : ''}`,
+      onClick: () => onNavigate('inventory'),
     },
     {
-      label: 'Références en Stock', value: fmtN(totalRefs),
-      icon: Boxes, color: 'blue',
-      sub: `${stockItems.filter(i => i.currentQty > 0).length} avec stock > 0`,
+      label: "CA aujourd'hui", value: fmt$(caToday),
+      icon: TrendingUp, color: 'violet',
+      sub: `${nbSalesToday} vente${nbSalesToday > 1 ? 's' : ''} · ${today.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`,
+      onClick: () => onNavigate('sales'),
     },
     {
-      label: 'Mouvements ce mois', value: fmtN(movementsMonth),
-      icon: ArrowLeftRight, color: 'violet',
-      sub: currentMonth,
+      label: 'CA ce mois', value: fmt$(caMonth),
+      icon: ArrowLeftRight, color: 'blue',
+      sub: `Marge : ${fmt$(marginMonth)}`,
+      onClick: () => onNavigate('sales'),
     },
     {
       label: 'Alertes actives', value: fmtN(alertCount),
       icon: Bell, color: alertCount > 0 ? 'red' : 'emerald',
       sub: alertCount > 0 ? 'Stock bas ou rupture' : 'Tout est OK',
       urgent: alertCount > 0,
+      onClick: () => onNavigate('alerts'),
     },
   ];
 
@@ -108,8 +120,13 @@ export default function StockDashboard({ stockItems, movements, categories, onNa
 
       {/* ── KPIs ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map(({ label, value, icon: Icon, color, sub, urgent }) => (
-          <Card key={label} className={`border-none shadow-xl rounded-2xl overflow-hidden ${urgent ? 'ring-2 ring-red-400 ring-offset-2' : ''}`}>
+        {kpis.map(({ label, value, icon: Icon, color, sub, urgent, onClick }) => (
+          <Card key={label}
+            onClick={onClick}
+            className={`border-none shadow-xl rounded-2xl overflow-hidden transition-all ${
+              onClick ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-0.5' : ''
+            } ${urgent ? 'ring-2 ring-red-400 ring-offset-2' : ''}`}
+          >
             <div className={`h-1.5 bg-${color}-500`} />
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">

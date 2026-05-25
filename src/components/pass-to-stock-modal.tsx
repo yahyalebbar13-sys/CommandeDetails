@@ -96,9 +96,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
         const parts: string[] = [];
         if (article.zipperType) parts.push(article.zipperType);
         if (article.slider)     parts.push(article.slider);
-        if (article.color)      parts.push(article.color.toUpperCase());
-        if (article.size)       parts.push(article.size);
-        const productName = parts.length > 0 ? parts.join(' - ') : (article.name || article.specs || 'Produit');
+        const productName = parts.length > 0 ? parts.join(' ') : (article.name || article.specs || article.categoryId || 'Produit');
 
         addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
           articleId:    article.id,

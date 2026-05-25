@@ -97,9 +97,7 @@ export default function StockMovementModal({
     const parts: string[] = [];
     if (selectedArticle.zipperType) parts.push(selectedArticle.zipperType);
     if (selectedArticle.slider)     parts.push(selectedArticle.slider);
-    if (selectedArticle.color)      parts.push(selectedArticle.color.toUpperCase());
-    if (selectedArticle.size)       parts.push(selectedArticle.size);
-    const productName = parts.length > 0 ? parts.join(' - ') : (selectedArticle.name || 'Produit');
+    const productName = parts.length > 0 ? parts.join(' ') : (selectedArticle.name || selectedArticle.categoryId || 'Produit');
 
     await onSubmit({
       articleId:    form.articleId,
