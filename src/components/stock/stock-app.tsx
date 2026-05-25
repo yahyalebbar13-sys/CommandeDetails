@@ -1,22 +1,31 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Boxes, ShoppingCart, TrendingUp } from 'lucide-react';
+import {
+  Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell,
+  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText,
+} from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { StockMovement, StockItem, Sale } from '@/lib/types';
-import StockDashboard from './stock-dashboard';
-import StockInventory from './stock-inventory';
-import StockMovements from './stock-movements';
-import StockAlerts from './stock-alerts';
-import StockPOS from './stock-pos';
-import StockSales from './stock-sales';
-import AuthView from '@/components/auth-view';
-import { Button } from '@/components/ui/button';
+import type {
+  StockMovement, StockItem, Sale,
+  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment,
+} from '@/lib/types';
+import StockDashboard   from './stock-dashboard';
+import StockInventory   from './stock-inventory';
+import StockMovements   from './stock-movements';
+import StockAlerts      from './stock-alerts';
+import StockSaleFlow    from './stock-sale-flow';
+import StockSales       from './stock-sales';
+import StockClients     from './stock-clients';
+import StockOrders      from './stock-orders';
+import StockInvoices    from './stock-invoices';
+import AuthView         from '@/components/auth-view';
+import { Button }       from '@/components/ui/button';
 
-type StockView = 'dashboard' | 'pos' | 'inventory' | 'sales' | 'movements' | 'alerts';
+type StockView = 'dashboard' | 'sale' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 export function computeStockItems(
@@ -41,7 +50,6 @@ export function computeStockItems(
     const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
     const price      = Number(a.purchasePricePerUnit) || 0;
     const sellPrice  = Number(a.sellingPrice) || undefined;
-
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
     return {
@@ -68,9 +76,7 @@ export function computeStockItems(
 
 // ─── Ajout mouvement ──────────────────────────────────────────────────────────
 export async function addStockMovement(
-  firestore: any,
-  uid: string,
-  movement: Omit<StockMovement, 'id' | 'createdAt'>
+  firestore: any, uid: string, movement: Omit<StockMovement, 'id' | 'createdAt'>
 ) {
   await addDoc(collection(firestore, 'users', uid, 'stockMovements'), {
     ...movement,
@@ -85,21 +91,36 @@ export default function StockApp() {
   const { toast } = useToast();
   const [activeView, setActiveView] = useState<StockView>('dashboard');
 
-  // Collections Firestore
-  const articlesRef   = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'),        [firestore, user]);
-  const categoriesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'),       [firestore, user]);
-  const movementsRef  = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'stockMovements'),   [firestore, user]);
-  const salesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'sales'),            [firestore, user]);
+  // ── Collections Firestore ──────────────────────────────────────────────────
+  const articlesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'),         [firestore, user]);
+  const categoriesRef    = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'),        [firestore, user]);
+  const genCatsRef       = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'generalCategories'), [firestore, user]);
+  const movementsRef     = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'stockMovements'),    [firestore, user]);
+  const salesRef         = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'sales'),             [firestore, user]);
+  const clientsRef       = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'clients'),           [firestore, user]);
+  const ordersRef        = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'saleOrders'),        [firestore, user]);
+  const invoicesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'invoices'),          [firestore, user]);
+  const paymentsRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'clientPayments'),    [firestore, user]);
 
-  const { data: rawArticles,   isLoading: loadingArt } = useCollection(articlesRef);
-  const { data: rawCategories, isLoading: loadingCat } = useCollection(categoriesRef);
-  const { data: rawMovements,  isLoading: loadingMov } = useCollection(movementsRef);
-  const { data: rawSales,      isLoading: loadingSales } = useCollection(salesRef);
+  const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
+  const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
+  const { data: rawGenCats,     isLoading: loadingGC   } = useCollection(genCatsRef);
+  const { data: rawMovements,   isLoading: loadingMov  } = useCollection(movementsRef);
+  const { data: rawSales,       isLoading: loadingSales } = useCollection(salesRef);
+  const { data: rawClients,     isLoading: loadingCli  } = useCollection(clientsRef);
+  const { data: rawOrders,      isLoading: loadingOrd  } = useCollection(ordersRef);
+  const { data: rawInvoices,    isLoading: loadingInv  } = useCollection(invoicesRef);
+  const { data: rawPayments,    isLoading: loadingPay  } = useCollection(paymentsRef);
 
-  const articles   = rawArticles   || [];
-  const categories = rawCategories || [];
-  const movements  = (rawMovements || []) as StockMovement[];
-  const sales      = (rawSales    || []) as Sale[];
+  const articles        = rawArticles    || [];
+  const categories      = rawCategories  || [];
+  const generalCategories = rawGenCats   || [];
+  const movements       = (rawMovements  || []) as StockMovement[];
+  const sales           = (rawSales      || []) as Sale[];
+  const clients         = (rawClients    || []) as Client[];
+  const orders          = (rawOrders     || []) as SaleOrder[];
+  const invoices        = (rawInvoices   || []) as Invoice[];
+  const payments        = (rawPayments   || []) as ClientPayment[];
 
   const stockItems = useMemo(() =>
     computeStockItems(articles, movements, categories),
@@ -107,10 +128,7 @@ export default function StockApp() {
   );
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
-
-  // CA de ce mois pour badge
-  const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-  const salesThisMonth = sales.filter(s => s.date?.startsWith(currentMonth)).length;
+  const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
 
   const isLoading = isUserLoading || loadingArt || loadingCat || loadingMov || loadingSales;
 
@@ -124,44 +142,117 @@ export default function StockApp() {
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
       });
     } catch {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible d\'enregistrer le mouvement.' });
+      toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'enregistrer le mouvement." });
     }
   }, [user, firestore, toast]);
 
+  // POS rapide (ancienne vente)
   const handleValidateSale = useCallback(async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
-
-    // 1. Créer la vente
-    await addDoc(collection(firestore, 'users', user.uid, 'sales'), {
-      ...sale,
-      createdAt: serverTimestamp(),
-    });
-
-    // 2. Créer un mouvement OUT pour chaque article vendu
+    await addDoc(collection(firestore, 'users', user.uid, 'sales'), { ...sale, createdAt: serverTimestamp() });
     for (const item of sale.items) {
       await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
-        articleId:    item.articleId,
-        categoryId:   item.categoryId,
-        productName:  item.productName,
-        color:        item.color || null,
-        size:         item.size  || null,
-        unitOfMeasure: item.unitOfMeasure,
-        type:         'OUT',
-        reason:       'VENTE',
-        quantity:     item.qty,
-        date:         sale.date,
-        notes:        sale.clientName ? `Vente à ${sale.clientName}` : 'Vente directe',
-        createdAt:    serverTimestamp(),
+        articleId: item.articleId, categoryId: item.categoryId,
+        productName: item.productName, color: item.color || null, size: item.size || null,
+        unitOfMeasure: item.unitOfMeasure, type: 'OUT', reason: 'VENTE',
+        quantity: item.qty, date: sale.date,
+        notes: sale.clientName ? `Vente à ${sale.clientName}` : 'Vente directe',
+        createdAt: serverTimestamp(),
       });
     }
-
-    toast({
-      title: '✅ Vente enregistrée !',
-      description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)`,
-    });
+    toast({ title: '✅ Vente enregistrée !', description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
   }, [user, firestore, toast]);
 
-  // Auth guard
+  // ── Clients ──────────────────────────────────────────────────────────────
+  const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
+    if (!user || !firestore) throw new Error('Not authenticated');
+    const ref = await addDoc(collection(firestore, 'users', user.uid, 'clients'), { ...data, createdAt: serverTimestamp() });
+    toast({ title: '✅ Client créé', description: data.name });
+    return { id: ref.id, ...data };
+  }, [user, firestore, toast]);
+
+  const handleUpdateClient = useCallback(async (id: string, data: Partial<Client>) => {
+    if (!user || !firestore) return;
+    await updateDoc(doc(firestore, 'users', user.uid, 'clients', id), data);
+    toast({ title: 'Client mis à jour' });
+  }, [user, firestore, toast]);
+
+  // ── Bons de commande ──────────────────────────────────────────────────────
+  const handleCreateOrder = useCallback(async (order: Omit<SaleOrder, 'id' | 'createdAt'>): Promise<string> => {
+    if (!user || !firestore) throw new Error('Not authenticated');
+    const ref = await addDoc(collection(firestore, 'users', user.uid, 'saleOrders'), { ...order, createdAt: serverTimestamp() });
+    toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${order.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
+    return ref.id;
+  }, [user, firestore, toast]);
+
+  const handleUpdateOrderStatus = useCallback(async (id: string, status: SaleOrderStatus) => {
+    if (!user || !firestore) return;
+    await updateDoc(doc(firestore, 'users', user.uid, 'saleOrders', id), { status });
+  }, [user, firestore]);
+
+  const handleConvertToInvoice = useCallback(async (order: SaleOrder) => {
+    if (!user || !firestore) return;
+    const invRef = await addDoc(collection(firestore, 'users', user.uid, 'invoices'), {
+      clientId: order.clientId,
+      clientName: order.clientName,
+      orderId: order.id,
+      items: order.items,
+      totalAmount: order.totalAmount,
+      discount: order.discount,
+      totalAfterDiscount: order.totalAfterDiscount,
+      paidAmount: 0,
+      remainingBalance: order.totalAfterDiscount,
+      status: 'UNPAID',
+      date: new Date().toISOString().split('T')[0],
+      notes: order.notes,
+      createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(firestore, 'users', user.uid, 'saleOrders', order.id), { status: 'INVOICED' });
+    toast({ title: '✅ Facture créée', description: `BC converti en facture` });
+    setActiveView('invoices');
+  }, [user, firestore, toast]);
+
+  // ── Factures ──────────────────────────────────────────────────────────────
+  const handleCreateInvoice = useCallback(async (
+    invoice: Omit<Invoice, 'id' | 'createdAt'>,
+    movementsOut: any[]
+  ) => {
+    if (!user || !firestore) return;
+    await addDoc(collection(firestore, 'users', user.uid, 'invoices'), { ...invoice, createdAt: serverTimestamp() });
+    for (const m of movementsOut) {
+      await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), { ...m, createdAt: serverTimestamp() });
+    }
+    toast({ title: '✅ Facture créée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
+  }, [user, firestore, toast]);
+
+  const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
+    if (!user || !firestore) return;
+    await updateDoc(doc(firestore, 'users', user.uid, 'invoices', id), { status });
+  }, [user, firestore]);
+
+  // ── Paiements clients ─────────────────────────────────────────────────────
+  const handleRecordPayment = useCallback(async (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => {
+    if (!user || !firestore) return;
+    await addDoc(collection(firestore, 'users', user.uid, 'clientPayments'), { ...payment, createdAt: serverTimestamp() });
+
+    // Mettre à jour paidAmount + remainingBalance + status sur la facture
+    if (payment.invoiceId) {
+      const inv = invoices.find(i => i.id === payment.invoiceId);
+      if (inv) {
+        const newPaid = inv.paidAmount + payment.amount;
+        const newBalance = Math.max(0, inv.totalAfterDiscount - newPaid);
+        const newStatus: InvoiceStatus = newBalance === 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
+        await updateDoc(doc(firestore, 'users', user.uid, 'invoices', payment.invoiceId), {
+          paidAmount: newPaid,
+          remainingBalance: newBalance,
+          status: newStatus,
+        });
+      }
+    }
+    toast({ title: '✅ Paiement enregistré', description: `${payment.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} · ${payment.method}` });
+  }, [user, firestore, invoices, toast]);
+
+  // ── Auth guard ────────────────────────────────────────────────────────────
   if (isUserLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#f0faf4]">
       <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
@@ -169,13 +260,16 @@ export default function StockApp() {
   );
   if (!user) return <AuthView />;
 
-  const navItems: { id: StockView; label: string; icon: React.ElementType; badge?: number; highlight?: boolean }[] = [
-    { id: 'dashboard',  label: 'Dashboard',   icon: LayoutDashboard },
-    { id: 'pos',        label: 'Vente',        icon: ShoppingCart, badge: salesThisMonth, highlight: true },
-    { id: 'inventory',  label: 'Inventaire',   icon: Boxes },
-    { id: 'sales',      label: 'CA & Ventes',  icon: TrendingUp },
-    { id: 'movements',  label: 'Mouvements',   icon: ArrowLeftRight },
-    { id: 'alerts',     label: 'Alertes',      icon: Bell, badge: alertCount },
+  const navItems: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string }[] = [
+    { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard },
+    { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet' },
+    { id: 'clients',   label: 'Clients',       icon: Users },
+    { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
+    { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices },
+    { id: 'inventory', label: 'Inventaire',    icon: Boxes },
+    { id: 'analytics', label: 'Analytique',    icon: TrendingUp },
+    { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
+    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ];
 
   return (
@@ -183,54 +277,44 @@ export default function StockApp() {
 
       {/* ── Navbar ── */}
       <nav className="bg-white border-b border-emerald-100 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-[1800px] mx-auto px-6 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center justify-center w-9 h-9 bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/30">
               <Boxes className="w-5 h-5 text-white" />
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-xl font-black tracking-tighter text-stone-900 uppercase">Stock</span>
-              <span className="text-xl font-black tracking-tighter text-emerald-600 uppercase">Manager</span>
-            </div>
-            <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1 ml-2">
+            <span className="text-xl font-black tracking-tighter text-stone-900 uppercase">Stock<span className="text-emerald-600">Manager</span></span>
+            <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">En ligne</span>
+              <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Live</span>
             </div>
           </div>
 
           {/* Nav desktop */}
-          <div className="hidden md:flex items-center gap-1">
-            {navItems.map(({ id, label, icon: Icon, badge, highlight }) => (
-              <button
-                key={id}
-                onClick={() => setActiveView(id)}
-                className={`relative flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+          <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center px-4">
+            {navItems.map(({ id, label, icon: Icon, badge, color }) => (
+              <button key={id} onClick={() => setActiveView(id)}
+                className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                   activeView === id
-                    ? highlight
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30'
-                      : 'bg-stone-900 text-white shadow-md'
-                    : highlight
-                    ? 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
+                    ? color === 'violet' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
+                    : 'bg-stone-900 text-white shadow-md'
+                    : color === 'violet' ? 'text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100'
                     : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
-                }`}
-              >
+                }`}>
                 <Icon className="w-3.5 h-3.5" />
                 {label}
                 {badge != null && badge > 0 && (
-                  <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center ${
-                    id === 'alerts' ? 'bg-red-500' : 'bg-violet-500'
-                  }`}>
-                    {badge > 9 ? '9+' : badge}
-                  </span>
+                  <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[7px] font-black flex items-center justify-center ${
+                    id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : 'bg-violet-500'
+                  }`}>{badge > 9 ? '9+' : badge}</span>
                 )}
               </button>
             ))}
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 text-[9px] font-black text-stone-500 hover:bg-stone-100 uppercase tracking-wider transition-colors">
               ← StockVue
             </a>
@@ -242,24 +326,19 @@ export default function StockApp() {
         </div>
 
         {/* Mobile nav */}
-        <div className="md:hidden flex border-t border-emerald-50 bg-white px-2 py-1 gap-1 overflow-x-auto">
-          {navItems.map(({ id, label, icon: Icon, badge, highlight }) => (
-            <button
-              key={id}
-              onClick={() => setActiveView(id)}
-              className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all ${
+        <div className="lg:hidden flex border-t border-emerald-50 bg-white px-2 py-1 gap-1 overflow-x-auto">
+          {navItems.map(({ id, label, icon: Icon, badge, color }) => (
+            <button key={id} onClick={() => setActiveView(id)}
+              className={`relative flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all ${
                 activeView === id
-                  ? 'bg-emerald-600 text-white'
-                  : highlight
-                  ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                  : 'text-stone-500'
-              }`}
-            >
+                  ? color === 'violet' ? 'bg-violet-600 text-white' : 'bg-stone-900 text-white'
+                  : color === 'violet' ? 'text-violet-700 bg-violet-50 border border-violet-200' : 'text-stone-500'
+              }`}>
               <Icon className="w-3 h-3" />
               {label}
               {badge != null && badge > 0 && (
-                <span className={`w-3.5 h-3.5 rounded-full text-white text-[7px] font-black flex items-center justify-center ml-0.5 ${
-                  id === 'alerts' ? 'bg-red-500' : 'bg-violet-500'
+                <span className={`w-3.5 h-3.5 rounded-full text-white text-[7px] font-black flex items-center justify-center ${
+                  id === 'alerts' ? 'bg-red-500' : 'bg-orange-500'
                 }`}>{badge}</span>
               )}
             </button>
@@ -268,7 +347,7 @@ export default function StockApp() {
       </nav>
 
       {/* ── Content ── */}
-      <main className="flex-grow max-w-[1600px] mx-auto px-4 sm:px-6 py-6 w-full">
+      <main className="flex-grow max-w-[1800px] mx-auto px-4 sm:px-6 py-6 w-full">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <div className="relative">
@@ -282,15 +361,54 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard stockItems={stockItems} movements={movements} categories={categories} onNavigate={setActiveView} />
+              <StockDashboard stockItems={stockItems} movements={movements} categories={categories} sales={sales} onNavigate={setActiveView} />
             )}
-            {activeView === 'pos' && (
-              <StockPOS stockItems={stockItems} categories={categories} onValidateSale={handleValidateSale} />
+            {activeView === 'sale' && (
+              <StockSaleFlow
+                stockItems={stockItems}
+                categories={categories}
+                generalCategories={generalCategories}
+                clients={clients}
+                onCreateOrder={handleCreateOrder}
+                onCreateInvoice={handleCreateInvoice}
+                onCreateClient={handleCreateClient}
+                onNavigate={setActiveView}
+              />
+            )}
+            {activeView === 'clients' && (
+              <StockClients
+                clients={clients}
+                orders={orders}
+                invoices={invoices}
+                payments={payments}
+                onCreateClient={handleCreateClient}
+                onUpdateClient={handleUpdateClient}
+                onNavigate={setActiveView}
+              />
+            )}
+            {activeView === 'orders' && (
+              <StockOrders
+                orders={orders}
+                clients={clients}
+                onUpdateStatus={handleUpdateOrderStatus}
+                onConvertToInvoice={handleConvertToInvoice}
+                onNavigate={setActiveView}
+              />
+            )}
+            {activeView === 'invoices' && (
+              <StockInvoices
+                invoices={invoices}
+                clients={clients}
+                payments={payments}
+                onRecordPayment={handleRecordPayment}
+                onUpdateStatus={handleUpdateInvoiceStatus}
+                onNavigate={setActiveView}
+              />
             )}
             {activeView === 'inventory' && (
               <StockInventory stockItems={stockItems} articles={articles} categories={categories} onAddMovement={handleAddMovement} />
             )}
-            {activeView === 'sales' && (
+            {activeView === 'analytics' && (
               <StockSales sales={sales} onNavigate={setActiveView} />
             )}
             {activeView === 'movements' && (
@@ -305,11 +423,12 @@ export default function StockApp() {
 
       {/* ── Footer ── */}
       <footer className="border-t border-emerald-100 bg-white py-3">
-        <div className="max-w-[1600px] mx-auto px-6 flex flex-wrap justify-between items-center gap-2 text-stone-400 text-[9px] font-black uppercase tracking-[0.15em]">
-          <p>© 2024 STOCK MANAGER — STOCKVUE</p>
+        <div className="max-w-[1800px] mx-auto px-6 flex flex-wrap justify-between items-center gap-2 text-stone-400 text-[9px] font-black uppercase tracking-[0.15em]">
+          <p>© 2025 STOCK MANAGER — BUSINESS EDITION</p>
           <div className="flex gap-4">
             <span>{stockItems.length} Références</span>
-            <span>{sales.length} Ventes</span>
+            <span>{clients.length} Clients</span>
+            <span>{invoices.length} Factures</span>
             <span>{movements.length} Mouvements</span>
           </div>
         </div>

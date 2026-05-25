@@ -113,18 +113,20 @@ export type StockItem = {
   stockEntryDate?: string;
 };
 
-// ── Types de vente ─────────────────────────────────────────────────────────────
+// ── Types de vente (POS rapide) ────────────────────────────────────────────────
 export type SaleItem = {
   articleId: string;
   productName: string;
   color?: string;
   size?: string;
   categoryId: string;
+  generalCategoryId?: string;
   unitOfMeasure: string;
   qty: number;
-  sellingPrice: number;   // prix unitaire au moment de la vente
-  costPrice: number;      // prix d'achat au moment de la vente
-  totalPrice: number;     // qty * sellingPrice
+  unitPrice: number;      // prix unitaire retenu (peut être modifié)
+  sellingPrice: number;   // prix de vente catalogue
+  costPrice: number;      // prix d'achat (pour marge)
+  totalPrice: number;     // qty * unitPrice
   totalCost: number;      // qty * costPrice
   margin: number;         // totalPrice - totalCost
 };
@@ -132,12 +134,86 @@ export type SaleItem = {
 export type Sale = {
   id: string;
   items: SaleItem[];
-  totalAmount: number;    // SUM(items.totalPrice)
-  totalCost: number;      // SUM(items.totalCost)
-  totalMargin: number;    // totalAmount - totalCost
-  date: string;           // YYYY-MM-DD
+  totalAmount: number;
+  totalCost: number;
+  totalMargin: number;
+  date: string;
+  clientId?: string;
   clientName?: string;
   notes?: string;
   createdAt?: any;
 };
 
+// ── Module Commercial ──────────────────────────────────────────────────────────
+export type Client = {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  createdAt?: any;
+};
+
+export type OrderItem = {
+  articleId: string;
+  productName: string;
+  color?: string;
+  size?: string;
+  categoryId: string;
+  generalCategoryId?: string;
+  unitOfMeasure: string;
+  qty: number;
+  unitPrice: number;
+  totalPrice: number;
+};
+
+export type SaleOrderStatus = 'DRAFT' | 'CONFIRMED' | 'INVOICED' | 'CANCELLED';
+
+export type SaleOrder = {
+  id: string;
+  clientId?: string;
+  clientName?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  discount?: number;      // remise en %
+  totalAfterDiscount: number;
+  status: SaleOrderStatus;
+  date: string;
+  notes?: string;
+  createdAt?: any;
+};
+
+export type InvoiceStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'CANCELLED';
+
+export type Invoice = {
+  id: string;
+  invoiceNumber?: string;
+  clientId?: string;
+  clientName?: string;
+  orderId?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  discount?: number;
+  totalAfterDiscount: number;
+  paidAmount: number;
+  remainingBalance: number;
+  status: InvoiceStatus;
+  date: string;
+  dueDate?: string;
+  notes?: string;
+  createdAt?: any;
+};
+
+export type PaymentMethod = 'CASH' | 'VIREMENT' | 'CHEQUE' | 'AUTRE';
+
+export type ClientPayment = {
+  id: string;
+  clientId: string;
+  invoiceId?: string;
+  amount: number;
+  date: string;
+  method: PaymentMethod;
+  notes?: string;
+  createdAt?: any;
+};

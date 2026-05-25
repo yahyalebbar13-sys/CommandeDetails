@@ -86,8 +86,28 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
-      // sales: transactions de vente, owner only
+      // sales: transactions de vente rapide, owner only
       match /sales/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // clients: dossier clients, owner only
+      match /clients/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // saleOrders: bons de commande, owner only
+      match /saleOrders/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // invoices: factures de vente, owner only
+      match /invoices/{id} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // clientPayments: paiements clients, owner only
+      match /clientPayments/{id} {
         allow read, write: if isOwner(userId);
       }
     }
