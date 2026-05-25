@@ -56,6 +56,10 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
   const [threshModal, setThreshModal] = useState<{ open: boolean; item?: StockItem }>({ open: false });
   const [threshValue, setThreshValue] = useState('');
 
+  // Edition prix de vente inline
+  const [editPriceId, setEditPriceId] = useState<string | null>(null);
+  const [editPriceVal, setEditPriceVal] = useState('');
+
   // Catégories disponibles
   const catOptions = useMemo(() => {
     const s = new Set<string>();
@@ -95,6 +99,16 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
     updateDocumentNonBlocking(docRef, { minStockThreshold: val });
     toast({ title: 'Seuil enregistré', description: `Seuil : ${val} ${threshModal.item.unitOfMeasure}` });
     setThreshModal({ open: false });
+  };
+
+  const handleSaveSellingPrice = (articleId: string, unitOfMeasure: string) => {
+    if (!user || !firestore) return;
+    const val = parseFloat(editPriceVal);
+    if (isNaN(val) || val < 0) return;
+    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    updateDocumentNonBlocking(docRef, { sellingPrice: val });
+    toast({ title: 'Prix de vente enregistré', description: `${fmt$(val)} / ${unitOfMeasure}` });
+    setEditPriceId(null);
   };
 
   return (
@@ -192,7 +206,7 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Produit', 'Catégorie', 'Couleur', 'Taille', 'Qté dispo', 'UdM', 'Prix unit. $', 'Valeur $', 'Statut', 'Actions'].map(h => (
+                  {['Produit', 'Catégorie', 'Couleur', 'Taille', 'Qté dispo', 'UdM', 'Prix achat', 'Prix vente 🏷️', 'Marge', 'Valeur stock', 'Statut', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -229,7 +243,51 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[9px] font-black text-stone-400 uppercase">{item.unitOfMeasure}</td>
-                      <td className="px-4 py-3 text-[10px] font-black text-stone-700 whitespace-nowrap">{fmt$(item.purchasePricePerUnit)}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-stone-500 whitespace-nowrap">{fmt$(item.purchasePricePerUnit)}</td>
+                      {/* Prix de vente — éditable inline */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {editPriceId === item.articleId ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number" min={0} step="any" autoFocus
+                              value={editPriceVal}
+                              onChange={e => setEditPriceVal(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveSellingPrice(item.articleId, item.unitOfMeasure);
+                                if (e.key === 'Escape') setEditPriceId(null);
+                              }}
+                              className="h-7 w-24 text-xs font-black rounded-lg border-emerald-300 focus:border-emerald-500"
+                            />
+                            <button onClick={() => handleSaveSellingPrice(item.articleId, item.unitOfMeasure)}
+                              className="text-emerald-600 hover:text-emerald-800 font-black text-[10px] px-1.5 py-1 bg-emerald-50 rounded-lg">
+                              ✓
+                            </button>
+                            <button onClick={() => setEditPriceId(null)} className="text-stone-400 hover:text-red-500 font-black text-[10px] px-1.5 py-1">
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setEditPriceId(item.articleId); setEditPriceVal(String(item.sellingPrice ?? '')); }}
+                            className={`text-[10px] font-black px-2 py-1 rounded-lg transition-colors ${item.sellingPrice ? 'text-violet-700 bg-violet-50 hover:bg-violet-100' : 'text-stone-300 bg-stone-50 hover:bg-stone-100 hover:text-stone-600'}`}
+                          >
+                            {item.sellingPrice ? fmt$(item.sellingPrice) : '+ Définir'}
+                          </button>
+                        )}
+                      </td>
+                      {/* Marge */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {item.sellingPrice ? (
+                          <div>
+                            <span className={`text-[10px] font-black ${item.sellingPrice > item.purchasePricePerUnit ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {fmt$(item.sellingPrice - item.purchasePricePerUnit)}
+                            </span>
+                            <span className="text-[8px] text-stone-400 font-bold block">
+                              {((item.sellingPrice - item.purchasePricePerUnit) / item.sellingPrice * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        ) : <span className="text-stone-200 text-[10px]">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-[10px] font-black text-emerald-700 whitespace-nowrap">{fmt$(item.totalValue)}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.className}`}>

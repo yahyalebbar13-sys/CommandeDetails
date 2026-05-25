@@ -85,6 +85,11 @@ service cloud.firestore {
       match /stockMovements/{id} {
         allow read, write: if isOwner(userId);
       }
+
+      // sales: transactions de vente, owner only
+      match /sales/{id} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ── Client Access mapping ──────────────────────────────────────────────────

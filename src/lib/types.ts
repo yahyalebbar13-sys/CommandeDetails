@@ -101,13 +101,43 @@ export type StockItem = {
   size?: string;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
-  initialQty: number;      // quantité à l'arrivage (article.quantity)
-  mouvementsIn: number;    // SUM des mouvements IN supplémentaires
-  mouvementsOut: number;   // SUM des mouvements OUT
-  currentQty: number;      // initialQty + mouvementsIn - mouvementsOut
-  totalValue: number;      // currentQty * purchasePricePerUnit
-  minThreshold?: number;   // seuil d'alerte bas
+  sellingPrice?: number;        // prix de vente configuré par l'admin
+  initialQty: number;
+  mouvementsIn: number;
+  mouvementsOut: number;
+  currentQty: number;
+  totalValue: number;           // currentQty * purchasePricePerUnit
+  totalSellingValue?: number;   // currentQty * sellingPrice
+  minThreshold?: number;
   lastMovementDate?: string;
   stockEntryDate?: string;
+};
+
+// ── Types de vente ─────────────────────────────────────────────────────────────
+export type SaleItem = {
+  articleId: string;
+  productName: string;
+  color?: string;
+  size?: string;
+  categoryId: string;
+  unitOfMeasure: string;
+  qty: number;
+  sellingPrice: number;   // prix unitaire au moment de la vente
+  costPrice: number;      // prix d'achat au moment de la vente
+  totalPrice: number;     // qty * sellingPrice
+  totalCost: number;      // qty * costPrice
+  margin: number;         // totalPrice - totalCost
+};
+
+export type Sale = {
+  id: string;
+  items: SaleItem[];
+  totalAmount: number;    // SUM(items.totalPrice)
+  totalCost: number;      // SUM(items.totalCost)
+  totalMargin: number;    // totalAmount - totalCost
+  date: string;           // YYYY-MM-DD
+  clientName?: string;
+  notes?: string;
+  createdAt?: any;
 };
 
