@@ -921,79 +921,98 @@ export default function CategoriesView({
               </Table>
             )}
 
-            {/* Stock table */}
-            {activeManifeste === 'stock' && (
-              <Table>
-                <TableHeader className="bg-stone-50/80">
-                  <TableRow>
-                    <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Entrée</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Entrées</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Sorties</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(() => {
-                    const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
-                    if (currentStock.length === 0) {
-                      return <TableRow><TableCell colSpan={8} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>;
-                    }
-                    return currentStock.map(a => {
-                      const totalIn = a.initialQty + a.mouvementsIn;
-                      const totalOut = a.mouvementsOut;
-                      return (
-                        <TableRow key={a.articleId} className="hover:bg-stone-50/40 transition-colors border-stone-50">
-                          <TableCell className="py-3.5 px-6">
-                            <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">{a.productName}</div>
-                          </TableCell>
-                          <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
-                          <TableCell className="py-3.5"><span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span></TableCell>
-                          <TableCell className="py-3.5">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
-                              <CheckCircle2 className="w-2.5 h-2.5" />{a.stockEntryDate || '-'}
-                            </span>
-                          </TableCell>
-                          {/* Entrées */}
-                          <TableCell className="text-right py-3.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600">
-                              +{Number(totalIn).toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                              <span className="text-[8px] text-stone-400 font-bold uppercase">{a.unitOfMeasure}</span>
-                            </span>
-                          </TableCell>
-                          {/* Sorties */}
-                          <TableCell className="text-right py-3.5">
-                            <span className={`inline-flex items-center gap-1 text-[11px] font-black ${totalOut > 0 ? 'text-rose-600' : 'text-stone-300'}`}>
-                              {totalOut > 0 ? `-${Number(totalOut).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
-                              {totalOut > 0 && <span className="text-[8px] text-stone-400 font-bold uppercase">{a.unitOfMeasure}</span>}
-                            </span>
-                          </TableCell>
-                          {/* Stock Réel */}
-                          <TableCell className="text-right py-3.5">
-                            <div className="flex flex-col items-end gap-0.5">
-                              <span className="font-black text-stone-900 text-[12px]">{Number(a.currentQty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                              <span className="text-[8px] text-stone-400 font-bold uppercase">{a.unitOfMeasure}</span>
-                              {totalOut > 0 && (
-                                <div className="w-16 h-1 bg-stone-100 rounded-full overflow-hidden mt-0.5">
-                                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, Math.round((a.currentQty / totalIn) * 100))}%` }} />
-                                </div>
-                              )}
+            {/* Stock cards — style GRP */}
+            {activeManifeste === 'stock' && (() => {
+              const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
+              if (currentStock.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-stone-50 flex items-center justify-center mb-4">
+                      <Package className="w-7 h-7 text-stone-200" />
+                    </div>
+                    <p className="text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</p>
+                  </div>
+                );
+              }
+              const maxVal = Math.max(...currentStock.map(a => a.totalValue || 0), 1);
+              return (
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {currentStock.map((a, idx) => {
+                    const totalIn = a.initialQty + a.mouvementsIn;
+                    const totalOut = a.mouvementsOut;
+                    const pct = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
+                    const barW = maxVal > 0 ? Math.max(4, (a.totalValue / maxVal) * 100) : 4;
+                    const color = UI_COLORS[idx % UI_COLORS.length];
+                    return (
+                      <div
+                        key={a.articleId}
+                        className="bg-white rounded-[1.2rem] shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-stone-50 group cursor-default"
+                      >
+                        {/* top color bar */}
+                        <div className="h-1 w-full" style={{ backgroundColor: color }} />
+                        <div className="p-4 space-y-3">
+                          {/* Name */}
+                          <div>
+                            <p className="text-[11px] font-black text-stone-800 uppercase leading-tight tracking-tighter line-clamp-2 min-h-[2rem]">
+                              {a.productName}
+                            </p>
+                            {(a.size || a.color) && (
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {a.size && <span className="text-[8px] font-black text-stone-400 bg-stone-50 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
+                                {a.color && <span className="text-[8px] font-black text-stone-400 bg-stone-50 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Value progress bar */}
+                          <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${barW}%`, backgroundColor: color }} />
+                          </div>
+
+                          {/* Stats grid */}
+                          <div className="space-y-1.5 pt-1 border-t border-stone-50">
+                            {/* Entrées */}
+                            <div className="flex justify-between items-center text-[8px]">
+                              <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                                <ArrowDownToLine className="w-2.5 h-2.5 text-emerald-400" /> Entrées
+                              </span>
+                              <span className="font-black text-emerald-600">+{Number(totalIn).toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-stone-300 font-bold">{a.unitOfMeasure}</span></span>
                             </div>
-                          </TableCell>
-                          {/* Valeur */}
-                          <TableCell className="text-right py-3.5 px-6">
-                            <span className="font-black text-emerald-700 text-[11px]">{Number(a.totalValue).toLocaleString('en-US', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}</span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    });
-                  })()}
-                </TableBody>
-              </Table>
-            )}
+                            {/* Sorties */}
+                            <div className="flex justify-between items-center text-[8px]">
+                              <span className="text-stone-400 font-black uppercase flex items-center gap-1">
+                                <ArrowUpFromLine className="w-2.5 h-2.5 text-rose-400" /> Sorties
+                              </span>
+                              <span className={`font-black ${totalOut > 0 ? 'text-rose-600' : 'text-stone-300'}`}>
+                                {totalOut > 0 ? `-${Number(totalOut).toLocaleString('en-US', { maximumFractionDigits: 0 })} ` : '—'}
+                                {totalOut > 0 && <span className="text-stone-300 font-bold">{a.unitOfMeasure}</span>}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Stock réel + progress */}
+                          <div className="bg-stone-50 rounded-xl p-2.5 space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[8px] font-black text-stone-400 uppercase">Stock Réel</span>
+                              <span className="text-[13px] font-black text-stone-900">{Number(a.currentQty).toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-[8px] text-stone-400 font-bold">{a.unitOfMeasure}</span></span>
+                            </div>
+                            <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-700 ${pct < 30 ? 'bg-rose-400' : pct < 60 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <div className="text-right text-[8px] font-black" style={{ color }}>
+                              {Number(a.totalValue).toLocaleString('en-US', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
