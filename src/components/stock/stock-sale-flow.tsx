@@ -399,125 +399,140 @@ export default function StockSaleFlow({
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-96">
-
-            {/* Col 1 : Catégories générales */}
-            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
-              <div className="p-4 border-b border-stone-50">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Famille</p>
-              </div>
-              <div className="p-3 space-y-1 max-h-96 overflow-y-auto">
-                <button onClick={() => { setSelGenCat(null); setSelCat(null); }}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                    !selGenCat ? 'bg-stone-900 text-white' : 'text-stone-500 hover:bg-stone-50'
-                  }`}>
-                  Tout ({stockItems.filter(i => i.currentQty > 0).length})
-                </button>
-                {generalCategories.map(gc => {
-                  const catNames = categories.filter((c: any) => c.generalCategoryId === gc.id || c.generalCategoryId === gc.name).map((c: any) => c.name);
-                  const count = stockItems.filter(i => catNames.includes(i.categoryId) && i.currentQty > 0).length;
-                  return (
-                    <button key={gc.id} onClick={() => { setSelGenCat(gc.id || gc.name); setSelCat(null); }}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                        selGenCat === (gc.id || gc.name) ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20' : 'text-stone-500 hover:bg-stone-50'
-                      }`}>
-                      {gc.name} {count > 0 && <span className="ml-1 opacity-60">({count})</span>}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* ── Filtres Famille + Sous-cat (style GRP) ── */}
+          <div className="space-y-3">
+            {/* Familles (générale) */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest shrink-0">Famille :</span>
+              <button
+                onClick={() => { setSelGenCat(null); setSelCat(null); }}
+                className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                  !selGenCat ? 'bg-stone-900 text-white border-stone-900' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
+                }`}
+              >
+                Tout ({stockItems.filter(i => i.currentQty > 0).length})
+              </button>
+              {generalCategories.map(gc => {
+                const catNames = categories.filter((c: any) => c.generalCategoryId === gc.id || c.generalCategoryId === gc.name).map((c: any) => c.name);
+                const count = stockItems.filter(i => catNames.includes(i.categoryId) && i.currentQty > 0).length;
+                if (count === 0) return null;
+                const isActive = selGenCat === (gc.id || gc.name);
+                return (
+                  <button key={gc.id} onClick={() => { setSelGenCat(gc.id || gc.name); setSelCat(null); }}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                      isActive ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-500/20' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
+                    }`}
+                  >
+                    {gc.name} <span className="opacity-60">({count})</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Col 2 : Sous-catégories */}
-            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
-              <div className="p-4 border-b border-stone-50">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Sous-catégorie</p>
-              </div>
-              <div className="p-3 space-y-1 max-h-96 overflow-y-auto">
-                {filteredCats.length === 0 && (
-                  <p className="text-center text-stone-200 text-[9px] font-black uppercase py-8">Sélectionnez une famille</p>
-                )}
+            {/* Sous-catégories */}
+            {selGenCat && filteredCats.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest shrink-0">Catégorie :</span>
+                <button
+                  onClick={() => setSelCat(null)}
+                  className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                    !selCat ? 'bg-emerald-700 text-white border-emerald-700' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
+                  }`}
+                >
+                  Tout
+                </button>
                 {filteredCats.map((cat: any) => {
-                  // La correspondance se fait sur cat.name car les articles stockent le nom de la catégorie
-                  const catName = cat.name;
-                  const count = stockItems.filter(i => i.categoryId === catName && i.currentQty > 0).length;
+                  const count = stockItems.filter(i => i.categoryId === cat.name && i.currentQty > 0).length;
+                  if (count === 0) return null;
                   return (
-                    <button key={cat.id || cat.name} onClick={() => setSelCat(catName)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                        selCat === catName ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'text-stone-500 hover:bg-stone-50'
-                      }`}>
+                    <button key={cat.id || cat.name} onClick={() => setSelCat(cat.name)}
+                      className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                        selCat === cat.name ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
+                      }`}
+                    >
                       {cat.name} <span className="opacity-60">({count})</span>
                     </button>
                   );
                 })}
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Col 3 : Articles */}
-            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden flex flex-col">
-              <div className="p-3 border-b border-stone-50">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-                  <Input placeholder="Filtrer..." value={prodSearch}
-                    onChange={e => setProdSearch(e.target.value)}
-                    className="pl-9 h-9 rounded-xl border-stone-200 text-sm font-bold" />
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[400px]">
-                {filteredItems.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <ShoppingBag className="w-8 h-8 text-stone-200 mb-2" />
-                    <p className="text-stone-300 text-[9px] font-black uppercase">Aucun produit disponible</p>
-                  </div>
-                )}
-                {filteredItems.map(item => {
-                  const inCart = cart.find(l => l.item.articleId === item.articleId);
-                  const hasPrice = item.sellingPrice != null && item.sellingPrice > 0;
-                  return (
-                    <div key={item.articleId}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                        inCart ? 'border-emerald-400 bg-emerald-50' : 'border-stone-100 hover:border-stone-200'
-                      }`}>
-                      {/* Couleur */}
-                      <div className="w-9 h-9 rounded-xl border border-stone-100 flex items-center justify-center shrink-0 overflow-hidden"
-                        style={{ backgroundColor: item.color ? getColorCSS(item.color) : '#f5f5f4' }}>
-                        {!item.color && <Tag className="w-4 h-4 text-stone-300" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black text-stone-800 uppercase leading-tight">{item.productName}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {item.color && <span className="text-[7px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{item.color}</span>}
-                          {item.size  && <span className="text-[7px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{item.size}</span>}
+          {/* ── Cartes produits (style GRP) ── */}
+          {filteredItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <ShoppingBag className="w-10 h-10 text-stone-200 mb-3" />
+              <p className="text-stone-300 text-[9px] font-black uppercase tracking-widest">Aucun produit disponible</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {filteredItems.map((item, idx) => {
+                const inCart = cart.find(l => l.item.articleId === item.articleId);
+                const hasPrice = item.sellingPrice != null && item.sellingPrice > 0;
+                const COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
+                const accentColor = COLORS[idx % COLORS.length];
+                return (
+                  <div
+                    key={item.articleId}
+                    onClick={() => openAddModal(item)}
+                    className={`relative bg-white rounded-[1.2rem] overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 ${
+                      inCart ? 'border-emerald-400 shadow-lg shadow-emerald-500/10' : 'border-stone-100 shadow-md hover:border-stone-200'
+                    }`}
+                  >
+                    {/* Top accent */}
+                    <div className="h-1 w-full" style={{ backgroundColor: inCart ? '#10B981' : accentColor }} />
+
+                    {/* Color swatch */}
+                    <div className="mx-4 mt-3 h-10 rounded-xl border border-stone-100 flex items-center justify-center"
+                      style={{ backgroundColor: item.color ? getColorCSS(item.color) : '#f5f5f4' }}>
+                      {!item.color && <Tag className="w-4 h-4 text-stone-300" />}
+                    </div>
+
+                    <div className="p-3 space-y-2">
+                      <p className="text-[10px] font-black text-stone-800 uppercase leading-tight line-clamp-2 min-h-[2.2rem]">
+                        {item.productName}
+                      </p>
+
+                      {/* Tags taille/couleur */}
+                      {(item.size || item.color) && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {item.color && <span className="text-[7px] font-black bg-stone-50 text-stone-400 px-1.5 py-0.5 rounded uppercase">{item.color}</span>}
+                          {item.size  && <span className="text-[7px] font-black bg-stone-50 text-stone-400 px-1.5 py-0.5 rounded uppercase">{item.size}</span>}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex-1 h-1 bg-stone-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min(100, (item.currentQty / 100) * 100)}%` }} />
-                          </div>
-                          <span className="text-[8px] font-bold text-stone-400">{item.currentQty} {item.unitOfMeasure}</span>
+                      )}
+
+                      {/* Stock bar */}
+                      <div className="space-y-0.5">
+                        <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, item.currentQty)}%`, backgroundColor: accentColor }} />
                         </div>
+                        <p className="text-[8px] font-black text-stone-400 text-right">{item.currentQty} {item.unitOfMeasure}</p>
                       </div>
-                      <div className="text-right shrink-0">
-                        {hasPrice ? (
-                          <p className="text-xs font-black text-violet-700">{fmt$(item.sellingPrice!)}</p>
-                        ) : (
-                          <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">Prix ?</span>
-                        )}
-                        <button
-                          onClick={() => openAddModal(item)}
-                          className={`mt-1 w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm transition-all ${
-                            inCart ? 'bg-emerald-500 text-white' :
-                            'bg-violet-100 hover:bg-violet-200 text-violet-700'
-                          }`}
-                        >
-                          {inCart ? inCart.qty : <Plus className="w-3.5 h-3.5" />}
-                        </button>
+
+                      {/* Prix + bouton */}
+                      <div className="flex items-center justify-between pt-1 border-t border-stone-50">
+                        {hasPrice
+                          ? <span className="text-[10px] font-black text-violet-700">{fmt$(item.sellingPrice!)}</span>
+                          : <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">Prix ?</span>
+                        }
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
+                          inCart ? 'bg-emerald-500 text-white' : 'text-white'
+                        }`} style={{ backgroundColor: inCart ? '#10B981' : accentColor }}>
+                          {inCart ? inCart.qty : '+'}
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {inCart && (
+                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <span className="text-[8px] font-black text-white">{inCart.qty}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          )}
 
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep(0)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
