@@ -34,7 +34,9 @@ export function computeStockItems(
   movements: StockMovement[],
   categories: any[]
 ): StockItem[] {
-  const stockArticles = articles.filter(a => a.stockEntryDate);
+  const stockArticles = articles.filter(a =>
+    a.stockEntryDate || a.status === 'STOCK' || Number(a.quantity) > 0
+  );
 
   return stockArticles.map(a => {
     const parts: string[] = [];
