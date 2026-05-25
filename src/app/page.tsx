@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/sheet';
 import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
 import { useAutoStatusNotifier } from '@/hooks/use-auto-status-notifier';
+import { computeStockItems } from '@/components/stock/stock-app';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Only this email sees the admin dashboard — enforced ALSO by Firestore rules
@@ -319,6 +320,7 @@ function ClientPortalView({
   const [articles, setArticles] = useState<any[]>([]);
   const [factures, setFactures] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [stockItems, setStockItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -330,11 +332,21 @@ function ClientPortalView({
       getDocs(collection(firestore, 'users', adminUid, 'articles')),
       getDocs(collection(firestore, 'users', adminUid, 'factures')),
       getDocs(collection(firestore, 'users', adminUid, 'categories')),
+      getDocs(collection(firestore, 'users', adminUid, 'stockMovements')),
     ])
-      .then(([artSnap, facSnap, catSnap]) => {
-        setArticles(artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+      .then(([artSnap, facSnap, catSnap, movSnap]) => {
+        const _articles = artSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const _categories = catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const _movements = movSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        
+        setArticles(_articles);
         setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
-        setCategories(catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setCategories(_categories);
+        
+        // Compute real stock items
+        const computedStock = computeStockItems(_articles, _movements, _categories);
+        setStockItems(computedStock);
+        
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -375,7 +387,7 @@ function ClientPortalView({
           </div>
         ) : (
           <div className="fade-in">
-            <ClientDetailView clientName={clientName} articles={articles} factures={factures} categories={categories} isPortal />
+            <ClientDetailView clientName={clientName} articles={articles} factures={factures} categories={categories} stockItems={stockItems} isPortal />
           </div>
         )}
       </main>
@@ -409,6 +421,7 @@ function AdminApp() {
   const articlesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'), [firestore, user]);
   const genCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'generalCategories'), [firestore, user]);
   const subCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'), [firestore, user]);
+  const movementsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'stockMovements'), [firestore, user]);
   // payments is only needed by SuppliersView — load lazily when that tab is active
   const paymentsRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'suppliers') ? null : collection(firestore, 'users', user.uid, 'supplierPayments'), [firestore, user, activeTab]);
 
@@ -416,6 +429,7 @@ function AdminApp() {
   const { data: rawArticles, isLoading: isArticlesLoading } = useCollection(articlesRef);
   const { data: rawGenCats, isLoading: isGenCatsLoading } = useCollection(genCatsRef);
   const { data: rawSubCats, isLoading: isSubCatsLoading } = useCollection(subCatsRef);
+  const { data: rawMovements, isLoading: isMovementsLoading } = useCollection(movementsRef);
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
 
   const factures = rawFactures || [];
@@ -424,7 +438,10 @@ function AdminApp() {
   const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
+  const movements = rawMovements || [];
   const payments = rawPayments || [];
+  
+  const stockItems = useMemo(() => computeStockItems(rawArticles_, movements, subCategories), [rawArticles_, movements, subCategories]);
 
   // ─── Auto-detect status transitions and send emails ────────────────────────────────────
   // Runs once per day when admin opens the app.
@@ -532,8 +549,8 @@ function AdminApp() {
       </nav>
 
       <main className="flex-grow max-w-[1600px] mx-auto px-6 py-8 w-full">
-        {/* Only block on the 4 core collections — payments loads silently in background */}
-        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading) ? (
+        {/* Only block on the core collections — payments loads silently in background */}
+        {(isFacturesLoading || isArticlesLoading || isGenCatsLoading || isSubCatsLoading || isMovementsLoading) ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <Loader2 className="animate-spin text-amber-500 w-12 h-12" />
             <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Synchronisation flux logistique...</p>
@@ -559,7 +576,7 @@ function AdminApp() {
               <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
             </div>
             <div className={activeTab === 'categories' ? 'block animate-in fade-in' : 'hidden'}>
-              <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />
+              <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} stockItems={stockItems} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />
             </div>
             <div className={activeTab === 'cost-analysis' ? 'block animate-in fade-in' : 'hidden'}>
               <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />

@@ -55,6 +55,7 @@ interface CategoriesViewProps {
   factures: any[];
   generalCategories: any[];
   subCategories: any[];
+  stockItems?: any[];
   selectedCategory: string | null;
   setSelectedCategory: (category: string | null) => void;
   selectedGeneralCategoryId: string | null;
@@ -74,6 +75,7 @@ export default function CategoriesView({
   factures = [],
   generalCategories = [],
   subCategories = [],
+  stockItems = [],
   selectedCategory,
   setSelectedCategory,
   selectedGeneralCategoryId,
@@ -541,7 +543,7 @@ export default function CategoriesView({
       {
         key: 'stock' as const,
         label: 'En Stock',
-        count: groupedData.arrived.length,
+        count: stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0).length,
         icon: CheckCircle2,
         activeColor: 'bg-emerald-500',
         activeBg: 'bg-emerald-50 text-emerald-800',
@@ -909,62 +911,45 @@ export default function CategoriesView({
                     <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Cmd</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Entrée Stock</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date d'Entrée</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur ($)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => {
-                    const isTechnical = isTechnicalZipper(a.categoryId);
-                    return (
-                      <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors border-stone-50">
-                        <TableCell className="py-3.5 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
-                            <span>{a.name}</span>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}><Pencil className="w-3 h-3" /></Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
-                        <TableCell className="py-3.5">
-                          {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
-                              <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
+                  {(() => {
+                    const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
+                    if (currentStock.length === 0) {
+                      return <TableRow><TableCell colSpan={6} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>;
+                    }
+                    return currentStock.map(a => {
+                      return (
+                        <TableRow key={a.articleId} className="hover:bg-emerald-50/20 transition-colors border-stone-50">
+                          <TableCell className="py-3.5 px-6 align-top">
+                            <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">
+                              {a.productName}
                             </div>
-                          ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
-                        </TableCell>
-                        <TableCell className="text-[10px] py-3.5">
-                          {isTechnical ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
-                            </div>
-                          ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
-                        </TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-3.5">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="py-3.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
-                            <CheckCircle2 className="w-2.5 h-2.5" />{a.stockEntryDate || a.arrivalDate}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right py-3.5">
-                          <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                          <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
-                          {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
-                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right py-3.5 px-6">
-                          <span className="font-black text-emerald-700 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  }) : (
-                    <TableRow><TableCell colSpan={8} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>
-                  )}
+                          </TableCell>
+                          <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                          <TableCell className="py-3.5">
+                            <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>
+                          </TableCell>
+                          <TableCell className="py-3.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
+                              <CheckCircle2 className="w-2.5 h-2.5" />{a.lastMovementDate || '-'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right py-3.5">
+                            <span className="font-black text-stone-900 text-[11px]">{Number(a.currentQty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                            <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                          </TableCell>
+                          <TableCell className="text-right py-3.5 px-6">
+                            <span className="font-black text-emerald-700 text-[11px]">{Number(a.totalValue).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                  })()}
                 </TableBody>
               </Table>
             )}
