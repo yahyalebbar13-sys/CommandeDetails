@@ -423,7 +423,7 @@ export default function StockApp() {
               />
             )}
             {activeView === 'inventory' && (
-              <StockInventory stockItems={stockItems} articles={articles} categories={categories} onAddMovement={handleAddMovement} />
+              <StockInventory stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'analytics' && (
               <StockSales sales={sales} onNavigate={setActiveView} />

@@ -85,16 +85,20 @@ export default function StockSaleFlow({
 
   // ── Filtres catégories ──
   const filteredCats = useMemo(() =>
-    selGenCat ? categories.filter(c => c.generalCategoryId === selGenCat) : categories,
+    selGenCat
+      ? categories.filter((c: any) => c.generalCategoryId === selGenCat || c.generalCategoryId === selGenCat)
+      : categories,
     [categories, selGenCat]
   );
 
   const filteredItems = useMemo(() => {
     let r = stockItems.filter(i => i.currentQty > 0);
-    if (selCat) r = r.filter(i => i.categoryId === selCat);
-    else if (selGenCat) {
-      const catIds = filteredCats.map((c: any) => c.id || c.name);
-      r = r.filter(i => catIds.includes(i.categoryId));
+    if (selCat) {
+      // i.categoryId contient le nom de la catégorie (tel que saisi dans StockVue)
+      r = r.filter(i => i.categoryId === selCat);
+    } else if (selGenCat) {
+      const catNames = filteredCats.map((c: any) => c.name);
+      r = r.filter(i => catNames.includes(i.categoryId));
     }
     if (prodSearch) {
       const q = prodSearch.toLowerCase();
@@ -206,7 +210,7 @@ export default function StockSaleFlow({
           remainingBalance: total,
           status: 'UNPAID',
           date: today,
-          dueDate: dueDate || undefined,
+          dueDate: dueDate || null,
           notes,
         }, movements);
       }
@@ -410,8 +414,8 @@ export default function StockSaleFlow({
                   Tout ({stockItems.filter(i => i.currentQty > 0).length})
                 </button>
                 {generalCategories.map(gc => {
-                  const catIds = categories.filter((c: any) => c.generalCategoryId === gc.id || c.generalCategoryId === gc.name).map((c: any) => c.id || c.name);
-                  const count = stockItems.filter(i => catIds.includes(i.categoryId) && i.currentQty > 0).length;
+                  const catNames = categories.filter((c: any) => c.generalCategoryId === gc.id || c.generalCategoryId === gc.name).map((c: any) => c.name);
+                  const count = stockItems.filter(i => catNames.includes(i.categoryId) && i.currentQty > 0).length;
                   return (
                     <button key={gc.id} onClick={() => { setSelGenCat(gc.id || gc.name); setSelCat(null); }}
                       className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
@@ -434,12 +438,13 @@ export default function StockSaleFlow({
                   <p className="text-center text-stone-200 text-[9px] font-black uppercase py-8">Sélectionnez une famille</p>
                 )}
                 {filteredCats.map((cat: any) => {
-                  const catId = cat.id || cat.name;
-                  const count = stockItems.filter(i => i.categoryId === catId && i.currentQty > 0).length;
+                  // La correspondance se fait sur cat.name car les articles stockent le nom de la catégorie
+                  const catName = cat.name;
+                  const count = stockItems.filter(i => i.categoryId === catName && i.currentQty > 0).length;
                   return (
-                    <button key={catId} onClick={() => setSelCat(catId)}
+                    <button key={cat.id || cat.name} onClick={() => setSelCat(catName)}
                       className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                        selCat === catId ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'text-stone-500 hover:bg-stone-50'
+                        selCat === catName ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' : 'text-stone-500 hover:bg-stone-50'
                       }`}>
                       {cat.name} <span className="opacity-60">({count})</span>
                     </button>

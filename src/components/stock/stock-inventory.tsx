@@ -19,6 +19,7 @@ interface StockInventoryProps {
   stockItems: StockItem[];
   articles: any[];
   categories: any[];
+  generalCategories: any[];
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
@@ -40,12 +41,13 @@ const LEVEL_BADGE: Record<string, { label: string; className: string }> = {
   unknown: { label: '—',       className: 'bg-stone-100 text-stone-400 border-stone-200' },
 };
 
-export default function StockInventory({ stockItems, articles, categories, onAddMovement }: StockInventoryProps) {
+export default function StockInventory({ stockItems, articles, categories, generalCategories, onAddMovement }: StockInventoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
   const [search, setSearch]           = useState('');
+  const [filterGroup, setFilterGroup] = useState('all');
   const [filterCat, setFilterCat]     = useState('all');
   const [filterLevel, setFilterLevel] = useState<'all' | 'rupture' | 'low' | 'ok' | 'unknown'>('all');
   const [sortBy, setSortBy]           = useState<'value' | 'qty' | 'name'>('value');
@@ -80,6 +82,13 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
         i.size?.toLowerCase().includes(q)
       );
     }
+    // Filtre groupe (catégorie générale)
+    if (filterGroup !== 'all') {
+      const groupCatNames = categories
+        .filter((c: any) => c.generalCategoryId === filterGroup)
+        .map((c: any) => c.name);
+      r = r.filter(i => groupCatNames.includes(i.categoryId));
+    }
     if (filterCat !== 'all') r = r.filter(i => i.categoryId === filterCat);
     if (filterLevel !== 'all') r = r.filter(i => getStockLevel(i) === filterLevel);
     r.sort((a, b) => {
@@ -88,7 +97,7 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
       return a.productName.localeCompare(b.productName);
     });
     return r;
-  }, [stockItems, search, filterCat, filterLevel, sortBy]);
+  }, [stockItems, search, filterGroup, filterCat, filterLevel, sortBy, categories]);
 
   const totalFilteredValue = filtered.reduce((s, i) => s + i.totalValue, 0);
 
@@ -152,6 +161,20 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
             <Input placeholder="Produit, couleur, taille..." value={search} onChange={e => setSearch(e.target.value)}
               className="pl-9 h-10 rounded-xl border-stone-200 text-sm font-bold" />
           </div>
+          {/* Filtre groupe */}
+          {generalCategories.length > 0 && (
+            <Select value={filterGroup} onValueChange={v => { setFilterGroup(v); setFilterCat('all'); }}>
+              <SelectTrigger className="h-10 w-44 rounded-xl border-stone-200 font-bold text-sm">
+                <SelectValue placeholder="Groupe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les groupes</SelectItem>
+                {generalCategories.map((g: any) => (
+                  <SelectItem key={g.id || g.name} value={g.id || g.name}>{g.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={filterCat} onValueChange={setFilterCat}>
             <SelectTrigger className="h-10 w-44 rounded-xl border-stone-200 font-bold text-sm">
               <SelectValue placeholder="Catégorie" />
