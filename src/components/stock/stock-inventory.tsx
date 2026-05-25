@@ -22,6 +22,7 @@ interface StockInventoryProps {
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
+const fmtMAD = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt$ = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const fmtN = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
 
@@ -243,7 +244,20 @@ export default function StockInventory({ stockItems, articles, categories, onAdd
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[9px] font-black text-stone-400 uppercase">{item.unitOfMeasure}</td>
-                      <td className="px-4 py-3 text-[10px] font-black text-stone-500 whitespace-nowrap">{fmt$(item.purchasePricePerUnit)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className="text-[10px] font-black text-stone-800">
+                            {fmtMAD(item.purchasePricePerUnit)} DH
+                          </span>
+                          <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
+                            (item as any).hasTTCCost
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-orange-100 text-orange-600'
+                          }`}>
+                            {(item as any).hasTTCCost ? 'Revient TTC' : 'FOB estimé'}
+                          </span>
+                        </div>
+                      </td>
                       {/* Prix de vente — éditable inline */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {editPriceId === item.articleId ? (

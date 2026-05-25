@@ -66,6 +66,76 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
     }, 0);
   }, [facture, associatedArticles, subCategories]);
 
+  // ── Calcul du coût de revient TTC unitaire MAD par article ──────────────────
+  const computeCoutRevientMad = React.useCallback((article: any): number => {
+    if (!facture || !article) return 0;
+
+    const qty = Number(article.quantity) || 0;
+    if (qty <= 0) return 0;
+
+    // Taux de change réel depuis les données dossier
+    const invoicePaidDhs = Number(formData.invoicePaidDhs) || 0;
+    const declaredValue  = Number(facture.declaredValue) || 0;
+    const tc = (invoicePaidDhs > 0 && declaredValue > 0)
+      ? invoicePaidDhs / declaredValue
+      : (Number(facture.exchangeRate) || Number(facture.tauxChange) || 10.5);
+
+    // Achat FOB en MAD
+    const prixUnitaire = Number(article.purchasePricePerUnit) || 0;
+    const valeurFOB    = qty * prixUnitaire;
+    const coutAchatMad = valeurFOB * tc;
+
+    // Frais dossier réels (du formulaire)
+    const fraisTransit = Number(formData.supplierInvoiceAmount) || 0;
+    const fraisChange  = Number(formData.exchangeInvoiceAmount) || 0;
+    const fraisSupp    = Number(formData.additionalCostsAmount) || 0;
+    const totalFraisFixesHT = (fraisTransit + fraisChange + fraisSupp) / 1.20;
+
+    // Fret dossier réel
+    const fretTotal$ = Number(facture.freightCost) || Number(facture.freight) || 0;
+    const totalFretMad = (fretTotal$ * tc) / 1.20;
+
+    // CBM pour proratisation
+    const cbmArticle = Number(article.cubicMeasurement) || 0;
+    const cbmTotal = (associatedArticles || []).reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0) || 68;
+
+    const partFraisMad = (cbmArticle > 0 && cbmTotal > 0)
+      ? (cbmArticle / cbmTotal) * totalFraisFixesHT : 0;
+    const fretPartMad  = (cbmArticle > 0 && cbmTotal > 0)
+      ? (cbmArticle / cbmTotal) * totalFretMad : 0;
+
+    // Taxes douanières article
+    const cat = (subCategories || []).find((c: any) => c.name === article.categoryId || c.id === article.categoryId);
+    const importDutyRate = cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0;
+    const tpiRate        = cat?.tpiRate        != null ? Number(cat.tpiRate)        / 100 : 0;
+    const ticRate        = cat?.ticRate        != null ? Number(cat.ticRate)        / 100 : 0;
+    const tvaRate        = cat?.tvaRate        != null ? Number(cat.tvaRate)        / 100 : 0.20;
+
+    const customsValuePerKg = Number(cat?.customsValuePerKg) || 0;
+    const netWeight = Number(article.netWeight) || 0;
+
+    let totalTaxesMad = 0;
+    if (netWeight > 0 && customsValuePerKg > 0) {
+      const valDouane = netWeight * customsValuePerKg;
+      const di  = valDouane * importDutyRate;
+      const tpi = valDouane * tpiRate;
+      const tic = valDouane * ticRate;
+      const tva = (valDouane + di + tpi) * tvaRate;
+      totalTaxesMad = di + tpi + tic + tva;
+    } else {
+      // Fallback : base FOB en MAD
+      const di$  = valeurFOB * importDutyRate;
+      const tpi$ = valeurFOB * tpiRate;
+      const tic$ = valeurFOB * ticRate;
+      const tva$ = (valeurFOB + di$ + tpi$) * tvaRate;
+      totalTaxesMad = (di$ + tpi$ + tic$ + tva$) * tc;
+    }
+
+    const coutTotalMad  = coutAchatMad + partFraisMad + fretPartMad + totalTaxesMad;
+    const coutUniteMad  = coutTotalMad / qty;
+    return Math.round(coutUniteMad * 100) / 100;
+  }, [facture, formData, associatedArticles, subCategories]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !firestore || !facture) return;
@@ -86,11 +156,18 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
     
     updateDocumentNonBlocking(factureRef, updates);
 
-    // Propagate Stock Entry Date to all associated articles + créer mouvements IN
+    // Propagate Stock Entry Date + coût de revient MAD à chaque article
     if (associatedArticles && associatedArticles.length > 0) {
       associatedArticles.forEach((article: any) => {
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
-        updateDocumentNonBlocking(articleRef, { stockEntryDate: formData.stockEntryDate });
+
+        // Calcule le coût de revient TTC unitaire MAD pour cet article
+        const purchasePriceMAD = computeCoutRevientMad(article);
+
+        updateDocumentNonBlocking(articleRef, {
+          stockEntryDate:   formData.stockEntryDate,
+          purchasePriceMAD: purchasePriceMAD > 0 ? purchasePriceMAD : undefined,
+        });
 
         // Créer un mouvement IN dans stockMovements automatiquement
         const parts: string[] = [];

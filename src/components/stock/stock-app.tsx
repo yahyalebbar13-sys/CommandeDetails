@@ -48,8 +48,13 @@ export function computeStockItems(
 
     const initialQty = Number(a.quantity) || 0;
     const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
-    const price      = Number(a.purchasePricePerUnit) || 0;
-    const sellPrice  = Number(a.sellingPrice) || undefined;
+
+    // Prix d'achat : coût de revient TTC MAD en priorité (calculé à l'arrivage),
+    // sinon prix FOB $ brut (non préférable pour la valorisation)
+    const hasTTCCost = Number(a.purchasePriceMAD) > 0;
+    const price     = Number(a.purchasePriceMAD) || Number(a.purchasePricePerUnit) || 0;
+    const sellPrice = Number(a.sellingPrice) || undefined;
+
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
     return {
@@ -60,6 +65,7 @@ export function computeStockItems(
       size: a.size,
       unitOfMeasure: a.unitOfMeasure || 'unité',
       purchasePricePerUnit: price,
+      hasTTCCost,
       sellingPrice: sellPrice,
       initialQty,
       mouvementsIn: mouvIN,
