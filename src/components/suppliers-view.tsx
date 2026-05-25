@@ -27,6 +27,7 @@ import { initializeApp, getApps, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 import { computeEffectiveStatus } from '@/lib/status-utils';
+import { COMPANIES_LIST, ADMIN_EMAIL, getFreight } from '@/lib/constants';
 
 interface SuppliersViewProps {
   articles: any[];
@@ -36,7 +37,7 @@ interface SuppliersViewProps {
   onNavigateToFacture: (factureId: string) => void;
 }
 
-const COMPANIES_LIST = ["New fournitures", "Lebtex", "Robe in box"];
+// COMPANIES_LIST importé depuis @/lib/constants
 
 type TabId = 'suppliers' | 'entities' | 'shipping' | 'forwarders' | 'clients';
 type SortOrder = 'desc' | 'asc';
@@ -607,8 +608,7 @@ function SupplierDetailView({
   const supArticles = useMemo(() => articles.filter(o => o.supplierId === supplierName), [articles, supplierName]);
   const supPayments = useMemo(() => (payments || []).filter(p => p.supplierId === supplierName).sort((a, b) => b.date.localeCompare(a.date)), [payments, supplierName]);
   
-  const now = new Date();
-  
+
   const supplierFactures = useMemo(() => {
     const ids = Array.from(new Set(supArticles.map(a => a.factureId).filter(Boolean)));
     
@@ -617,8 +617,9 @@ function SupplierDetailView({
       const fArticles = supArticles.filter(a => a.factureId === id);
       const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
       const cbm = fArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
-      const freight = Number(factInfo?.freightCost) || Number(factInfo?.freight) || 0;
+      const freight = getFreight(factInfo);
       const declared = Number(factInfo?.declaredValue) || itemsVal + freight;
+      const now = new Date();
       
       return {
         id,
@@ -630,7 +631,7 @@ function SupplierDetailView({
         totalReal: itemsVal + freight,
         isArrived: factInfo?.arrivalDate ? new Date(factInfo.arrivalDate) <= now : false
       };
-    }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+    }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
   }, [supArticles, factures]);
   const totalRealVal = supplierFactures.reduce((s, f) => s + f.totalReal, 0);
   const totalDeclaredVal = supplierFactures.reduce((s, f) => s + f.declared, 0);
@@ -1052,13 +1053,13 @@ function CompanyDetailView({
     return factures.filter(f => f.declaringCompany === companyName).map(f => {
       const fArticles = articles.filter(a => a.factureId === f.id);
       const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
-      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      const freight = getFreight(f);
       return {
         ...f,
         totalReal: itemsVal + freight,
         isArrived: f.arrivalDate ? new Date(f.arrivalDate) <= now : false
       };
-    }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+    }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
   }, [companyName, factures, articles]);
 
   const totalRealVal = companyFactures.reduce((s, f) => s + f.totalReal, 0);
@@ -1281,7 +1282,7 @@ function ShippingDetailView({
     return factures.filter(f => (f.shippingLine || 'Inconnu') === shippingName).map(f => {
       const fArticles = articles.filter(a => a.factureId === f.id);
       const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
-      const freight = Number(f.freightCost) || Number(f.freight) || 0;
+      const freight = getFreight(f);
       const cbm = fArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
       return {
         ...f,
@@ -1290,7 +1291,7 @@ function ShippingDetailView({
         cbm,
         isArrived: f.arrivalDate ? new Date(f.arrivalDate) <= now : false
       };
-    }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+    }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
   }, [shippingName, factures, articles]);
 
   const totalFreightVal = shippingFactures.reduce((s, f) => s + f.freight, 0);
@@ -1411,15 +1412,15 @@ function ForwarderDetailView({
   onBack: () => void;
   onNavigateToFacture: (id: string) => void;
 }) {
-  const now = new Date();
 
   const forwarderDossiers = useMemo(() => {
+    const now = new Date();
     return factures
       .filter(f => f.forwarder === forwarderName && f.forwarderGivenDate)
       .map(f => {
         const fArticles = articles.filter(a => a.factureId === f.id);
         const itemsVal = fArticles.reduce((s: number, a: any) => s + (a.quantity * a.purchasePricePerUnit), 0);
-        const freight = Number(f.freightCost) || Number(f.freight) || 0;
+        const freight = getFreight(f);
         const cbm = fArticles.reduce((s: number, a: any) => s + (a.cubicMeasurement || 0), 0);
         const isArrived = f.arrivalDate ? new Date(f.arrivalDate) <= now : false;
         const inStock = f.stockEntryDate ? true : false;
@@ -1434,8 +1435,8 @@ function ForwarderDetailView({
         };
       })
       .sort((a: any, b: any) => {
-        const dA = new Date(a.forwarderGivenDate || '').getTime();
-        const dB = new Date(b.forwarderGivenDate || '').getTime();
+        const dA = new Date(a.forwarderGivenDate || '1900-01-01').getTime();
+        const dB = new Date(b.forwarderGivenDate || '1900-01-01').getTime();
         return dB - dA;
       });
   }, [forwarderName, factures, articles]);
@@ -1626,7 +1627,7 @@ function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; order
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const { user } = useUser();
-  const canCreateAccount = user?.email === 'yahya.lebbar13@gmail.com';
+  const canCreateAccount = user?.email === ADMIN_EMAIL;
 
   return (
     <>
@@ -1742,7 +1743,7 @@ function CreateClientAccessModal({ open, onOpenChange, clientName }: { open: boo
     e.preventDefault();
     if (!user || !firestore || !email || !password) return;
 
-    if (user.email !== 'yahya.lebbar13@gmail.com') {
+    if (user.email !== ADMIN_EMAIL) {
       toast({ variant: 'destructive', title: 'Accès refusé', description: "Seul l'administrateur principal peut créer des comptes clients." });
       return;
     }
@@ -2535,6 +2536,10 @@ export function ClientDetailView({
       }, { merge: true });
     });
   }, [isPortal, user, firestore, clientName, articles, categories]);
+  // Note: Le useEffect ci-dessus utilise articles et categories comme deps.
+  // Pour éviter des écritures Firestore en cascade à chaque update realtime,
+  // on ne synchonise que les articles qui n'ont réellement pas encore de données douanières.
+  // Le guard `if (a.hsCode !== undefined && a.importDutyRate !== undefined) return;` s'en charge.
   const clientArticles = useMemo(() => {
     const nameLower = (clientName || '').trim().toLowerCase();
     const todayStr = new Date().toISOString().split('T')[0];
@@ -2542,7 +2547,7 @@ export function ClientDetailView({
       .filter(a => {
         // Show all articles belonging to this client (isPreorder is not required)
         const aName = (a.clientName || '').trim().toLowerCase();
-        return aName && (aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName));
+        return aName !== '' && aName === nameLower;
       })
       .map(a => {
         const facture = factures.find((f: any) => f.id === a.factureId);

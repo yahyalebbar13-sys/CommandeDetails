@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck } from 'lucide-react';
@@ -86,11 +86,35 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
     
     updateDocumentNonBlocking(factureRef, updates);
 
-    // Propagate Stock Entry Date to all associated articles
+    // Propagate Stock Entry Date to all associated articles + créer mouvements IN
     if (associatedArticles && associatedArticles.length > 0) {
       associatedArticles.forEach((article: any) => {
         const articleRef = doc(firestore, 'users', user.uid, 'articles', article.id);
         updateDocumentNonBlocking(articleRef, { stockEntryDate: formData.stockEntryDate });
+
+        // Créer un mouvement IN dans stockMovements automatiquement
+        const parts: string[] = [];
+        if (article.zipperType) parts.push(article.zipperType);
+        if (article.slider)     parts.push(article.slider);
+        if (article.color)      parts.push(article.color.toUpperCase());
+        if (article.size)       parts.push(article.size);
+        const productName = parts.length > 0 ? parts.join(' - ') : (article.name || article.specs || 'Produit');
+
+        addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
+          articleId:    article.id,
+          categoryId:   article.categoryId,
+          productName,
+          color:        article.color || null,
+          size:         article.size  || null,
+          unitOfMeasure: article.unitOfMeasure || 'unité',
+          type:         'IN',
+          reason:       'ARRIVAGE',
+          quantity:     Number(article.quantity) || 0,
+          date:         formData.stockEntryDate,
+          factureId:    facture.id,
+          notes:        `Arrivage ${facture.id}`,
+          createdAt:    serverTimestamp(),
+        }).catch(err => console.warn('[StockMovement] failed:', err));
       });
     }
 

@@ -71,3 +71,43 @@ export type SupplierPayment = {
 };
 
 export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'ai';
+
+export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
+export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT';
+
+export type StockMovement = {
+  id: string;
+  articleId: string;
+  categoryId: string;
+  productName: string;
+  color?: string;
+  size?: string;
+  unitOfMeasure: string;
+  type: StockMovementType;
+  reason: StockMovementReason;
+  quantity: number;      // toujours positif — direction donnée par type
+  date: string;          // YYYY-MM-DD
+  notes?: string;
+  factureId?: string;    // référence si mouvement IN lié à un arrivage
+  createdAt?: any;
+};
+
+// Stock item calculé (non stocké — calculé en mémoire)
+export type StockItem = {
+  articleId: string;
+  categoryId: string;
+  productName: string;
+  color?: string;
+  size?: string;
+  unitOfMeasure: string;
+  purchasePricePerUnit: number;
+  initialQty: number;      // quantité à l'arrivage (article.quantity)
+  mouvementsIn: number;    // SUM des mouvements IN supplémentaires
+  mouvementsOut: number;   // SUM des mouvements OUT
+  currentQty: number;      // initialQty + mouvementsIn - mouvementsOut
+  totalValue: number;      // currentQty * purchasePricePerUnit
+  minThreshold?: number;   // seuil d'alerte bas
+  lastMovementDate?: string;
+  stockEntryDate?: string;
+};
+

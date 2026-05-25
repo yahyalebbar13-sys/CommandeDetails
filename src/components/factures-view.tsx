@@ -11,6 +11,7 @@ import {
   ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck
 } from 'lucide-react';
 import { exportFacturePDF } from '@/lib/pdf-export';
+import { isZipperCategory } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
@@ -156,7 +157,7 @@ export default function FacturesView({
       const realFactureValue = itemsVal + freight;
       const isIncomplete = fArticles.some(o => !Number(o.netWeight) || !Number(o.cubicMeasurement));
       return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete };
-    }).sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+    }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
   }, [articles, factures]);
@@ -215,12 +216,7 @@ export default function FacturesView({
     setIsEditModalOpen(true);
   };
 
-  const isZipperCategory = (cat: string) => {
-    const c = cat?.toUpperCase() || "";
-    const isZipper = c.includes("ZIPPER");
-    const isExcluded = c.includes("LONG CHAIN") || c.includes("SLIDER");
-    return isZipper && !isExcluded;
-  };
+  // isZipperCategory importée depuis @/lib/constants
 
   if (selectedFactureId && selectedFacture) {
     return (
@@ -580,7 +576,11 @@ export default function FacturesView({
           <div className="flex gap-4">
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Efficience Moyenne</p>
-              <p className="text-xl font-black text-white">42 $/m³</p>
+              <p className="text-xl font-black text-white">
+                {declaredFactures.length > 0
+                  ? `${Math.round(declaredFactures.reduce((s, f) => s + (f.cbm > 0 ? (f.freight / f.cbm) : 0), 0) / declaredFactures.length)} $/m³`
+                  : '— $/m³'}
+              </p>
             </div>
             <div className="bg-white/5 border border-white/10 px-6 py-4 rounded-2xl text-center flex-1">
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Factures</p>

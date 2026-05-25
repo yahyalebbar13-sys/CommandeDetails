@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -46,6 +46,9 @@ import { doc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
+import { isZipperCategory as isTechnicalZipper } from '@/lib/constants';
+import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
+import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
 interface CategoriesViewProps {
   articles: any[];
@@ -82,11 +85,18 @@ export default function CategoriesView({
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [todayStr, setTodayStr] = useState('');
+  const [todayStr, setTodayStr] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  // ── Reorder schedule config modal
+  const [reorderConfigCat, setReorderConfigCat] = useState<any>(null);
+  const [reorderSeasons, setReorderSeasons] = useState<OrderScheduleSeason[]>([]);
+  const [reorderSaving, setReorderSaving] = useState(false);
 
   // Debounce search: only filter after 200ms of inactivity
   useEffect(() => {
@@ -126,8 +136,7 @@ export default function CategoriesView({
     if (!user || !firestore || !currentCategoryObj) return;
     const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
     updateDocumentNonBlocking(docRef, {
-      ...currentCategoryObj,
-      hsCode: customsForm.hsCode,
+      hsCode: customsForm.hsCode || null,
       customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
       importDutyRate: customsForm.importDutyRate === '' ? null : Number(customsForm.importDutyRate),
       tpiRate: customsForm.tpiRate === '' ? null : Number(customsForm.tpiRate),
@@ -165,7 +174,7 @@ export default function CategoriesView({
           async () => {
             const url = await getDownloadURL(task.snapshot.ref);
             const docRef = doc(firestore!, 'users', user.uid, 'categories', currentCategoryObj.id);
-            updateDocumentNonBlocking(docRef, { ...currentCategoryObj, imageUrl: url });
+            updateDocumentNonBlocking(docRef, { imageUrl: url });
             resolve();
           }
         );
@@ -184,27 +193,29 @@ export default function CategoriesView({
       const storage = getStorage(getApp());
       await deleteObject(storageRef(storage, `users/${user.uid}/categories/${currentCategoryObj.id}/photo`)).catch(() => {});
       const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
-      updateDocumentNonBlocking(docRef, { ...currentCategoryObj, imageUrl: null });
+      updateDocumentNonBlocking(docRef, { imageUrl: null });
       toast({ title: 'Photo supprimée' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     }
   };
 
-  useEffect(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    setTodayStr(`${year}-${month}-${day}`);
-  }, []);
 
-  // Memoized with useCallback so it's not re-created on every render
-  const isTechnicalZipper = useCallback((catName: string | undefined): boolean => {
-    if (!catName) return false;
-    const upper = catName.toUpperCase();
-    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
-  }, []);
+  // isTechnicalZipper importé depuis @/lib/constants
+
+  // ── Alertes de réapprovisionnement
+  const reorderAlerts = useMemo(() => {
+    const result: Record<string, ReturnType<typeof computeReorderAlert>> = {};
+    subCategories.forEach(sc => { result[sc.name] = computeReorderAlert(sc, articles); });
+    return result;
+  }, [subCategories, articles]);
+
+  const activeAlerts = useMemo(() =>
+    subCategories
+      .map(sc => ({ cat: sc, alert: reorderAlerts[sc.name] }))
+      .filter(x => x.alert && x.alert.level !== 'OK')
+      .sort((a, b) => a.alert!.daysLeft - b.alert!.daysLeft),
+  [subCategories, reorderAlerts]);
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
@@ -383,13 +394,14 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Filter specifically for NO5 NYLON ZIPPER
-    const isTargetCategory = selectedCategory.toUpperCase().includes('NO5') && selectedCategory.toUpperCase().includes('NYLON') && selectedCategory.toUpperCase().includes('ZIPPER');
+    // Filtre de taille optionnel — lu depuis currentCategoryObj.sizeFilter
+    const allowedSizes: string[] | null =
+      Array.isArray(currentCategoryObj?.sizeFilter) && currentCategoryObj.sizeFilter.length > 0
+        ? currentCategoryObj.sizeFilter : null;
     
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
-      // Apply size filter for target category
-      if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
+      if (allowedSizes && !allowedSizes.includes(a.size)) return;
 
       const parts = [];
       const isTechnical = isTechnicalZipper(a.categoryId);
@@ -413,7 +425,7 @@ export default function CategoriesView({
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
 
-      if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
+      if (allowedSizes && !allowedSizes.includes(a.size)) return;
 
       if (!dateGroups[date]) dateGroups[date] = { date };
       
@@ -1120,6 +1132,7 @@ export default function CategoriesView({
   if (selectedGeneralCategoryId) {
     const parent = generalCategories.find(g => g.id === selectedGeneralCategoryId);
     return (
+      <>
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[1.5rem] shadow-xl border border-stone-100">
           <div className="flex items-center gap-4">
@@ -1143,20 +1156,63 @@ export default function CategoriesView({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {subCategoryStats.map((sc, idx) => (
+
+          {/* Banner alertes */}
+          {activeAlerts.length > 0 && (
+            <div className="col-span-full rounded-2xl border border-orange-200 bg-orange-50 overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-2.5 bg-orange-100/70 border-b border-orange-200">
+                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                <span className="text-[10px] font-black text-orange-800 uppercase tracking-widest flex-1">
+                  {activeAlerts.length} catégorie{activeAlerts.length > 1 ? 's' : ''} à commander bientôt
+                </span>
+              </div>
+              <div className="divide-y divide-orange-100">
+                {activeAlerts.map(({ cat, alert }) => (
+                  <div key={cat.id} className="flex items-center gap-3 px-5 py-2 hover:bg-orange-100/40 transition-colors cursor-pointer" onClick={() => setSelectedCategory(cat.name)}>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                      alert!.level === 'OVERDUE' ? 'bg-red-100 text-red-700' :
+                      alert!.level === 'URGENT' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'
+                    }`}>{alert!.level === 'OVERDUE' ? 'Dépassé' : alert!.level === 'URGENT' ? 'Urgent' : 'Bientôt'}</span>
+                    <span className="text-[10px] font-black text-stone-800 uppercase flex-1">{cat.name}</span>
+                    <span className="text-[9px] font-bold text-stone-500">{formatReorderBadge(alert!)}</span>
+                    <span className="text-[8px] text-stone-400 font-bold">{alert!.season.season}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {subCategoryStats.map((sc, idx) => {
+            const alert = reorderAlerts[sc.name];
+            const alertVisible = alert && alert.level !== 'OK';
+            const alertColor = alert?.level === 'OVERDUE'
+              ? { bg: 'bg-red-500', border: 'border-red-200', text: 'text-red-700', light: 'bg-red-50' }
+              : alert?.level === 'URGENT'
+              ? { bg: 'bg-orange-500', border: 'border-orange-200', text: 'text-orange-700', light: 'bg-orange-50' }
+              : { bg: 'bg-amber-400', border: 'border-amber-200', text: 'text-amber-700', light: 'bg-amber-50' };
+            const catObj = subCategories.find(s => s.name === sc.name);
+            return (
             <Card 
               key={sc.id} 
-              className="cursor-pointer border-stone-100 hover:border-amber-400 hover:bg-amber-50/20 transition-all shadow-lg hover:shadow-amber-500/10 group rounded-[1.2rem] overflow-hidden bg-white active:scale-95"
+              className={`cursor-pointer border-stone-100 hover:border-amber-400 hover:bg-amber-50/20 transition-all shadow-lg hover:shadow-amber-500/10 group rounded-[1.2rem] overflow-hidden bg-white active:scale-95${alertVisible ? ` ring-1 ring-offset-1 ${alertColor.border}` : ''}`}
               onClick={() => setSelectedCategory(sc.name)}
             >
               <CardContent className="p-0">
                 <div className={`h-1 w-full ${UI_COLORS[idx % UI_COLORS.length]}`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
-                <div className="p-4">
+                <div className="p-4 pb-2">
                   <div className="flex justify-between items-start mb-3">
                     <div className="p-2 bg-stone-50 rounded-lg group-hover:bg-white transition-colors">
                       <Package className="w-3.5 h-3.5 text-stone-300 group-hover:text-stone-900" />
                     </div>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Configurer le rappel de commande"
+                        onClick={(e) => { e.stopPropagation(); if (catObj) { setReorderConfigCat(catObj); setReorderSeasons(catObj.orderSchedule ? [...catObj.orderSchedule] : []); } }}
+                      >
+                        <Settings2 className="w-3 h-3" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -1168,8 +1224,18 @@ export default function CategoriesView({
                       <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
                     </div>
                   </div>
-                  <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-4 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
-                  
+                    <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-3 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
+
+                  {alertVisible && (
+                    <div className={`mb-2 px-2.5 py-1.5 rounded-xl border ${alertColor.border} ${alertColor.light} flex items-center gap-2`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${alertColor.bg} shrink-0 animate-pulse`} />
+                      <span className={`text-[8px] font-black uppercase tracking-wider ${alertColor.text} flex-1 leading-tight`}>
+                        {formatReorderBadge(alert!)}
+                      </span>
+                      <span className="text-[7px] text-stone-400 font-bold shrink-0">{alert!.season.season}</span>
+                    </div>
+                  )}
+
                   <div className="space-y-2 pt-3 border-t border-stone-50">
                     <div className="flex justify-between items-center text-[8px]">
                       <span className="text-stone-400 font-black uppercase flex items-center gap-1">
@@ -1191,9 +1257,91 @@ export default function CategoriesView({
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* ── Modal configuration rappel de commande ── */}
+      <Dialog open={!!reorderConfigCat} onOpenChange={open => { if (!open) setReorderConfigCat(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-3xl border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-[11px] font-black uppercase tracking-widest text-stone-500">Rappel de Commande</DialogTitle>
+            <p className="text-base font-black text-stone-900 uppercase tracking-tight mt-0.5">{reorderConfigCat?.name}</p>
+          </DialogHeader>
+          <div className="space-y-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
+            <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Intervalles de commande par saison</p>
+            {reorderSeasons.length === 0 && (
+              <p className="text-xs text-stone-400 text-center py-4">Aucune saison configurée. Ajoutez-en une ci-dessous.</p>
+            )}
+            {reorderSeasons.map((s, i) => (
+              <div key={i} className="bg-stone-50 border border-stone-100 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Saison {i + 1}</span>
+                  <button type="button" onClick={() => setReorderSeasons(prev => prev.filter((_, j) => j !== i))}
+                    className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Nom de la saison</Label>
+                    <Input value={s.season} onChange={e => setReorderSeasons(prev => prev.map((x, j) => j === i ? { ...x, season: e.target.value } : x))}
+                      placeholder="Été, Hiver, Ramadan..." className="h-9 text-xs font-bold rounded-xl border-stone-200" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Intervalle (jours)</Label>
+                    <Input type="number" min={1} value={s.intervalDays}
+                      onChange={e => setReorderSeasons(prev => prev.map((x, j) => j === i ? { ...x, intervalDays: Number(e.target.value) } : x))}
+                      placeholder="60" className="h-9 text-xs font-bold rounded-xl border-stone-200" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
+                    Mois actifs <span className="font-normal text-stone-400 normal-case">(vide = toute l&apos;année)</span>
+                  </Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'].map((m, mi) => {
+                      const active = s.months.includes(mi + 1);
+                      return (
+                        <button key={mi} type="button"
+                          onClick={() => setReorderSeasons(prev => prev.map((x, j) => j !== i ? x : {
+                            ...x, months: active ? x.months.filter(n => n !== mi + 1) : [...x.months, mi + 1].sort((a,b)=>a-b)
+                          }))}
+                          className={`text-[9px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase ${
+                            active ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
+                          }`}>{m}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button type="button"
+              onClick={() => setReorderSeasons(prev => [...prev, { season: '', intervalDays: 60, months: [] }])}
+              className="w-full py-2.5 rounded-2xl border-2 border-dashed border-stone-200 text-[10px] font-black text-stone-400 hover:border-amber-400 hover:text-amber-600 transition-all uppercase tracking-widest">
+              + Ajouter une saison
+            </button>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setReorderConfigCat(null)} className="rounded-xl text-[10px] font-black uppercase">Annuler</Button>
+            <Button disabled={reorderSaving}
+              onClick={() => {
+                if (!user || !firestore || !reorderConfigCat) return;
+                setReorderSaving(true);
+                const docRef = doc(firestore, 'users', user.uid, 'categories', reorderConfigCat.id);
+                updateDocumentNonBlocking(docRef, { orderSchedule: reorderSeasons });
+                toast({ title: 'Rappel enregistré', description: reorderConfigCat.name });
+                setReorderSaving(false);
+                setReorderConfigCat(null);
+              }}
+              className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest px-6 rounded-xl">
+              {reorderSaving ? 'Sauvegarde...' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </>
     );
   }
 
