@@ -175,7 +175,7 @@ export default function StockSaleFlow({
 
       if (finalType === 'order') {
         await onCreateOrder({
-          clientId: selectedClient?.id,
+          clientId: selectedClient?.id || null,
           clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
           items,
           totalAmount: subTotal,
@@ -200,7 +200,7 @@ export default function StockSaleFlow({
           notes: selectedClient ? `Facture client : ${selectedClient.name}` : 'Vente directe',
         }));
         await onCreateInvoice({
-          clientId: selectedClient?.id,
+          clientId: selectedClient?.id || null,
           clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
           items,
           totalAmount: subTotal,
