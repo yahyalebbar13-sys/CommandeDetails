@@ -321,6 +321,7 @@ function ClientPortalView({
   const [factures, setFactures] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [stockItems, setStockItems] = useState<any[]>([]);
+  const [movements, setMovements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -346,6 +347,7 @@ function ClientPortalView({
         // Compute real stock items
         const computedStock = computeStockItems(_articles, _movements, _categories);
         setStockItems(computedStock);
+        setMovements(_movements);
         
         setLoading(false);
       })
@@ -387,7 +389,7 @@ function ClientPortalView({
           </div>
         ) : (
           <div className="fade-in">
-            <ClientDetailView clientName={clientName} articles={articles} factures={factures} categories={categories} stockItems={stockItems} isPortal />
+            <ClientDetailView clientName={clientName} articles={articles} factures={factures} categories={categories} isPortal />
           </div>
         )}
       </main>
@@ -576,7 +578,7 @@ function AdminApp() {
               <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
             </div>
             <div className={activeTab === 'categories' ? 'block animate-in fade-in' : 'hidden'}>
-              <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} stockItems={stockItems} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />
+              <CategoriesView articles={articles} factures={factures} generalCategories={generalCategories} subCategories={subCategories} stockItems={stockItems} movements={movements} selectedCategory={selectedCategoryName} setSelectedCategory={setSelectedCategoryName} selectedGeneralCategoryId={selectedGeneralCategoryId} onSelectGeneralCategory={(id) => { setSelectedGeneralCategoryId(id); if (!id) { if (previousTab) setActiveTab(previousTab); else setActiveTab('general-categories'); setPreviousTab(null); } else { setActiveTab('categories'); } }} onBackToGroupes={() => { setSelectedCategoryName(null); if (previousTab === 'factures') { setActiveTab('factures'); setPreviousTab(null); } }} />
             </div>
             <div className={activeTab === 'cost-analysis' ? 'block animate-in fade-in' : 'hidden'}>
               <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />

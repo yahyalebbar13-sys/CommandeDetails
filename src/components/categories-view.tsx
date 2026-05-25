@@ -30,7 +30,12 @@ import {
   Hash,
   ImagePlus,
   Loader2,
-  X as XIcon
+  X as XIcon,
+  ChevronDown,
+  ChevronRight,
+  ArrowRightLeft,
+  ArrowDownToLine,
+  ArrowUpFromLine
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
@@ -61,6 +66,7 @@ interface CategoriesViewProps {
   selectedGeneralCategoryId: string | null;
   onSelectGeneralCategory: (id: string | null) => void;
   onBackToGroupes?: () => void;
+  movements?: any[];
 }
 
 const UI_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
@@ -80,7 +86,8 @@ export default function CategoriesView({
   setSelectedCategory,
   selectedGeneralCategoryId,
   onSelectGeneralCategory,
-  onBackToGroupes
+  onBackToGroupes,
+  movements = []
 }: CategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -99,6 +106,17 @@ export default function CategoriesView({
   const [reorderConfigCat, setReorderConfigCat] = useState<any>(null);
   const [reorderSeasons, setReorderSeasons] = useState<OrderScheduleSeason[]>([]);
   const [reorderSaving, setReorderSaving] = useState(false);
+  
+  const [expandedStockItems, setExpandedStockItems] = useState<Set<string>>(new Set());
+  
+  const toggleStockExpand = (articleId: string) => {
+    setExpandedStockItems(prev => {
+      const next = new Set(prev);
+      if (next.has(articleId)) next.delete(articleId);
+      else next.add(articleId);
+      return next;
+    });
+  };
 
   // Debounce search: only filter after 200ms of inactivity
   useEffect(() => {
@@ -908,45 +926,94 @@ export default function CategoriesView({
               <Table>
                 <TableHeader className="bg-stone-50/80">
                   <TableRow>
+                    <TableHead className="w-8"></TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
                     <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date d'Entrée</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur ($)</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(() => {
                     const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
                     if (currentStock.length === 0) {
-                      return <TableRow><TableCell colSpan={6} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>;
+                      return <TableRow><TableCell colSpan={7} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>;
                     }
                     return currentStock.map(a => {
+                      const isExpanded = expandedStockItems.has(a.articleId);
+                      const artMovements = movements.filter(m => m.articleId === a.articleId).sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+                      const hasMoves = artMovements.length > 0;
+                      
                       return (
-                        <TableRow key={a.articleId} className="hover:bg-emerald-50/20 transition-colors border-stone-50">
-                          <TableCell className="py-3.5 px-6 align-top">
-                            <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">
-                              {a.productName}
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
-                          <TableCell className="py-3.5">
-                            <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>
-                          </TableCell>
-                          <TableCell className="py-3.5">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
-                              <CheckCircle2 className="w-2.5 h-2.5" />{a.lastMovementDate || '-'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right py-3.5">
-                            <span className="font-black text-stone-900 text-[11px]">{Number(a.currentQty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                            <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
-                          </TableCell>
-                          <TableCell className="text-right py-3.5 px-6">
-                            <span className="font-black text-emerald-700 text-[11px]">{Number(a.totalValue).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
-                          </TableCell>
-                        </TableRow>
+                        <React.Fragment key={a.articleId}>
+                          <TableRow 
+                            className={`transition-colors border-stone-50 ${hasMoves ? 'cursor-pointer hover:bg-emerald-50/20' : ''}`}
+                            onClick={() => hasMoves && toggleStockExpand(a.articleId)}
+                          >
+                            <TableCell className="w-8 py-3.5 pl-4 pr-0">
+                              {hasMoves ? (
+                                isExpanded ? <ChevronDown className="w-4 h-4 text-stone-400" /> : <ChevronRight className="w-4 h-4 text-stone-400" />
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="py-3.5 px-6 align-top">
+                              <div className="font-black text-[11px] text-stone-900 uppercase leading-tight">
+                                {a.productName}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                            <TableCell className="py-3.5">
+                              <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>
+                            </TableCell>
+                            <TableCell className="py-3.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
+                                <CheckCircle2 className="w-2.5 h-2.5" />{a.lastMovementDate || '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-3.5">
+                              <span className="font-black text-stone-900 text-[11px]">{Number(a.currentQty).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                              <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                            </TableCell>
+                            <TableCell className="text-right py-3.5 px-6">
+                              <span className="font-black text-emerald-700 text-[11px]">{Number(a.totalValue).toLocaleString('en-US', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}</span>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Expanded History */}
+                          {isExpanded && (
+                            <TableRow className="bg-stone-50/30 hover:bg-stone-50/30 border-b border-stone-100">
+                              <TableCell colSpan={7} className="p-0">
+                                <div className="p-4 pl-14">
+                                  <div className="rounded-xl border border-stone-200 overflow-hidden bg-white shadow-sm">
+                                    <div className="bg-stone-100/50 px-4 py-2 border-b border-stone-200 flex items-center gap-2">
+                                      <ArrowRightLeft className="w-3.5 h-3.5 text-stone-500" />
+                                      <span className="text-[9px] font-black uppercase text-stone-500 tracking-widest">Historique des Mouvements</span>
+                                    </div>
+                                    <div className="divide-y divide-stone-100">
+                                      {artMovements.map(m => (
+                                        <div key={m.id} className="grid grid-cols-4 px-4 py-2.5 items-center hover:bg-stone-50/50">
+                                          <div className="text-[10px] font-bold text-stone-500">{m.date}</div>
+                                          <div className="flex items-center gap-1.5">
+                                            {m.type === 'IN' && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-1.5 py-0 text-[8px] uppercase">Entrée</Badge>}
+                                            {m.type === 'OUT' && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-none px-1.5 py-0 text-[8px] uppercase">Sortie</Badge>}
+                                            {m.type === 'ADJUSTMENT' && <Badge className="bg-stone-100 text-stone-700 hover:bg-stone-200 border-none px-1.5 py-0 text-[8px] uppercase">Ajustement</Badge>}
+                                          </div>
+                                          <div className="text-[11px] font-black text-stone-900">
+                                            {m.type === 'OUT' ? '-' : (m.type === 'IN' ? '+' : '')}{m.quantity} <span className="text-[8px] text-stone-400 font-bold ml-0.5">{a.unitOfMeasure}</span>
+                                          </div>
+                                          <div className="text-[9px] text-stone-400 italic font-bold">
+                                            {m.reference ? `Réf: ${m.reference}` : (m.note || '-')}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
                       );
                     });
                   })()}
