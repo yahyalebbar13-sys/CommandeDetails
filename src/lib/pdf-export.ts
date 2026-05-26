@@ -335,22 +335,7 @@ export async function exportCoutRevientSimplePDF(
   let yPos = 14;
 
   // ── Logo / Brand ──
-  await new Promise<void>(resolve => {
-    const img = new Image();
-    img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
-    img.onerror = () => {
-      doc.setTextColor(...NAVY);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('LEBTEX', marginX, yPos + 7);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GOLD);
-      doc.text('TEXTILE IMPORT', marginX, yPos + 12);
-      resolve();
-    };
-  });
+  await addPdfLogoHeader(doc, marginX, yPos, 40, 20);
 
   // ── Title right ──
   doc.setTextColor(...NAVY);
@@ -543,22 +528,7 @@ export async function exportCoutVenteSimplePDF(
   let yPos = 14;
 
   // ── Logo / Brand ──
-  await new Promise<void>(resolve => {
-    const img = new Image();
-    img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
-    img.onerror = () => {
-      doc.setTextColor(...NAVY);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('LEBTEX', marginX, yPos + 7);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GOLD);
-      doc.text('TEXTILE IMPORT', marginX, yPos + 12);
-      resolve();
-    };
-  });
+  await addPdfLogoHeader(doc, marginX, yPos, 40, 20);
 
   // ── Title right ──
   doc.setTextColor(...NAVY);
@@ -750,22 +720,7 @@ export async function exportDossierArticlesPDF(
   let yPos = 14;
 
   // ── Logo / Brand ──
-  await new Promise<void>(resolve => {
-    const img = new Image();
-    img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
-    img.onerror = () => {
-      doc.setTextColor(...NAVY);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('LEBTEX', marginX, yPos + 7);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GOLD);
-      doc.text('TEXTILE IMPORT', marginX, yPos + 12);
-      resolve();
-    };
-  });
+  await addPdfLogoHeader(doc, marginX, yPos, 40, 20);
 
   // ── Title right ──
   doc.setTextColor(...NAVY);
@@ -1128,22 +1083,7 @@ export async function exportDPPDF(
   let yPos = 16;
 
   // ── Logo ──
-  await new Promise<void>(resolve => {
-    const img = new Image();
-    img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 36, 18); resolve(); };
-    img.onerror = () => {
-      doc.setTextColor(...NAVY);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text('LEBTEX', marginX, yPos + 8);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GOLD);
-      doc.text('TEXTILE IMPORT', marginX, yPos + 13);
-      resolve();
-    };
-  });
+  await addPdfLogoHeader(doc, marginX, yPos, 40, 20);
 
   // ── Title (right) ──
   doc.setTextColor(...NAVY);
@@ -1879,18 +1819,7 @@ export async function exportDevisClientPIPDF(params: {
   doc.setFillColor(...GOLD);
   doc.rect(0, 0, 5, 38, 'F');
 
-  await new Promise<void>(resolve => {
-    const img = new Image();
-    img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', 10, 6, 32, 16); resolve(); };
-    img.onerror = () => {
-      doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-      doc.text('LEBTEX', 12, 20);
-      doc.setFontSize(7); doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...GOLD); doc.text('TEXTILE IMPORT', 12, 26);
-      resolve();
-    };
-  });
+  await addPdfLogoHeader(doc, marginX, yPos, 40, 20);
 
   doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
   doc.text('DEVIS', W - MX, 18, { align: 'right' });
