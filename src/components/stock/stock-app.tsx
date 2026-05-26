@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
-  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2,
+  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download,
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -273,6 +273,36 @@ export default function StockApp() {
     }
   }, [user, firestore, toast]);
 
+  // ── Backup JSON ──────────────────────────────────────────────────────────
+  const handleBackup = useCallback(() => {
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')}`;
+    const backup = {
+      exportedAt: now.toISOString(),
+      exportedBy: user?.email || user?.uid,
+      collections: {
+        articles,
+        categories,
+        generalCategories,
+        stockMovements: movements,
+        factures,
+        clients,
+        saleOrders: orders,
+        invoices,
+        clientPayments: payments,
+        sales,
+      },
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `lebtex-backup-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: '✅ Backup téléchargé', description: `lebtex-backup-${stamp}.json` });
+  }, [articles, categories, generalCategories, movements, factures, clients, orders, invoices, payments, sales, user, toast]);
+
   // POS rapide (ancienne vente)
   const handleValidateSale = useCallback(async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
@@ -451,6 +481,11 @@ export default function StockApp() {
             <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 text-[9px] font-black text-stone-500 hover:bg-stone-100 uppercase tracking-wider transition-colors">
               ← StockVue
             </a>
+            <Button variant="ghost" size="sm" onClick={handleBackup}
+              title="Télécharger une sauvegarde complète de toutes vos données"
+              className="hidden sm:flex items-center gap-1.5 text-[9px] font-black text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 h-9 px-3 rounded-xl border border-emerald-200 uppercase tracking-wider">
+              <Download className="w-3.5 h-3.5" /> Backup
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => signOut(auth)}
               className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50">
               <LogOut className="w-4 h-4" />
