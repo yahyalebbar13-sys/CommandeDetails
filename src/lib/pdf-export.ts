@@ -1,6 +1,35 @@
 // Utility functions for PDF export using jsPDF + jspdf-autotable
 // Dynamically imported to avoid SSR issues
 
+// ── Shared logo helper ─────────────────────────────────────────────────────
+async function addPdfLogoHeader(
+  doc: any,
+  x: number, y: number,
+  w = 36, h = 18
+): Promise<void> {
+  return new Promise<void>(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = '/logo.png';
+    img.onload = () => {
+      try { doc.addImage(img, 'PNG', x, y, w, h); } catch (_) {}
+      resolve();
+    };
+    img.onerror = () => {
+      // Texte fallback si l'image ne charge pas
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LEBTEX', x, y + 8);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(196, 160, 98);
+      doc.text('TEXTILE IMPORT', x, y + 13);
+      resolve();
+    };
+  });
+}
+
 export async function exportFacturePDF(facture: any, articles: any[]) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -12,14 +41,17 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
   doc.setFillColor(28, 25, 23); // stone-900
   doc.rect(0, 0, pageW, 32, 'F');
 
+  // Logo LEBTEX (coin haut gauche, sur fond sombre)
+  await addPdfLogoHeader(doc, 8, 5, 38, 19);
+
   doc.setTextColor(251, 191, 36); // amber-400
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('DOSSIER D\'ARRIVAGE OFFICIEL', 14, 10);
+  doc.text('DOSSIER D\'ARRIVAGE OFFICIEL', 54, 10);
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
-  doc.text(facture.id || '', 14, 22);
+  doc.setFontSize(16);
+  doc.text(facture.id || '', 54, 22);
 
   doc.setFontSize(8);
   doc.setTextColor(161, 161, 170); // stone-400
@@ -122,7 +154,7 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(161, 161, 170);
-    doc.text(`Page ${i} / ${pageCount}  —  STOCKVUE LOGISTICS`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
+    doc.text(`Page ${i} / ${pageCount}  —  LEBTEX TEXTILE IMPORT`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
   }
 
   doc.save(`Dossier_${facture.id || 'Arrivage'}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -143,18 +175,21 @@ export async function exportCostAnalysisPDF(
   doc.setFillColor(28, 25, 23);
   doc.rect(0, 0, pageW, 32, 'F');
 
+  // Logo LEBTEX
+  await addPdfLogoHeader(doc, 8, 5, 38, 19);
+
   doc.setTextColor(251, 191, 36);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('COÛT DE REVIENT TTC — ANALYSE FINANCIÈRE', 14, 10);
+  doc.text('COÛT DE REVIENT TTC — ANALYSE FINANCIÈRE', 54, 10);
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.text(`Dossier : ${facture.id || ''}`, 14, 22);
+  doc.setFontSize(16);
+  doc.text(`Dossier : ${facture.id || ''}`, 54, 22);
 
   doc.setFontSize(8);
   doc.setTextColor(161, 161, 170);
-  doc.text(`ETA: ${facture.arrivalDate || '—'}   |   Fournisseur: ${facture.supplierId || '—'}   |   Taux de change: ${analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'} MAD/$`, 14, 29);
+  doc.text(`ETA: ${facture.arrivalDate || '—'}   |   Fournisseur: ${facture.supplierId || '—'}   |   Taux de change: ${analysis.tauxChange > 0 ? analysis.tauxChange.toFixed(4) : '—'} MAD/$`, 54, 29);
 
   doc.setFontSize(7);
   doc.setTextColor(113, 113, 122);
@@ -264,7 +299,7 @@ export async function exportCostAnalysisPDF(
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(161, 161, 170);
-    doc.text(`Page ${i} / ${pageCount}  —  STOCKVUE LOGISTICS`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
+    doc.text(`Page ${i} / ${pageCount}  —  LEBTEX TEXTILE IMPORT`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
   }
 
   doc.save(`CoutRevient_${facture.id || 'Dossier'}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -1042,7 +1077,7 @@ export async function exportCostSalePDF(
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(161, 161, 170);
-    doc.text(`Page ${i} / ${pageCount}  —  STOCKVUE LOGISTICS`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
+    doc.text(`Page ${i} / ${pageCount}  —  LEBTEX TEXTILE IMPORT`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
   }
 
   doc.save(`CoutVente_${facture.id || 'Dossier'}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -1361,7 +1396,7 @@ function pageFooter(doc: any, pageW: number) {
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(161, 161, 170);
-    doc.text(`Page ${i} / ${pageCount}  —  STOCKVUE LOGISTICS`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
+    doc.text(`Page ${i} / ${pageCount}  —  LEBTEX TEXTILE IMPORT`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: 'center' });
   }
 }
 
