@@ -439,7 +439,7 @@ export default function StockApp() {
               <StockInventory stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'analytics' && (
-              <StockSales sales={sales} onNavigate={setActiveView} />
+              <StockSales sales={sales} invoices={invoices} clients={clients} onNavigate={setActiveView} />
             )}
             {activeView === 'movements' && (
               <StockMovements movements={movements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />

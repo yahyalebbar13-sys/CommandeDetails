@@ -558,7 +558,7 @@ export default function StockSaleFlow({
             <table className="w-full">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Produit', 'Couleur', 'Taille', 'Qté', 'Prix unit.', 'Total', ''].map(h => (
+                  {['Référence produit', 'Qté', 'Prix unit. (MAD)', 'Total (MAD)', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                   ))}
                 </tr>
@@ -566,17 +566,24 @@ export default function StockSaleFlow({
               <tbody className="divide-y divide-stone-50">
                 {cart.map(({ item, qty, unitPrice }) => (
                   <tr key={item.articleId} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="px-4 py-3 text-[10px] font-black text-stone-800 uppercase">{item.productName}</td>
                     <td className="px-4 py-3">
-                      {item.color ? (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full border border-stone-200 shrink-0"
-                            style={{ backgroundColor: getColorCSS(item.color) }} />
-                          <span className="text-[9px] font-bold text-stone-500">{item.color}</span>
+                      <div>
+                        <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight">{item.productName}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {item.color && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getColorCSS(item.color) }} />
+                              {item.color}
+                            </span>
+                          )}
+                          {item.size && (
+                            <span className="text-[8px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase">N° {item.size}</span>
+                          )}
+                          <span className="text-[8px] text-stone-300 font-bold">{item.unitOfMeasure}</span>
                         </div>
-                      ) : <span className="text-stone-200">—</span>}
+                        <p className="text-[8px] text-stone-400 font-bold mt-0.5">{item.categoryId}</p>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{item.size || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button onClick={() => qty > 1 && updateCart(item.articleId, 'qty', qty - 1)}

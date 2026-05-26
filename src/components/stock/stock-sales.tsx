@@ -10,6 +10,8 @@ import type { Sale } from '@/lib/types';
 
 interface StockSalesProps {
   sales: Sale[];
+  invoices?: any[];
+  clients?: any[];
   onNavigate: (v: any) => void;
 }
 
@@ -18,25 +20,58 @@ const fmtN = (n: number) => n.toLocaleString('fr-FR');
 
 const MONTH_NAMES = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
-export default function StockSales({ sales, onNavigate }: StockSalesProps) {
+export default function StockSales({ sales, invoices, clients, onNavigate }: StockSalesProps) {
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
+  // Construire les ventes effectives : si sales est vide, on dérive depuis invoices
+  const effectiveSales = useMemo(() => {
+    if (sales.length > 0) return sales;
+    if (!invoices || invoices.length === 0) return [];
+    return invoices
+      .filter((inv: any) => inv.status !== 'CANCELLED')
+      .map((inv: any) => {
+        const client = (clients || []).find((c: any) => c.id === inv.clientId);
+        const totalAmount = Number(inv.totalAfterDiscount || inv.totalAmount || 0);
+        const totalCost = (inv.items || []).reduce((s: number, it: any) => s + (Number(it.purchasePricePerUnit || 0) * Number(it.qty || 0)), 0);
+        return {
+          id: inv.id,
+          date: inv.date || inv.createdAt?.toDate?.().toISOString().split('T')[0] || '',
+          clientId: inv.clientId,
+          clientName: client?.name || inv.clientName || 'Vente directe',
+          items: (inv.items || []).map((it: any) => ({
+            articleId: it.articleId || '',
+            productName: it.productName || it.name || '',
+            color: it.color,
+            size: it.size,
+            qty: Number(it.qty || 0),
+            sellingPrice: Number(it.unitPrice || it.sellingPrice || 0),
+            totalPrice: Number(it.totalPrice || 0),
+            margin: (Number(it.unitPrice || it.sellingPrice || 0) - Number(it.purchasePricePerUnit || 0)) * Number(it.qty || 0),
+          })),
+          totalAmount,
+          totalCost,
+          totalMargin: totalAmount - totalCost,
+          notes: inv.notes,
+        };
+      });
+  }, [sales, invoices, clients]);
+
   // Mois disponibles
   const months = useMemo(() => {
     const s = new Set<string>();
-    sales.forEach(s2 => { if (s2.date) s.add(s2.date.substring(0, 7)); });
+    effectiveSales.forEach((s2: any) => { if (s2.date) s.add(s2.date.substring(0, 7)); });
     return Array.from(s).sort().reverse();
-  }, [sales]);
+  }, [effectiveSales]);
 
   // Ventes filtrées
   const filtered = useMemo(() => {
-    if (filterMonth === 'all') return [...sales].sort((a, b) => b.date.localeCompare(a.date));
-    return sales.filter(s => s.date?.startsWith(filterMonth)).sort((a, b) => b.date.localeCompare(a.date));
-  }, [sales, filterMonth]);
+    if (filterMonth === 'all') return [...effectiveSales].sort((a: any, b: any) => b.date.localeCompare(a.date));
+    return effectiveSales.filter((s: any) => s.date?.startsWith(filterMonth)).sort((a: any, b: any) => b.date.localeCompare(a.date));
+  }, [effectiveSales, filterMonth]);
 
   // KPIs globaux (filtrés)
   const totalCA     = filtered.reduce((s, v) => s + v.totalAmount, 0);
@@ -48,7 +83,7 @@ export default function StockSales({ sales, onNavigate }: StockSalesProps) {
   // CA par mois (tous temps pour le graphe)
   const caByMonth = useMemo(() => {
     const map: Record<string, { ca: number; cout: number; nb: number }> = {};
-    sales.forEach(v => {
+    effectiveSales.forEach((v: any) => {
       const m = v.date?.substring(0, 7) || '';
       if (!map[m]) map[m] = { ca: 0, cout: 0, nb: 0 };
       map[m].ca   += v.totalAmount;
@@ -62,7 +97,7 @@ export default function StockSales({ sales, onNavigate }: StockSalesProps) {
         const [y, m] = month.split('-');
         return { month: `${MONTH_NAMES[parseInt(m) - 1]} ${y}`, ca: Math.round(d.ca), cout: Math.round(d.cout), marge: Math.round(d.ca - d.cout), nb: d.nb };
       });
-  }, [sales]);
+  }, [effectiveSales]);
 
   // Top produits vendus
   const topProducts = useMemo(() => {
@@ -97,7 +132,7 @@ export default function StockSales({ sales, onNavigate }: StockSalesProps) {
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
               Chiffre d'Affaires <span className="text-violet-300">& Ventes</span>
             </h1>
-            <p className="text-violet-300/70 text-xs font-bold mt-2">{sales.length} vente{sales.length !== 1 ? 's' : ''} au total</p>
+            <p className="text-violet-300/70 text-xs font-bold mt-2">{effectiveSales.length} vente{effectiveSales.length !== 1 ? 's' : ''} au total</p>
           </div>
           <div className="shrink-0">
             <Select value={filterMonth} onValueChange={setFilterMonth}>
