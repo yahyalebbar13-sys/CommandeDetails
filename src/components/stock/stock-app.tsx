@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell,
+  Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2,
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -23,10 +23,11 @@ import StockClients     from './stock-clients';
 import StockOrders      from './stock-orders';
 import StockInvoices    from './stock-invoices';
 import PassToStockModal from '@/components/pass-to-stock-modal';
+import StockFiches      from './stock-fiches';
 import AuthView         from '@/components/auth-view';
 import { Button }       from '@/components/ui/button';
 
-type StockView = 'dashboard' | 'sale' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 export function computeStockItems(
@@ -277,6 +278,7 @@ export default function StockApp() {
   const navItems: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string }[] = [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard },
     { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet' },
+    { id: 'stock',     label: 'En Stock',      icon: Package,         color: 'emerald' },
     { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber' },
     { id: 'clients',   label: 'Clients',       icon: Users },
     { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
@@ -312,11 +314,13 @@ export default function StockApp() {
               <button key={id} onClick={() => setActiveView(id)}
                 className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                   activeView === id
-                    ? color === 'violet' ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
-                    : color === 'amber' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
+                    ? color === 'violet'  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
+                    : color === 'amber'   ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
+                    : color === 'emerald' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30'
                     : 'bg-stone-900 text-white shadow-md'
-                    : color === 'violet' ? 'text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100'
-                    : color === 'amber' ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
+                    : color === 'violet'  ? 'text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100'
+                    : color === 'amber'   ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
+                    : color === 'emerald' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
                     : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
                 }`}>
                 <Icon className="w-3.5 h-3.5" />
@@ -421,6 +425,9 @@ export default function StockApp() {
                 onUpdateStatus={handleUpdateInvoiceStatus}
                 onNavigate={setActiveView}
               />
+            )}
+            {activeView === 'stock' && (
+              <StockFiches stockItems={stockItems} movements={movements} categories={categories} factures={factures} />
             )}
             {activeView === 'inventory' && (
               <StockInventory stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
