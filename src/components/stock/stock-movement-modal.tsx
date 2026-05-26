@@ -406,18 +406,22 @@ export default function StockMovementModal({
     if (!selectedStock) return;
 
     setSaving(true);
-    const selectedArticle = articles.find(a => a.id === form.articleId);
+
+    // Résoudre l'articleId réel si c'est un ID virtuel (various explosé)
+    const realArticleId = (selectedStock as any)._realArticleId || form.articleId;
+
+    const selectedArticle = articles.find(a => a.id === realArticleId);
     const parts: string[] = [];
     if (selectedArticle?.zipperType) parts.push(selectedArticle.zipperType);
     if (selectedArticle?.slider)     parts.push(selectedArticle.slider);
     const productName = parts.length > 0 ? parts.join(' ') : (selectedStock.productName || selectedArticle?.name || 'Produit');
 
     await onSubmit({
-      articleId:     form.articleId,
+      articleId:     realArticleId,           // ← toujours l'ID Firestore réel
       categoryId:    selectedStock.categoryId,
       productName,
-      color:         selectedStock.color,
-      size:          selectedStock.size,
+      color:         selectedStock.color,     // ← couleur de la variante
+      size:          selectedStock.size,      // ← taille de la variante
       unitOfMeasure: selectedStock.unitOfMeasure || 'unité',
       type:          form.type,
       reason:        form.reason as StockMovementReason,
@@ -428,6 +432,7 @@ export default function StockMovementModal({
     setSaving(false);
     onOpenChange(false);
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

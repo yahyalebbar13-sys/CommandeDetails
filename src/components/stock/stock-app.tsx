@@ -35,58 +35,164 @@ export function computeStockItems(
   movements: StockMovement[],
   categories: any[]
 ): StockItem[] {
-  // Un article entre en stock UNIQUEMENT s'il a été validé manuellement via PassToStockModal
+  // Un article entre en stock UNIQUEMENT s'il a été validé via PassToStockModal
   // = il a une stockEntryDate ET au moins un mouvement IN enregistré
   const stockArticles = articles.filter(a => {
     if (!a.stockEntryDate) return false;
-    const hasMovementIN = movements.some(m => m.articleId === a.id && m.type === 'IN');
-    return hasMovementIN;
+    return movements.some(m => m.articleId === a.id && m.type === 'IN');
   });
 
-  return stockArticles.map(a => {
+  const results: StockItem[] = [];
+
+  for (const a of stockArticles) {
+    // Nom du produit
     const parts: string[] = [];
     if (a.zipperType) parts.push(a.zipperType);
     if (a.slider)     parts.push(a.slider);
     const productName = parts.length > 0 ? parts.join(' ') : (a.name || a.specs || a.categoryId || 'Produit');
 
+    const hasTTCCost = Number(a.purchasePriceMAD) > 0;
+    const price      = Number(a.purchasePriceMAD) || Number(a.purchasePricePerUnit) || 0;
+    const sellPrice  = Number(a.sellingPrice) || undefined;
+
     const artMovements = movements.filter(m => m.articleId === a.id);
+
+    // ── CAS 1 : color === 'various' ET colorBreakdown renseigné ──────────────
+    const colorBreakdown: any[] = Array.isArray(a.colorBreakdown) ? a.colorBreakdown : [];
+    const sizeBreakdown:  any[] = Array.isArray(a.sizeBreakdown)  ? a.sizeBreakdown  : [];
+
+    if ((a.color === 'various' || a.color === 'Various') && colorBreakdown.length > 0) {
+      // Un StockItem par entrée dans colorBreakdown
+      for (const row of colorBreakdown) {
+        const colorLabel = (row.colorCode || row.description || row.color || '').trim();
+        if (!colorLabel) continue;
+
+        const initialQty = Number(row.rolls || row.quantity || 0);
+
+        // Mouvements filtrés : ceux qui mentionnent cette couleur spécifiquement
+        // ou bien les mouvements globaux de l'article proportionnellement
+        const colorMov = artMovements.filter(m =>
+          m.color?.toLowerCase() === colorLabel.toLowerCase()
+        );
+        // Fallback : si aucun mouvement avec couleur, prendre les mouvements globaux / nb de couleurs
+        const mouvIN  = colorMov.length > 0
+          ? colorMov.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0)
+          : artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0) / colorBreakdown.length;
+        const mouvOUT = colorMov.length > 0
+          ? colorMov.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0)
+          : artMovements.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0) / colorBreakdown.length;
+        const mouvADJ = colorMov.filter(m => m.type === 'ADJUSTMENT').reduce((s, m) => s + m.quantity, 0);
+
+        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        const lastMov = [...colorMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
+
+        results.push({
+          articleId:           `${a.id}__color__${colorLabel}`, // ID virtuel unique
+          categoryId:          a.categoryId,
+          productName,
+          color:               colorLabel,
+          size:                a.size !== 'various' ? a.size : undefined,
+          unitOfMeasure:       a.unitOfMeasure || 'unité',
+          purchasePricePerUnit: price,
+          hasTTCCost,
+          sellingPrice:        sellPrice,
+          initialQty,
+          mouvementsIn:        mouvIN,
+          mouvementsOut:       mouvOUT,
+          currentQty,
+          totalValue:          currentQty * price,
+          totalSellingValue:   sellPrice ? currentQty * sellPrice : undefined,
+          minThreshold:        a.minStockThreshold,
+          lastMovementDate:    lastMov?.date ?? a.stockEntryDate,
+          stockEntryDate:      a.stockEntryDate,
+          // Conserver l'articleId réel pour les mouvements et éditions
+          _realArticleId:      a.id,
+          _colorKey:           colorLabel,
+        } as any);
+      }
+      continue; // ne pas créer le StockItem générique
+    }
+
+    // ── CAS 2 : size === 'various' ET sizeBreakdown renseigné ────────────────
+    if ((a.size === 'various' || a.size === 'Various') && sizeBreakdown.length > 0) {
+      for (const row of sizeBreakdown) {
+        const sizeLabel = (row.size || '').trim();
+        if (!sizeLabel) continue;
+
+        const initialQty = Number(row.quantity || row.rolls || 0);
+        const sizeMov = artMovements.filter(m =>
+          m.size?.toLowerCase() === sizeLabel.toLowerCase()
+        );
+        const mouvIN  = sizeMov.length > 0
+          ? sizeMov.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0)
+          : artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0) / sizeBreakdown.length;
+        const mouvOUT = sizeMov.length > 0
+          ? sizeMov.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0)
+          : artMovements.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0) / sizeBreakdown.length;
+        const mouvADJ = sizeMov.filter(m => m.type === 'ADJUSTMENT').reduce((s, m) => s + m.quantity, 0);
+
+        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        const lastMov = [...sizeMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
+
+        results.push({
+          articleId:           `${a.id}__size__${sizeLabel}`,
+          categoryId:          a.categoryId,
+          productName,
+          color:               a.color !== 'various' ? a.color : undefined,
+          size:                sizeLabel,
+          unitOfMeasure:       a.unitOfMeasure || 'unité',
+          purchasePricePerUnit: price,
+          hasTTCCost,
+          sellingPrice:        sellPrice,
+          initialQty,
+          mouvementsIn:        mouvIN,
+          mouvementsOut:       mouvOUT,
+          currentQty,
+          totalValue:          currentQty * price,
+          totalSellingValue:   sellPrice ? currentQty * sellPrice : undefined,
+          minThreshold:        a.minStockThreshold,
+          lastMovementDate:    lastMov?.date ?? a.stockEntryDate,
+          stockEntryDate:      a.stockEntryDate,
+          _realArticleId:      a.id,
+          _sizeKey:            sizeLabel,
+        } as any);
+      }
+      continue;
+    }
+
+    // ── CAS 3 : article normal (1 couleur / 1 taille ou sans variante) ────────
     const mouvIN  = artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0);
     const mouvOUT = artMovements.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0);
     const mouvADJ = artMovements.filter(m => m.type === 'ADJUSTMENT').reduce((s, m) => s + m.quantity, 0);
-
     const initialQty = Number(a.quantity) || 0;
     const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
-
-    // Prix d'achat : coût de revient TTC MAD en priorité (calculé à l'arrivage),
-    // sinon prix FOB $ brut (non préférable pour la valorisation)
-    const hasTTCCost = Number(a.purchasePriceMAD) > 0;
-    const price     = Number(a.purchasePriceMAD) || Number(a.purchasePricePerUnit) || 0;
-    const sellPrice = Number(a.sellingPrice) || undefined;
-
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
-    return {
-      articleId: a.id,
-      categoryId: a.categoryId,
+    results.push({
+      articleId:           a.id,
+      categoryId:          a.categoryId,
       productName,
-      color: a.color,
-      size: a.size,
-      unitOfMeasure: a.unitOfMeasure || 'unité',
+      color:               a.color !== 'various' ? a.color : undefined,
+      size:                a.size  !== 'various' ? a.size  : undefined,
+      unitOfMeasure:       a.unitOfMeasure || 'unité',
       purchasePricePerUnit: price,
       hasTTCCost,
-      sellingPrice: sellPrice,
+      sellingPrice:        sellPrice,
       initialQty,
-      mouvementsIn: mouvIN,
-      mouvementsOut: mouvOUT,
+      mouvementsIn:        mouvIN,
+      mouvementsOut:       mouvOUT,
       currentQty,
-      totalValue: currentQty * price,
-      totalSellingValue: sellPrice ? currentQty * sellPrice : undefined,
-      minThreshold: a.minStockThreshold,
-      lastMovementDate: lastMovement?.date ?? a.stockEntryDate,
-      stockEntryDate: a.stockEntryDate,
-    };
-  });
+      totalValue:          currentQty * price,
+      totalSellingValue:   sellPrice ? currentQty * sellPrice : undefined,
+      minThreshold:        a.minStockThreshold,
+      lastMovementDate:    lastMovement?.date ?? a.stockEntryDate,
+      stockEntryDate:      a.stockEntryDate,
+    });
+  }
+
+  return results;
 }
+
 
 // ─── Ajout mouvement ──────────────────────────────────────────────────────────
 export async function addStockMovement(
