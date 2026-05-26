@@ -108,9 +108,9 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, movements, factures, onBack, color
+  article, movements, factures, onBack, color, inline = false
 }: {
-  article: any; movements: any[]; factures: any[]; onBack: () => void; color: string;
+  article: any; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
 }) {
   const cost = article.purchasePricePerUnit || 0;
 
@@ -134,16 +134,17 @@ function ProductFiche({
   let running = article.initialQty;
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-200">
-
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
-          <ChevronLeft className="w-3.5 h-3.5" /> Retour
-        </button>
-        <span className="text-stone-200">/</span>
-        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>{article.productName}</span>
-      </div>
+    <div className="space-y-5">
+      {/* Breadcrumb — caché en mode inline */}
+      {!inline && (
+        <div className="flex items-center gap-2">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+            <ChevronLeft className="w-3.5 h-3.5" /> Retour
+          </button>
+          <span className="text-stone-200">/</span>
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>{article.productName}</span>
+        </div>
+      )}
 
       {/* ── En-tête produit ── */}
       <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
@@ -386,11 +387,12 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, onSelectProduct
+  items, subCatName, movements, factures, onBack
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
-  onBack: () => void; onSelectProduct: (articleId: string) => void;
+  onBack: () => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
   const totalVal = items.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
@@ -463,69 +465,92 @@ function ProductsTable({
                 const isAlert = a.minThreshold != null && a.currentQty <= a.minThreshold;
                 const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
 
+                const isExpanded = expandedId === a.articleId;
                 return (
-                  <tr
-                    key={a.articleId}
-                    onClick={() => onSelectProduct(a.articleId)}
-                    className="cursor-pointer hover:bg-stone-50 transition-colors group"
-                    style={{ borderLeftWidth: 3, borderLeftColor: color, borderLeftStyle: 'solid' }}
-                  >
-                    <td className="px-5 py-4 text-center text-[8px] font-black text-stone-300">{idx + 1}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
-                          <Package className="w-3.5 h-3.5" style={{ color }} />
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight group-hover:underline decoration-dotted">{a.productName}</p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {a.size  && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
-                            {a.color && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
-                            <span className="text-[7px] text-stone-300">{a.unitOfMeasure}</span>
+                  <React.Fragment key={a.articleId}>
+                    <tr
+                      onClick={() => setExpandedId(isExpanded ? null : a.articleId)}
+                      className={`cursor-pointer transition-colors group ${isExpanded ? 'bg-stone-50' : 'hover:bg-stone-50/60'}`}
+                      style={{ borderLeftWidth: 3, borderLeftColor: color, borderLeftStyle: 'solid' }}
+                    >
+                      <td className="px-5 py-4 text-center text-[8px] font-black text-stone-300">{idx + 1}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
+                            <Package className="w-3.5 h-3.5" style={{ color }} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight">{a.productName}</p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {a.size  && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
+                              {a.color && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
+                              <span className="text-[7px] text-stone-300">{a.unitOfMeasure}</span>
+                            </div>
+                          </div>
+                          <div className={`ml-auto w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                            isExpanded ? 'bg-stone-900 border-stone-900 rotate-90' : 'border-stone-200'
+                          }`}>
+                            <ArrowRight className={`w-2.5 h-2.5 transition-colors ${isExpanded ? 'text-white' : 'text-stone-300'}`} />
                           </div>
                         </div>
-                        <ArrowRight className="w-3.5 h-3.5 text-stone-200 group-hover:text-stone-500 ml-auto transition-colors" />
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right font-black text-emerald-600">+{fmt(totalIn)}</td>
-                    <td className="px-5 py-4 text-right">
-                      <span className={`font-black ${a.mouvementsOut > 0 ? 'text-rose-600' : 'text-stone-200'}`}>
-                        {a.mouvementsOut > 0 ? `-${fmt(a.mouvementsOut)}` : '—'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 min-w-[160px]">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[14px] font-black text-stone-900">{fmt(a.currentQty)}</span>
-                          {a.currentQty === 0 ? (
-                            <span className="text-[7px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full uppercase">Rupture</span>
-                          ) : isAlert ? (
-                            <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                              <AlertTriangle className="w-2 h-2" />Alerte
-                            </span>
-                          ) : (
-                            <span className="text-[7px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                              <CheckCircle2 className="w-2 h-2" />OK
-                            </span>
-                          )}
+                      </td>
+                      <td className="px-5 py-4 text-right font-black text-emerald-600">+{fmt(totalIn)}</td>
+                      <td className="px-5 py-4 text-right">
+                        <span className={`font-black ${a.mouvementsOut > 0 ? 'text-rose-600' : 'text-stone-200'}`}>
+                          {a.mouvementsOut > 0 ? `-${fmt(a.mouvementsOut)}` : '—'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 min-w-[160px]">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[14px] font-black text-stone-900">{fmt(a.currentQty)}</span>
+                            {a.currentQty === 0 ? (
+                              <span className="text-[7px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full uppercase">Rupture</span>
+                            ) : isAlert ? (
+                              <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                                <AlertTriangle className="w-2 h-2" />Alerte
+                              </span>
+                            ) : (
+                              <span className="text-[7px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                                <CheckCircle2 className="w-2 h-2" />OK
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
+                          </div>
                         </div>
-                        <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      {a.minThreshold != null
-                        ? <span className={`text-[11px] font-black ${isAlert ? 'text-red-600' : 'text-stone-500'}`}>{fmt(a.minThreshold)}</span>
-                        : <span className="text-stone-200">—</span>}
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {cost > 0 ? <span className="font-black text-violet-700">{fmtDec(cost)} MAD</span> : <span className="text-stone-200">—</span>}
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {fifoVal > 0 ? <span className="font-black text-stone-800">{fmt(fifoVal)} MAD</span> : <span className="text-stone-200">—</span>}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        {a.minThreshold != null
+                          ? <span className={`text-[11px] font-black ${isAlert ? 'text-red-600' : 'text-stone-500'}`}>{fmt(a.minThreshold)}</span>
+                          : <span className="text-stone-200">—</span>}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {cost > 0 ? <span className="font-black text-violet-700">{fmtDec(cost)} MAD</span> : <span className="text-stone-200">—</span>}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {fifoVal > 0 ? <span className="font-black text-stone-800">{fmt(fifoVal)} MAD</span> : <span className="text-stone-200">—</span>}
+                      </td>
+                    </tr>
+                    {/* ── Fiche inline ── */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={8} className="p-0 border-l-4" style={{ borderLeftColor: color }}>
+                          <div className="bg-stone-50 border-t border-b border-stone-100 px-6 py-6">
+                            <ProductFiche
+                              article={a}
+                              movements={movements}
+                              factures={factures}
+                              color={color}
+                              onBack={() => setExpandedId(null)}
+                              inline
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -551,16 +576,15 @@ function ProductsTable({
   );
 }
 
-// ── Vue principale — navigation 4 niveaux ────────────────────────────────────
+// ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
   stockItems, movements, categories, generalCategories, factures
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[];
 }) {
-  const [selGenCat,  setSelGenCat]  = useState<string | null>(null);
-  const [selSubCat,  setSelSubCat]  = useState<string | null>(null);
-  const [selProduct, setSelProduct] = useState<string | null>(null);
+  const [selGenCat, setSelGenCat] = useState<string | null>(null);
+  const [selSubCat, setSelSubCat] = useState<string | null>(null);
 
   const stockByCategory = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -586,25 +610,7 @@ export default function StockFiches({
   const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
-  // ── Niveau 4 : fiche produit ──────────────────────────────────────────────
-  if (selGenCat && selSubCat && selProduct) {
-    const subCat  = categories.find(c => c.id === selSubCat || c.name === selSubCat);
-    const article = stockItems.find(i => i.articleId === selProduct);
-    const artIdx  = (stockByCategory[subCat?.name || selSubCat] || []).findIndex(i => i.articleId === selProduct);
-    const color   = UI_COLORS[artIdx >= 0 ? artIdx % UI_COLORS.length : 0];
-    if (!article) return null;
-    return (
-      <div className="space-y-6">
-        <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
-        <ProductFiche
-          article={article} movements={movements} factures={factures} color={color}
-          onBack={() => setSelProduct(null)}
-        />
-      </div>
-    );
-  }
-
-  // ── Niveau 3 : tableau produits ───────────────────────────────────────────
+  // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
     const items  = stockByCategory[subCat?.name || selSubCat] || [];
@@ -615,7 +621,6 @@ export default function StockFiches({
           items={items} subCatName={subCat?.name || selSubCat}
           movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
-          onSelectProduct={id => setSelProduct(id)}
         />
       </div>
     );
