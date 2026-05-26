@@ -61,11 +61,15 @@ export default function StockSaleFlow({
   const [showNewClient, setShowNewClient] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
 
-  // Étape 2 — Sélection produits
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selCat, setSelCat] = useState<string | null>(null);
   const [prodSearch, setProdSearch] = useState('');
   const [addModal, setAddModal] = useState<{ open: boolean; item?: StockItem; qty: number; unitPrice: number }>({ open: false, qty: 1, unitPrice: 0 });
+  // Groupe de variantes sélectionné (nom produit → affiche le panneau de variantes)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  // Qtés de saisie rapide par articleId dans le panneau variantes
+  const [variantQtys, setVariantQtys] = useState<Record<string, number>>({});
+  const [variantPrices, setVariantPrices] = useState<Record<string, number>>({});
 
   // Étape 3 — Panier
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -91,24 +95,39 @@ export default function StockSaleFlow({
     [categories, selGenCat]
   );
 
-  const filteredItems = useMemo(() => {
-    let r = stockItems.filter(i => i.currentQty > 0);
+  // Grouper les items filtrés par nom de produit (intègre le filtre)
+  const groupedProducts = useMemo(() => {
+    let items = stockItems.filter(i => i.currentQty > 0);
     if (selCat) {
-      // i.categoryId contient le nom de la catégorie (tel que saisi dans StockVue)
-      r = r.filter(i => i.categoryId === selCat);
+      items = items.filter(i => i.categoryId === selCat);
     } else if (selGenCat) {
       const catNames = filteredCats.map((c: any) => c.name);
-      r = r.filter(i => catNames.includes(i.categoryId));
+      items = items.filter(i => catNames.includes(i.categoryId));
     }
     if (prodSearch) {
       const q = prodSearch.toLowerCase();
-      r = r.filter(i =>
+      items = items.filter(i =>
         i.productName.toLowerCase().includes(q) ||
         i.color?.toLowerCase().includes(q) ||
         i.size?.toLowerCase().includes(q)
       );
     }
-    return r;
+    const map = new Map<string, StockItem[]>();
+    items.forEach(item => {
+      const key = item.productName;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    });
+    return Array.from(map.entries()).map(([name, variants]) => ({
+      name,
+      variants: variants.sort((a, b) => {
+        const aKey = `${a.color || ''}${a.size || ''}`;
+        const bKey = `${b.color || ''}${b.size || ''}`;
+        return aKey.localeCompare(bKey);
+      }),
+      totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
+      categoryId: variants[0]?.categoryId || '',
+    }));
   }, [stockItems, selCat, selGenCat, filteredCats, prodSearch]);
 
   const filteredClients = useMemo(() =>
@@ -175,7 +194,7 @@ export default function StockSaleFlow({
 
       if (finalType === 'order') {
         await onCreateOrder({
-          clientId: selectedClient?.id || null,
+          clientId: selectedClient?.id || undefined,
           clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
           items,
           totalAmount: subTotal,
@@ -200,7 +219,7 @@ export default function StockSaleFlow({
           notes: selectedClient ? `Facture client : ${selectedClient.name}` : 'Vente directe',
         }));
         await onCreateInvoice({
-          clientId: selectedClient?.id || null,
+          clientId: selectedClient?.id || undefined,
           clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
           items,
           totalAmount: subTotal,
@@ -210,7 +229,7 @@ export default function StockSaleFlow({
           remainingBalance: total,
           status: 'UNPAID',
           date: today,
-          dueDate: dueDate || null,
+          dueDate: dueDate || undefined,
           notes,
         }, movements);
       }
@@ -458,74 +477,213 @@ export default function StockSaleFlow({
             )}
           </div>
 
-          {/* ── Cartes produits (style GRP) ── */}
-          {filteredItems.length === 0 ? (
+          {/* ── Grille produits groupés par nom ── */}
+          {groupedProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <ShoppingBag className="w-10 h-10 text-stone-200 mb-3" />
               <p className="text-stone-300 text-[9px] font-black uppercase tracking-widest">Aucun produit disponible</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {filteredItems.map((item, idx) => {
-                const inCart = cart.find(l => l.item.articleId === item.articleId);
-                const hasPrice = item.sellingPrice != null && item.sellingPrice > 0;
+            <div className="space-y-3">
+              {groupedProducts.map((group, gIdx) => {
                 const COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
-                const accentColor = COLORS[idx % COLORS.length];
+                const accentColor = COLORS[gIdx % COLORS.length];
+                const cartLinesForGroup = cart.filter(l => l.item.productName === group.name);
+                const cartQtyTotal = cartLinesForGroup.reduce((s, l) => s + l.qty, 0);
+                const isOpen = selectedGroup === group.name;
+
                 return (
-                  <div
-                    key={item.articleId}
-                    onClick={() => openAddModal(item)}
-                    className={`relative bg-white rounded-[1.2rem] overflow-hidden border-2 cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 ${
-                      inCart ? 'border-emerald-400 shadow-lg shadow-emerald-500/10' : 'border-stone-100 shadow-md hover:border-stone-200'
-                    }`}
-                  >
-                    {/* Top accent */}
-                    <div className="h-1 w-full" style={{ backgroundColor: inCart ? '#10B981' : accentColor }} />
-
-                    {/* Color swatch */}
-                    <div className="mx-4 mt-3 h-10 rounded-xl border border-stone-100 flex items-center justify-center"
-                      style={{ backgroundColor: item.color ? getColorCSS(item.color) : '#f5f5f4' }}>
-                      {!item.color && <Tag className="w-4 h-4 text-stone-300" />}
-                    </div>
-
-                    <div className="p-3 space-y-2">
-                      <p className="text-[10px] font-black text-stone-800 uppercase leading-tight line-clamp-2 min-h-[2.2rem]">
-                        {item.productName}
-                      </p>
-
-                      {/* Tags taille/couleur */}
-                      {(item.size || item.color) && (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {item.color && <span className="text-[7px] font-black bg-stone-50 text-stone-400 px-1.5 py-0.5 rounded uppercase">{item.color}</span>}
-                          {item.size  && <span className="text-[7px] font-black bg-stone-50 text-stone-400 px-1.5 py-0.5 rounded uppercase">{item.size}</span>}
-                        </div>
-                      )}
-
-                      {/* Stock bar */}
-                      <div className="space-y-0.5">
-                        <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, item.currentQty)}%`, backgroundColor: accentColor }} />
-                        </div>
-                        <p className="text-[8px] font-black text-stone-400 text-right">{item.currentQty} {item.unitOfMeasure}</p>
+                  <div key={group.name} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+                    {/* En-tête du groupe — clic pour ouvrir/fermer */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedGroup(isOpen ? null : group.name);
+                        // Pré-remplir les prix depuis sellingPrice
+                        const prices: Record<string, number> = {};
+                        const qtys: Record<string, number> = {};
+                        group.variants.forEach(v => {
+                          prices[v.articleId] = v.sellingPrice || 0;
+                          qtys[v.articleId] = 1;
+                        });
+                        setVariantPrices(p => ({ ...prices, ...p }));
+                        setVariantQtys(q => ({ ...qtys, ...q }));
+                      }}
+                      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${
+                        isOpen ? 'bg-stone-50' : 'hover:bg-stone-50/50'
+                      }`}
+                      style={{ borderLeft: `4px solid ${accentColor}` }}
+                    >
+                      {/* Pastilles de couleurs dispo */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {group.variants.slice(0, 5).map((v, vi) => (
+                          <div key={v.articleId} className="w-5 h-5 rounded-full border-2 border-white shadow-sm shrink-0"
+                            style={{ backgroundColor: v.color ? getColorCSS(v.color) : accentColor,
+                              marginLeft: vi > 0 ? -6 : 0, zIndex: 5 - vi, position: 'relative' }}
+                            title={[v.color, v.size].filter(Boolean).join(' / ')}
+                          />
+                        ))}
+                        {group.variants.length > 5 && (
+                          <span className="text-[7px] font-black text-stone-400 ml-1">+{group.variants.length - 5}</span>
+                        )}
                       </div>
 
-                      {/* Prix + bouton */}
-                      <div className="flex items-center justify-between pt-1 border-t border-stone-50">
-                        {hasPrice
-                          ? <span className="text-[10px] font-black text-violet-700">{fmt$(item.sellingPrice!)}</span>
-                          : <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">Prix ?</span>
-                        }
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
-                          inCart ? 'bg-emerald-500 text-white' : 'text-white'
-                        }`} style={{ backgroundColor: inCart ? '#10B981' : accentColor }}>
-                          {inCart ? inCart.qty : '+'}
+                      {/* Nom + catégorie */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight leading-none">{group.name}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[8px] font-bold text-stone-400">{group.categoryId}</span>
+                          <span className="text-[7px] font-black text-stone-300">
+                            {group.variants.length} variante{group.variants.length > 1 ? 's' : ''}
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    {inCart && (
-                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                        <span className="text-[8px] font-black text-white">{inCart.qty}</span>
+                      {/* Stock total + panier */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        {cartQtyTotal > 0 && (
+                          <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full uppercase">
+                            {cartQtyTotal} au panier
+                          </span>
+                        )}
+                        <div className="text-right">
+                          <p className="text-[13px] font-black text-stone-900">{group.totalQty.toLocaleString('fr-MA')}</p>
+                          <p className="text-[7px] font-bold text-stone-400">en stock</p>
+                        </div>
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-transform ${
+                          isOpen ? 'rotate-90' : ''
+                        }`} style={{ backgroundColor: `${accentColor}20` }}>
+                          <ChevronRight className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Panneau des variantes — visible si isOpen */}
+                    {isOpen && (
+                      <div className="border-t border-stone-100">
+                        <div className="divide-y divide-stone-50">
+                          {group.variants.map((v, vi) => {
+                            const inCartLine = cart.find(l => l.item.articleId === v.articleId);
+                            const vQty   = variantQtys[v.articleId] ?? 1;
+                            const vPrice = variantPrices[v.articleId] ?? (v.sellingPrice || 0);
+                            const pct    = group.variants.reduce((s, x) => s + x.currentQty, 0) > 0
+                              ? Math.min(100, Math.round(v.currentQty / group.variants.reduce((s, x) => s + x.currentQty, 0) * 100))
+                              : 0;
+                            const isEmpty = v.currentQty === 0;
+
+                            return (
+                              <div key={v.articleId} className={`flex items-center gap-4 px-5 py-3.5 ${
+                                isEmpty ? 'opacity-40' : inCartLine ? 'bg-emerald-50/40' : 'hover:bg-stone-50/60'
+                              }`}>
+
+                                {/* Couleur + taille */}
+                                <div className="flex items-center gap-2 w-40 shrink-0">
+                                  <div className="w-7 h-7 rounded-lg border border-stone-200 shrink-0 flex items-center justify-center"
+                                    style={{ backgroundColor: v.color ? getColorCSS(v.color) : '#f5f5f4' }}
+                                  >
+                                    {!v.color && <Tag className="w-3 h-3 text-stone-300" />}
+                                  </div>
+                                  <div>
+                                    {v.color && <p className="text-[9px] font-black text-stone-800 uppercase">{v.color}</p>}
+                                    {v.size  && <p className="text-[8px] font-bold text-stone-500 uppercase">N° {v.size}</p>}
+                                    {!v.color && !v.size && <p className="text-[9px] font-black text-stone-400">Standard</p>}
+                                  </div>
+                                </div>
+
+                                {/* Stock + barre */}
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-black text-stone-900">{v.currentQty.toLocaleString('fr-MA')}</span>
+                                    <span className="text-[7px] font-bold text-stone-400">{v.unitOfMeasure}</span>
+                                  </div>
+                                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{
+                                      width: `${pct}%`,
+                                      backgroundColor: isEmpty ? '#d1d5db' : v.currentQty < 50 ? '#f59e0b' : accentColor
+                                    }} />
+                                  </div>
+                                </div>
+
+                                {/* Prix */}
+                                <div className="w-24 shrink-0">
+                                  <p className="text-[7px] font-black text-stone-400 uppercase mb-0.5">Prix MAD/u</p>
+                                  <input
+                                    type="number" min={0} step="any"
+                                    value={vPrice}
+                                    disabled={isEmpty}
+                                    onChange={e => setVariantPrices(p => ({ ...p, [v.articleId]: Number(e.target.value) }))}
+                                    className="w-full h-7 text-[10px] font-black border border-stone-200 rounded-lg px-2 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-40"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+
+                                {/* Quantité + ajouter */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="flex items-center border border-stone-200 rounded-lg overflow-hidden">
+                                    <button type="button" disabled={isEmpty || vQty <= 1}
+                                      onClick={() => setVariantQtys(q => ({ ...q, [v.articleId]: Math.max(1, vQty - 1) }))}
+                                      className="w-7 h-7 flex items-center justify-center font-black text-stone-500 hover:bg-stone-100 disabled:opacity-30 transition-colors">
+                                      <Minus className="w-3 h-3" />
+                                    </button>
+                                    <input type="number" min={1} max={v.currentQty}
+                                      value={vQty}
+                                      disabled={isEmpty}
+                                      onChange={e => setVariantQtys(q => ({ ...q, [v.articleId]: Math.max(1, Math.min(v.currentQty, Number(e.target.value))) }))}
+                                      className="w-10 h-7 text-center text-[11px] font-black border-x border-stone-200 focus:outline-none disabled:opacity-30"
+                                    />
+                                    <button type="button" disabled={isEmpty || vQty >= v.currentQty}
+                                      onClick={() => setVariantQtys(q => ({ ...q, [v.articleId]: Math.min(v.currentQty, vQty + 1) }))}
+                                      className="w-7 h-7 flex items-center justify-center font-black text-stone-500 hover:bg-stone-100 disabled:opacity-30 transition-colors">
+                                      <Plus className="w-3 h-3" />
+                                    </button>
+                                  </div>
+
+                                  {inCartLine ? (
+                                    <button type="button"
+                                      onClick={() => removeFromCart(v.articleId)}
+                                      className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors">
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  ) : (
+                                    <button type="button" disabled={isEmpty || vPrice <= 0}
+                                      onClick={() => {
+                                        if (!isEmpty && vPrice > 0) {
+                                          setCart(prev => {
+                                            const ex = prev.find(l => l.item.articleId === v.articleId);
+                                            if (ex) return prev.map(l => l.item.articleId === v.articleId ? { ...l, qty: Math.min(l.qty + vQty, v.currentQty), unitPrice: vPrice } : l);
+                                            return [...prev, { item: v, qty: vQty, unitPrice: vPrice }];
+                                          });
+                                        }
+                                      }}
+                                      className="w-8 h-8 rounded-lg text-white flex items-center justify-center font-black transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                      style={{ backgroundColor: isEmpty || vPrice <= 0 ? '#d1d5db' : accentColor }}
+                                      title={vPrice <= 0 ? 'Saisir un prix' : ''}
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+
+                                  {inCartLine && (
+                                    <span className="text-[7px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase">
+                                      {inCartLine.qty} ajoutés
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Pied du panneau */}
+                        <div className="px-5 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
+                          <span className="text-[7px] font-black text-stone-400 uppercase tracking-widest">
+                            {group.variants.filter(v => v.currentQty > 0).length} variante{group.variants.filter(v => v.currentQty > 0).length > 1 ? 's' : ''} disponible{group.variants.filter(v => v.currentQty > 0).length > 1 ? 's' : ''}
+                          </span>
+                          <span className="text-[7px] font-black text-amber-600 uppercase">
+                            {group.variants.filter(v => v.currentQty === 0).length > 0
+                              ? `${group.variants.filter(v => v.currentQty === 0).length} en rupture`
+                              : ''}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
