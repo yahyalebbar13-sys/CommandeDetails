@@ -3,222 +3,402 @@
 import React, { useState, useMemo } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
-  ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2,
-  BarChart3, DollarSign, Boxes, TrendingUp, TrendingDown
+  ChevronLeft, AlertTriangle, CheckCircle2, BarChart3, DollarSign,
+  Boxes, TrendingUp, Hash, Calendar, Tag, Info
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
 const LINE_COLORS: Record<string, string> = {
   'Fabric':'#8B5CF6','Slider et puller':'#3B82F6','Zipper':'#F59E0B','Bouton':'#10B981','Reste':'#6B7280',
 };
 
 function fmt(n: number) { return Math.round(n).toLocaleString('fr-MA'); }
-function fmtDec(n: number) {
-  return Number(n).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtDec(n: number, d = 2) {
+  return Number(n).toLocaleString('fr-MA', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-// ── Sous-tableau mouvements ───────────────────────────────────────────────────
-function MovementsDetail({ article, movements, factures }: { article: any; movements: any[]; factures: any[] }) {
+// ── Calcul FIFO ───────────────────────────────────────────────────────────────
+interface FIFOBatch {
+  date: string;
+  factureId: string;
+  qtyIn: number;
+  consumed: number;
+  remaining: number;
+  costPerUnit: number;   // MAD/u
+  batchValue: number;    // valeur restante MAD
+  status: 'ÉPUISÉ' | 'PARTIEL' | 'DISPONIBLE';
+}
+
+function computeFIFO(
+  entriesIN: any[],
+  entriesOUT: any[],
+  defaultCost: number
+): FIFOBatch[] {
+  // Trier les entrées par date (plus ancien = prioritaire FIFO)
+  const batches: FIFOBatch[] = [...entriesIN]
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .map(e => ({
+      date:        e.date || '—',
+      factureId:   e.factureId || e.notes || '—',
+      qtyIn:       Number(e.quantity) || 0,
+      consumed:    0,
+      remaining:   Number(e.quantity) || 0,
+      costPerUnit: (e.purchasePriceMAD != null && e.purchasePriceMAD > 0) ? e.purchasePriceMAD : defaultCost,
+      batchValue:  0,
+      status:      'DISPONIBLE',
+    }));
+
+  // Appliquer les sorties en FIFO
+  const exits = [...entriesOUT].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  exits.forEach(exit => {
+    let toConsume = Number(exit.quantity) || 0;
+    for (const batch of batches) {
+      if (toConsume <= 0 || batch.remaining <= 0) continue;
+      const consume = Math.min(toConsume, batch.remaining);
+      batch.consumed  += consume;
+      batch.remaining -= consume;
+      toConsume       -= consume;
+    }
+  });
+
+  // Calculer valeurs finales
+  batches.forEach(b => {
+    b.batchValue = Math.round(b.remaining * b.costPerUnit);
+    b.status = b.remaining === 0 ? 'ÉPUISÉ' : b.consumed > 0 ? 'PARTIEL' : 'DISPONIBLE';
+  });
+
+  return batches;
+}
+
+// ── Header KPI partagé ────────────────────────────────────────────────────────
+function StockHeader({
+  totalRefs, totalStock, totalVal, alertCount
+}: { totalRefs: number; totalStock: number; totalVal: number; alertCount: number }) {
+  return (
+    <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-8 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/30 to-transparent pointer-events-none" />
+      <div className="relative z-10 flex items-start justify-between flex-wrap gap-6">
+        <div>
+          <p className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
+          <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
+            Fiches de <span className="text-emerald-400">Stock</span>
+          </h2>
+          <p className="text-stone-400 text-xs mt-2">Méthode FIFO · entrées validées manuellement · coûts réels</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Références', value: String(totalRefs),         icon: BarChart3,    color: 'text-stone-300' },
+            { label: 'Stock Total', value: fmt(totalStock),           icon: Boxes,        color: 'text-blue-400'  },
+            { label: 'Valeur MAD',  value: `${fmt(totalVal)} MAD`,   icon: DollarSign,   color: 'text-emerald-400'},
+            { label: 'Alertes',     value: String(alertCount),        icon: AlertTriangle,color: alertCount > 0 ? 'text-amber-400' : 'text-stone-500' },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
+              <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
+              <p className={`text-[14px] font-black ${color} leading-none`}>{value}</p>
+              <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mt-1">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
+function ProductFiche({
+  article, movements, factures, onBack, color
+}: {
+  article: any; movements: any[]; factures: any[]; onBack: () => void; color: string;
+}) {
+  const cost = article.purchasePricePerUnit || 0;
+
   const artMovs = useMemo(() =>
     movements.filter(m => m.articleId === article.articleId)
       .sort((a, b) => (a.date || '').localeCompare(b.date || '')),
     [movements, article.articleId]
   );
-  const cost = article.purchasePricePerUnit || 0;
+
+  const entriesIN  = artMovs.filter(m => m.type === 'IN');
+  const entriesOUT = artMovs.filter(m => m.type === 'OUT');
+  const fifoBatches = useMemo(() => computeFIFO(entriesIN, entriesOUT, cost), [entriesIN, entriesOUT, cost]);
+
+  const totalIn  = article.initialQty + article.mouvementsIn;
+  const totalOut = article.mouvementsOut;
+  const fifoValue = fifoBatches.reduce((s, b) => s + b.batchValue, 0);
+  const isAlert   = article.minThreshold != null && article.currentQty <= article.minThreshold;
+  const pct       = totalIn > 0 ? Math.min(100, Math.round((article.currentQty / totalIn) * 100)) : 100;
+
+  // Stock cumulatif pour le tableau mouvements
   let running = article.initialQty;
 
-  if (artMovs.length === 0) {
-    return (
-      <tr>
-        <td colSpan={10} className="px-8 py-6 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest bg-stone-50">
-          Aucun mouvement enregistré — validez un arrivage pour alimenter ce stock
-        </td>
-      </tr>
-    );
-  }
-
   return (
-    <>
-      <tr className="bg-stone-800">
-        <td colSpan={10} className="px-8 py-2">
-          <span className="text-[7px] font-black text-stone-300 uppercase tracking-[0.25em]">
-            Historique des mouvements · {artMovs.length} ligne{artMovs.length > 1 ? 's' : ''}
-          </span>
-        </td>
-      </tr>
-      <tr className="bg-stone-700">
-        {['Date','Type','Raison','Entrée','Sortie','Stock Cumul','Coût Rev. MAD/u','Valeur MAD','Réf. Arrivage'].map(h => (
-          <td key={h} className="px-5 py-2 text-[7px] font-black uppercase tracking-widest text-stone-400 text-left">{h}</td>
-        ))}
-        <td className="px-4 py-2" />
-      </tr>
-      {artMovs.map((mv, i) => {
-        const isIN  = mv.type === 'IN';
-        const isOUT = mv.type === 'OUT';
-        const qty = Number(mv.quantity) || 0;
-        if (isIN)  running += qty;
-        if (isOUT) running -= qty;
-        const cumul = Math.max(0, running);
-        const mvCost = (mv.purchasePriceMAD != null && mv.purchasePriceMAD > 0) ? mv.purchasePriceMAD : (isIN ? cost : 0);
-        const facture = factures.find((f: any) => f.id === mv.factureId);
-        return (
-          <tr key={i} className={`border-b border-stone-100 text-[10px] ${
-            isIN ? 'bg-emerald-50/40 border-l-2 border-l-emerald-400' :
-            isOUT ? 'bg-rose-50/40 border-l-2 border-l-rose-400' :
-                    'bg-amber-50/40 border-l-2 border-l-amber-400'
-          }`}>
-            <td className="px-5 py-2.5 font-bold text-stone-700 whitespace-nowrap">{mv.date || '—'}</td>
-            <td className="px-5 py-2.5">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[7px] font-black uppercase ${
-                isIN ? 'bg-emerald-100 text-emerald-800' : isOUT ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-              }`}>
-                {isIN ? <ArrowDownToLine className="w-2.5 h-2.5" /> : isOUT ? <ArrowUpFromLine className="w-2.5 h-2.5" /> : null}
-                {mv.type}
-              </span>
-            </td>
-            <td className="px-5 py-2.5 text-stone-500 font-bold">{mv.reason || '—'}</td>
-            <td className="px-5 py-2.5 font-black text-emerald-700">{isIN ? `+${fmt(qty)}` : <span className="text-stone-200">—</span>}</td>
-            <td className="px-5 py-2.5 font-black text-rose-600">{isOUT ? `-${fmt(qty)}` : <span className="text-stone-200">—</span>}</td>
-            <td className="px-5 py-2.5 font-black text-stone-900">{fmt(cumul)}</td>
-            <td className="px-5 py-2.5 font-black text-violet-700">{mvCost > 0 ? `${fmtDec(mvCost)} MAD` : <span className="text-stone-200">—</span>}</td>
-            <td className="px-5 py-2.5 font-black text-stone-700">{mvCost > 0 ? `${fmt(Math.round(cumul * mvCost))} MAD` : <span className="text-stone-200">—</span>}</td>
-            <td className="px-5 py-2.5 text-stone-400 font-bold text-[9px]">{facture?.id || mv.factureId || mv.notes || '—'}</td>
-            <td className="px-4 py-2.5" />
-          </tr>
-        );
-      })}
-      {/* Total produit */}
-      <tr className="bg-stone-900 text-white text-[9px]">
-        <td colSpan={3} className="px-5 py-3 font-black text-stone-400 uppercase tracking-widest">Totaux</td>
-        <td className="px-5 py-3 font-black text-emerald-400">+{fmt(article.initialQty + article.mouvementsIn)}</td>
-        <td className="px-5 py-3 font-black text-rose-400">{article.mouvementsOut > 0 ? `-${fmt(article.mouvementsOut)}` : '—'}</td>
-        <td className="px-5 py-3 font-black text-white">{fmt(article.currentQty)}</td>
-        <td className="px-5 py-3 font-black text-violet-300">{cost > 0 ? `${fmtDec(cost)} MAD` : '—'}</td>
-        <td className="px-5 py-3 font-black text-emerald-400">{cost > 0 ? `${fmt(Math.round(article.currentQty * cost))} MAD` : '—'}</td>
-        <td className="px-5 py-3 text-stone-500">—</td>
-        <td className="px-4 py-3" />
-      </tr>
-    </>
-  );
-}
+    <div className="space-y-5 animate-in fade-in duration-200">
 
-// ── Ligne produit dans le tableau ────────────────────────────────────────────
-function ProductRow({ article: a, idx, movements, factures }: { article: any; idx: number; movements: any[]; factures: any[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const cost = a.purchasePricePerUnit || 0;
-  const totalIn = a.initialQty + a.mouvementsIn;
-  const pct = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
-  const stockColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
-  const isAlert = a.minThreshold != null && a.currentQty <= a.minThreshold;
-  const isRupture = a.currentQty === 0;
-  const color = UI_COLORS[idx % UI_COLORS.length];
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+          <ChevronLeft className="w-3.5 h-3.5" /> Retour
+        </button>
+        <span className="text-stone-200">/</span>
+        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>{article.productName}</span>
+      </div>
 
-  return (
-    <>
-      <tr
-        onClick={() => setExpanded(e => !e)}
-        className={`border-b border-stone-100 cursor-pointer transition-colors hover:bg-stone-50/70 ${expanded ? 'bg-emerald-50/20' : ''}`}
-        style={{ borderLeftWidth: 3, borderLeftColor: color, borderLeftStyle: 'solid' }}
-      >
-        {/* # */}
-        <td className="px-4 py-3.5 text-[8px] font-black text-stone-300 text-center w-10">{idx + 1}</td>
-        {/* Produit */}
-        <td className="px-4 py-3.5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
-              <Package className="w-3.5 h-3.5" style={{ color }} />
+      {/* ── En-tête produit ── */}
+      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
+        <div className="p-6 flex flex-col sm:flex-row sm:items-center gap-6">
+          {/* Infos */}
+          <div className="flex-1">
+            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">{article.categoryId}</p>
+            <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-0.5">{article.productName}</h3>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {article.size  && <span className="text-[8px] font-black bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">{article.size}</span>}
+              {article.color && <span className="text-[8px] font-black bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">{article.color}</span>}
+              {article.unitOfMeasure && <span className="text-[8px] font-bold text-stone-300">{article.unitOfMeasure}</span>}
             </div>
-            <div>
-              <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight leading-none">{a.productName}</p>
-              <div className="flex items-center gap-1 mt-1">
-                {a.size  && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
-                {a.color && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
-                <span className="text-[7px] text-stone-300 font-bold">{a.unitOfMeasure}</span>
+          </div>
+
+          {/* KPIs produit */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Entrées', value: `+${fmt(totalIn)}`, sub: article.unitOfMeasure, cls: 'text-emerald-600' },
+              { label: 'Sorties', value: totalOut > 0 ? `-${fmt(totalOut)}` : '—', sub: totalOut > 0 ? article.unitOfMeasure : '', cls: totalOut > 0 ? 'text-rose-600' : 'text-stone-300' },
+              { label: 'Stock Réel', value: fmt(article.currentQty), sub: isAlert ? '⚠ Alerte' : 'OK', cls: isAlert ? 'text-amber-600' : 'text-stone-900' },
+              { label: 'Valeur FIFO', value: fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—', sub: cost > 0 ? `${fmtDec(cost)} MAD/u` : '', cls: 'text-violet-700' },
+            ].map(({ label, value, sub, cls }) => (
+              <div key={label} className="bg-stone-50 rounded-2xl px-4 py-3 text-center">
+                <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest">{label}</p>
+                <p className={`text-[15px] font-black ${cls} leading-tight mt-0.5`}>{value}</p>
+                {sub && <p className="text-[7px] font-bold text-stone-300 mt-0.5">{sub}</p>}
               </div>
-            </div>
+            ))}
           </div>
-        </td>
-        {/* Entrées */}
-        <td className="px-4 py-3.5 text-right">
-          <span className="text-[12px] font-black text-emerald-600">+{fmt(totalIn)}</span>
-        </td>
-        {/* Sorties */}
-        <td className="px-4 py-3.5 text-right">
-          <span className={`text-[12px] font-black ${a.mouvementsOut > 0 ? 'text-rose-600' : 'text-stone-200'}`}>
-            {a.mouvementsOut > 0 ? `-${fmt(a.mouvementsOut)}` : '—'}
-          </span>
-        </td>
-        {/* Stock Réel */}
-        <td className="px-4 py-3.5 min-w-[140px]">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] font-black text-stone-900">{fmt(a.currentQty)}</span>
-              {isRupture ? (
-                <span className="text-[7px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full uppercase">Rupture</span>
-              ) : isAlert ? (
-                <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                  <AlertTriangle className="w-2 h-2" /> Alerte
-                </span>
-              ) : (
-                <span className="text-[7px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                  <CheckCircle2 className="w-2 h-2" /> OK
-                </span>
-              )}
-            </div>
-            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: stockColor }} />
-            </div>
+        </div>
+
+        {/* Barre de stock */}
+        <div className="px-6 pb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest">
+              Niveau de stock — {pct}% restant{article.minThreshold != null ? ` · Seuil mini : ${fmt(article.minThreshold)} ${article.unitOfMeasure}` : ''}
+            </p>
           </div>
-        </td>
-        {/* Seuil */}
-        <td className="px-4 py-3.5 text-center">
-          {a.minThreshold != null ? (
-            <span className={`text-[11px] font-black ${isAlert ? 'text-red-600' : 'text-stone-500'}`}>
-              {fmt(a.minThreshold)}
-            </span>
-          ) : <span className="text-stone-200 text-[10px]">—</span>}
-        </td>
-        {/* Coût Rev. */}
-        <td className="px-4 py-3.5 text-right">
-          {cost > 0
-            ? <span className="text-[10px] font-black text-violet-700">{fmtDec(cost)} MAD</span>
-            : <span className="text-stone-200 text-[10px]">—</span>}
-        </td>
-        {/* Valeur */}
-        <td className="px-4 py-3.5 text-right">
-          {cost > 0 && a.currentQty > 0
-            ? <span className="text-[11px] font-black text-stone-800">{fmt(Math.round(a.currentQty * cost))} MAD</span>
-            : <span className="text-stone-200 text-[10px]">—</span>}
-        </td>
-        {/* Expand */}
-        <td className="px-4 py-3.5 text-center w-10">
-          <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all mx-auto ${
-            expanded ? 'bg-stone-900 border-stone-900' : 'border-stone-200 bg-white'
-          }`}>
-            {expanded ? <ChevronUp className="w-3.5 h-3.5 text-white" /> : <ChevronDown className="w-3.5 h-3.5 text-stone-400" />}
+          <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${pct}%`,
+                backgroundColor: pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981'
+              }}
+            />
           </div>
-        </td>
-      </tr>
-      {expanded && <MovementsDetail article={a} movements={movements} factures={factures} />}
-    </>
+        </div>
+      </div>
+
+      {/* ── Lots FIFO ── */}
+      {fifoBatches.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-violet-50 to-white flex items-center gap-2">
+            <div className="w-5 h-5 rounded-lg bg-violet-100 flex items-center justify-center">
+              <Hash className="w-3 h-3 text-violet-600" />
+            </div>
+            <h4 className="text-[9px] font-black text-stone-700 uppercase tracking-widest">Lots d'achat — Méthode FIFO</h4>
+            <span className="ml-auto text-[8px] font-black text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full uppercase">{fifoBatches.length} lot{fifoBatches.length > 1 ? 's' : ''}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="bg-stone-50 border-b border-stone-100">
+                  {['#','Date Arrivage','Réf. Dossier','Qté Reçue','Consommée (FIFO)','Restante','Coût MAD/u','Valeur Restante MAD','Statut'].map(h => (
+                    <th key={h} className={`px-5 py-3 text-[7px] font-black text-stone-400 uppercase tracking-widest whitespace-nowrap ${h === '#' ? 'text-center' : 'text-left'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-50">
+                {fifoBatches.map((b, i) => (
+                  <tr key={i} className={`hover:bg-stone-50/50 transition-colors ${
+                    b.status === 'ÉPUISÉ' ? 'opacity-50' : ''
+                  }`}>
+                    <td className="px-5 py-3.5 text-center text-[8px] font-black text-stone-300">{i + 1}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-3 h-3 text-stone-300 shrink-0" />
+                        <span className="font-bold text-stone-700">{b.date}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 font-bold text-stone-500">{b.factureId}</td>
+                    <td className="px-5 py-3.5 font-black text-emerald-700">+{fmt(b.qtyIn)}</td>
+                    <td className="px-5 py-3.5 font-black text-rose-600">
+                      {b.consumed > 0 ? `-${fmt(b.consumed)}` : <span className="text-stone-200">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`text-[12px] font-black ${b.remaining === 0 ? 'text-stone-300' : 'text-stone-900'}`}>
+                        {fmt(b.remaining)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 font-black text-violet-700">
+                      {b.costPerUnit > 0 ? `${fmtDec(b.costPerUnit)} MAD` : <span className="text-stone-200">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 font-black text-stone-800">
+                      {b.batchValue > 0 ? `${fmt(b.batchValue)} MAD` : <span className="text-stone-200">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[7px] font-black uppercase ${
+                        b.status === 'ÉPUISÉ'    ? 'bg-stone-100 text-stone-400' :
+                        b.status === 'PARTIEL'   ? 'bg-amber-100 text-amber-700' :
+                                                   'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {b.status === 'ÉPUISÉ'  ? <AlertTriangle className="w-2.5 h-2.5" /> :
+                         b.status === 'PARTIEL' ? <AlertTriangle className="w-2.5 h-2.5" /> :
+                                                  <CheckCircle2 className="w-2.5 h-2.5" />}
+                        {b.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
+                  <td colSpan={3} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Totaux FIFO</td>
+                  <td className="px-5 py-3 font-black text-emerald-400">+{fmt(fifoBatches.reduce((s,b)=>s+b.qtyIn,0))}</td>
+                  <td className="px-5 py-3 font-black text-rose-400">-{fmt(fifoBatches.reduce((s,b)=>s+b.consumed,0))}</td>
+                  <td className="px-5 py-3 font-black text-white text-[14px]">{fmt(fifoBatches.reduce((s,b)=>s+b.remaining,0))}</td>
+                  <td className="px-5 py-3 font-black text-violet-300">{cost > 0 ? `${fmtDec(cost)} MAD` : '—'}</td>
+                  <td className="px-5 py-3 font-black text-emerald-400">{fmt(fifoValue)} MAD</td>
+                  <td className="px-5 py-3"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tableau des mouvements ── */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-stone-50 to-white flex items-center gap-2">
+          <div className="w-5 h-5 rounded-lg bg-stone-100 flex items-center justify-center">
+            <TrendingUp className="w-3 h-3 text-stone-600" />
+          </div>
+          <h4 className="text-[9px] font-black text-stone-700 uppercase tracking-widest">Historique des Mouvements</h4>
+          <span className="ml-auto text-[8px] font-black text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full uppercase">{artMovs.length} ligne{artMovs.length > 1 ? 's' : ''}</span>
+        </div>
+
+        {artMovs.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <Info className="w-8 h-8 text-stone-200 mx-auto mb-3" />
+            <p className="text-stone-300 font-black uppercase text-[9px] tracking-widest">Aucun mouvement enregistré</p>
+            <p className="text-stone-200 text-[8px] font-bold mt-1">Validez un arrivage depuis l'onglet Arrivages</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Date</th>
+                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Type</th>
+                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Raison</th>
+                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Entrée</th>
+                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Sortie</th>
+                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Stock Après</th>
+                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Coût MAD/u</th>
+                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Valeur MAD</th>
+                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Référence</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-50">
+                {artMovs.map((mv, i) => {
+                  const isIN  = mv.type === 'IN';
+                  const isOUT = mv.type === 'OUT';
+                  const qty   = Number(mv.quantity) || 0;
+                  if (isIN)  running += qty;
+                  if (isOUT) running -= qty;
+                  const cumul   = Math.max(0, running);
+                  const mvCost  = (mv.purchasePriceMAD != null && mv.purchasePriceMAD > 0) ? mv.purchasePriceMAD : (isIN ? cost : 0);
+                  const valeur  = mvCost > 0 ? Math.round(cumul * mvCost) : 0;
+                  const facture = factures.find((f: any) => f.id === mv.factureId);
+
+                  return (
+                    <tr key={i} className={`transition-colors hover:bg-stone-50/60 ${
+                      isIN  ? 'border-l-[3px] border-l-emerald-400 bg-emerald-50/20' :
+                      isOUT ? 'border-l-[3px] border-l-rose-400 bg-rose-50/20' :
+                              'border-l-[3px] border-l-amber-400 bg-amber-50/20'
+                    }`}>
+                      <td className="px-5 py-3.5 font-bold text-stone-700 whitespace-nowrap">{mv.date || '—'}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[7px] font-black uppercase ${
+                          isIN  ? 'bg-emerald-100 text-emerald-800' :
+                          isOUT ? 'bg-rose-100 text-rose-800' :
+                                  'bg-amber-100 text-amber-800'
+                        }`}>
+                          {isIN  ? <ArrowDownToLine className="w-2.5 h-2.5" /> :
+                           isOUT ? <ArrowUpFromLine className="w-2.5 h-2.5" /> : null}
+                          {mv.type}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-stone-500 font-bold">{mv.reason || '—'}</td>
+                      <td className="px-5 py-3.5 text-right">
+                        {isIN
+                          ? <span className="font-black text-emerald-700">+{fmt(qty)}</span>
+                          : <span className="text-stone-200">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {isOUT
+                          ? <span className="font-black text-rose-600">-{fmt(qty)}</span>
+                          : <span className="text-stone-200">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-black text-stone-900">{fmt(cumul)}</td>
+                      <td className="px-5 py-3.5 text-right">
+                        {mvCost > 0
+                          ? <span className="font-black text-violet-700">{fmtDec(mvCost)}</span>
+                          : <span className="text-stone-200">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {valeur > 0
+                          ? <span className="font-black text-stone-800">{fmt(valeur)}</span>
+                          : <span className="text-stone-200">—</span>}
+                      </td>
+                      <td className="px-5 py-3.5 text-stone-400 font-bold text-[9px]">
+                        {facture?.id || mv.factureId || mv.notes || '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
+                  <td colSpan={3} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Totaux</td>
+                  <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
+                  <td className="px-5 py-3 text-right font-black text-rose-400">{totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
+                  <td className="px-5 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
+                  <td className="px-5 py-3 text-right font-black text-violet-300">{cost > 0 ? fmtDec(cost) : '—'}</td>
+                  <td className="px-5 py-3 text-right font-black text-emerald-400">{fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—'}</td>
+                  <td className="px-5 py-3"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-// ── Tableau des produits d'une sous-catégorie ─────────────────────────────────
-function ProductsTable({ items, subCatName, movements, factures, onBack }: {
-  items: any[]; subCatName: string; movements: any[]; factures: any[]; onBack: () => void;
+// ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
+function ProductsTable({
+  items, subCatName, movements, factures, onBack, onSelectProduct
+}: {
+  items: any[]; subCatName: string; movements: any[]; factures: any[];
+  onBack: () => void; onSelectProduct: (articleId: string) => void;
 }) {
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
-  const totalOut = items.reduce((s, i) => s + i.mouvementsOut, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
   const totalVal = items.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = items.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
-      {/* Breadcrumb + back */}
+      {/* Breadcrumb */}
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
           <ChevronLeft className="w-3.5 h-3.5" /> Retour
@@ -227,85 +407,143 @@ function ProductsTable({ items, subCatName, movements, factures, onBack }: {
         <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">{subCatName}</span>
       </div>
 
-      {/* KPIs sous-cat */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Références', value: items.length, icon: Boxes, color: 'text-stone-700' },
-          { label: 'Entrées', value: `+${fmt(totalIn)}`, icon: TrendingUp, color: 'text-emerald-600' },
-          { label: 'Stock Réel', value: fmt(totalQty), icon: Package, color: 'text-blue-600' },
-          { label: 'Valeur MAD', value: `${fmt(totalVal)} MAD`, icon: DollarSign, color: 'text-violet-700' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-2xl border border-stone-100 p-4 flex items-center gap-3 shadow-sm">
-            <div className="w-8 h-8 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
-              <Icon className={`w-4 h-4 ${color}`} />
-            </div>
-            <div>
-              <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest">{label}</p>
-              <p className={`text-[13px] font-black ${color}`}>{value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {alertCount > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
           <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">
-            {alertCount} produit{alertCount > 1 ? 's' : ''} sous le seuil minimum
+            {alertCount} produit{alertCount > 1 ? 's' : ''} sous le seuil minimum · cliquez sur un produit pour voir le détail FIFO
           </p>
         </div>
       )}
 
-      {/* Tableau principal */}
-      <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden shadow-sm">
+      {/* Tableau */}
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-500" />
+            <span className="text-[10px] font-black text-stone-700 uppercase tracking-wider">
+              {subCatName} · {items.length} produit{items.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="flex gap-4 text-[9px] font-bold text-stone-400">
+            <span>Stock : <strong className="text-stone-700">{fmt(totalQty)}</strong></span>
+            <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-stone-50 border-b border-stone-200">
-                <th className="px-4 py-3 w-10"></th>
-                <th className="px-4 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Produit</th>
-                <th className="px-4 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Entrées</th>
-                <th className="px-4 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Sorties</th>
-                <th className="px-4 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest min-w-[140px]">Stock Réel</th>
-                <th className="px-4 py-3 text-center text-[7px] font-black text-stone-400 uppercase tracking-widest">Seuil Mini</th>
-                <th className="px-4 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Coût Rev. MAD/u</th>
-                <th className="px-4 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Valeur MAD</th>
-                <th className="px-4 py-3 w-10"></th>
+              <tr className="border-b border-stone-100 bg-stone-50">
+                <th className="px-5 py-3 text-center text-[7px] font-black text-stone-400 uppercase tracking-widest w-10">#</th>
+                <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Produit</th>
+                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Entrées</th>
+                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Sorties</th>
+                <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest min-w-[160px]">Stock Réel</th>
+                <th className="px-5 py-3 text-center text-[7px] font-black text-stone-400 uppercase tracking-widest">Seuil Mini</th>
+                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Coût Rev. MAD/u</th>
+                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Valeur FIFO (MAD)</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-stone-50">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-16 text-center text-stone-300 text-[10px] font-black uppercase tracking-widest">
-                    Aucun article validé en stock dans cette sous-catégorie
+                  <td colSpan={8} className="px-5 py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
+                    Aucun article validé dans cette sous-catégorie
                   </td>
                 </tr>
-              ) : (
-                items.map((item, idx) => (
-                  <ProductRow key={item.articleId} article={item} idx={idx} movements={movements} factures={factures} />
-                ))
-              )}
+              ) : items.map((a, idx) => {
+                const color  = UI_COLORS[idx % UI_COLORS.length];
+                const cost   = a.purchasePricePerUnit || 0;
+                const totalIn = a.initialQty + a.mouvementsIn;
+                const pct    = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
+                const artIN  = movements.filter(m => m.articleId === a.articleId && m.type === 'IN');
+                const artOUT = movements.filter(m => m.articleId === a.articleId && m.type === 'OUT');
+                const batches = computeFIFO(artIN, artOUT, cost);
+                const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
+                const isAlert = a.minThreshold != null && a.currentQty <= a.minThreshold;
+                const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
+
+                return (
+                  <tr
+                    key={a.articleId}
+                    onClick={() => onSelectProduct(a.articleId)}
+                    className="cursor-pointer hover:bg-stone-50 transition-colors group"
+                    style={{ borderLeftWidth: 3, borderLeftColor: color, borderLeftStyle: 'solid' }}
+                  >
+                    <td className="px-5 py-4 text-center text-[8px] font-black text-stone-300">{idx + 1}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
+                          <Package className="w-3.5 h-3.5" style={{ color }} />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight group-hover:underline decoration-dotted">{a.productName}</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {a.size  && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
+                            {a.color && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
+                            <span className="text-[7px] text-stone-300">{a.unitOfMeasure}</span>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-3.5 h-3.5 text-stone-200 group-hover:text-stone-500 ml-auto transition-colors" />
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right font-black text-emerald-600">+{fmt(totalIn)}</td>
+                    <td className="px-5 py-4 text-right">
+                      <span className={`font-black ${a.mouvementsOut > 0 ? 'text-rose-600' : 'text-stone-200'}`}>
+                        {a.mouvementsOut > 0 ? `-${fmt(a.mouvementsOut)}` : '—'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 min-w-[160px]">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[14px] font-black text-stone-900">{fmt(a.currentQty)}</span>
+                          {a.currentQty === 0 ? (
+                            <span className="text-[7px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full uppercase">Rupture</span>
+                          ) : isAlert ? (
+                            <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                              <AlertTriangle className="w-2 h-2" />Alerte
+                            </span>
+                          ) : (
+                            <span className="text-[7px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
+                              <CheckCircle2 className="w-2 h-2" />OK
+                            </span>
+                          )}
+                        </div>
+                        <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      {a.minThreshold != null
+                        ? <span className={`text-[11px] font-black ${isAlert ? 'text-red-600' : 'text-stone-500'}`}>{fmt(a.minThreshold)}</span>
+                        : <span className="text-stone-200">—</span>}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {cost > 0 ? <span className="font-black text-violet-700">{fmtDec(cost)} MAD</span> : <span className="text-stone-200">—</span>}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {fifoVal > 0 ? <span className="font-black text-stone-800">{fmt(fifoVal)} MAD</span> : <span className="text-stone-200">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
-            {items.length > 0 && (
-              <tfoot>
-                <tr className="bg-stone-900 text-white">
-                  <td colSpan={2} className="px-4 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">
-                    TOTAL — {items.length} référence{items.length !== 1 ? 's' : ''}
-                  </td>
-                  <td className="px-4 py-3 text-right text-[11px] font-black text-emerald-400">+{fmt(totalIn)}</td>
-                  <td className="px-4 py-3 text-right text-[11px] font-black text-rose-400">
-                    {totalOut > 0 ? `-${fmt(totalOut)}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-left text-[14px] font-black text-white">{fmt(totalQty)}</td>
-                  <td className="px-4 py-3"></td>
-                  <td className="px-4 py-3"></td>
-                  <td className="px-4 py-3 text-right text-[11px] font-black text-emerald-400">
-                    {totalVal > 0 ? `${fmt(totalVal)} MAD` : '—'}
-                  </td>
-                  <td className="px-4 py-3"></td>
-                </tr>
-              </tfoot>
-            )}
+            <tfoot>
+              <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
+                <td colSpan={2} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">
+                  TOTAL · {items.length} références
+                </td>
+                <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
+                <td className="px-5 py-3 text-right font-black text-rose-400">
+                  {items.reduce((s,i)=>s+i.mouvementsOut,0) > 0 ? `-${fmt(items.reduce((s,i)=>s+i.mouvementsOut,0))}` : '—'}
+                </td>
+                <td className="px-5 py-3 text-left text-[14px] font-black text-white">{fmt(totalQty)}</td>
+                <td className="px-5 py-3"></td>
+                <td className="px-5 py-3"></td>
+                <td className="px-5 py-3 text-right font-black text-emerald-400">{fmt(totalVal)} MAD</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
@@ -313,16 +551,17 @@ function ProductsTable({ items, subCatName, movements, factures, onBack }: {
   );
 }
 
-// ── Vue principale : navigation 3 niveaux ─────────────────────────────────────
+// ── Vue principale — navigation 4 niveaux ────────────────────────────────────
 export default function StockFiches({
   stockItems, movements, categories, generalCategories, factures
 }: {
-  stockItems: any[]; movements: any[]; categories: any[]; generalCategories: any[]; factures: any[];
+  stockItems: any[]; movements: any[]; categories: any[];
+  generalCategories: any[]; factures: any[];
 }) {
-  const [selGenCat, setSelGenCat] = useState<string | null>(null);
-  const [selSubCat, setSelSubCat] = useState<string | null>(null);
+  const [selGenCat,  setSelGenCat]  = useState<string | null>(null);
+  const [selSubCat,  setSelSubCat]  = useState<string | null>(null);
+  const [selProduct, setSelProduct] = useState<string | null>(null);
 
-  // Index: categoryId → stock items
   const stockByCategory = useMemo(() => {
     const map: Record<string, any[]> = {};
     stockItems.forEach(item => {
@@ -333,16 +572,6 @@ export default function StockFiches({
     return map;
   }, [stockItems]);
 
-  // Sub-categories under a general category that have stock
-  const subCatsWithStock = useMemo(() => {
-    if (!selGenCat) return [];
-    return categories.filter(c =>
-      c.generalCategoryId === selGenCat &&
-      (stockByCategory[c.name]?.length || 0) > 0
-    );
-  }, [categories, selGenCat, stockByCategory]);
-
-  // General categories that have at least 1 stock item
   const genCatsWithStock = useMemo(() => {
     const gcIds = new Set<string>();
     stockItems.forEach(item => {
@@ -357,7 +586,25 @@ export default function StockFiches({
   const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
-  // ── Niveau 3 : produits de la sous-catégorie ─────────────────────────────
+  // ── Niveau 4 : fiche produit ──────────────────────────────────────────────
+  if (selGenCat && selSubCat && selProduct) {
+    const subCat  = categories.find(c => c.id === selSubCat || c.name === selSubCat);
+    const article = stockItems.find(i => i.articleId === selProduct);
+    const artIdx  = (stockByCategory[subCat?.name || selSubCat] || []).findIndex(i => i.articleId === selProduct);
+    const color   = UI_COLORS[artIdx >= 0 ? artIdx % UI_COLORS.length : 0];
+    if (!article) return null;
+    return (
+      <div className="space-y-6">
+        <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
+        <ProductFiche
+          article={article} movements={movements} factures={factures} color={color}
+          onBack={() => setSelProduct(null)}
+        />
+      </div>
+    );
+  }
+
+  // ── Niveau 3 : tableau produits ───────────────────────────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
     const items  = stockByCategory[subCat?.name || selSubCat] || [];
@@ -365,60 +612,51 @@ export default function StockFiches({
       <div className="space-y-6">
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
         <ProductsTable
-          items={items}
-          subCatName={subCat?.name || selSubCat}
-          movements={movements}
-          factures={factures}
+          items={items} subCatName={subCat?.name || selSubCat}
+          movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
+          onSelectProduct={id => setSelProduct(id)}
         />
       </div>
     );
   }
 
-  // ── Niveau 2 : sous-catégories d'une famille ─────────────────────────────
+  // ── Niveau 2 : sous-catégories ────────────────────────────────────────────
   if (selGenCat) {
-    const gc = generalCategories.find(g => g.id === selGenCat);
-    const lineColor = LINE_COLORS[(gc as any)?.line] || '#6B7280';
-
+    const gc         = generalCategories.find(g => g.id === selGenCat);
+    const lineColor  = LINE_COLORS[(gc as any)?.line] || '#6B7280';
+    const subCatsWS  = categories.filter(c =>
+      c.generalCategoryId === selGenCat &&
+      (stockByCategory[c.name]?.length || 0) > 0
+    );
     return (
       <div className="space-y-6">
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
-
-        {/* Breadcrumb */}
         <div className="flex items-center gap-2">
           <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
           </button>
           <span className="text-stone-200">/</span>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} />
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} />
             <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">{gc?.name}</span>
           </div>
         </div>
-
-        {subCatsWithStock.length === 0 ? (
+        {subCatsWS.length === 0 ? (
           <div className="bg-white rounded-2xl p-16 text-center border border-stone-100">
             <Package className="w-10 h-10 text-stone-200 mx-auto mb-3" />
             <p className="text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucune sous-catégorie avec du stock validé</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {subCatsWithStock.map((sc, idx) => {
-              const items = stockByCategory[sc.name] || [];
-              const qty   = items.reduce((s: number, i: any) => s + i.currentQty, 0);
-              const val   = items.reduce((s: number, i: any) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
-              const alerts = items.filter((i: any) => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
+            {subCatsWS.map((sc, idx) => {
+              const items  = stockByCategory[sc.name] || [];
+              const qty    = items.reduce((s:number, i:any) => s + i.currentQty, 0);
+              const val    = items.reduce((s:number, i:any) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
+              const alerts = items.filter((i:any) => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
               const color  = UI_COLORS[idx % UI_COLORS.length];
-              const pct    = items.length > 0
-                ? Math.round(items.filter((i: any) => i.currentQty > (i.minThreshold || 0)).length / items.length * 100)
-                : 100;
-
               return (
-                <Card
-                  key={sc.id}
-                  onClick={() => setSelSubCat(sc.id || sc.name)}
-                  className="group cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 rounded-[1.2rem] overflow-hidden active:scale-95"
-                >
+                <Card key={sc.id} onClick={() => setSelSubCat(sc.id || sc.name)}
+                  className="group cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 rounded-[1.2rem] overflow-hidden active:scale-95">
                   <div className="h-1 w-full" style={{ backgroundColor: color }} />
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between">
@@ -435,10 +673,7 @@ export default function StockFiches({
                       <h3 className="text-[11px] font-black text-stone-800 uppercase tracking-tighter line-clamp-2">{sc.name}</h3>
                       <p className="text-[8px] text-stone-400 font-bold mt-0.5">{items.length} référence{items.length !== 1 ? 's' : ''}</p>
                     </div>
-                    <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-                    </div>
-                    <div className="space-y-1 pt-1 border-t border-stone-50">
+                    <div className="space-y-1 pt-2 border-t border-stone-50">
                       <div className="flex justify-between text-[8px]">
                         <span className="text-stone-400 font-black uppercase">Stock</span>
                         <span className="font-black text-stone-800">{fmt(qty)}</span>
@@ -463,11 +698,10 @@ export default function StockFiches({
     );
   }
 
-  // ── Niveau 1 : familles (general categories) ─────────────────────────────
+  // ── Niveau 1 : familles ───────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
-
       {genCatsWithStock.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
           <div className="w-20 h-20 rounded-3xl bg-emerald-50 flex items-center justify-center">
@@ -490,13 +724,9 @@ export default function StockFiches({
             const gcVal     = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
             const gcAlerts  = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
             const subCount  = gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0).length;
-
             return (
-              <Card
-                key={gc.id}
-                onClick={() => setSelGenCat(gc.id)}
-                className="group cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 rounded-[1.2rem] overflow-hidden active:scale-95"
-              >
+              <Card key={gc.id} onClick={() => setSelGenCat(gc.id)}
+                className="group cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 rounded-[1.2rem] overflow-hidden active:scale-95">
                 <div className="h-1 w-full" style={{ backgroundColor: lineColor }} />
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between">
@@ -505,18 +735,13 @@ export default function StockFiches({
                     </div>
                     {gcAlerts > 0 && (
                       <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                        <AlertTriangle className="w-2.5 h-2.5" /> {gcAlerts} alerte{gcAlerts > 1 ? 's' : ''}
+                        <AlertTriangle className="w-2.5 h-2.5" /> {gcAlerts}
                       </span>
                     )}
                   </div>
                   <div>
-                    <h3 className="text-[12px] font-black text-stone-800 uppercase tracking-tighter leading-tight line-clamp-2 min-h-[2rem]">
-                      {gc.name}
-                    </h3>
+                    <h3 className="text-[12px] font-black text-stone-800 uppercase tracking-tighter line-clamp-2 min-h-[2rem]">{gc.name}</h3>
                     <p className="text-[8px] text-stone-400 font-bold mt-0.5">{subCount} famille{subCount !== 1 ? 's' : ''} · {gcItems.length} ref.</p>
-                  </div>
-                  <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(100, Math.round(gcItems.length / Math.max(1, stockItems.length) * 500))}%`, backgroundColor: lineColor }} />
                   </div>
                   <div className="space-y-1 pt-2 border-t border-stone-50">
                     <div className="flex justify-between text-[8px]">
@@ -539,38 +764,6 @@ export default function StockFiches({
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Header KPI commun ─────────────────────────────────────────────────────────
-function StockHeader({ totalRefs, totalStock, totalVal, alertCount }: { totalRefs: number; totalStock: number; totalVal: number; alertCount: number }) {
-  return (
-    <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-8 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/30 to-transparent pointer-events-none" />
-      <div className="relative z-10 flex items-start justify-between flex-wrap gap-6">
-        <div>
-          <p className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-1">Stock Physique Validé</p>
-          <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
-            Fiches de <span className="text-emerald-400">Stock</span>
-          </h2>
-          <p className="text-stone-400 text-xs mt-2">Entrées manuellement validées · coûts de revient réels</p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Références', value: String(totalRefs), icon: BarChart3, color: 'text-stone-300' },
-            { label: 'Stock Total', value: fmt(totalStock), icon: Boxes, color: 'text-blue-400' },
-            { label: 'Valeur MAD', value: `${fmt(totalVal)} MAD`, icon: DollarSign, color: 'text-emerald-400' },
-            { label: 'Alertes', value: String(alertCount), icon: AlertTriangle, color: alertCount > 0 ? 'text-amber-400' : 'text-stone-500' },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
-              <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
-              <p className={`text-[14px] font-black ${color} leading-none`}>{value}</p>
-              <p className="text-[7px] font-black text-stone-500 uppercase tracking-widest mt-1">{label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
