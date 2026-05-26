@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Settings, Boxes, DollarSign, Filter } from 'lucide-react';
+import { Search, Plus, Settings, Boxes, DollarSign, Filter, LayoutList, LayoutGrid, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +62,24 @@ export default function StockInventory({ stockItems, articles, categories, gener
   // Edition prix de vente inline
   const [editPriceId, setEditPriceId] = useState<string | null>(null);
   const [editPriceVal, setEditPriceVal] = useState('');
+
+  // Vue groupée ou tableau
+  const [viewMode, setViewMode] = useState<'grouped' | 'table'>('grouped');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => setExpandedGroups(prev => {
+    const s = new Set(prev);
+    if (s.has(key)) s.delete(key); else s.add(key);
+    return s;
+  });
+
+  const COLOR_MAP: Record<string, string> = {
+    rouge:'#ef4444',red:'#ef4444',bleu:'#3b82f6',blue:'#3b82f6',vert:'#22c55e',green:'#22c55e',
+    noir:'#18181b',black:'#18181b',blanc:'#e5e7eb',white:'#e5e7eb',gris:'#6b7280',grey:'#6b7280',
+    jaune:'#eab308',yellow:'#eab308',orange:'#f97316',violet:'#8b5cf6',rose:'#f43f5e',pink:'#ec4899',
+    marron:'#92400e',brown:'#92400e',beige:'#d6c5a3',marine:'#1e3a5f',bordeaux:'#7f1d1d',
+    kaki:'#6b7a42',turquoise:'#14b8a6',navy:'#1e3a5f',doré:'#d97706',dore:'#d97706',
+  };
 
   // Catégories disponibles
   const catOptions = useMemo(() => {
@@ -144,12 +162,29 @@ export default function StockInventory({ stockItems, articles, categories, gener
               </div>
             </div>
           </div>
-          <Button
-            onClick={() => setMovModal({ open: true })}
-            className="bg-white hover:bg-stone-50 text-emerald-800 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" /> Mouvement
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* Toggle vue */}
+            <div className="flex bg-white/10 rounded-xl p-1 gap-1">
+              <button onClick={() => setViewMode('grouped')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                  viewMode === 'grouped' ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-200 hover:text-white'
+                }`}>
+                <LayoutGrid className="w-3 h-3" /> Groupé
+              </button>
+              <button onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                  viewMode === 'table' ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-200 hover:text-white'
+                }`}>
+                <LayoutList className="w-3 h-3" /> Tableau
+              </button>
+            </div>
+            <Button
+              onClick={() => setMovModal({ open: true })}
+              className="bg-white hover:bg-stone-50 text-emerald-800 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" /> Mouvement
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -224,6 +259,127 @@ export default function StockInventory({ stockItems, articles, categories, gener
                 Validez un arrivage dans StockVue pour que les articles apparaissent ici.
               </p>
             )}
+          </div>
+        ) : viewMode === 'grouped' ? (
+          // ── VUE GROUPÉE : 1 ligne = 1 produit, chips couleurs avec qtés ──
+          <div className="divide-y divide-stone-50">
+            {(() => {
+              const grouped = new Map<string, StockItem[]>();
+              filtered.forEach(si => {
+                if (!grouped.has(si.productName)) grouped.set(si.productName, []);
+                grouped.get(si.productName)!.push(si);
+              });
+              return Array.from(grouped.entries()).map(([name, variants]) => {
+                const totalQty   = variants.reduce((s, v) => s + v.currentQty, 0);
+                const totalValue = variants.reduce((s, v) => s + v.totalValue, 0);
+                const udm        = variants[0].unitOfMeasure;
+                const catId      = variants[0].categoryId;
+                const isExpanded = expandedGroups.has(name);
+                const anyRupture = variants.some(v => v.currentQty === 0);
+                const anyLow     = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold && v.currentQty > 0);
+                const globalStatus = anyRupture ? 'rupture' : anyLow ? 'low' : 'ok';
+                return (
+                  <div key={name} className={`transition-colors ${
+                    globalStatus === 'rupture' ? 'bg-red-50/40' : globalStatus === 'low' ? 'bg-orange-50/30' : ''
+                  }`}>
+                    <div className="flex items-center gap-4 px-5 py-4 group hover:bg-stone-50/70">
+                      <div className="w-44 shrink-0">
+                        <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{name}</p>
+                        <p className="text-[8px] font-bold text-stone-400 mt-0.5">{catId} · {udm}</p>
+                      </div>
+                      <div className="flex-1 flex flex-wrap gap-1.5">
+                        {[...variants].sort((a, b) => `${a.color||''}${a.size||''}`.localeCompare(`${b.color||''}${b.size||''}`)).map(v => {
+                          const swatch  = v.color ? (COLOR_MAP[v.color.toLowerCase()] || '#d4d4d4') : null;
+                          const isEmpty = v.currentQty === 0;
+                          const isLow   = !isEmpty && v.minThreshold != null && v.currentQty <= v.minThreshold;
+                          return (
+                            <div key={v.articleId}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[9px] font-black cursor-pointer hover:shadow-md transition-all select-none ${
+                                isEmpty ? 'border-red-200 bg-red-50 opacity-60' : isLow ? 'border-orange-200 bg-orange-50' : 'border-stone-100 bg-white hover:border-emerald-200 hover:bg-emerald-50'
+                              }`}
+                              onClick={() => setMovModal({ open: true, articleId: v.articleId, type: 'OUT' })}
+                              title="Clic → sortie">
+                              {swatch && <div className="w-3 h-3 rounded-full border border-stone-300 shrink-0" style={{ backgroundColor: swatch }} />}
+                              <span className="text-stone-500 uppercase text-[8px]">
+                                {[v.color, v.size ? `N°${v.size}` : null].filter(Boolean).join(' ') || 'Std'}
+                              </span>
+                              <span className={`font-black text-[12px] leading-none ${isEmpty ? 'text-red-500' : isLow ? 'text-orange-600' : 'text-emerald-700'}`}>
+                                {fmtN(v.currentQty)}
+                              </span>
+                              {isEmpty && <span className="text-[8px] text-red-400">✗</span>}
+                              {isLow   && <span className="text-[8px] text-orange-400">⚠</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="text-right shrink-0 w-28">
+                        <p className="text-[16px] font-black text-stone-900 leading-none">{fmtN(totalQty)}</p>
+                        <p className="text-[7px] font-bold text-stone-400">{udm} total</p>
+                        <p className="text-[9px] font-black text-emerald-700 mt-0.5">{fmt$(totalValue)}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {variants.length === 1 ? (
+                          <>
+                            <button onClick={() => setMovModal({ open: true, articleId: variants[0].articleId, type: 'IN' })}
+                              className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center font-black text-sm" title="Entrée">+</button>
+                            <button onClick={() => setMovModal({ open: true, articleId: variants[0].articleId, type: 'OUT' })}
+                              className="w-7 h-7 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center font-black text-sm" title="Sortie">-</button>
+                            <button onClick={() => { setThreshModal({ open: true, item: variants[0] }); setThreshValue(String(variants[0].minThreshold ?? '')); }}
+                              className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center" title="Seuil">
+                              <Settings className="w-3 h-3" /></button>
+                          </>
+                        ) : (
+                          <button onClick={() => toggleGroup(name)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 text-[8px] font-black uppercase transition-colors">
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Détail
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {isExpanded && variants.length > 1 && (
+                      <div className="border-t border-stone-100 bg-stone-50/60">
+                        {[...variants].sort((a, b) => `${a.color||''}${a.size||''}`.localeCompare(`${b.color||''}${b.size||''}`)).map(v => {
+                          const swatch = v.color ? (COLOR_MAP[v.color.toLowerCase()] || '#d4d4d4') : null;
+                          const level  = getStockLevel(v);
+                          const badge  = LEVEL_BADGE[level];
+                          return (
+                            <div key={v.articleId} className="flex items-center gap-4 px-8 py-2.5 hover:bg-white/60 transition-colors group/row">
+                              <div className="flex items-center gap-2 w-36">
+                                {swatch && <div className="w-4 h-4 rounded-full border border-stone-200 shrink-0" style={{ backgroundColor: swatch }} />}
+                                <div>
+                                  {v.color && <p className="text-[9px] font-black text-stone-700 uppercase">{v.color}</p>}
+                                  {v.size  && <p className="text-[8px] font-bold text-stone-400">N° {v.size}</p>}
+                                  {!v.color && !v.size && <p className="text-[9px] text-stone-400 font-bold">Standard</p>}
+                                </div>
+                              </div>
+                              {v.minThreshold != null && (
+                                <div className="w-28 h-2 bg-stone-200 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${v.currentQty === 0 ? 'bg-red-500' : v.currentQty <= v.minThreshold ? 'bg-orange-400' : 'bg-emerald-500'}`}
+                                    style={{ width: `${Math.min(100, Math.round(v.currentQty / Math.max(v.minThreshold, 1) * 100))}%` }} />
+                                </div>
+                              )}
+                              <span className={`text-[14px] font-black ml-auto ${v.currentQty === 0 ? 'text-red-600' : v.currentQty <= (v.minThreshold ?? Infinity) ? 'text-orange-600' : 'text-emerald-700'}`}>
+                                {fmtN(v.currentQty)} <span className="text-[8px] text-stone-400 font-bold">{v.unitOfMeasure}</span>
+                              </span>
+                              <span className={`text-[8px] font-black px-2 py-0.5 rounded-lg border ${badge.className}`}>{badge.label}</span>
+                              <div className="flex gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                <button onClick={() => setMovModal({ open: true, articleId: v.articleId, type: 'IN' })}
+                                  className="w-6 h-6 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center font-black text-sm">+</button>
+                                <button onClick={() => setMovModal({ open: true, articleId: v.articleId, type: 'OUT' })}
+                                  className="w-6 h-6 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center font-black text-sm">-</button>
+                                <button onClick={() => { setThreshModal({ open: true, item: v }); setThreshValue(String(v.minThreshold ?? '')); }}
+                                  className="w-6 h-6 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center">
+                                  <Settings className="w-3 h-3" /></button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         ) : (
           <div className="overflow-x-auto">
