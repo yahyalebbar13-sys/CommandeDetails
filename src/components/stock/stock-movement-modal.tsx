@@ -440,45 +440,84 @@ export default function StockMovementModal({
               onSelect={id => setForm(f => ({ ...f, articleId: id }))}
             />
           ) : (
-            // Produit sélectionné — afficher le résumé + bouton changer
+            // Produit sélectionné — fiche avec champs étiquetés
             <div className="space-y-2">
-              <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Produit sélectionné</Label>
-              <div className="flex items-center gap-3 px-3 py-3 bg-emerald-50 rounded-xl border-2 border-emerald-200">
-                <PackageCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-stone-900 uppercase tracking-tight truncate">
-                    {selectedStock?.productName}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    {selectedStock?.color && (
-                      <span className="text-[7px] font-black bg-white border border-emerald-200 text-stone-600 px-1.5 py-0.5 rounded uppercase">
-                        🎨 {selectedStock.color}
-                      </span>
-                    )}
-                    {selectedStock?.size && (
-                      <span className="text-[7px] font-black bg-white border border-emerald-200 text-stone-600 px-1.5 py-0.5 rounded uppercase">
-                        📐 {selectedStock.size}
-                      </span>
-                    )}
-                    <span className="text-[8px] font-bold text-emerald-700">
-                      Stock : {fmt(selectedStock?.currentQty || 0)} {selectedStock?.unitOfMeasure}
-                    </span>
-                    {form.type === 'OUT' && Number(form.quantity) > 0 && (
-                      <span className={`text-[8px] font-black ${
-                        (selectedStock?.currentQty || 0) - Number(form.quantity) < 0 ? 'text-red-600' : 'text-stone-600'
-                      }`}>
-                        → {((selectedStock?.currentQty || 0) - Number(form.quantity)).toLocaleString('fr-MA')} après sortie
-                      </span>
-                    )}
-                  </div>
-                </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Produit sélectionné</Label>
                 <button
                   type="button"
                   onClick={() => setForm(f => ({ ...f, articleId: '' }))}
-                  className="text-[7px] font-black text-stone-400 hover:text-stone-700 uppercase tracking-widest underline decoration-dotted shrink-0 transition-colors"
+                  className="text-[7px] font-black text-stone-400 hover:text-red-600 uppercase tracking-widest underline decoration-dotted transition-colors"
                 >
-                  Changer
+                  ✕ Changer
                 </button>
+              </div>
+
+              {/* Carte produit détaillée */}
+              <div className="bg-stone-50 rounded-2xl border border-stone-200 overflow-hidden">
+                {/* Bandeau couleur + nom */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-stone-100">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                    <PackageCheck className="w-4.5 h-4.5 text-emerald-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight leading-none truncate">
+                      {selectedStock?.productName}
+                    </p>
+                    <p className="text-[7px] font-bold text-stone-400 mt-0.5">{selectedStock?.categoryId}</p>
+                  </div>
+                </div>
+
+                {/* Grille des attributs */}
+                <div className="grid grid-cols-3 divide-x divide-stone-100 border-b border-stone-100">
+                  <div className="px-3 py-2.5 text-center">
+                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Couleur</p>
+                    {selectedStock?.color
+                      ? <p className="text-[10px] font-black text-stone-800 uppercase">{selectedStock.color}</p>
+                      : <p className="text-[9px] text-stone-300 font-bold">—</p>}
+                  </div>
+                  <div className="px-3 py-2.5 text-center">
+                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Taille / N°</p>
+                    {selectedStock?.size
+                      ? <p className="text-[10px] font-black text-stone-800 uppercase">{selectedStock.size}</p>
+                      : <p className="text-[9px] text-stone-300 font-bold">—</p>}
+                  </div>
+                  <div className="px-3 py-2.5 text-center">
+                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Unité</p>
+                    <p className="text-[10px] font-black text-stone-800 uppercase">{selectedStock?.unitOfMeasure || '—'}</p>
+                  </div>
+                </div>
+
+                {/* Stock actuel + simulation */}
+                <div className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest">Stock actuel</p>
+                    <p className="text-[16px] font-black text-stone-900 leading-none mt-0.5">
+                      {fmt(selectedStock?.currentQty || 0)}
+                      <span className="text-[9px] font-bold text-stone-400 ml-1">{selectedStock?.unitOfMeasure}</span>
+                    </p>
+                  </div>
+                  {form.type === 'OUT' && Number(form.quantity) > 0 && (
+                    <div className="text-right">
+                      <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest">Après sortie</p>
+                      <p className={`text-[16px] font-black leading-none mt-0.5 ${
+                        (selectedStock?.currentQty || 0) - Number(form.quantity) < 0 ? 'text-red-600' : 'text-emerald-600'
+                      }`}>
+                        {fmt((selectedStock?.currentQty || 0) - Number(form.quantity))}
+                        <span className="text-[9px] font-bold ml-1">{selectedStock?.unitOfMeasure}</span>
+                      </p>
+                    </div>
+                  )}
+                  {form.type === 'IN' && Number(form.quantity) > 0 && (
+                    <div className="text-right">
+                      <p className="text-[6px] font-black text-stone-400 uppercase tracking-widest">Après entrée</p>
+                      <p className="text-[16px] font-black text-emerald-600 leading-none mt-0.5">
+                        {fmt((selectedStock?.currentQty || 0) + Number(form.quantity))}
+                        <span className="text-[9px] font-bold ml-1">{selectedStock?.unitOfMeasure}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
