@@ -383,6 +383,7 @@ export default function StockInventory({ stockItems, articles, categories, gener
         onOpenChange={open => setMovModal({ open })}
         articles={articles}
         categories={categories}
+        generalCategories={generalCategories}
         stockItems={stockItems}
         preselectedArticleId={movModal.articleId}
         preselectedType={movModal.type}
