@@ -537,11 +537,10 @@ export default function StockApp() {
                         </div>
                       );
                     })}
-                        </div>
-                      );
-                    })}
                   </div>
                 )}
+
+
               </div>
             )}
           </div>
