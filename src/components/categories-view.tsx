@@ -75,6 +75,168 @@ const STATUS_COLORS = {
   'ARRIVED': '#10B981',
   'PENDING': '#F59E0B'
 };
+// ── FicheStock : fiche dépliable par produit ────────────────────────────────
+function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures }: {
+  article: any; color: string; pct: number;
+  entriesIN: any[]; entriesOUT: any[]; factures: any[];
+}) {
+  const [open, setOpen] = React.useState(false);
+  const totalIn  = a.initialQty + a.mouvementsIn;
+  const totalOut = a.mouvementsOut;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-md border border-stone-100 overflow-hidden transition-all duration-300">
+      {/* ── En-tête produit (toujours visible) ── */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full text-left"
+      >
+        {/* barre couleur */}
+        <div className="h-1 w-full" style={{ backgroundColor: color }} />
+        <div className="flex items-center gap-4 px-5 py-4">
+
+          {/* Swatch couleur */}
+          <div className="w-10 h-10 rounded-xl border border-stone-100 shrink-0 flex items-center justify-center"
+            style={{ backgroundColor: a.color ? (() => {
+              const m: Record<string,string> = { rouge:'#ef4444',bleu:'#3b82f6',vert:'#22c55e',noir:'#1c1917',blanc:'#f5f5f4',gris:'#6b7280',jaune:'#eab308',orange:'#f97316',violet:'#8b5cf6',rose:'#f43f5e',marron:'#92400e',beige:'#d6c5a3',kaki:'#6b7a42' };
+              return m[a.color.toLowerCase()] || '#e7e5e4';
+            })() : '#f5f5f4' }}>
+            {!a.color && <Package className="w-4 h-4 text-stone-300" />}
+          </div>
+
+          {/* Infos produit */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-black text-stone-900 uppercase tracking-tighter leading-tight">{a.productName}</p>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              {a.size  && <span className="text-[7px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
+              {a.color && <span className="text-[7px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
+            </div>
+          </div>
+
+          {/* Stats compactes */}
+          <div className="flex items-center gap-5 shrink-0">
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Entrées</p>
+              <p className="text-[13px] font-black text-emerald-600">+{Number(totalIn).toLocaleString('fr-MA')}</p>
+              <p className="text-[7px] text-stone-300 font-bold">{a.unitOfMeasure}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Sorties</p>
+              <p className={`text-[13px] font-black ${totalOut > 0 ? 'text-rose-600' : 'text-stone-300'}`}>
+                {totalOut > 0 ? `-${Number(totalOut).toLocaleString('fr-MA')}` : '—'}
+              </p>
+              <p className="text-[7px] text-stone-300 font-bold">{totalOut > 0 ? a.unitOfMeasure : ''}</p>
+            </div>
+            <div className="text-center bg-stone-50 rounded-xl px-3 py-2 min-w-[80px]">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Stock Réel</p>
+              <p className="text-[16px] font-black text-stone-900">{Number(a.currentQty).toLocaleString('fr-MA')}</p>
+              <div className="h-1 bg-stone-200 rounded-full mt-1 overflow-hidden">
+                <div className={`h-full rounded-full ${pct < 30 ? 'bg-rose-400' : pct < 60 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Valeur</p>
+              <p className="text-[11px] font-black" style={{ color }}>{Number(a.totalValue).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}</p>
+            </div>
+
+            {/* Chevron */}
+            <div className={`w-7 h-7 rounded-xl border border-stone-200 flex items-center justify-center transition-transform duration-300 ${open ? 'rotate-180 bg-stone-900 border-stone-900' : 'bg-white'}`}>
+              <ChevronDown className={`w-4 h-4 ${open ? 'text-white' : 'text-stone-400'}`} />
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* ── Détail historique (déplié) ── */}
+      {open && (
+        <div className="border-t border-stone-100 bg-stone-50/60 px-5 py-4 space-y-5 animate-in slide-in-from-top-2 duration-200">
+
+          {/* ENTRÉES */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
+              </div>
+              <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest">Entrées en stock — {entriesIN.length} arrivage{entriesIN.length > 1 ? 's' : ''}</p>
+            </div>
+            {entriesIN.length === 0 ? (
+              <p className="text-[9px] text-stone-300 font-bold pl-7">Aucune entrée enregistrée</p>
+            ) : (
+              <div className="space-y-2">
+                {entriesIN.map((mv, i) => {
+                  const facture = factures.find((f: any) => f.id === mv.factureId);
+                  const hasCost = mv.purchasePriceMAD != null && mv.purchasePriceMAD > 0;
+                  return (
+                    <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-emerald-100 shadow-sm">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                      <div className="flex-1 grid grid-cols-4 gap-3 text-[10px]">
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Date</p>
+                          <p className="font-black text-stone-700">{mv.date || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Quantité</p>
+                          <p className="font-black text-emerald-700">+{Number(mv.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Coût de Revient</p>
+                          {hasCost ? (
+                            <p className="font-black text-violet-700">{Number(mv.purchasePriceMAD).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD/u</p>
+                          ) : (
+                            <p className="font-bold text-stone-300">—</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Arrivage</p>
+                          <p className="font-black text-stone-500 truncate">{facture?.id || mv.factureId || mv.notes || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SORTIES */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 rounded-lg bg-rose-100 flex items-center justify-center">
+                <ArrowUpFromLine className="w-3 h-3 text-rose-600" />
+              </div>
+              <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest">Sorties — {entriesOUT.length} mouvement{entriesOUT.length > 1 ? 's' : ''}</p>
+            </div>
+            {entriesOUT.length === 0 ? (
+              <p className="text-[9px] text-stone-300 font-bold pl-7">Aucune sortie enregistrée</p>
+            ) : (
+              <div className="space-y-2">
+                {entriesOUT.map((mv, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-rose-100 shadow-sm">
+                    <div className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                    <div className="flex-1 grid grid-cols-3 gap-3 text-[10px]">
+                      <div>
+                        <p className="text-stone-400 font-bold uppercase text-[7px]">Date</p>
+                        <p className="font-black text-stone-700">{mv.date || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-stone-400 font-bold uppercase text-[7px]">Quantité</p>
+                        <p className="font-black text-rose-600">-{Number(mv.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure}</p>
+                      </div>
+                      <div>
+                        <p className="text-stone-400 font-bold uppercase text-[7px]">Raison</p>
+                        <p className="font-black text-stone-500">{mv.reason || mv.notes || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CategoriesView({
   articles = [],
@@ -921,7 +1083,7 @@ export default function CategoriesView({
               </Table>
             )}
 
-            {/* Stock cards — style GRP */}
+            {/* ── Fiches de Stock par produit ── */}
             {activeManifeste === 'stock' && (() => {
               const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
               if (currentStock.length === 0) {
@@ -930,84 +1092,32 @@ export default function CategoriesView({
                     <div className="w-14 h-14 rounded-2xl bg-stone-50 flex items-center justify-center mb-4">
                       <Package className="w-7 h-7 text-stone-200" />
                     </div>
-                    <p className="text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</p>
+                    <p className="text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucun article validé en stock</p>
+                    <p className="text-stone-200 text-[9px] font-bold mt-1">Validez un arrivage depuis l'onglet Arrivages pour l'afficher ici</p>
                   </div>
                 );
               }
-              const maxVal = Math.max(...currentStock.map(a => a.totalValue || 0), 1);
               return (
-                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="p-4 space-y-3">
                   {currentStock.map((a, idx) => {
-                    const totalIn = a.initialQty + a.mouvementsIn;
-                    const totalOut = a.mouvementsOut;
-                    const pct = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
-                    const barW = maxVal > 0 ? Math.max(4, (a.totalValue / maxVal) * 100) : 4;
                     const color = UI_COLORS[idx % UI_COLORS.length];
+                    const artMovements = movements.filter(m => m.articleId === a.articleId);
+                    const entriesIN  = artMovements.filter(m => m.type === 'IN').sort((x,y) => (y.date||'').localeCompare(x.date||''));
+                    const entriesOUT = artMovements.filter(m => m.type === 'OUT').sort((x,y) => (y.date||'').localeCompare(x.date||''));
+                    const pct = a.initialQty + a.mouvementsIn > 0
+                      ? Math.min(100, Math.round((a.currentQty / (a.initialQty + a.mouvementsIn)) * 100))
+                      : 100;
+
                     return (
-                      <div
+                      <FicheStock
                         key={a.articleId}
-                        className="bg-white rounded-[1.2rem] shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-stone-50 group cursor-default"
-                      >
-                        {/* top color bar */}
-                        <div className="h-1 w-full" style={{ backgroundColor: color }} />
-                        <div className="p-4 space-y-3">
-                          {/* Name */}
-                          <div>
-                            <p className="text-[11px] font-black text-stone-800 uppercase leading-tight tracking-tighter line-clamp-2 min-h-[2rem]">
-                              {a.productName}
-                            </p>
-                            {(a.size || a.color) && (
-                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                {a.size && <span className="text-[8px] font-black text-stone-400 bg-stone-50 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
-                                {a.color && <span className="text-[8px] font-black text-stone-400 bg-stone-50 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Value progress bar */}
-                          <div className="h-1 bg-stone-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${barW}%`, backgroundColor: color }} />
-                          </div>
-
-                          {/* Stats grid */}
-                          <div className="space-y-1.5 pt-1 border-t border-stone-50">
-                            {/* Entrées */}
-                            <div className="flex justify-between items-center text-[8px]">
-                              <span className="text-stone-400 font-black uppercase flex items-center gap-1">
-                                <ArrowDownToLine className="w-2.5 h-2.5 text-emerald-400" /> Entrées
-                              </span>
-                              <span className="font-black text-emerald-600">+{Number(totalIn).toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-stone-300 font-bold">{a.unitOfMeasure}</span></span>
-                            </div>
-                            {/* Sorties */}
-                            <div className="flex justify-between items-center text-[8px]">
-                              <span className="text-stone-400 font-black uppercase flex items-center gap-1">
-                                <ArrowUpFromLine className="w-2.5 h-2.5 text-rose-400" /> Sorties
-                              </span>
-                              <span className={`font-black ${totalOut > 0 ? 'text-rose-600' : 'text-stone-300'}`}>
-                                {totalOut > 0 ? `-${Number(totalOut).toLocaleString('en-US', { maximumFractionDigits: 0 })} ` : '—'}
-                                {totalOut > 0 && <span className="text-stone-300 font-bold">{a.unitOfMeasure}</span>}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Stock réel + progress */}
-                          <div className="bg-stone-50 rounded-xl p-2.5 space-y-1.5">
-                            <div className="flex justify-between items-center">
-                              <span className="text-[8px] font-black text-stone-400 uppercase">Stock Réel</span>
-                              <span className="text-[13px] font-black text-stone-900">{Number(a.currentQty).toLocaleString('en-US', { maximumFractionDigits: 0 })} <span className="text-[8px] text-stone-400 font-bold">{a.unitOfMeasure}</span></span>
-                            </div>
-                            <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-700 ${pct < 30 ? 'bg-rose-400' : pct < 60 ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <div className="text-right text-[8px] font-black" style={{ color }}>
-                              {Number(a.totalValue).toLocaleString('en-US', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        article={a}
+                        color={color}
+                        pct={pct}
+                        entriesIN={entriesIN}
+                        entriesOUT={entriesOUT}
+                        factures={factures}
+                      />
                     );
                   })}
                 </div>

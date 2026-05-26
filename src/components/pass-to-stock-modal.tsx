@@ -175,20 +175,23 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
         if (article.slider)     parts.push(article.slider);
         const productName = parts.length > 0 ? parts.join(' ') : (article.name || article.specs || article.categoryId || 'Produit');
 
+        const coutRevient = computeCoutRevientMad(article);
         addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
-          articleId:    article.id,
-          categoryId:   article.categoryId,
+          articleId:        article.id,
+          categoryId:       article.categoryId,
           productName,
-          color:        article.color || null,
-          size:         article.size  || null,
-          unitOfMeasure: article.unitOfMeasure || 'unité',
-          type:         'IN',
-          reason:       'ARRIVAGE',
-          quantity:     Number(article.quantity) || 0,
-          date:         formData.stockEntryDate,
-          factureId:    facture.id,
-          notes:        `Arrivage ${facture.id}`,
-          createdAt:    serverTimestamp(),
+          color:            article.color || null,
+          size:             article.size  || null,
+          unitOfMeasure:    article.unitOfMeasure || 'unité',
+          type:             'IN',
+          reason:           'ARRIVAGE',
+          quantity:         Number(article.quantity) || 0,
+          date:             formData.stockEntryDate,
+          factureId:        facture.id,
+          factureRef:       facture.id,
+          purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
+          notes:            `Arrivage ${facture.id}`,
+          createdAt:        serverTimestamp(),
         }).catch(err => console.warn('[StockMovement] failed:', err));
       });
     }
