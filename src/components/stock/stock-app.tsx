@@ -35,7 +35,13 @@ export function computeStockItems(
   movements: StockMovement[],
   categories: any[]
 ): StockItem[] {
-  const stockArticles = articles.filter(a => a.stockEntryDate);
+  // Un article entre en stock UNIQUEMENT s'il a été validé manuellement via PassToStockModal
+  // = il a une stockEntryDate ET au moins un mouvement IN enregistré
+  const stockArticles = articles.filter(a => {
+    if (!a.stockEntryDate) return false;
+    const hasMovementIN = movements.some(m => m.articleId === a.id && m.type === 'IN');
+    return hasMovementIN;
+  });
 
   return stockArticles.map(a => {
     const parts: string[] = [];
