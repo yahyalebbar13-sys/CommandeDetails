@@ -206,8 +206,23 @@ function ProductPicker({
     );
   }
 
-  // ── Step 3 : Produit (taille + couleur visibles) ───────────────────────────
+  // ── Step 3 : Produits groupés par nom → variantes couleur/taille avec qtés exactes ──
   const sc = categories.find(c => c.id === selSubCat || c.name === selSubCat);
+  const colorMap: Record<string, string> = {
+    rouge:'#ef4444',red:'#ef4444',bleu:'#3b82f6',blue:'#3b82f6',vert:'#22c55e',green:'#22c55e',
+    noir:'#1c1917',black:'#1c1917',blanc:'#f0f0f0',white:'#e5e7eb',gris:'#6b7280',grey:'#6b7280',
+    jaune:'#eab308',yellow:'#eab308',orange:'#f97316',violet:'#8b5cf6',rose:'#f43f5e',pink:'#ec4899',
+    marron:'#92400e',brown:'#92400e',beige:'#d6c5a3',marine:'#1e3a5f',bordeaux:'#6b1e2b',
+    kaki:'#6b7a42',turquoise:'#14b8a6',navy:'#1e3a5f',
+  };
+
+  // Grouper par nom de produit
+  const grouped = new Map<string, StockItem[]>();
+  products.forEach(si => {
+    if (!grouped.has(si.productName)) grouped.set(si.productName, []);
+    grouped.get(si.productName)!.push(si);
+  });
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
@@ -219,98 +234,124 @@ function ProductPicker({
         <span className="text-stone-200">/</span>
         <span className="text-[8px] font-black text-stone-700 uppercase">{sc?.name}</span>
       </div>
-      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">3 · Sélectionner le produit</p>
+      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">3 · Produit + variante (couleur / taille)</p>
 
-      {/* Recherche */}
-      {products.length > 4 && (
+      {products.length > 5 && (
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-stone-300" />
-          <input
-            type="text"
-            placeholder="Rechercher par nom, couleur, taille..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-7 pr-3 py-2 text-[9px] font-bold border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-stone-400"
-          />
+          <input type="text" placeholder="Rechercher nom, couleur, taille..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-7 pr-3 py-2 text-[9px] font-bold border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-stone-400" />
         </div>
       )}
 
-      <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1">
-        {products.length === 0 && (
-          <p className="text-center text-stone-300 text-[9px] font-black uppercase py-6">Aucun produit trouvé</p>
-        )}
-        {products.map((si, idx) => {
-          const color    = UI_COLORS[idx % UI_COLORS.length];
-          const isAlert  = si.minThreshold != null && si.currentQty <= si.minThreshold;
-          const isEmpty  = si.currentQty === 0;
-          const pct      = (si.initialQty + si.mouvementsIn) > 0
-            ? Math.min(100, Math.round(si.currentQty / (si.initialQty + si.mouvementsIn) * 100))
-            : 100;
-          const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
+      {grouped.size === 0 && (
+        <p className="text-center text-stone-300 text-[9px] font-black uppercase py-6">Aucun produit trouvé</p>
+      )}
+
+      <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+        {Array.from(grouped.entries()).map(([name, variants], gIdx) => {
+          const accent = UI_COLORS[gIdx % UI_COLORS.length];
+          const totalQty = variants.reduce((s, v) => s + v.currentQty, 0);
+          const sortedVariants = [...variants].sort((a, b) =>
+            `${a.color||''}${a.size||''}`.localeCompare(`${b.color||''}${b.size||''}`)
+          );
+          const isSingleNoVariant = variants.length === 1 && !variants[0].color && !variants[0].size;
 
           return (
-            <button
-              key={si.articleId}
-              type="button"
-              disabled={isEmpty}
-              onClick={() => onSelect(si.articleId)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border-2 transition-all text-left ${
-                isEmpty
-                  ? 'opacity-40 cursor-not-allowed border-stone-100 bg-stone-50'
-                  : 'border-stone-100 bg-stone-50 hover:border-stone-300 hover:bg-white hover:shadow-sm active:scale-[0.98]'
-              }`}
-              style={{ borderLeftColor: color, borderLeftWidth: 4 }}
-            >
-              {/* Icône */}
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
-                <Package className="w-3.5 h-3.5" style={{ color }} />
-              </div>
+            <div key={name} className="rounded-xl overflow-hidden border border-stone-200 bg-white shadow-sm"
+              style={{ borderLeftColor: accent, borderLeftWidth: 3 }}>
 
-              {/* Infos produit */}
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black text-stone-900 uppercase tracking-tight truncate">{si.productName}</p>
-                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                  {/* Couleur */}
-                  {si.color && (
-                    <span className="text-[7px] font-black bg-white border border-stone-200 text-stone-600 px-1.5 py-0.5 rounded uppercase">
-                      🎨 {si.color}
-                    </span>
-                  )}
-                  {/* Taille */}
-                  {si.size && (
-                    <span className="text-[7px] font-black bg-white border border-stone-200 text-stone-600 px-1.5 py-0.5 rounded uppercase">
-                      📐 {si.size}
-                    </span>
-                  )}
-                  {/* UdM */}
-                  <span className="text-[7px] text-stone-300 font-bold">{si.unitOfMeasure}</span>
+              {/* En-tête : nom produit + total + pastilles couleurs */}
+              <div className="flex items-center gap-2.5 px-3 py-2.5 bg-stone-50/80 border-b border-stone-100">
+                <div className="flex shrink-0">
+                  {sortedVariants.slice(0, 6).map((v, vi) => (
+                    <div key={v.articleId} className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                      style={{ backgroundColor: v.color ? (colorMap[v.color.toLowerCase()] || '#d4d4d4') : accent,
+                        marginLeft: vi > 0 ? -5 : 0, zIndex: 6 - vi, position: 'relative' }}
+                      title={[v.color, v.size].filter(Boolean).join(' N°') || name}
+                    />
+                  ))}
+                  {variants.length > 6 && <span className="text-[6px] font-black text-stone-400 ml-1">+{variants.length - 6}</span>}
                 </div>
-                {/* Barre de stock */}
-                <div className="mt-1.5 flex items-center gap-2">
-                  <div className="h-1 bg-stone-100 rounded-full overflow-hidden flex-1">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
-                  </div>
-                  <span className="text-[7px] font-black" style={{ color: pctColor }}>{pct}%</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black text-stone-900 uppercase tracking-tight truncate">{name}</p>
+                  <p className="text-[7px] font-bold text-stone-400">
+                    {variants.length} variante{variants.length > 1 ? 's' : ''} · total stock :&nbsp;
+                    <span className="font-black" style={{ color: totalQty === 0 ? '#ef4444' : '#059669' }}>{fmt(totalQty)}</span>
+                  </p>
                 </div>
               </div>
 
-              {/* Stock */}
-              <div className="text-right shrink-0">
-                <p className="text-[13px] font-black text-stone-900">{fmt(si.currentQty)}</p>
-                <p className="text-[7px] font-bold text-stone-400">{si.unitOfMeasure}</p>
-                {isEmpty && <p className="text-[7px] font-black text-red-500 uppercase">Rupture</p>}
-                {!isEmpty && isAlert && (
-                  <p className="text-[7px] font-black text-amber-500 uppercase flex items-center gap-0.5 justify-end">
-                    <AlertTriangle className="w-2 h-2" />Alerte
-                  </p>
-                )}
-                {!isEmpty && !isAlert && (
-                  <p className="text-[7px] font-black text-emerald-500 uppercase flex items-center gap-0.5 justify-end">
-                    <CheckCircle2 className="w-2 h-2" />OK
-                  </p>
-                )}
+              {/* Variantes */}
+              <div className="divide-y divide-stone-50">
+                {isSingleNoVariant ? (
+                  // Produit sans variante → bouton direct
+                  <button type="button" disabled={totalQty === 0}
+                    onClick={() => onSelect(variants[0].articleId)}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
+                      totalQty === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-emerald-50 active:bg-emerald-100'
+                    }`}>
+                    <span className="text-[9px] font-bold text-stone-500 uppercase">{variants[0].unitOfMeasure}</span>
+                    <span className={`text-[10px] font-black ${totalQty === 0 ? 'text-red-400' : 'text-emerald-600'}`}>
+                      {totalQty === 0 ? 'RUPTURE' : `${fmt(totalQty)} en stock  →`}
+                    </span>
+                  </button>
+                ) : sortedVariants.map(si => {
+                  const isEmpty = si.currentQty === 0;
+                  const isAlert = si.minThreshold != null && si.currentQty <= si.minThreshold && !isEmpty;
+                  const maxRef = Math.max(si.initialQty + si.mouvementsIn, 1);
+                  const pct = Math.min(100, Math.round(si.currentQty / maxRef * 100));
+                  const barColor = isEmpty ? '#e5e7eb' : pct < 25 ? '#ef4444' : pct < 60 ? '#f59e0b' : '#10b981';
+                  const swatch = si.color ? (colorMap[si.color.toLowerCase()] || '#d4d4d4') : null;
+
+                  return (
+                    <button key={si.articleId} type="button"
+                      disabled={isEmpty}
+                      onClick={() => onSelect(si.articleId)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                        isEmpty ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-50/80 active:bg-emerald-100/80'
+                      }`}>
+
+                      {/* Pastille couleur */}
+                      <div className="w-8 h-8 rounded-lg border border-stone-200 shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: swatch || '#f5f5f4' }}>
+                        {!swatch && <span className="text-[7px] text-stone-300 font-bold">—</span>}
+                      </div>
+
+                      {/* Couleur + taille */}
+                      <div className="w-20 shrink-0">
+                        {si.color && <p className="text-[9px] font-black text-stone-800 uppercase leading-none">{si.color}</p>}
+                        {si.size  && <p className="text-[8px] font-bold text-stone-500 leading-none mt-0.5">N° {si.size}</p>}
+                        {!si.color && !si.size && <p className="text-[8px] text-stone-400 font-bold">Standard</p>}
+                      </div>
+
+                      {/* Barre stock proportionnelle */}
+                      <div className="flex-1">
+                        <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+                        </div>
+                      </div>
+
+                      {/* QUANTITÉ EXACTE — affichage principal */}
+                      <div className="text-right shrink-0">
+                        <p className="text-[18px] font-black leading-none" style={{ color: isEmpty ? '#d1d5db' : barColor }}>
+                          {fmt(si.currentQty)}
+                        </p>
+                        <p className="text-[6px] font-bold text-stone-400 uppercase">{si.unitOfMeasure}</p>
+                      </div>
+
+                      {/* Statut */}
+                      <div className="w-14 text-right shrink-0">
+                        {isEmpty  && <span className="text-[7px] font-black text-red-400 bg-red-50 px-1.5 py-0.5 rounded uppercase block">Rupture</span>}
+                        {!isEmpty && isAlert && <span className="text-[7px] font-black text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded uppercase block">⚠ Bas</span>}
+                        {!isEmpty && !isAlert && <span className="text-[7px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase block">✓ OK</span>}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
