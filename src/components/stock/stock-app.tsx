@@ -468,20 +468,31 @@ export default function StockApp() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {[...factures].sort((a: any, b: any) => (b.arrivalDate || '').localeCompare(a.arrivalDate || '')).map((f: any) => {
-                      const isInStock = !!f.stockEntryDate;
-                      const artCount  = articles.filter((a: any) => a.factureId === f.id).length;
+                      const factureArts = articles.filter((a: any) => a.factureId === f.id);
+                      const artCount = factureArts.length;
+                      // Un arrivage est "en stock" UNIQUEMENT si des mouvements IN ont été créés (validation manuelle)
+                      const validatedCount = factureArts.filter((a: any) =>
+                        movements.some(m => m.articleId === a.id && m.type === 'IN')
+                      ).length;
+                      const isValidated = validatedCount > 0 && validatedCount === artCount;
+                      const isPartial   = validatedCount > 0 && validatedCount < artCount;
+                      const canValidate = !!f.arrivalDate && !isValidated;
                       return (
                         <div key={f.id} className={`bg-white rounded-2xl border-2 p-6 flex flex-col gap-4 transition-all ${
-                          isInStock ? 'border-emerald-200' : f.arrivalDate ? 'border-amber-200' : 'border-stone-100'
+                          isValidated ? 'border-emerald-200' : isPartial ? 'border-amber-300' : f.arrivalDate ? 'border-amber-100' : 'border-stone-100'
                         }`}>
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || '—'}</p>
                               <h3 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
                             </div>
-                            {isInStock ? (
+                            {isValidated ? (
                               <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
                                 <CheckCircle2 className="w-3 h-3" /> En stock
+                              </span>
+                            ) : isPartial ? (
+                              <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
+                                <Anchor className="w-3 h-3" /> Partiel ({validatedCount}/{artCount})
                               </span>
                             ) : f.arrivalDate ? (
                               <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
@@ -503,24 +514,29 @@ export default function StockApp() {
                               <p className="text-[10px] font-black text-stone-700">{artCount}</p>
                             </div>
                             <div className="bg-stone-50 rounded-xl p-2">
-                              <p className="text-[8px] font-black text-stone-400 uppercase">Stock le</p>
-                              <p className="text-[10px] font-black text-emerald-600">{f.stockEntryDate || '—'}</p>
+                              <p className="text-[8px] font-black text-stone-400 uppercase">Validés</p>
+                              <p className={`text-[10px] font-black ${isValidated ? 'text-emerald-600' : isPartial ? 'text-amber-600' : 'text-stone-300'}`}>
+                                {validatedCount}/{artCount}
+                              </p>
                             </div>
                           </div>
-                          {!isInStock && f.arrivalDate && (
+                          {canValidate && (
                             <button
                               onClick={() => setPassToStockId(f.id)}
                               className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-500/20 hover:scale-[1.02] active:scale-95"
                             >
                               <Archive className="w-3.5 h-3.5" />
-                              Enregistrer en Stock
+                              Valider l'Entrée en Stock + Coût de Revient
                             </button>
                           )}
-                          {isInStock && (
+                          {isValidated && (
                             <div className="flex items-center gap-2 justify-center text-emerald-600 text-[9px] font-black uppercase">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Entrée validée le {f.stockEntryDate}
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Entrée validée — {artCount} article(s) en stock
                             </div>
                           )}
+                        </div>
+                      );
+                    })}
                         </div>
                       );
                     })}
