@@ -101,16 +101,21 @@ export type StockItem = {
   size?: string;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
-  sellingPrice?: number;        // prix de vente configuré par l'admin
+  hasTTCCost?: boolean;           // true si coût de revient TTC calculé, false si FOB estimé
+  sellingPrice?: number;          // prix de vente configuré par l'admin
   initialQty: number;
   mouvementsIn: number;
   mouvementsOut: number;
   currentQty: number;
-  totalValue: number;           // currentQty * purchasePricePerUnit
-  totalSellingValue?: number;   // currentQty * sellingPrice
+  totalValue: number;             // currentQty * purchasePricePerUnit
+  totalSellingValue?: number;     // currentQty * sellingPrice
   minThreshold?: number;
   lastMovementDate?: string;
   stockEntryDate?: string;
+  // Champs internes pour les articles "various" explosés
+  _realArticleId?: string;        // articleId Firestore réel (si ID virtuel)
+  _colorKey?: string;             // couleur de la variante
+  _sizeKey?: string;              // taille de la variante
 };
 
 // ── Types de vente (POS rapide) ────────────────────────────────────────────────

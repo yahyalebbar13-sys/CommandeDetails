@@ -494,7 +494,7 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard stockItems={stockItems} movements={movements} categories={categories} sales={sales} onNavigate={setActiveView} />
+              <StockDashboard stockItems={stockItems} movements={movements} categories={categories} sales={sales} onNavigate={(v) => setActiveView(v as any)} />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
@@ -514,7 +514,7 @@ export default function StockApp() {
                 orders={orders}
                 invoices={invoices}
                 payments={payments}
-                onCreateClient={handleCreateClient}
+                onCreateClient={async (c) => { await handleCreateClient(c); }}
                 onUpdateClient={handleUpdateClient}
                 onNavigate={setActiveView}
               />
