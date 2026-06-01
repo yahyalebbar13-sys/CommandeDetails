@@ -2178,8 +2178,18 @@ function NouveauProduitModal({
     isPromo: false,
     minOrderQty: '1',
   });
+  type VariantForm = { id: string; color: string; colorHex: string; size: string; price: string; stock: string };
+  const [variants, setVariants] = useState<VariantForm[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const addVariant = () => setVariants(v => [
+    ...v,
+    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', price: form.price || '', stock: '0' },
+  ]);
+  const removeVariant = (id: string) => setVariants(v => v.filter(x => x.id !== id));
+  const updateVariant = (id: string, field: keyof VariantForm, val: string) =>
+    setVariants(v => v.map(x => x.id === id ? { ...x, [field]: val } : x));
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { setError('Le nom est requis'); return; }
@@ -2191,6 +2201,15 @@ function NouveauProduitModal({
       const cat = allCategories.find(c => c.slug === form.categorySlug);
       const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const builtVariants = variants.map(v => ({
+        id: v.id,
+        color: v.color.trim() || undefined,
+        colorHex: v.colorHex || undefined,
+        size: v.size.trim() || undefined,
+        stock: parseInt(v.stock) || 0,
+        price: v.price ? parseFloat(v.price) : undefined,
+      })).filter(v => v.color || v.size);
+
       const product: ShopProduct = {
         id,
         slug,
@@ -2202,9 +2221,13 @@ function NouveauProduitModal({
         images: form.images.filter(Boolean),
         price: parseFloat(form.price),
         comparePrice: form.comparePrice ? parseFloat(form.comparePrice) : null as any,
-        inStock: parseInt(form.stockQty) > 0,
-        stockQty: parseInt(form.stockQty) || 0,
-        variants: [],
+        inStock: builtVariants.length > 0
+          ? builtVariants.some(v => v.stock > 0)
+          : parseInt(form.stockQty) > 0,
+        stockQty: builtVariants.length > 0
+          ? builtVariants.reduce((s, v) => s + v.stock, 0)
+          : parseInt(form.stockQty) || 0,
+        variants: builtVariants,
         tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
         isFeatured: form.isFeatured,
         isNew: form.isNew,
@@ -2376,6 +2399,101 @@ function NouveauProduitModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* ── Variantes ─────────────────────────────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Couleurs / Tailles)</label>
+              <button
+                type="button"
+                onClick={addVariant}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" /> Ajouter une variante
+              </button>
+            </div>
+
+            {variants.length === 0 && (
+              <p className="text-xs text-gray-600 py-2 px-3 rounded-lg bg-white/3 border border-white/5">
+                Aucune variante — le produit aura un stock et prix unique. Ajoutez des variantes si le produit existe en plusieurs couleurs ou tailles.
+              </p>
+            )}
+
+            {variants.map((v, idx) => (
+              <div key={v.id} className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-gray-400">Variante {idx + 1}</span>
+                  <button onClick={() => removeVariant(v.id)} className="p-1 rounded text-gray-600 hover:text-red-400 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Couleur nom */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Couleur (nom)</label>
+                    <input
+                      type="text"
+                      value={v.color}
+                      onChange={e => updateVariant(v.id, 'color', e.target.value)}
+                      placeholder="Ex: Rouge, Bleu..."
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                    />
+                  </div>
+                  {/* Couleur hex */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Couleur (hex)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={v.colorHex}
+                        onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
+                        className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={v.colorHex}
+                        onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+                      />
+                    </div>
+                  </div>
+                  {/* Taille */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Taille / Ref</label>
+                    <input
+                      type="text"
+                      value={v.size}
+                      onChange={e => updateVariant(v.id, 'size', e.target.value)}
+                      placeholder="Ex: S, M, L, XL..."
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                    />
+                  </div>
+                  {/* Prix */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Prix (MAD)</label>
+                    <input
+                      type="number"
+                      value={v.price}
+                      onChange={e => updateVariant(v.id, 'price', e.target.value)}
+                      placeholder={form.price || '0'}
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                    />
+                  </div>
+                  {/* Stock */}
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Stock de cette variante</label>
+                    <input
+                      type="number"
+                      value={v.stock}
+                      onChange={e => updateVariant(v.id, 'stock', e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

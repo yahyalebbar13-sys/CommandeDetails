@@ -9,10 +9,16 @@ interface CartState {
   isOpen: boolean;
 }
 
+// Unique key per cart line (productId + optional variantId)
+function cartKey(productId: string, variantId?: string) {
+  return variantId ? `${productId}::${variantId}` : productId;
+}
+
 type CartAction =
   | { type: 'ADD_ITEM'; payload: CartItem }
-  | { type: 'REMOVE_ITEM'; payload: string } // productId
-  | { type: 'UPDATE_QTY'; payload: { productId: string; quantity: number } }
+  | { type: 'ADD_ITEMS'; payload: CartItem[] }
+  | { type: 'REMOVE_ITEM'; payload: { productId: string; variantId?: string } }
+  | { type: 'UPDATE_QTY'; payload: { productId: string; variantId?: string; quantity: number } }
   | { type: 'CLEAR_CART' }
   | { type: 'TOGGLE_CART' }
   | { type: 'OPEN_CART' }
@@ -22,10 +28,9 @@ type CartAction =
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
+      const key = cartKey(action.payload.productId, action.payload.variant?.variantId);
       const existing = state.items.findIndex(
-        i => i.productId === action.payload.productId &&
-          i.variant?.color === action.payload.variant?.color &&
-          i.variant?.size === action.payload.variant?.size
+        i => cartKey(i.productId, i.variant?.variantId) === key
       );
       if (existing >= 0) {
         const items = [...state.items];
@@ -35,12 +40,34 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
       return { ...state, items: [...state.items, action.payload], isOpen: true };
     }
-    case 'REMOVE_ITEM':
-      return { ...state, items: state.items.filter(i => i.productId !== action.payload) };
+    case 'ADD_ITEMS': {
+      let items = [...state.items];
+      for (const newItem of action.payload) {
+        const key = cartKey(newItem.productId, newItem.variant?.variantId);
+        const existing = items.findIndex(i => cartKey(i.productId, i.variant?.variantId) === key);
+        if (existing >= 0) {
+          const newQty = Math.min(items[existing].quantity + newItem.quantity, items[existing].maxStock);
+          items[existing] = { ...items[existing], quantity: newQty };
+        } else {
+          items = [...items, newItem];
+        }
+      }
+      return { ...state, items, isOpen: true };
+    }
+    case 'REMOVE_ITEM': {
+      const { productId, variantId } = action.payload;
+      const key = cartKey(productId, variantId);
+      return {
+        ...state,
+        items: state.items.filter(i => cartKey(i.productId, i.variant?.variantId) !== key),
+      };
+    }
     case 'UPDATE_QTY': {
+      const { productId, variantId, quantity } = action.payload;
+      const key = cartKey(productId, variantId);
       const items = state.items.map(i =>
-        i.productId === action.payload.productId
-          ? { ...i, quantity: Math.max(1, Math.min(action.payload.quantity, i.maxStock)) }
+        cartKey(i.productId, i.variant?.variantId) === key
+          ? { ...i, quantity: Math.max(1, Math.min(quantity, i.maxStock)) }
           : i
       );
       return { ...state, items };
@@ -67,8 +94,9 @@ interface CartContextValue {
   itemCount: number;
   subtotal: number;
   addItem: (item: CartItem) => void;
-  removeItem: (productId: string) => void;
-  updateQty: (productId: string, quantity: number) => void;
+  addItems: (items: CartItem[]) => void;
+  removeItem: (productId: string, variantId?: string) => void;
+  updateQty: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   toggleCart: () => void;
   openCart: () => void;
@@ -100,16 +128,25 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [state.items]);
 
-  const addItem = useCallback((item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }), []);
-  const removeItem = useCallback((productId: string) => dispatch({ type: 'REMOVE_ITEM', payload: productId }), []);
-  const updateQty = useCallback((productId: string, quantity: number) => dispatch({ type: 'UPDATE_QTY', payload: { productId, quantity } }), []);
-  const clearCart = useCallback(() => dispatch({ type: 'CLEAR_CART' }), []);
+  const addItem  = useCallback((item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }), []);
+  const addItems = useCallback((items: CartItem[]) => dispatch({ type: 'ADD_ITEMS', payload: items }), []);
+  const removeItem = useCallback(
+    (productId: string, variantId?: string) =>
+      dispatch({ type: 'REMOVE_ITEM', payload: { productId, variantId } }),
+    []
+  );
+  const updateQty = useCallback(
+    (productId: string, quantity: number, variantId?: string) =>
+      dispatch({ type: 'UPDATE_QTY', payload: { productId, variantId, quantity } }),
+    []
+  );
+  const clearCart  = useCallback(() => dispatch({ type: 'CLEAR_CART' }), []);
   const toggleCart = useCallback(() => dispatch({ type: 'TOGGLE_CART' }), []);
-  const openCart = useCallback(() => dispatch({ type: 'OPEN_CART' }), []);
-  const closeCart = useCallback(() => dispatch({ type: 'CLOSE_CART' }), []);
+  const openCart   = useCallback(() => dispatch({ type: 'OPEN_CART' }), []);
+  const closeCart  = useCallback(() => dispatch({ type: 'CLOSE_CART' }), []);
 
   const itemCount = state.items.reduce((s, i) => s + i.quantity, 0);
-  const subtotal = state.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal  = state.items.reduce((s, i) => s + i.price * i.quantity, 0);
 
   return (
     <CartContext.Provider value={{
@@ -118,6 +155,7 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
       itemCount,
       subtotal,
       addItem,
+      addItems,
       removeItem,
       updateQty,
       clearCart,

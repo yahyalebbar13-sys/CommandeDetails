@@ -29,8 +29,8 @@ function CartLineItem({
   onRemove,
 }: {
   item: CartItem;
-  onUpdateQty: (id: string, qty: number) => void;
-  onRemove: (id: string) => void;
+  onUpdateQty: (id: string, qty: number, variantId?: string) => void;
+  onRemove: (id: string, variantId?: string) => void;
 }) {
   const lineTotal = item.price * item.quantity;
 
@@ -68,7 +68,7 @@ function CartLineItem({
           </p>
           {/* Delete */}
           <button
-            onClick={() => onRemove(item.productId)}
+            onClick={() => onRemove(item.productId, item.variant?.variantId)}
             className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
             aria-label="Supprimer"
           >
@@ -104,7 +104,7 @@ function CartLineItem({
           {/* Qty stepper */}
           <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shadow-sm">
             <button
-              onClick={() => onUpdateQty(item.productId, item.quantity - 1)}
+              onClick={() => onUpdateQty(item.productId, item.quantity - 1, item.variant?.variantId)}
               disabled={item.quantity <= 1}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               aria-label="Diminuer"
@@ -115,7 +115,7 @@ function CartLineItem({
               {item.quantity}
             </span>
             <button
-              onClick={() => onUpdateQty(item.productId, item.quantity + 1)}
+              onClick={() => onUpdateQty(item.productId, item.quantity + 1, item.variant?.variantId)}
               disabled={item.quantity >= item.maxStock}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               aria-label="Augmenter"
@@ -286,11 +286,11 @@ export default function CartDrawer() {
   }, [isOpen]);
 
   const handleUpdateQty = useCallback(
-    (productId: string, qty: number) => {
+    (productId: string, qty: number, variantId?: string) => {
       if (qty < 1) {
-        removeItem(productId);
+        removeItem(productId, variantId);
       } else {
-        updateQty(productId, qty);
+        updateQty(productId, qty, variantId);
       }
     },
     [updateQty, removeItem]

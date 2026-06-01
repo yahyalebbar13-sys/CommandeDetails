@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, Minus, Plus, Package } from 'lucide-react';
-import { getProductById, getSimilarProducts, SHOP_PRODUCTS_DATA } from '@/lib/shop-products-data';
+import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
-import type { ProductVariant } from '@/lib/shop-types';
+import type { CartItem, ProductVariant } from '@/lib/shop-types';
 
 function SimilarProductCard({ product }: { product: any }) {
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
@@ -27,10 +27,162 @@ function SimilarProductCard({ product }: { product: any }) {
   );
 }
 
+// ─── Multi-Variant Selector ───────────────────────────────────────────────────
+function MultiVariantSelector({
+  variants,
+  basePrice,
+  productId,
+  productName,
+  productImage,
+  onAdd,
+}: {
+  variants: ProductVariant[];
+  basePrice: number;
+  productId: string;
+  productName: string;
+  productImage: string;
+  onAdd: (items: CartItem[]) => void;
+}) {
+  const [qtys, setQtys] = useState<Record<string, number>>({});
+
+  const setQty = (variantId: string, delta: number, max: number) => {
+    setQtys(prev => {
+      const current = prev[variantId] || 0;
+      const next = Math.max(0, Math.min(max, current + delta));
+      return { ...prev, [variantId]: next };
+    });
+  };
+
+  const totalQty = Object.values(qtys).reduce((s, q) => s + q, 0);
+  const totalPrice = variants.reduce((s, v) => s + (v.price ?? basePrice) * (qtys[v.id] || 0), 0);
+
+  const handleAdd = () => {
+    const items: CartItem[] = variants
+      .filter(v => (qtys[v.id] || 0) > 0 && v.stock > 0)
+      .map(v => ({
+        productId,
+        productName,
+        productImage,
+        price: v.price ?? basePrice,
+        quantity: qtys[v.id],
+        variant: { color: v.color, size: v.size, variantId: v.id },
+        maxStock: v.stock,
+      }));
+    if (items.length === 0) return;
+    onAdd(items);
+    setQtys({});
+  };
+
+  return (
+    <div className="mb-5">
+      <p className="text-sm font-bold text-[#1A1A1A] mb-3 flex items-center gap-2">
+        Choisissez vos variantes
+        <span className="text-[10px] font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Sélectionnez les quantités souhaitées</span>
+      </p>
+
+      {/* Variant table */}
+      <div className="border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm">
+        {/* Header */}
+        <div className="grid grid-cols-[1fr_80px_60px_100px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-[#E8E4DF]">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Variante</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Prix</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Stock</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Quantité</span>
+        </div>
+
+        {/* Rows */}
+        {variants.map(v => {
+          const outOfStock = v.stock === 0;
+          const qty = qtys[v.id] || 0;
+          const label = [v.color, v.size].filter(Boolean).join(' / ') || `Ref. ${v.id}`;
+          const price = v.price ?? basePrice;
+
+          return (
+            <div
+              key={v.id}
+              className={`grid grid-cols-[1fr_80px_60px_100px] gap-2 items-center px-4 py-3 border-b last:border-0 border-[#F3EFE8] transition-colors ${
+                qty > 0 ? 'bg-red-50/40' : ''
+              } ${outOfStock ? 'opacity-50' : ''}`}
+            >
+              {/* Label + color swatch */}
+              <div className="flex items-center gap-2 min-w-0">
+                {v.colorHex && (
+                  <div
+                    className="w-5 h-5 rounded-full border border-gray-200 flex-shrink-0 shadow-sm"
+                    style={{ background: v.colorHex }}
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#1A1A1A] truncate">{label}</p>
+                  {outOfStock && (
+                    <p className="text-[10px] text-red-400 font-bold">Épuisé</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Price */}
+              <p className="text-sm font-bold text-[#C8102E] text-right whitespace-nowrap">{formatPrice(price)}</p>
+
+              {/* Stock */}
+              <p className="text-xs text-gray-400 text-center">{v.stock}</p>
+
+              {/* Qty stepper */}
+              <div className="flex items-center justify-center gap-1">
+                <button
+                  onClick={() => setQty(v.id, -1, v.stock)}
+                  disabled={outOfStock || qty === 0}
+                  className="w-7 h-7 rounded-lg border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 transition-all"
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <span className={`w-7 text-center text-sm font-bold ${qty > 0 ? 'text-[#C8102E]' : 'text-gray-400'}`}>{qty}</span>
+                <button
+                  onClick={() => setQty(v.id, 1, v.stock)}
+                  disabled={outOfStock || qty >= v.stock}
+                  className="w-7 h-7 rounded-lg border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 transition-all"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Summary row */}
+      {totalQty > 0 && (
+        <div className="mt-3 flex items-center justify-between px-1">
+          <p className="text-sm text-gray-500">
+            <span className="font-bold text-[#1A1A1A]">{totalQty}</span> article{totalQty > 1 ? 's' : ''} sélectionné{totalQty > 1 ? 's' : ''}
+          </p>
+          <p className="text-sm font-bold text-[#1A1A1A]">
+            Total : <span className="text-[#C8102E]">{formatPrice(totalPrice)}</span>
+          </p>
+        </div>
+      )}
+
+      {/* Add to cart button */}
+      <button
+        onClick={handleAdd}
+        disabled={totalQty === 0}
+        className={`w-full mt-4 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
+          totalQty === 0
+            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
+        }`}
+      >
+        <ShoppingCart className="w-5 h-5" />
+        {totalQty === 0 ? 'Sélectionnez au moins une variante' : `Ajouter au panier (${totalQty} article${totalQty > 1 ? 's' : ''})`}
+      </button>
+    </div>
+  );
+}
+
+// ─── Product Page ─────────────────────────────────────────────────────────────
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const product = getProductById(id);
-  const { addItem, openCart } = useShopCart();
+  const { addItem, addItems, openCart } = useShopCart();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     product?.variants[0] || null
   );
@@ -47,7 +199,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <p className="text-6xl mb-4">😕</p>
           <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Produit introuvable</h1>
           <p className="text-[#6B6B6B] mb-6">Ce produit n'existe pas ou a été supprimé.</p>
-          <Link href="/shop/boutique" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors">
+          <Link href="/shop/categories" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors">
             Retour à la boutique
           </Link>
         </div>
@@ -55,12 +207,14 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     );
   }
 
+  const hasVariants = product.variants && product.variants.length > 0;
   const similar = getSimilarProducts(product, 4);
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
   const currentPrice = selectedVariant?.price || product.price;
   const stock = selectedVariant?.stock ?? product.stockQty;
-  const inStock = stock > 0;
+  const inStock = hasVariants ? product.variants.some(v => v.stock > 0) : stock > 0;
 
+  // Single variant / no variant add to cart
   const handleAddToCart = () => {
     addItem({
       productId: product.id,
@@ -71,6 +225,13 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       variant: selectedVariant ? { color: selectedVariant.color, size: selectedVariant.size, variantId: selectedVariant.id } : undefined,
       maxStock: stock,
     });
+    setAdded(true);
+    setTimeout(() => { setAdded(false); openCart(); }, 1500);
+  };
+
+  // Multi-variant add to cart
+  const handleAddVariantsToCart = (items: CartItem[]) => {
+    addItems(items);
     setAdded(true);
     setTimeout(() => { setAdded(false); openCart(); }, 1500);
   };
@@ -95,7 +256,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         <nav className="flex items-center gap-1.5 text-xs text-[#6B6B6B] mb-6">
           <Link href="/shop" className="hover:text-[#C8102E] transition-colors">Accueil</Link>
           <ChevronRight className="w-3 h-3" />
-          <Link href="/shop/boutique" className="hover:text-[#C8102E] transition-colors">Boutique</Link>
+          <Link href="/shop/categories" className="hover:text-[#C8102E] transition-colors">Boutique</Link>
           <ChevronRight className="w-3 h-3" />
           <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-[#C8102E] transition-colors">{product.categoryName}</Link>
           <ChevronRight className="w-3 h-3" />
@@ -108,13 +269,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <div>
             <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-[#E8E4DF] shop-img-zoom mb-3">
               <img src={product.images[mainImg] || product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-              {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-col gap-2">
                 {product.isNew && <span className="bg-[#10B981] text-white text-xs font-black px-3 py-1 rounded-full">NOUVEAU</span>}
                 {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-xs font-black px-3 py-1 rounded-full">-{discount}%</span>}
               </div>
             </div>
-            {/* Thumbnails */}
             <div className="flex gap-2">
               {product.images.map((img, i) => (
                 <button key={i} onClick={() => setMainImg(i)}
@@ -131,6 +290,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             <div className="flex gap-2 mb-3">
               {product.isNew && <span className="bg-[#10B981]/10 text-[#10B981] text-xs font-bold px-2.5 py-1 rounded-full">✨ Nouveau</span>}
               {product.isPromo && <span className="bg-[#C8102E]/10 text-[#C8102E] text-xs font-bold px-2.5 py-1 rounded-full">🏷️ Promotion</span>}
+              {hasVariants && <span className="bg-[#D4A843]/10 text-[#D4A843] text-xs font-bold px-2.5 py-1 rounded-full">🎨 {product.variants.length} variantes</span>}
             </div>
 
             <h1 className="text-2xl md:text-3xl font-black text-[#1A1A1A] mb-3 leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h1>
@@ -149,11 +309,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
             {/* Price */}
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-3xl font-black text-[#1A1A1A]">{formatPrice(currentPrice)}</span>
-              {product.comparePrice && (
+              {hasVariants ? (
+                <span className="text-2xl font-black text-[#1A1A1A]">
+                  À partir de {formatPrice(Math.min(...product.variants.map(v => v.price ?? product.price)))}
+                </span>
+              ) : (
                 <>
-                  <span className="text-lg text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>
-                  <span className="bg-[#C8102E] text-white text-sm font-black px-2.5 py-0.5 rounded-full">-{discount}%</span>
+                  <span className="text-3xl font-black text-[#1A1A1A]">{formatPrice(currentPrice)}</span>
+                  {product.comparePrice && (
+                    <>
+                      <span className="text-lg text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>
+                      <span className="bg-[#C8102E] text-white text-sm font-black px-2.5 py-0.5 rounded-full">-{discount}%</span>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -161,106 +329,83 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             {/* Stock */}
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mb-5 ${inStock ? 'bg-green-50 text-[#10B981]' : 'bg-red-50 text-red-600'}`}>
               <span className={`w-2 h-2 rounded-full ${inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
-              {inStock ? `En stock (${stock} disponibles)` : 'Rupture de stock'}
+              {inStock
+                ? hasVariants
+                  ? `${product.variants.reduce((s, v) => s + v.stock, 0)} unités disponibles`
+                  : `En stock (${stock} disponibles)`
+                : 'Rupture de stock'}
             </div>
 
             <hr className="border-[#E8E4DF] mb-5" />
 
-            {/* Color variants */}
-            {product.variants.some(v => v.color) && (
-              <div className="mb-4">
-                <p className="text-sm font-semibold text-[#1A1A1A] mb-2">
-                  Couleur: <span className="text-[#C8102E]">{selectedVariant?.color || '—'}</span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {product.variants.map(v => (
-                    <button key={v.id} onClick={() => setSelectedVariant(v)}
-                      title={v.color}
-                      className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${selectedVariant?.id === v.id ? 'border-[#C8102E] scale-110' : 'border-gray-200'}`}
-                      style={{ background: v.colorHex || '#ccc' }}>
-                      {v.stock === 0 && <span className="absolute inset-0 flex items-center justify-center"><span className="block w-full h-0.5 bg-white/70 rotate-45" /></span>}
+            {/* ── VARIANTS or single qty ── */}
+            {hasVariants ? (
+              <MultiVariantSelector
+                variants={product.variants}
+                basePrice={product.price}
+                productId={product.id}
+                productName={product.name}
+                productImage={product.images[mainImg] || product.images[0]}
+                onAdd={handleAddVariantsToCart}
+              />
+            ) : (
+              <>
+                {/* Quantity */}
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Quantité</p>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setQty(q => Math.max(product.minOrderQty || 1, q - 1))}
+                      className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
+                      <Minus className="w-4 h-4" />
                     </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Size variants */}
-            {product.variants.some(v => v.size) && (
-              <div className="mb-5">
-                <p className="text-sm font-semibold text-[#1A1A1A] mb-2">
-                  Taille: <span className="text-[#C8102E]">{selectedVariant?.size || '—'}</span>
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {product.variants.map(v => v.size && (
-                    <button key={v.id} onClick={() => setSelectedVariant(v)}
-                      disabled={v.stock === 0}
-                      className={`px-4 py-1.5 rounded-lg border text-sm font-semibold transition-all ${
-                        selectedVariant?.id === v.id
-                          ? 'border-[#C8102E] bg-[#C8102E]/10 text-[#C8102E]'
-                          : v.stock === 0
-                            ? 'border-gray-200 text-gray-300 line-through cursor-not-allowed'
-                            : 'border-[#E8E4DF] text-[#1A1A1A] hover:border-[#C8102E]'
-                      }`}>
-                      {v.size}
+                    <span className="w-16 text-center font-black text-xl">{qty}</span>
+                    <button onClick={() => setQty(q => Math.min(stock, q + 1))}
+                      className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
+                      <Plus className="w-4 h-4" />
                     </button>
-                  ))}
+                    <span className="text-xs text-[#6B6B6B]">Total: <strong>{formatPrice(currentPrice * qty)}</strong></span>
+                  </div>
+                  {product.minOrderQty && product.minOrderQty > 1 && (
+                    <p className="text-xs text-[#D4A843] mt-1.5 flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5" /> Commande minimum: {product.minOrderQty} pcs
+                    </p>
+                  )}
                 </div>
-              </div>
+
+                {/* Wholesale */}
+                {product.wholesalePrice && (
+                  <div className="mb-4 p-3 bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-xl">
+                    <p className="text-sm text-[#1A1A1A]">
+                      💼 <strong>Semi-gros disponible :</strong> {formatPrice(product.wholesalePrice)}/unité (min. {product.minOrderQty || 10} pcs)
+                    </p>
+                  </div>
+                )}
+
+                {/* CTA Buttons */}
+                <div className="flex flex-col gap-3 mb-5">
+                  <button onClick={handleAddToCart} disabled={!inStock}
+                    className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
+                      !inStock ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : added ? 'bg-[#10B981] text-white'
+                      : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
+                    }`}>
+                    <ShoppingCart className="w-5 h-5" />
+                    {added ? '✓ Ajouté au panier !' : inStock ? 'Ajouter au panier' : 'Rupture de stock'}
+                  </button>
+                </div>
+              </>
             )}
 
-            {/* Quantity */}
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Quantité</p>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setQty(q => Math.max(product.minOrderQty || 1, q - 1))}
-                  className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="w-16 text-center font-black text-xl">{qty}</span>
-                <button onClick={() => setQty(q => Math.min(stock, q + 1))}
-                  className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
-                  <Plus className="w-4 h-4" />
-                </button>
-                <span className="text-xs text-[#6B6B6B]">Total: <strong>{formatPrice(currentPrice * qty)}</strong></span>
-              </div>
-              {product.minOrderQty && product.minOrderQty > 1 && (
-                <p className="text-xs text-[#D4A843] mt-1.5 flex items-center gap-1">
-                  <Package className="w-3.5 h-3.5" /> Commande minimum: {product.minOrderQty} pcs
-                </p>
-              )}
-            </div>
-
-            {/* Wholesale */}
-            {product.wholesalePrice && (
-              <div className="mb-4 p-3 bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-xl">
-                <p className="text-sm text-[#1A1A1A]">
-                  💼 <strong>Semi-gros disponible :</strong> {formatPrice(product.wholesalePrice)}/unité (min. {product.minOrderQty || 10} pcs)
-                </p>
-              </div>
-            )}
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col gap-3 mb-5">
-              <button onClick={handleAddToCart} disabled={!inStock}
-                className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
-                  !inStock ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : added ? 'bg-[#10B981] text-white'
-                  : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
-                }`}>
-                <ShoppingCart className="w-5 h-5" />
-                {added ? '✓ Ajouté au panier !' : inStock ? 'Ajouter au panier' : 'Rupture de stock'}
+            {/* WhatsApp + Wishlist */}
+            <div className="flex gap-3 mb-5">
+              <a href={buildWhatsAppLink(product.id, hasVariants ? product.price : currentPrice * qty, product.name)} target="_blank" rel="noopener noreferrer"
+                className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white transition-colors">
+                <MessageCircle className="w-4 h-4" /> Commander sur WhatsApp
+              </a>
+              <button onClick={() => setWished(!wished)}
+                className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${wished ? 'border-red-400 bg-red-50 text-red-500' : 'border-[#E8E4DF] text-[#6B6B6B] hover:border-red-400'}`}>
+                <Heart className="w-5 h-5" fill={wished ? 'currentColor' : 'none'} />
               </button>
-              <div className="flex gap-3">
-                <a href={buildWhatsAppLink(product.id, currentPrice * qty, product.name)} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white transition-colors">
-                  <MessageCircle className="w-4 h-4" /> Commander sur WhatsApp
-                </a>
-                <button onClick={() => setWished(!wished)}
-                  className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${wished ? 'border-red-400 bg-red-50 text-red-500' : 'border-[#E8E4DF] text-[#6B6B6B] hover:border-red-400'}`}>
-                  <Heart className="w-5 h-5" fill={wished ? 'currentColor' : 'none'} />
-                </button>
-              </div>
             </div>
 
             {/* Delivery info */}
