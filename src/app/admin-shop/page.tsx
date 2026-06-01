@@ -1794,6 +1794,7 @@ function ProduitsView() {
   const [loadingOverrides, setLoadingOverrides] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductOverride>({});
+  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; size: string; price: string; stock: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1865,24 +1866,54 @@ function ProduitsView() {
       inStock: merged.inStock,
       stockQty: merged.stockQty,
     });
+    // Initialize variant editor from current product variants
+    setEditVariants((merged.variants || []).map(v => ({
+      id: v.id,
+      color: v.color || '',
+      colorHex: v.colorHex || '#C8102E',
+      size: v.size || '',
+      price: v.price?.toString() || '',
+      stock: v.stock?.toString() || '0',
+    })));
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditForm({});
+    setEditVariants([]);
   };
 
   const saveEdit = async (productId: string) => {
     setSaving(true);
     try {
-      const override: ProductOverride = { ...editForm };
-      // Remove undefined values
+      // Build variants array from editVariants
+      const builtVariants = editVariants
+        .filter(v => v.color.trim() || v.size.trim())
+        .map(v => ({
+          id: v.id,
+          color: v.color.trim() || undefined,
+          colorHex: v.colorHex || undefined,
+          size: v.size.trim() || undefined,
+          stock: parseInt(v.stock) || 0,
+          price: v.price ? parseFloat(v.price) : undefined,
+        }));
+
+      const override: ProductOverride = {
+        ...editForm,
+        variants: builtVariants,
+        // Recalculate stock from variants if variants exist
+        ...(builtVariants.length > 0 ? {
+          inStock: builtVariants.some(v => v.stock > 0),
+          stockQty: builtVariants.reduce((s, v) => s + v.stock, 0),
+        } : {}),
+      };
       Object.keys(override).forEach(key => {
         if ((override as any)[key] === undefined) delete (override as any)[key];
       });
       await setDoc(doc(db, 'shop_product_overrides', productId), override, { merge: true });
       setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...override } }));
       setEditingId(null);
+      setEditVariants([]);
       setSavedId(productId);
       setTimeout(() => setSavedId(null), 2000);
     } catch (err) {
@@ -2129,6 +2160,84 @@ function ProduitsView() {
                       onChange={(imgs) => setEditForm(prev => ({ ...prev, images: imgs }))}
                       folder="shop/products"
                     />
+                  </div>
+
+                  {/* Variantes */}
+                  <div className="mt-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Couleurs / Tailles)</label>
+                      <button
+                        type="button"
+                        onClick={() => setEditVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', price: editForm.price?.toString() || '', stock: '0' }])}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Ajouter une variante
+                      </button>
+                    </div>
+
+                    {editVariants.length === 0 && (
+                      <p className="text-xs text-gray-600 py-2 px-3 rounded-lg bg-white/3 border border-white/5">
+                        Aucune variante — le produit a un stock et prix unique. Ajoutez des variantes pour gérer couleurs/tailles.
+                      </p>
+                    )}
+
+                    {editVariants.map((v, idx) => (
+                      <div key={v.id} className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-gray-400">Variante {idx + 1}</span>
+                          <button onClick={() => setEditVariants(ev => ev.filter(x => x.id !== v.id))} className="p-1 rounded text-gray-600 hover:text-red-400 transition-colors">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-gray-600 uppercase">Couleur</label>
+                            <input type="text" value={v.color}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
+                              placeholder="Rouge, Bleu..."
+                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-gray-600 uppercase">Hex couleur</label>
+                            <div className="flex gap-1.5">
+                              <input type="color" value={v.colorHex}
+                                onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
+                                className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer flex-shrink-0"
+                              />
+                              <input type="text" value={v.colorHex}
+                                onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
+                                className="flex-1 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-gray-600 uppercase">Taille / Ref</label>
+                            <input type="text" value={v.size}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, size: e.target.value } : x))}
+                              placeholder="S, M, L..."
+                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-gray-600 uppercase">Prix (MAD)</label>
+                            <input type="number" value={v.price}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, price: e.target.value } : x))}
+                              placeholder={editForm.price?.toString() || '0'}
+                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                            />
+                          </div>
+                          <div className="space-y-1 col-span-2 sm:col-span-2">
+                            <label className="text-[9px] font-bold text-gray-600 uppercase">Stock</label>
+                            <input type="number" value={v.stock}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, stock: e.target.value } : x))}
+                              placeholder="0"
+                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

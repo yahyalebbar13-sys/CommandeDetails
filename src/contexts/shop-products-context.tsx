@@ -25,6 +25,7 @@ export interface ProductOverride {
   description?: string;
   wholesalePrice?: number;
   minOrderQty?: number;
+  variants?: import('@/lib/shop-types').ProductVariant[];
 }
 
 interface ShopProductsContextType {
