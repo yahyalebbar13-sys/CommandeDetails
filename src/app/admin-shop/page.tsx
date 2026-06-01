@@ -2162,82 +2162,53 @@ function ProduitsView() {
                     />
                   </div>
 
-                  {/* Variantes */}
-                  <div className="mt-5 space-y-3">
+                  {/* Couleurs */}
+                  <div className="mt-5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Couleurs / Tailles)</label>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleurs disponibles</label>
                       <button
                         type="button"
                         onClick={() => setEditVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', price: editForm.price?.toString() || '', stock: '0' }])}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Ajouter une variante
+                        <Plus className="w-3.5 h-3.5" /> Ajouter une couleur
                       </button>
                     </div>
-
                     {editVariants.length === 0 && (
                       <p className="text-xs text-gray-600 py-2 px-3 rounded-lg bg-white/3 border border-white/5">
-                        Aucune variante — le produit a un stock et prix unique. Ajoutez des variantes pour gérer couleurs/tailles.
+                        Pas de couleurs — stock et prix unique.
                       </p>
                     )}
-
-                    {editVariants.map((v, idx) => (
-                      <div key={v.id} className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-gray-400">Variante {idx + 1}</span>
-                          <button onClick={() => setEditVariants(ev => ev.filter(x => x.id !== v.id))} className="p-1 rounded text-gray-600 hover:text-red-400 transition-colors">
+                    <div className="space-y-1.5">
+                      {editVariants.map(v => (
+                        <div key={v.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+                          <input type="color" value={v.colorHex}
+                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
+                            className="w-8 h-8 rounded-full cursor-pointer border-0 bg-transparent flex-shrink-0" style={{ padding: '1px' }}
+                          />
+                          <input type="text" value={v.color}
+                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
+                            placeholder="Nom (Rouge, Noir...)"
+                            className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                          />
+                          <span className="text-gray-600 text-xs">Stock</span>
+                          <input type="number" value={v.stock}
+                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, stock: e.target.value } : x))}
+                            placeholder="0"
+                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                          />
+                          <span className="text-gray-600 text-xs">Prix</span>
+                          <input type="number" value={v.price}
+                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, price: e.target.value } : x))}
+                            placeholder={editForm.price?.toString() || '—'}
+                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                          />
+                          <button onClick={() => setEditVariants(ev => ev.filter(x => x.id !== v.id))} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
                             <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-gray-600 uppercase">Couleur</label>
-                            <input type="text" value={v.color}
-                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
-                              placeholder="Rouge, Bleu..."
-                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-gray-600 uppercase">Hex couleur</label>
-                            <div className="flex gap-1.5">
-                              <input type="color" value={v.colorHex}
-                                onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
-                                className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer flex-shrink-0"
-                              />
-                              <input type="text" value={v.colorHex}
-                                onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
-                                className="flex-1 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-gray-600 uppercase">Taille / Ref</label>
-                            <input type="text" value={v.size}
-                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, size: e.target.value } : x))}
-                              placeholder="S, M, L..."
-                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-gray-600 uppercase">Prix (MAD)</label>
-                            <input type="number" value={v.price}
-                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, price: e.target.value } : x))}
-                              placeholder={editForm.price?.toString() || '0'}
-                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                            />
-                          </div>
-                          <div className="space-y-1 col-span-2 sm:col-span-2">
-                            <label className="text-[9px] font-bold text-gray-600 uppercase">Stock</label>
-                            <input type="number" value={v.stock}
-                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, stock: e.target.value } : x))}
-                              placeholder="0"
-                              className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -2510,99 +2481,67 @@ function NouveauProduitModal({
             </div>
           </div>
 
-          {/* ── Variantes ─────────────────────────────────────────────── */}
-          <div className="space-y-3">
+          {/* ── Couleurs ───────────────────────────────────────────────── */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Couleurs / Tailles)</label>
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleurs disponibles</label>
               <button
                 type="button"
                 onClick={addVariant}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
               >
-                <Plus className="w-3.5 h-3.5" /> Ajouter une variante
+                <Plus className="w-3.5 h-3.5" /> Ajouter une couleur
               </button>
             </div>
 
             {variants.length === 0 && (
               <p className="text-xs text-gray-600 py-2 px-3 rounded-lg bg-white/3 border border-white/5">
-                Aucune variante — le produit aura un stock et prix unique. Ajoutez des variantes si le produit existe en plusieurs couleurs ou tailles.
+                Pas de variantes — stock et prix unique pour ce produit.
               </p>
             )}
 
-            {variants.map((v, idx) => (
-              <div key={v.id} className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-gray-400">Variante {idx + 1}</span>
-                  <button onClick={() => removeVariant(v.id)} className="p-1 rounded text-gray-600 hover:text-red-400 transition-colors">
+            <div className="space-y-1.5">
+              {variants.map(v => (
+                <div key={v.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+                  {/* Color picker */}
+                  <input
+                    type="color"
+                    value={v.colorHex}
+                    onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
+                    title="Choisir couleur"
+                    className="w-8 h-8 rounded-full cursor-pointer border-0 flex-shrink-0 bg-transparent"
+                    style={{ padding: '1px' }}
+                  />
+                  {/* Color name */}
+                  <input
+                    type="text"
+                    value={v.color}
+                    onChange={e => updateVariant(v.id, 'color', e.target.value)}
+                    placeholder="Nom (Rouge, Noir...)"
+                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                  />
+                  <span className="text-gray-600 text-xs">Stock</span>
+                  <input
+                    type="number"
+                    value={v.stock}
+                    onChange={e => updateVariant(v.id, 'stock', e.target.value)}
+                    placeholder="0"
+                    className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                  />
+                  <span className="text-gray-600 text-xs">Prix</span>
+                  <input
+                    type="number"
+                    value={v.price}
+                    onChange={e => updateVariant(v.id, 'price', e.target.value)}
+                    placeholder={form.price || '—'}
+                    className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                  />
+                  <button onClick={() => removeVariant(v.id)} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Couleur nom */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Couleur (nom)</label>
-                    <input
-                      type="text"
-                      value={v.color}
-                      onChange={e => updateVariant(v.id, 'color', e.target.value)}
-                      placeholder="Ex: Rouge, Bleu..."
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                    />
-                  </div>
-                  {/* Couleur hex */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Couleur (hex)</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="color"
-                        value={v.colorHex}
-                        onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
-                        className="w-10 h-10 rounded-lg border border-white/10 bg-transparent cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={v.colorHex}
-                        onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
-                      />
-                    </div>
-                  </div>
-                  {/* Taille */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Taille / Ref</label>
-                    <input
-                      type="text"
-                      value={v.size}
-                      onChange={e => updateVariant(v.id, 'size', e.target.value)}
-                      placeholder="Ex: S, M, L, XL..."
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                    />
-                  </div>
-                  {/* Prix */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Prix (MAD)</label>
-                    <input
-                      type="number"
-                      value={v.price}
-                      onChange={e => updateVariant(v.id, 'price', e.target.value)}
-                      placeholder={form.price || '0'}
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                    />
-                  </div>
-                  {/* Stock */}
-                  <div className="space-y-1 col-span-2">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Stock de cette variante</label>
-                    <input
-                      type="number"
-                      value={v.stock}
-                      onChange={e => updateVariant(v.id, 'stock', e.target.value)}
-                      placeholder="0"
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 

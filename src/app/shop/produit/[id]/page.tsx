@@ -75,108 +75,102 @@ function MultiVariantSelector({
 
   return (
     <div className="mb-5">
-      <p className="text-sm font-bold text-[#1A1A1A] mb-3 flex items-center gap-2">
-        Choisissez vos variantes
-        <span className="text-[10px] font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Sélectionnez les quantités souhaitées</span>
-      </p>
+      <p className="text-sm font-bold text-[#1A1A1A] mb-4">Choisissez vos couleurs</p>
 
-      {/* Variant table */}
-      <div className="border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm">
-        {/* Header */}
-        <div className="grid grid-cols-[1fr_80px_60px_100px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-[#E8E4DF]">
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Variante</span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Prix</span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Stock</span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Quantité</span>
-        </div>
-
-        {/* Rows */}
+      {/* Color swatches */}
+      <div className="flex flex-wrap gap-5">
         {variants.map(v => {
           const outOfStock = v.stock === 0;
           const qty = qtys[v.id] || 0;
-          const label = [v.color, v.size].filter(Boolean).join(' / ') || `Ref. ${v.id}`;
-          const price = v.price ?? basePrice;
+          const isSelected = qty > 0;
 
           return (
-            <div
-              key={v.id}
-              className={`grid grid-cols-[1fr_80px_60px_100px] gap-2 items-center px-4 py-3 border-b last:border-0 border-[#F3EFE8] transition-colors ${
-                qty > 0 ? 'bg-red-50/40' : ''
-              } ${outOfStock ? 'opacity-50' : ''}`}
-            >
-              {/* Label + color swatch */}
-              <div className="flex items-center gap-2 min-w-0">
-                {v.colorHex && (
-                  <div
-                    className="w-5 h-5 rounded-full border border-gray-200 flex-shrink-0 shadow-sm"
-                    style={{ background: v.colorHex }}
-                  />
+            <div key={v.id} className="flex flex-col items-center gap-1.5">
+              {/* Circle */}
+              <div className="relative">
+                <button
+                  onClick={() => !outOfStock && setQty(v.id, isSelected ? -qty : 1, v.stock)}
+                  disabled={outOfStock}
+                  title={outOfStock ? 'Épuisé' : v.color}
+                  className={`w-14 h-14 rounded-full border-4 transition-all duration-200 shadow-sm ${
+                    outOfStock
+                      ? 'opacity-40 cursor-not-allowed border-gray-200'
+                      : isSelected
+                        ? 'border-[#C8102E] scale-110 shadow-lg shadow-[#C8102E]/20'
+                        : 'border-white hover:border-gray-300 hover:scale-105'
+                  }`}
+                  style={{ background: v.colorHex || '#ccc' }}
+                />
+                {outOfStock && (
+                  <div className="absolute inset-0 rounded-full flex items-center justify-center pointer-events-none">
+                    <div className="w-full h-0.5 bg-gray-400/70 rotate-45" />
+                  </div>
                 )}
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#1A1A1A] truncate">{label}</p>
-                  {outOfStock && (
-                    <p className="text-[10px] text-red-400 font-bold">Épuisé</p>
-                  )}
+                {isSelected && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#C8102E] flex items-center justify-center shadow">
+                    <span className="text-white text-[10px] font-black">✓</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Name */}
+              <p className="text-xs font-semibold text-center text-[#1A1A1A] leading-tight max-w-[64px]">{v.color || '—'}</p>
+
+              {/* Price if variant-specific */}
+              {v.price && v.price !== basePrice && (
+                <p className="text-[10px] font-bold text-[#C8102E]">{formatPrice(v.price)}</p>
+              )}
+
+              {/* Qty stepper (only when selected) */}
+              {isSelected && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setQty(v.id, -1, v.stock)}
+                    className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] transition-all">
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="w-6 text-center text-sm font-black text-[#C8102E]">{qty}</span>
+                  <button onClick={() => setQty(v.id, 1, v.stock)}
+                    disabled={qty >= v.stock}
+                    className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] disabled:opacity-30 transition-all">
+                    <Plus className="w-3 h-3" />
+                  </button>
                 </div>
-              </div>
+              )}
 
-              {/* Price */}
-              <p className="text-sm font-bold text-[#C8102E] text-right whitespace-nowrap">{formatPrice(price)}</p>
-
-              {/* Stock */}
-              <p className="text-xs text-gray-400 text-center">{v.stock}</p>
-
-              {/* Qty stepper */}
-              <div className="flex items-center justify-center gap-1">
-                <button
-                  onClick={() => setQty(v.id, -1, v.stock)}
-                  disabled={outOfStock || qty === 0}
-                  className="w-7 h-7 rounded-lg border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 transition-all"
-                >
-                  <Minus className="w-3 h-3" />
-                </button>
-                <span className={`w-7 text-center text-sm font-bold ${qty > 0 ? 'text-[#C8102E]' : 'text-gray-400'}`}>{qty}</span>
-                <button
-                  onClick={() => setQty(v.id, 1, v.stock)}
-                  disabled={outOfStock || qty >= v.stock}
-                  className="w-7 h-7 rounded-lg border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 transition-all"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
+              <p className={`text-[9px] ${outOfStock ? 'text-red-400 font-bold' : 'text-gray-400'}`}>
+                {outOfStock ? 'Épuisé' : `${v.stock} en stock`}
+              </p>
             </div>
           );
         })}
       </div>
 
-      {/* Summary row */}
+      {/* Summary */}
       {totalQty > 0 && (
-        <div className="mt-3 flex items-center justify-between px-1">
-          <p className="text-sm text-gray-500">
+        <div className="mt-5 flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
+          <p className="text-sm text-gray-600">
             <span className="font-bold text-[#1A1A1A]">{totalQty}</span> article{totalQty > 1 ? 's' : ''} sélectionné{totalQty > 1 ? 's' : ''}
           </p>
-          <p className="text-sm font-bold text-[#1A1A1A]">
-            Total : <span className="text-[#C8102E]">{formatPrice(totalPrice)}</span>
-          </p>
+          <p className="text-sm font-black text-[#C8102E]">{formatPrice(totalPrice)}</p>
         </div>
       )}
 
-      {/* Add to cart button */}
-      <button
-        onClick={handleAdd}
-        disabled={totalQty === 0}
+      {/* Add button */}
+      <button onClick={handleAdd} disabled={totalQty === 0}
         className={`w-full mt-4 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
           totalQty === 0
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
             : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
-        }`}
-      >
+        }`}>
         <ShoppingCart className="w-5 h-5" />
-        {totalQty === 0 ? 'Sélectionnez au moins une variante' : `Ajouter au panier (${totalQty} article${totalQty > 1 ? 's' : ''})`}
+        {totalQty === 0
+          ? 'Cliquez sur une couleur pour sélectionner'
+          : `Ajouter au panier — ${totalQty} article${totalQty > 1 ? 's' : ''}`}
       </button>
     </div>
   );
 }
+
 
 // ─── Product Page ─────────────────────────────────────────────────────────────
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
