@@ -1800,7 +1800,7 @@ function ProduitsView() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [showNewProductModal, setShowNewProductModal] = useState(false);
 
-  const [allCategoriesLocal, setAllCategoriesLocal] = useState(SHOP_CATEGORIES as Array<{ slug: string; name: string; icon?: string }>);
+  const [allCategoriesLocal, setAllCategoriesLocal] = useState<Array<{ slug: string; name: string; icon?: string; priority?: number }>>(SHOP_CATEGORIES);
 
   // Load overrides + custom products + custom categories from Firestore
   useEffect(() => {
@@ -1808,19 +1808,27 @@ function ProduitsView() {
       getDocs(collection(db, 'shop_product_overrides')),
       getDocs(collection(db, 'shop_custom_products')),
       getDocs(collection(db, 'shop_custom_categories')),
-    ]).then(([ovSnap, cpSnap, ccSnap]) => {
+      getDocs(collection(db, 'shop_category_overrides')),
+    ]).then(([ovSnap, cpSnap, ccSnap, catOverSnap]) => {
       const ov: Record<string, ProductOverride> = {};
       ovSnap.docs.forEach(d => { ov[d.id] = d.data() as ProductOverride; });
       setOverrides(ov);
       setCustomProducts(cpSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct)));
-      const customCats = ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-      if (customCats.length > 0) {
-        const existingSlugs = new Set(SHOP_CATEGORIES.map(c => c.slug));
-        setAllCategoriesLocal([
-          ...SHOP_CATEGORIES,
-          ...customCats.filter((c: any) => !existingSlugs.has(c.slug)),
-        ]);
-      }
+      
+      // Build overrides map for base categories
+      const catOverrides: Record<string, any> = {};
+      catOverSnap.docs.forEach(d => { catOverrides[d.id] = d.data(); });
+      
+      // Merge base categories with their overrides
+      const mergedBase = SHOP_CATEGORIES.map(c => ({ ...c, ...(catOverrides[c.slug] || {}) }));
+      
+      // Add custom categories (not already in base)
+      const existingSlugs = new Set(SHOP_CATEGORIES.map(c => c.slug));
+      const customCats = ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((c: any) => !existingSlugs.has(c.slug));
+      
+      // Combine and sort by priority
+      const allCats = [...mergedBase, ...customCats].sort((a: any, b: any) => (b.priority || 0) - (a.priority || 0));
+      setAllCategoriesLocal(allCats);
     }).catch(() => {}).finally(() => setLoadingOverrides(false));
   }, []);
 
