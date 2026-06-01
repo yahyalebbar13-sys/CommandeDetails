@@ -1112,14 +1112,14 @@ function EditCategorieModal({
   onClose,
   onUpdated,
 }: {
-  category: { id: string; slug: string; name: string; image?: string; description?: string; color?: string; priority?: number };
+  category: { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean };
   onClose: () => void;
   onUpdated: (c: any) => void;
 }) {
   const [form, setForm] = useState({
     name: category.name || '',
-    image: category.image || '',
-    description: category.description || '',
+    image: (category.image as string) || '',
+    description: (category.description as string) || '',
     color: category.color || '#C8102E',
     priority: category.priority?.toString() || '0',
   });
@@ -1139,9 +1139,11 @@ function EditCategorieModal({
         priority: parseInt(form.priority) || 0,
       };
       
-      if (category.id.startsWith('cat_')) {
-        await updateDoc(doc(db, 'shop_custom_categories', category.id), update);
+      if (category.isCustom) {
+        // Custom category saved in Firestore — update the document directly
+        await setDoc(doc(db, 'shop_custom_categories', category.id), { ...update, slug: category.slug }, { merge: true });
       } else {
+        // Built-in category — save an override document
         await setDoc(doc(db, 'shop_category_overrides', category.slug), { ...update, slug: category.slug }, { merge: true });
       }
       onUpdated({ ...category, ...update });
