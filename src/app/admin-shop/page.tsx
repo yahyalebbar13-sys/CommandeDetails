@@ -2389,7 +2389,10 @@ function NouveauProduitModal({
         ...(form.comparePrice ? { comparePrice: parseFloat(form.comparePrice) } : {}),
       };
       await setDoc(doc(db, 'shop_custom_products', id), product);
+      const imgCount = (product.images as string[]).length;
+      const colorCount = (product.variants as any[]).length;
       onCreated(product);
+      alert(`✅ Produit enregistré !\n📷 ${imgCount} image${imgCount !== 1 ? 's' : ''}\n🎨 ${colorCount} couleur${colorCount !== 1 ? 's' : ''}\n\nIl apparaîtra dans la boutique dans quelques secondes.`);
     } catch (err: any) {
       setError('Erreur lors de la sauvegarde: ' + err.message);
     } finally {

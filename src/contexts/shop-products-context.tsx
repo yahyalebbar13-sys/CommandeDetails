@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
@@ -53,28 +53,53 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load overrides, custom products, and custom categories from Firestore on mount
+  // Real-time listeners — any change in Firestore appears instantly in the shop
   useEffect(() => {
-    Promise.all([
-      getDocs(collection(db, 'shop_product_overrides')),
-      getDocs(collection(db, 'shop_custom_products')),
-      getDocs(collection(db, 'shop_custom_categories')),
-      getDocs(collection(db, 'shop_category_overrides')),
-    ])
-      .then(([ovSnap, cpSnap, ccSnap, coSnap]) => {
+    let resolved = 0;
+    const total = 4;
+    const tryDone = () => { resolved++; if (resolved >= total) setIsLoading(false); };
+
+    const unsubOv = onSnapshot(
+      collection(db, 'shop_product_overrides'),
+      snap => {
         const ov: Record<string, ProductOverride> = {};
-        ovSnap.docs.forEach(d => { ov[d.id] = d.data() as ProductOverride; });
+        snap.docs.forEach(d => { ov[d.id] = d.data() as ProductOverride; });
         setOverrides(ov);
-        setCustomProducts(cpSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct)));
-        setCustomCategories(ccSnap.docs.map(d => ({ id: d.id, ...d.data() } as ShopCategory)));
+        tryDone();
+      },
+      err => { console.error('[ShopProductsContext] overrides error:', err); tryDone(); }
+    );
+
+    const unsubCp = onSnapshot(
+      collection(db, 'shop_custom_products'),
+      snap => {
+        setCustomProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct)));
+        tryDone();
+      },
+      err => { console.error('[ShopProductsContext] custom products error:', err); tryDone(); }
+    );
+
+    const unsubCc = onSnapshot(
+      collection(db, 'shop_custom_categories'),
+      snap => {
+        setCustomCategories(snap.docs.map(d => ({ id: d.id, ...d.data() } as ShopCategory)));
+        tryDone();
+      },
+      err => { console.error('[ShopProductsContext] custom categories error:', err); tryDone(); }
+    );
+
+    const unsubCo = onSnapshot(
+      collection(db, 'shop_category_overrides'),
+      snap => {
         const catOv: Record<string, Partial<ShopCategory>> = {};
-        if (coSnap) {
-          coSnap.docs.forEach(d => { catOv[d.id] = d.data(); });
-        }
+        snap.docs.forEach(d => { catOv[d.id] = d.data(); });
         setCategoryOverrides(catOv);
-      })
-      .catch((err) => { console.error('[ShopProductsContext] Firestore load error:', err); })
-      .finally(() => setIsLoading(false));
+        tryDone();
+      },
+      err => { console.error('[ShopProductsContext] category overrides error:', err); tryDone(); }
+    );
+
+    return () => { unsubOv(); unsubCp(); unsubCc(); unsubCo(); };
   }, []);
 
 
