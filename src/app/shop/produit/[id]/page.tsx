@@ -175,16 +175,62 @@ function MultiVariantSelector({
 // ─── Product Page ─────────────────────────────────────────────────────────────
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
-  const product = getProductById(id);
   const { addItem, addItems, openCart } = useShopCart();
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
-    product?.variants[0] || null
-  );
-  const [qty, setQty] = useState(product?.minOrderQty || 1);
-  const [mainImg, setMainImg] = useState(0);
-  const [wished, setWished] = useState(false);
-  const [added, setAdded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'avis'>('description');
+
+  // First try static data, then fall back to Firestore for custom products
+  const [product, setProduct] = React.useState<any>(getProductById(id) || null);
+  const [loadingFirestore, setLoadingFirestore] = React.useState(!getProductById(id));
+
+  React.useEffect(() => {
+    if (getProductById(id)) return; // already found in static data
+    // Fetch from Firestore
+    import('@/firebase/config').then(async ({ db }) => {
+      const { doc, getDoc, collection, getDocs } = await import('firebase/firestore');
+      try {
+        // Check shop_custom_products
+        const customSnap = await getDoc(doc(db, 'shop_custom_products', id));
+        if (customSnap.exists()) {
+          const data = customSnap.data() as any;
+          // Apply any override if it exists
+          const overrideSnap = await getDoc(doc(db, 'shop_product_overrides', id));
+          const override = overrideSnap.exists() ? overrideSnap.data() : {};
+          setProduct({ ...data, ...override, id });
+          setLoadingFirestore(false);
+          return;
+        }
+        // Not found anywhere
+        setProduct(null);
+        setLoadingFirestore(false);
+      } catch {
+        setProduct(null);
+        setLoadingFirestore(false);
+      }
+    });
+  }, [id]);
+
+  const [selectedVariant, setSelectedVariant] = React.useState<ProductVariant | null>(null);
+  const [qty, setQty] = React.useState(1);
+  const [mainImg, setMainImg] = React.useState(0);
+  const [wished, setWished] = React.useState(false);
+  const [added, setAdded] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<'description' | 'specs' | 'avis'>('description');
+
+  React.useEffect(() => {
+    if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
+    if (product?.minOrderQty) setQty(product.minOrderQty);
+  }, [product]);
+
+  // Loading from Firestore
+  if (loadingFirestore) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-[#C8102E] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#6B6B6B] text-sm">Chargement du produit…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
