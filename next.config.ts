@@ -37,13 +37,17 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    return [
-      // lebtex.ma → same content as lebtex.ma/shop (URL stays as /)
-      {
-        source: '/',
-        destination: '/shop',
-      },
-    ];
+    return {
+      // beforeFiles: runs BEFORE filesystem check — overrides src/app/page.tsx
+      beforeFiles: [
+        {
+          source: '/',
+          destination: '/shop',
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
 };
 
