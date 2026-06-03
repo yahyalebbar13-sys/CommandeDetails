@@ -6,6 +6,8 @@ import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
+import { db } from '@/lib/firebase-db';
+import { doc, getDoc } from 'firebase/firestore';
 import type { CartItem, ProductVariant } from '@/lib/shop-types';
 
 function SimilarProductCard({ product }: { product: any }) {
@@ -180,7 +182,34 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   // Use context which already includes Firestore custom products
   const { getProductById: ctxGetById, getSimilarProducts: ctxGetSimilar, isLoading } = useShopProducts();
 
-  const product = ctxGetById(id);
+  // Direct Firestore fallback in case context fails
+  const [directProduct, setDirectProduct] = React.useState<any>(null);
+  const [directLoading, setDirectLoading] = React.useState(false);
+  const [directDone, setDirectDone] = React.useState(false);
+
+  const product = ctxGetById(id) || directProduct;
+
+  React.useEffect(() => {
+    // If context finished loading and didn't find the product, try direct Firestore fetch
+    if (!isLoading && !ctxGetById(id) && !directDone) {
+      setDirectLoading(true);
+      setDirectDone(true);
+      (async () => {
+        try {
+          const snap = await getDoc(doc(db, 'shop_custom_products', id));
+          if (snap.exists()) {
+            const data = snap.data();
+            const overSnap = await getDoc(doc(db, 'shop_product_overrides', id));
+            setDirectProduct({ id, ...data, ...(overSnap.exists() ? overSnap.data() : {}) });
+          }
+        } catch (err) {
+          console.error('[ProductPage] Direct Firestore fetch error:', err);
+        } finally {
+          setDirectLoading(false);
+        }
+      })();
+    }
+  }, [isLoading, id, directDone]);
 
   const [selectedVariant, setSelectedVariant] = React.useState<ProductVariant | null>(null);
   const [qty, setQty] = React.useState(1);
@@ -194,8 +223,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     if (product?.minOrderQty) setQty(product.minOrderQty);
   }, [product?.id]);
 
-  // Still loading from Firestore
-  if (isLoading) {
+  // Still loading
+  if (isLoading || directLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
         <div className="text-center">
@@ -213,6 +242,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <p className="text-6xl mb-4">😕</p>
           <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Produit introuvable</h1>
           <p className="text-[#6B6B6B] mb-6">Ce produit n'existe pas ou a été supprimé.</p>
+          <p className="text-xs text-gray-400 mb-4 font-mono">ID: {id}</p>
           <Link href="/shop/categories" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors">
             Retour à la boutique
           </Link>

@@ -73,7 +73,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         }
         setCategoryOverrides(catOv);
       })
-      .catch(() => {})
+      .catch((err) => { console.error('[ShopProductsContext] Firestore load error:', err); })
       .finally(() => setIsLoading(false));
   }, []);
 
