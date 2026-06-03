@@ -2,7 +2,6 @@
 
 import React, { useEffect, useCallback } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   X,
   ShoppingBag,
@@ -38,12 +37,11 @@ function CartLineItem({
     <div className="group flex gap-3 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/60 -mx-4 px-4 rounded-xl transition-colors">
       {/* Product image */}
       <div className="relative flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shadow-sm">
-        <Image
-          src={item.productImage}
+        <img
+          src={item.productImage || 'https://picsum.photos/seed/product/72/72'}
           alt={item.productName}
-          fill
-          className="object-cover"
-          sizes="72px"
+          className="w-full h-full object-cover"
+          loading="eager"
           onError={(e) => {
             (e.currentTarget as HTMLImageElement).src =
               "https://picsum.photos/seed/placeholder/72/72";

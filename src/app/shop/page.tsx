@@ -130,14 +130,16 @@ export default function ShopPage() {
       {/* SECTION 1: HERO                                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        {/* Photo background */}
+        {/* Photo background — high priority load */}
         <img
           src="/hero-banner.png"
-          alt={t('hero_badge')}
+          alt="LEBTEX mercerie"
           className="absolute inset-0 w-full h-full object-cover"
+          fetchPriority="high"
+          loading="eager"
         />
         {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-black/65" />
+        <div className="absolute inset-0 bg-[#0F0F0F]/60" />
 
         <div className="relative z-10 w-full max-w-2xl mx-auto px-5 text-center py-20">
 
@@ -216,16 +218,18 @@ export default function ShopPage() {
         </div>
       </section>
 
-      {/* Full-width CTA */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SECTION 2B: CTA BANNER                                             */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       <section
         className="py-12 text-center"
-        style={{ background: 'linear-gradient(to right, #1a0508, #2d0d16)' }}
+        style={{ background: 'linear-gradient(135deg, #C8102E 0%, #a00d25 50%, #8b0a1f 100%)' }}
       >
         <RevealSection>
           <p className="text-white text-2xl font-bold mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            🚚 Livraison <span className="shop-gradient-text">GRATUITE</span> dès {formatPrice(FREE_DELIVERY_THRESHOLD)}
+            🚚 Livraison <span className="text-[#D4A843] font-black">GRATUITE</span> dès {formatPrice(FREE_DELIVERY_THRESHOLD)}
           </p>
-          <p className="text-gray-400 mb-6">Livraison disponible partout au Maroc — Casablanca, Rabat, Marrakech et +</p>
+          <p className="text-white/70 mb-6">Livraison disponible partout au Maroc — Casablanca, Rabat, Marrakech et +</p>
           <Link
             href="/shop/categories"
             className="shop-btn-press inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold text-[#0F0F0F] transition-all duration-200 hover:scale-105 shadow-xl"
