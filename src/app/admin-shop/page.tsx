@@ -1904,12 +1904,16 @@ function ProduitsView() {
     try {
       // Build variants with clean objects (no undefined)
       const builtVariants = editVariants
-        .filter(v => v.color.trim())
-        .map(v => {
+        .map((v, i) => {
           const s = EDIT_STOCK_STATUS[v.stockStatus];
-          const obj: Record<string, unknown> = { id: v.id, stock: s.stock, inStock: s.stock > 0 };
-          if (v.color.trim()) obj.color = v.color.trim();
-          if (v.colorHex) obj.colorHex = v.colorHex;
+          const colorName = v.color.trim() || `Couleur ${i + 1}`;
+          const obj: Record<string, unknown> = {
+            id: v.id,
+            stock: s.stock,
+            inStock: s.stock > 0,
+            color: colorName,
+            colorHex: v.colorHex || '#C8102E',
+          };
           if (v.price) obj.price = parseFloat(v.price);
           return obj;
         });
@@ -2290,7 +2294,7 @@ function NouveauProduitModal({
     price: '',
     comparePrice: '',
     stockQty: '0',
-    images: [''],
+    images: ['', '', ''],
     tags: '',
     isFeatured: false,
     isNew: true,
@@ -2329,12 +2333,17 @@ function NouveauProduitModal({
     setVariants(v => v.map(x => x.id === variantId ? { ...x, color: name, colorHex: hex } : x));
   };
 
-  // Clean builder — never sends undefined to Firestore
-  const buildVariant = (v: VariantForm) => {
+  // Clean builder — never sends undefined to Firestore, auto-generates color name if empty
+  const buildVariant = (v: VariantForm, index: number) => {
     const s = STOCK_STATUS[v.stockStatus];
-    const obj: Record<string, unknown> = { id: v.id, stock: s.stock, inStock: s.stock > 0 };
-    if (v.color.trim()) obj.color = v.color.trim();
-    if (v.colorHex) obj.colorHex = v.colorHex;
+    const colorName = v.color.trim() || `Couleur ${index + 1}`;
+    const obj: Record<string, unknown> = {
+      id: v.id,
+      stock: s.stock,
+      inStock: s.stock > 0,
+      color: colorName,
+      colorHex: v.colorHex || '#C8102E',
+    };
     if (v.price) obj.price = parseFloat(v.price);
     return obj;
   };
@@ -2350,8 +2359,7 @@ function NouveauProduitModal({
       const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const builtVariants = variants
-        .filter(v => v.color.trim())
-        .map(buildVariant);
+        .map((v, i) => buildVariant(v, i));
 
       const product = {
         id,
