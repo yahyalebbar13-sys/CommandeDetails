@@ -127,7 +127,30 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
       };
     });
     const existingIds = new Set(hardcoded.map(p => p.id));
-    return [...hardcoded, ...customProducts.filter(p => !existingIds.has(p.id))];
+    const mergedCustom = customProducts
+      .filter(p => !existingIds.has(p.id))
+      .map(p => {
+        const ov = overrides[p.id];
+        if (!ov) return p;
+        return {
+          ...p,
+          ...(ov.price !== undefined && { price: ov.price }),
+          ...(ov.comparePrice !== undefined && { comparePrice: ov.comparePrice ?? undefined }),
+          ...(ov.images && ov.images.length > 0 && { images: ov.images }),
+          ...(ov.isFeatured !== undefined && { isFeatured: ov.isFeatured }),
+          ...(ov.isNew !== undefined && { isNew: ov.isNew }),
+          ...(ov.isPromo !== undefined && { isPromo: ov.isPromo }),
+          ...(ov.inStock !== undefined && { inStock: ov.inStock }),
+          ...(ov.stockQty !== undefined && { stockQty: ov.stockQty }),
+          ...(ov.name && { name: ov.name }),
+          ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
+          ...(ov.description && { description: ov.description }),
+          ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
+          ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
+          ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
+        };
+      });
+    return [...hardcoded, ...mergedCustom];
   }, [overrides, customProducts]);
 
   const allCategories = useMemo(() => {
