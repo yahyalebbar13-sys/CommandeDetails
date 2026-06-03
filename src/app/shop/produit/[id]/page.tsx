@@ -5,9 +5,8 @@ import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, Che
 import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
 import type { CartItem, ProductVariant } from '@/lib/shop-types';
-import { db } from '@/lib/firebase-db';
-import { doc, getDoc } from 'firebase/firestore';
 
 function SimilarProductCard({ product }: { product: any }) {
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
@@ -178,34 +177,10 @@ function MultiVariantSelector({
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const { addItem, addItems, openCart } = useShopCart();
+  // Use context which already includes Firestore custom products
+  const { getProductById: ctxGetById, getSimilarProducts: ctxGetSimilar, isLoading } = useShopProducts();
 
-  // First try static data, then fall back to Firestore for custom products
-  const [product, setProduct] = React.useState<any>(getProductById(id) || null);
-  const [loadingFirestore, setLoadingFirestore] = React.useState(!getProductById(id));
-
-  React.useEffect(() => {
-    if (getProductById(id)) return; // already found in static data
-    // Fetch custom product from Firestore
-    (async () => {
-      try {
-        const customSnap = await getDoc(doc(db, 'shop_custom_products', id));
-        if (customSnap.exists()) {
-          const data = customSnap.data() as any;
-          // Apply any override if it exists
-          const overrideSnap = await getDoc(doc(db, 'shop_product_overrides', id));
-          const override = overrideSnap.exists() ? overrideSnap.data() : {};
-          setProduct({ ...data, ...override, id });
-          setLoadingFirestore(false);
-          return;
-        }
-        setProduct(null);
-        setLoadingFirestore(false);
-      } catch {
-        setProduct(null);
-        setLoadingFirestore(false);
-      }
-    })();
-  }, [id]);
+  const product = ctxGetById(id);
 
   const [selectedVariant, setSelectedVariant] = React.useState<ProductVariant | null>(null);
   const [qty, setQty] = React.useState(1);
@@ -217,10 +192,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   React.useEffect(() => {
     if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
     if (product?.minOrderQty) setQty(product.minOrderQty);
-  }, [product]);
+  }, [product?.id]);
 
-  // Loading from Firestore
-  if (loadingFirestore) {
+  // Still loading from Firestore
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
         <div className="text-center">
@@ -247,7 +222,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   }
 
   const hasVariants = product.variants && product.variants.length > 0;
-  const similar = getSimilarProducts(product, 4);
+  const similar = ctxGetSimilar(product, 4);
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
   const currentPrice = selectedVariant?.price || product.price;
   const stock = selectedVariant?.stock ?? product.stockQty;
