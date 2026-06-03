@@ -1794,7 +1794,24 @@ function ProduitsView() {
   const [loadingOverrides, setLoadingOverrides] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductOverride>({});
-  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; size: string; price: string; stock: string }>>([]);
+  type EditStockStatus = 'available' | 'limited' | 'out_of_stock';
+  const EDIT_PRESET_COLORS = [
+    { name: 'Noir', hex: '#1a1a1a' }, { name: 'Blanc', hex: '#f5f5f5' },
+    { name: 'Rouge', hex: '#e53e3e' }, { name: 'Bleu', hex: '#3182ce' },
+    { name: 'Vert', hex: '#38a169' }, { name: 'Jaune', hex: '#d69e2e' },
+    { name: 'Orange', hex: '#dd6b20' }, { name: 'Rose', hex: '#d53f8c' },
+    { name: 'Violet', hex: '#805ad5' }, { name: 'Marron', hex: '#92400e' },
+    { name: 'Gris', hex: '#718096' }, { name: 'Beige', hex: '#d4b896' },
+    { name: 'Doré', hex: '#D4A843' }, { name: 'Argenté', hex: '#a0aec0' },
+  ];
+  const EDIT_STOCK_STATUS: Record<EditStockStatus, { label: string; stock: number }> = {
+    available: { label: '✓ Disponible', stock: 999 },
+    limited: { label: '⚡ Stock limité', stock: 5 },
+    out_of_stock: { label: '✗ Rupture', stock: 0 },
+  };
+  const stockToStatus = (stock: number): EditStockStatus =>
+    stock === 0 ? 'out_of_stock' : stock <= 10 ? 'limited' : 'available';
+  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; stockStatus: EditStockStatus; price: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1871,9 +1888,8 @@ function ProduitsView() {
       id: v.id,
       color: v.color || '',
       colorHex: v.colorHex || '#C8102E',
-      size: v.size || '',
+      stockStatus: stockToStatus(v.stock ?? 999),
       price: v.price?.toString() || '',
-      stock: v.stock?.toString() || '0',
     })));
   };
 
@@ -1886,32 +1902,37 @@ function ProduitsView() {
   const saveEdit = async (productId: string) => {
     setSaving(true);
     try {
-      // Build variants array from editVariants
+      // Build variants with clean objects (no undefined)
       const builtVariants = editVariants
-        .filter(v => v.color.trim() || v.size.trim())
-        .map(v => ({
-          id: v.id,
-          color: v.color.trim() || undefined,
-          colorHex: v.colorHex || undefined,
-          size: v.size.trim() || undefined,
-          stock: parseInt(v.stock) || 0,
-          price: v.price ? parseFloat(v.price) : undefined,
-        }));
+        .filter(v => v.color.trim())
+        .map(v => {
+          const s = EDIT_STOCK_STATUS[v.stockStatus];
+          const obj: Record<string, unknown> = { id: v.id, stock: s.stock, inStock: s.stock > 0 };
+          if (v.color.trim()) obj.color = v.color.trim();
+          if (v.colorHex) obj.colorHex = v.colorHex;
+          if (v.price) obj.price = parseFloat(v.price);
+          return obj;
+        });
 
-      const override: ProductOverride = {
-        ...editForm,
-        variants: builtVariants,
-        // Recalculate stock from variants if variants exist
-        ...(builtVariants.length > 0 ? {
-          inStock: builtVariants.some(v => v.stock > 0),
-          stockQty: builtVariants.reduce((s, v) => s + v.stock, 0),
-        } : {}),
-      };
-      Object.keys(override).forEach(key => {
-        if ((override as any)[key] === undefined) delete (override as any)[key];
-      });
-      await setDoc(doc(db, 'shop_product_overrides', productId), override, { merge: true });
-      setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...override } }));
+      // Build override without undefined values
+      const base: Record<string, unknown> = {};
+      if (editForm.price !== undefined) base.price = editForm.price;
+      if (editForm.comparePrice !== undefined) base.comparePrice = editForm.comparePrice;
+      if (editForm.images) base.images = editForm.images;
+      if (editForm.isFeatured !== undefined) base.isFeatured = editForm.isFeatured;
+      if (editForm.isNew !== undefined) base.isNew = editForm.isNew;
+      if (editForm.isPromo !== undefined) base.isPromo = editForm.isPromo;
+      base.variants = builtVariants;
+      if (builtVariants.length > 0) {
+        base.inStock = builtVariants.some((v: any) => v.stock > 0);
+        base.stockQty = builtVariants.reduce((s: number, v: any) => s + v.stock, 0);
+      } else {
+        if (editForm.inStock !== undefined) base.inStock = editForm.inStock;
+        if (editForm.stockQty !== undefined) base.stockQty = editForm.stockQty;
+      }
+
+      await setDoc(doc(db, 'shop_product_overrides', productId), base, { merge: true });
+      setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...base } as any }));
       setEditingId(null);
       setEditVariants([]);
       setSavedId(productId);
@@ -2168,7 +2189,7 @@ function ProduitsView() {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleurs disponibles</label>
                       <button
                         type="button"
-                        onClick={() => setEditVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', price: editForm.price?.toString() || '', stock: '0' }])}
+                        onClick={() => setEditVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', stockStatus: 'available', price: '' }])}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
                       >
                         <Plus className="w-3.5 h-3.5" /> Ajouter une couleur
@@ -2181,35 +2202,53 @@ function ProduitsView() {
                     )}
                     <div className="space-y-1.5">
                       {editVariants.map(v => (
-                        <div key={v.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
-                          <input type="color" value={v.colorHex}
-                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
-                            className="w-8 h-8 rounded-full cursor-pointer border-0 bg-transparent flex-shrink-0" style={{ padding: '1px' }}
-                          />
-                          <input type="text" value={v.color}
-                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
-                            placeholder="Nom (Rouge, Noir...)"
-                            className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
-                          />
-                          <span className="text-gray-600 text-xs">Stock</span>
-                          <input type="number" value={v.stock}
-                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, stock: e.target.value } : x))}
-                            placeholder="0"
-                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
-                          />
-                          <span className="text-gray-600 text-xs">Prix</span>
-                          <input type="number" value={v.price}
-                            onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, price: e.target.value } : x))}
-                            placeholder={editForm.price?.toString() || '—'}
-                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
-                          />
-                          <button onClick={() => setEditVariants(ev => ev.filter(x => x.id !== v.id))} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                        <div key={v.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            <input type="color" value={v.colorHex}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
+                              className="w-8 h-8 rounded-full cursor-pointer border-0 bg-transparent flex-shrink-0" style={{ padding: '1px' }}
+                            />
+                            <input type="text" value={v.color}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
+                              placeholder="Nom de la couleur..."
+                              className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                            />
+                            <select
+                              value={v.stockStatus}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, stockStatus: e.target.value as EditStockStatus } : x))}
+                              className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none focus:border-[#C8102E]/50 cursor-pointer"
+                              style={{ color: v.stockStatus === 'available' ? '#10B981' : v.stockStatus === 'limited' ? '#D4A843' : '#ef4444' }}
+                            >
+                              <option value="available" style={{ color: '#10B981', background: '#1a1a1a' }}>✓ Disponible</option>
+                              <option value="limited" style={{ color: '#D4A843', background: '#1a1a1a' }}>⚡ Stock limité</option>
+                              <option value="out_of_stock" style={{ color: '#ef4444', background: '#1a1a1a' }}>✗ Rupture</option>
+                            </select>
+                            <input type="number" value={v.price}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, price: e.target.value } : x))}
+                              placeholder={editForm.price?.toString() || 'Prix'}
+                              className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                            />
+                            <button onClick={() => setEditVariants(ev => ev.filter(x => x.id !== v.id))} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {/* Preset color chips */}
+                          <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+                            {EDIT_PRESET_COLORS.map(c => (
+                              <button
+                                key={c.name}
+                                onClick={() => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: c.name, colorHex: c.hex } : x))}
+                                title={c.name}
+                                className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${v.color === c.name ? 'border-white scale-110' : 'border-transparent'}`}
+                                style={{ background: c.hex }}
+                              />
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
+
                 </div>
               )}
             </div>
@@ -2258,18 +2297,47 @@ function NouveauProduitModal({
     isPromo: false,
     minOrderQty: '1',
   });
-  type VariantForm = { id: string; color: string; colorHex: string; size: string; price: string; stock: string };
+  type StockStatus = 'available' | 'limited' | 'out_of_stock';
+  type VariantForm = { id: string; color: string; colorHex: string; stockStatus: StockStatus; price: string };
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const PRESET_COLORS = [
+    { name: 'Noir', hex: '#1a1a1a' }, { name: 'Blanc', hex: '#f5f5f5' },
+    { name: 'Rouge', hex: '#e53e3e' }, { name: 'Bleu', hex: '#3182ce' },
+    { name: 'Vert', hex: '#38a169' }, { name: 'Jaune', hex: '#d69e2e' },
+    { name: 'Orange', hex: '#dd6b20' }, { name: 'Rose', hex: '#d53f8c' },
+    { name: 'Violet', hex: '#805ad5' }, { name: 'Marron', hex: '#92400e' },
+    { name: 'Gris', hex: '#718096' }, { name: 'Beige', hex: '#d4b896' },
+    { name: 'Doré', hex: '#D4A843' }, { name: 'Argenté', hex: '#a0aec0' },
+  ];
+  const STOCK_STATUS: Record<StockStatus, { label: string; stock: number; color: string }> = {
+    available: { label: 'Disponible', stock: 999, color: '#10B981' },
+    limited: { label: 'Stock limité', stock: 5, color: '#D4A843' },
+    out_of_stock: { label: 'Rupture', stock: 0, color: '#ef4444' },
+  };
+
   const addVariant = () => setVariants(v => [
     ...v,
-    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', price: form.price || '', stock: '0' },
+    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', stockStatus: 'available', price: '' },
   ]);
   const removeVariant = (id: string) => setVariants(v => v.filter(x => x.id !== id));
-  const updateVariant = (id: string, field: keyof VariantForm, val: string) =>
+  const updateVariant = <K extends keyof VariantForm>(id: string, field: K, val: VariantForm[K]) =>
     setVariants(v => v.map(x => x.id === id ? { ...x, [field]: val } : x));
+  const applyPresetColor = (variantId: string, name: string, hex: string) => {
+    setVariants(v => v.map(x => x.id === variantId ? { ...x, color: name, colorHex: hex } : x));
+  };
+
+  // Clean builder — never sends undefined to Firestore
+  const buildVariant = (v: VariantForm) => {
+    const s = STOCK_STATUS[v.stockStatus];
+    const obj: Record<string, unknown> = { id: v.id, stock: s.stock, inStock: s.stock > 0 };
+    if (v.color.trim()) obj.color = v.color.trim();
+    if (v.colorHex) obj.colorHex = v.colorHex;
+    if (v.price) obj.price = parseFloat(v.price);
+    return obj;
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { setError('Le nom est requis'); return; }
@@ -2281,40 +2349,36 @@ function NouveauProduitModal({
       const cat = allCategories.find(c => c.slug === form.categorySlug);
       const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const builtVariants = variants.map(v => ({
-        id: v.id,
-        color: v.color.trim() || undefined,
-        colorHex: v.colorHex || undefined,
-        size: v.size.trim() || undefined,
-        stock: parseInt(v.stock) || 0,
-        price: v.price ? parseFloat(v.price) : undefined,
-      })).filter(v => v.color || v.size);
+      const builtVariants = variants
+        .filter(v => v.color.trim())
+        .map(buildVariant);
 
-      const product: ShopProduct = {
+      const product = {
         id,
         slug,
         name: form.name.trim(),
-        shortDescription: form.shortDescription.trim() || null as any,
         description: form.description.trim() || form.name,
         categorySlug: form.categorySlug,
         categoryName: cat?.name || form.categorySlug,
         images: form.images.filter(Boolean),
         price: parseFloat(form.price),
-        comparePrice: form.comparePrice ? parseFloat(form.comparePrice) : null as any,
         inStock: builtVariants.length > 0
-          ? builtVariants.some(v => v.stock > 0)
+          ? builtVariants.some((v: any) => v.stock > 0)
           : parseInt(form.stockQty) > 0,
         stockQty: builtVariants.length > 0
-          ? builtVariants.reduce((s, v) => s + v.stock, 0)
+          ? builtVariants.reduce((s: number, v: any) => s + v.stock, 0)
           : parseInt(form.stockQty) || 0,
         variants: builtVariants,
-        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: form.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
         isFeatured: form.isFeatured,
         isNew: form.isNew,
         isPromo: form.isPromo,
         rating: 5,
         reviewCount: 0,
         minOrderQty: parseInt(form.minOrderQty) || 1,
+        // Only include optional fields when they have values
+        ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
+        ...(form.comparePrice ? { comparePrice: parseFloat(form.comparePrice) } : {}),
       };
       await setDoc(doc(db, 'shop_custom_products', id), product);
       onCreated(product);
@@ -2502,43 +2566,63 @@ function NouveauProduitModal({
 
             <div className="space-y-1.5">
               {variants.map(v => (
-                <div key={v.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
-                  {/* Color picker */}
-                  <input
-                    type="color"
-                    value={v.colorHex}
-                    onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
-                    title="Choisir couleur"
-                    className="w-8 h-8 rounded-full cursor-pointer border-0 flex-shrink-0 bg-transparent"
-                    style={{ padding: '1px' }}
-                  />
-                  {/* Color name */}
-                  <input
-                    type="text"
-                    value={v.color}
-                    onChange={e => updateVariant(v.id, 'color', e.target.value)}
-                    placeholder="Nom (Rouge, Noir...)"
-                    className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
-                  />
-                  <span className="text-gray-600 text-xs">Stock</span>
-                  <input
-                    type="number"
-                    value={v.stock}
-                    onChange={e => updateVariant(v.id, 'stock', e.target.value)}
-                    placeholder="0"
-                    className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
-                  />
-                  <span className="text-gray-600 text-xs">Prix</span>
-                  <input
-                    type="number"
-                    value={v.price}
-                    onChange={e => updateVariant(v.id, 'price', e.target.value)}
-                    placeholder={form.price || '—'}
-                    className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
-                  />
-                  <button onClick={() => removeVariant(v.id)} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                <div key={v.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                  {/* Main row */}
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    {/* Color picker */}
+                    <input
+                      type="color"
+                      value={v.colorHex}
+                      onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
+                      title="Choisir couleur"
+                      className="w-8 h-8 rounded-full cursor-pointer border-0 flex-shrink-0 bg-transparent"
+                      style={{ padding: '1px' }}
+                    />
+                    {/* Color name */}
+                    <input
+                      type="text"
+                      value={v.color}
+                      onChange={e => updateVariant(v.id, 'color', e.target.value)}
+                      placeholder="Nom de la couleur..."
+                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                    />
+                    {/* Stock status */}
+                    <select
+                      value={v.stockStatus}
+                      onChange={e => updateVariant(v.id, 'stockStatus', e.target.value as any)}
+                      className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none focus:border-[#C8102E]/50 cursor-pointer"
+                      style={{ color: STOCK_STATUS[v.stockStatus].color }}
+                    >
+                      <option value="available" style={{ color: '#10B981', background: '#1a1a1a' }}>✓ Disponible</option>
+                      <option value="limited" style={{ color: '#D4A843', background: '#1a1a1a' }}>⚡ Stock limité</option>
+                      <option value="out_of_stock" style={{ color: '#ef4444', background: '#1a1a1a' }}>✗ Rupture</option>
+                    </select>
+                    {/* Prix */}
+                    <input
+                      type="number"
+                      value={v.price}
+                      onChange={e => updateVariant(v.id, 'price', e.target.value)}
+                      placeholder={form.price || 'Prix'}
+                      className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                    />
+                    <button onClick={() => removeVariant(v.id)} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {/* Preset color chips */}
+                  <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+                    {PRESET_COLORS.map(c => (
+                      <button
+                        key={c.name}
+                        onClick={() => applyPresetColor(v.id, c.name, c.hex)}
+                        title={c.name}
+                        className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${
+                          v.color === c.name ? 'border-white scale-110' : 'border-transparent'
+                        }`}
+                        style={{ background: c.hex }}
+                      />
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
