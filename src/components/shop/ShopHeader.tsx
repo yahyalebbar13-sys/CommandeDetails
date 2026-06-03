@@ -26,7 +26,6 @@ interface NavLink {
 
 const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
-  { labelKey: "nav_shop", href: "/shop/categories" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
@@ -172,7 +171,7 @@ export default function ShopHeader() {
             <nav className="hidden lg:flex items-center gap-1">
               {NAV_LINKS.map((link) =>
                 link.hasDropdown ? (
-                  <div key={link.href} ref={dropdownRef} className="relative">
+                  <div key={link.labelKey} ref={dropdownRef} className="relative">
                     <button
                       onClick={() => setIsCategoriesOpen((v) => !v)}
                       onMouseEnter={() => setIsCategoriesOpen(true)}
@@ -240,7 +239,7 @@ export default function ShopHeader() {
                   </div>
                 ) : (
                   <Link
-                    key={link.href}
+                    key={link.labelKey}
                     href={link.href}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                       isActive(link.href)
@@ -419,7 +418,7 @@ export default function ShopHeader() {
         <nav className="flex-1 overflow-y-auto py-3">
           {NAV_LINKS.map((link) =>
             link.hasDropdown ? (
-              <div key={link.href}>
+              <div key={link.labelKey}>
                 <button
                   onClick={() =>
                     setIsMobileCategoriesOpen((v) => !v)
@@ -459,7 +458,7 @@ export default function ShopHeader() {
               </div>
             ) : (
               <Link
-                key={link.href}
+                key={link.labelKey}
                 href={link.href}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center justify-between px-5 py-3.5 text-sm font-semibold transition-colors ${

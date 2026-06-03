@@ -6,6 +6,8 @@ import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
 import type { CartItem, ProductVariant } from '@/lib/shop-types';
+import { db } from '@/lib/firebase-db';
+import { doc, getDoc } from 'firebase/firestore';
 
 function SimilarProductCard({ product }: { product: any }) {
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
@@ -183,11 +185,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   React.useEffect(() => {
     if (getProductById(id)) return; // already found in static data
-    // Fetch from Firestore
-    import('@/firebase/config').then(async ({ db }) => {
-      const { doc, getDoc, collection, getDocs } = await import('firebase/firestore');
+    // Fetch custom product from Firestore
+    (async () => {
       try {
-        // Check shop_custom_products
         const customSnap = await getDoc(doc(db, 'shop_custom_products', id));
         if (customSnap.exists()) {
           const data = customSnap.data() as any;
@@ -198,14 +198,13 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           setLoadingFirestore(false);
           return;
         }
-        // Not found anywhere
         setProduct(null);
         setLoadingFirestore(false);
       } catch {
         setProduct(null);
         setLoadingFirestore(false);
       }
-    });
+    })();
   }, [id]);
 
   const [selectedVariant, setSelectedVariant] = React.useState<ProductVariant | null>(null);
