@@ -4,8 +4,16 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'StockVue Commandes - Gestion Globale',
-  description: 'Tableau de bord professionnel pour la gestion des commandes et stocks.',
+  metadataBase: new URL('https://lebtex.ma'),
+  title: 'LEBTEX — Mercerie & Accessoires Textiles au Maroc',
+  description: 'Spécialiste en fermetures éclair, boutons, élastiques, rubans et accessoires textiles. Livraison rapide partout au Maroc.',
+  icons: {
+    icon: [
+      { url: '/favicon.png', type: 'image/png' },
+    ],
+    apple: '/favicon.png',
+    shortcut: '/favicon.png',
+  },
 };
 
 export default function RootLayout({
