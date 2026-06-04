@@ -1865,6 +1865,7 @@ function ProduitsView() {
   ];
   const filteredProducts = allProducts.filter(p => {
     const merged = getMergedProduct(p);
+    if ((overrides[p.id] as any)?.hidden) return false; // skip hidden products
     const matchCategory = filterCategory === 'all' || p.categorySlug === filterCategory;
     const q = searchQuery.toLowerCase();
     const matchSearch = !q || merged.name.toLowerCase().includes(q) || (merged.categoryName || '').toLowerCase().includes(q);
@@ -1965,15 +1966,21 @@ function ProduitsView() {
     setEditForm(prev => ({ ...prev, images: imgs }));
   };
 
-  const deleteProduct = async (productId: string, productName: string) => {
+  const deleteProduct = async (productId: string, productName: string, isCustom: boolean) => {
     if (!confirm(`⚠️ Supprimer "${productName}" ?
 
 Cette action est irréversible.`)) return;
     try {
-      await deleteDoc(doc(db, 'shop_custom_products', productId));
-      // Also clean up any overrides
-      try { await deleteDoc(doc(db, 'shop_product_overrides', productId)); } catch (_) {}
-      setCustomProducts(prev => prev.filter(p => p.id !== productId));
+      if (isCustom) {
+        // Custom product: delete entirely from Firestore
+        await deleteDoc(doc(db, 'shop_custom_products', productId));
+        try { await deleteDoc(doc(db, 'shop_product_overrides', productId)); } catch (_) {}
+        setCustomProducts(prev => prev.filter(p => p.id !== productId));
+      } else {
+        // Hardcoded product: mark as hidden in overrides
+        await setDoc(doc(db, 'shop_product_overrides', productId), { hidden: true }, { merge: true });
+        setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), hidden: true } as any }));
+      }
     } catch (err) {
       console.error('Error deleting product:', err);
       alert('Erreur lors de la suppression.');
@@ -2087,15 +2094,13 @@ Cette action est irréversible.`)) return;
                           >
                             <Pencil className="w-3 h-3" /> Modifier
                           </button>
-                          {isCustom && (
-                            <button
-                              onClick={() => deleteProduct(product.id, merged.name)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs font-medium transition-all"
-                              title="Supprimer ce produit"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => deleteProduct(product.id, merged.name, isCustom)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs font-medium transition-all"
+                            title="Supprimer ce produit"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       ) : (
                         <div className="flex gap-2">

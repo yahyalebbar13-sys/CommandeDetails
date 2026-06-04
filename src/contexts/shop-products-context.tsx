@@ -126,9 +126,11 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
       };
     });
+    // Filter out hardcoded products marked hidden by admin
+    const visibleHardcoded = hardcoded.filter(p => !(overrides[p.id] as any)?.hidden);
     const existingIds = new Set(hardcoded.map(p => p.id));
     const mergedCustom = customProducts
-      .filter(p => !existingIds.has(p.id))
+      .filter(p => !existingIds.has(p.id) && !(overrides[p.id] as any)?.hidden)
       .map(p => {
         const ov = overrides[p.id];
         if (!ov) return p;
@@ -150,7 +152,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
         };
       });
-    return [...hardcoded, ...mergedCustom];
+    return [...visibleHardcoded, ...mergedCustom];
   }, [overrides, customProducts]);
 
   const allCategories = useMemo(() => {
