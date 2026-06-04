@@ -17,6 +17,7 @@ import {
   doc,
   updateDoc,
   setDoc,
+  deleteDoc,
   serverTimestamp,
   limit,
   where,
@@ -1964,6 +1965,21 @@ function ProduitsView() {
     setEditForm(prev => ({ ...prev, images: imgs }));
   };
 
+  const deleteProduct = async (productId: string, productName: string) => {
+    if (!confirm(`⚠️ Supprimer "${productName}" ?
+
+Cette action est irréversible.`)) return;
+    try {
+      await deleteDoc(doc(db, 'shop_custom_products', productId));
+      // Also clean up any overrides
+      try { await deleteDoc(doc(db, 'shop_product_overrides', productId)); } catch (_) {}
+      setCustomProducts(prev => prev.filter(p => p.id !== productId));
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      alert('Erreur lors de la suppression.');
+    }
+  };
+
   if (loadingOverrides) {
     return (
       <div className="flex items-center justify-center min-h-[400px] gap-3">
@@ -2064,12 +2080,23 @@ function ProduitsView() {
                         </span>
                       )}
                       {!isEditing ? (
-                        <button
-                          onClick={() => startEdit(product)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 text-xs font-medium transition-all"
-                        >
-                          <Pencil className="w-3 h-3" /> Modifier
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => startEdit(product)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 text-xs font-medium transition-all"
+                          >
+                            <Pencil className="w-3 h-3" /> Modifier
+                          </button>
+                          {isCustom && (
+                            <button
+                              onClick={() => deleteProduct(product.id, merged.name)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-500/20 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs font-medium transition-all"
+                              title="Supprimer ce produit"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <div className="flex gap-2">
                           <button
