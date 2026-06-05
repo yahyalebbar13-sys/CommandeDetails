@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,12 +8,13 @@ import {
 } from '@/components/ui/table';
 import {
   Calculator, ChevronDown, AlertTriangle, CheckCircle2,
-  FileText, Truck, Package, DollarSign, TrendingUp, Info, FileDown, Pencil
+  FileText, Truck, Package, DollarSign, TrendingUp, Info, FileDown, Pencil,
+  Lock, LockOpen, ShieldCheck
 } from 'lucide-react';
 import { exportCostAnalysisPDF, exportCoutRevientSimplePDF, exportDossierArticlesPDF } from '@/lib/pdf-export';
 import ArticleOverrideModal, { ArticleOverride } from './article-override-modal';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 
 interface CostAnalysisViewProps {
   articles: any[];
@@ -30,18 +31,31 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
   const [overrides, setOverrides] = useState<Record<string, ArticleOverride>>({});
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
 
-  // ── Load overrides from Firebase when dossier changes ──
+  // ── État de verrouillage du Coût de Revient ──
+  const [lockedRevient, setLockedRevient] = useState<{ value: number; at: string } | null>(null);
+  const [lockLoading, setLockLoading] = useState(false);
+  const [confirmUnlock, setConfirmUnlock] = useState(false);
+
+  // ── Load overrides + lock state from Firebase when dossier changes ──
   useEffect(() => {
     if (!selectedFactureId || !firestore || !user) return;
     setOverrides({});
+    setLockedRevient(null);
+    setConfirmUnlock(false);
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.overrides) setOverrides(data.overrides);
+          if (data.coutRevientLocked && data.coutRevientLockedValue) {
+            setLockedRevient({
+              value: Number(data.coutRevientLockedValue),
+              at: data.coutRevientLockedAt || '',
+            });
+          }
         }
       })
-      .catch(err => console.error('Override load error:', err));
+      .catch(err => console.error('Load error:', err));
   }, [selectedFactureId, firestore, user]);
 
   // ── Save an override for one article to Firebase ──
@@ -77,8 +91,6 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
 
     // ── Frais logistiques totaux du dossier (MAD) ──
-    // Tous les frais sont saisis TTC (TVA 20% incluse), y compris le fret
-    // → on divise l'ensemble par 1.20 pour obtenir le montant HT
     const exchange = Number(selectedFacture.exchangeInvoiceAmount) || 0;
     const transitaire = Number(selectedFacture.supplierInvoiceAmount) || 0;
     const fraisSupp = Number(selectedFacture.additionalCostsAmount) || 0;
@@ -97,10 +109,8 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(a.netWeight)) || 0;
       const qty = (ov.quantity != null ? Number(ov.quantity) : Number(a.quantity)) || 0;
 
-      // Frais affectés (répartition CBM) — utilise le cbm effectif
       const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
-      // Données douanières: override > catégorie
       const cat = subCategories.find(c => c.name === a.categoryId);
       const customsValuePerKg = ov.customsValuePerKg != null
         ? Number(ov.customsValuePerKg)
@@ -119,15 +129,13 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
         : (cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null);
       const hasCustData = customsValuePerKg !== null;
 
-      // Valeur douane CMD
       const valDouane = hasCustData ? nw * customsValuePerKg! : 0;
       const di = importDutyRate != null ? valDouane * importDutyRate : 0;
       const tpi = tpiRate != null ? valDouane * tpiRate : 0;
       const tic = ticRate != null ? valDouane * ticRate : 0;
-      const tva = tvaRate != null ? (valDouane + di + tpi) * tvaRate : 0;
+      const tva = tvaRate != null ? (valDouane + di + tpi + tic) * tvaRate : 0;
       const totalDouane = di + tpi + tic + tva;
 
-      // Valeur d'achat MAD
       const pauDollar = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(a.purchasePricePerUnit)) || 0;
       const valAchatMad = qty * pauDollar * tauxChange;
 
@@ -150,26 +158,88 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
       };
     });
 
-    // ── Total droits payés (somme des totalDouane de tous les articles) ──
     const totalDroitsPayes = rows.reduce((s, r) => s + (r.totalDouane || 0), 0);
 
     return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, fretMad, totalDroitsPayes, rows };
   }, [selectedFacture, dossierArticles, subCategories, overrides]);
 
-  // ── Persiste le total Coût de Revient dans Firebase pour la page Déclaration Provisoire ──
+  // ── Valeur live courante ──
+  const liveTotal = useMemo(
+    () => analysis?.rows.reduce((s, r) => s + (r.mtTotal || 0), 0) ?? 0,
+    [analysis]
+  );
+
+  // ── Persiste le total Coût de Revient dans Firebase SEULEMENT si non verrouillé ──
   useEffect(() => {
     if (!analysis || !selectedFactureId || !firestore || !user) return;
-    const totalCoutRevient = analysis.rows.reduce((s, r) => s + (r.mtTotal || 0), 0);
-    if (totalCoutRevient <= 0) return;
+    if (lockedRevient !== null) return; // Verrouillé : on ne touche pas
+    if (liveTotal <= 0) return;
     setDoc(
       doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-      { coutRevientTtcTotal: totalCoutRevient },
+      { coutRevientTtcTotal: liveTotal },
       { merge: true }
     ).catch(() => {});
-  }, [analysis, selectedFactureId, firestore, user]);
+  }, [analysis, liveTotal, lockedRevient, selectedFactureId, firestore, user]);
+
+  // ── Verrouiller le Coût de Revient ──
+  const handleLock = useCallback(async () => {
+    if (!selectedFactureId || !firestore || !user || liveTotal <= 0) return;
+    setLockLoading(true);
+    const now = new Date().toISOString();
+    const lockData = {
+      coutRevientLocked: true,
+      coutRevientLockedValue: liveTotal,
+      coutRevientLockedAt: now,
+      coutRevientTtcTotal: liveTotal,
+    };
+    try {
+      await setDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        lockData,
+        { merge: true }
+      );
+      setLockedRevient({ value: liveTotal, at: now });
+    } catch (e) {
+      console.error('Lock error:', e);
+    } finally {
+      setLockLoading(false);
+    }
+  }, [selectedFactureId, firestore, user, liveTotal]);
+
+  // ── Déverrouiller le Coût de Revient ──
+  const handleUnlock = useCallback(async () => {
+    if (!selectedFactureId || !firestore || !user) return;
+    setLockLoading(true);
+    try {
+      await updateDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        {
+          coutRevientLocked: deleteField(),
+          coutRevientLockedValue: deleteField(),
+          coutRevientLockedAt: deleteField(),
+        }
+      );
+      setLockedRevient(null);
+      setConfirmUnlock(false);
+    } catch (e) {
+      console.error('Unlock error:', e);
+    } finally {
+      setLockLoading(false);
+    }
+  }, [selectedFactureId, firestore, user]);
 
   const missingCount = analysis?.rows.filter(r => r.missingData).length || 0;
   const overrideCount = analysis?.rows.filter(r => r.hasOverride).length || 0;
+
+  // Valeur à afficher (verrouillée ou live)
+  const displayTotal = lockedRevient !== null ? lockedRevient.value : liveTotal;
+
+  const formatDate = (iso: string) => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch { return iso; }
+  };
 
   return (
     <div className="space-y-8 fade-in">
@@ -239,6 +309,98 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
           </div>
         </div>
       </header>
+
+      {/* ── Bandeau de verrouillage ── */}
+      {selectedFacture && analysis && (
+        <div className={`rounded-2xl border-2 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all ${
+          lockedRevient
+            ? 'bg-emerald-950/80 border-emerald-500/40'
+            : 'bg-stone-900/60 border-white/10'
+        }`}>
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${lockedRevient ? 'bg-emerald-500/20' : 'bg-white/5'}`}>
+              {lockedRevient
+                ? <Lock className="w-5 h-5 text-emerald-400" />
+                : <LockOpen className="w-5 h-5 text-stone-400" />
+              }
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                {lockedRevient ? (
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-emerald-500/30">
+                    <ShieldCheck className="w-3 h-3" /> Verrouillé
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 bg-white/5 text-stone-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/10">
+                    <LockOpen className="w-3 h-3" /> Non verrouillé
+                  </span>
+                )}
+                {lockedRevient && (
+                  <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">
+                    le {formatDate(lockedRevient.at)}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className={`text-2xl font-black leading-none ${lockedRevient ? 'text-emerald-400' : 'text-white'}`}>
+                  {displayTotal.toLocaleString('fr-MA', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-[10px] font-bold text-stone-500 uppercase">MAD TTC</p>
+                {lockedRevient && liveTotal > 0 && Math.abs(liveTotal - lockedRevient.value) > 1 && (
+                  <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                    Calculé live : {liveTotal.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD
+                  </span>
+                )}
+              </div>
+              <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest mt-0.5">
+                {lockedRevient
+                  ? 'Valeur figée — insensible aux changements de données'
+                  : 'Valeur recalculée automatiquement à chaque changement'
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Boutons Approuver / Déverrouiller */}
+          <div className="flex items-center gap-2 shrink-0">
+            {!lockedRevient ? (
+              <button
+                onClick={handleLock}
+                disabled={lockLoading || liveTotal <= 0}
+                className="flex items-center gap-2 h-10 px-5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-stone-700 disabled:text-stone-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                {lockLoading ? 'Verrouillage...' : 'Approuver & Verrouiller'}
+              </button>
+            ) : confirmUnlock ? (
+              <>
+                <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Confirmer ?</span>
+                <button
+                  onClick={handleUnlock}
+                  disabled={lockLoading}
+                  className="flex items-center gap-1.5 h-10 px-4 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95"
+                >
+                  {lockLoading ? 'Déverrouillage...' : 'Oui, déverrouiller'}
+                </button>
+                <button
+                  onClick={() => setConfirmUnlock(false)}
+                  className="flex items-center gap-1.5 h-10 px-4 bg-white/10 hover:bg-white/20 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmUnlock(true)}
+                className="flex items-center gap-2 h-10 px-5 bg-white/10 hover:bg-white/20 text-stone-300 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all border border-white/10 active:scale-95"
+              >
+                <LockOpen className="w-3.5 h-3.5" />
+                Déverrouiller
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {!selectedFacture && (
         <div className="py-32 text-center text-stone-300 font-black uppercase text-[11px] tracking-widest">
@@ -334,12 +496,17 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
           )}
 
           {/* ── Tableau détaillé ── */}
-          <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
+          <div className={`bg-white rounded-3xl shadow-xl border overflow-hidden transition-all ${lockedRevient ? 'border-emerald-200' : 'border-stone-100'}`}>
             <div className="bg-stone-900 px-8 py-5 flex items-center justify-between">
               <div>
                 <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Dossier {selectedFacture.id}</p>
-                <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
                   Détail P.A.U TTC par Article
+                  {lockedRevient && (
+                    <span className="inline-flex items-center gap-1 text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20">
+                      <Lock className="w-2.5 h-2.5" /> VERROUILLÉ
+                    </span>
+                  )}
                 </h3>
               </div>
               <div className="flex items-center gap-3">

@@ -166,7 +166,7 @@ export function computeDossierCoutVente(
 
     const totalHT       = fobMad + fraisCmd + di + tpi + tic;
     const marge         = totalHT * MARGE_RATE;
-    const baseTva       = valDouane + di + tpi + fraisCmd;
+    const baseTva       = valDouane + di + tpi + tic + fraisCmd;
     const tva           = baseTva * tvaRate;
     const totalVenteTtc = totalHT + marge + tva;
 

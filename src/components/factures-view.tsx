@@ -99,7 +99,7 @@ export default function FacturesView({
         const di = idr != null ? vd * idr : 0;
         const tpi = tpr != null ? vd * tpr : 0;
         const tic = ticr != null ? vd * ticr : 0;
-        const tva = tvar != null ? (vd + di + tpi) * tvar : 0;
+        const tva = tvar != null ? (vd + di + tpi + tic) * tvar : 0;
         dosRevient += valAchatMad + fraisCmd + di + tpi + tic + tva;
       });
 

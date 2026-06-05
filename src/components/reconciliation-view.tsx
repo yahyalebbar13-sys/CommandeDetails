@@ -366,7 +366,7 @@ export default function ReconciliationView({ factures }: ReconciliationViewProps
             <span className="flex items-center gap-1.5 text-emerald-600"><span className="w-3 h-3 rounded-sm bg-emerald-100 inline-block" /> Coût de Vente (page Coût Vente)</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-violet-100 inline-block" /> Différence = Revient − Vente (négatif = gain)</span>
             <span className="ml-auto italic normal-case text-stone-300">
-              Les totaux sont automatiquement mis à jour en visitant les pages Coût de Revient et Coût de Vente
+              Les totaux utilisent la valeur verrouillée si approuvée, sinon la valeur calculée live
             </span>
           </div>
         </div>

@@ -12,7 +12,12 @@ export default function LocalBusinessSchema() {
         description:
           'Spécialiste en mercerie au Maroc : fermetures éclair nylon et métal, élastiques, boutons pression, rubans, fils à coudre, tissus. Vente en gros et détail. Livraison rapide partout au Maroc. سحاب، مطاط، أزرار، أقمشة بالجملة في المغرب.',
         url: 'https://lebtex.ma',
-        logo: 'https://lebtex.ma/hero-banner.png',
+        logo: {
+          '@type': 'ImageObject',
+          url: 'https://lebtex.ma/logo.png',
+          width: 512,
+          height: 512,
+        },
         image: 'https://lebtex.ma/hero-banner.png',
         telephone: '+212600000000', // Update with real number
         email: 'contact@lebtex.ma',
@@ -88,6 +93,21 @@ export default function LocalBusinessSchema() {
           },
         ],
         keywords: 'fermeture éclair, élastique, bouton, ruban, tissu, mercerie, Maroc, سحاب, مطاط, أزرار, قماش',
+      },
+      {
+        '@type': 'Organization',
+        '@id': 'https://lebtex.ma/#organization',
+        name: 'LEBTEX',
+        url: 'https://lebtex.ma',
+        logo: {
+          '@type': 'ImageObject',
+          url: 'https://lebtex.ma/logo.png',
+          width: 512,
+          height: 512,
+        },
+        sameAs: [
+          'https://lebtex.ma',
+        ],
       },
       {
         '@type': 'WebSite',

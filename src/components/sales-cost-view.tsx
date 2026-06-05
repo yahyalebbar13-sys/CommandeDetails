@@ -93,7 +93,7 @@ export default function SalesCostView({ articles, factures, subCategories }: Sal
       const di = importDutyRate != null ? valDouane * importDutyRate : 0;
       const tpi = tpiRate != null ? valDouane * tpiRate : 0;
       const tic = ticRate != null ? valDouane * ticRate : 0;
-      const tva = tvaRate != null ? (valDouane + di + tpi) * tvaRate : 0;
+      const tva = tvaRate != null ? (valDouane + di + tpi + tic) * tvaRate : 0;
       const totalDouane = di + tpi + tic + tva;
 
       // Valeur d'achat MAD

@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
-  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package, ShieldCheck, XCircle
+  ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package, ShieldCheck, XCircle,
+  Lock, LockOpen
 } from 'lucide-react';
 import { exportCostSalePDF, exportCoutVenteSimplePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
 
 // The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
@@ -71,23 +72,36 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   const [overrides, setOverrides] = useState<Record<string, ArticleOverride>>({});
   const [loading, setLoading] = useState(false);
 
+  // ── État de verrouillage du Coût de Vente ──
+  const [lockedVente, setLockedVente] = useState<{ value: number; at: string } | null>(null);
+  const [lockLoading, setLockLoading] = useState(false);
+  const [confirmUnlock, setConfirmUnlock] = useState(false);
+
   const selectedFacture = useMemo(
     () => validatedFactures.find(f => f.id === selectedFactureId) || null,
     [validatedFactures, selectedFactureId]
   );
 
-  // Load saved DP puMap AND overrides from Firebase when dossier changes
+  // Load saved DP puMap, overrides AND lock state from Firebase when dossier changes
   useEffect(() => {
     if (!selectedFactureId || !firestore || !user) return;
     setLoading(true);
     setPuMap({});
     setOverrides({});
+    setLockedVente(null);
+    setConfirmUnlock(false);
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data();
           if (data.puMap) setPuMap(data.puMap);
           if (data.overrides) setOverrides(data.overrides);
+          if (data.coutVenteLocked && data.coutVenteLockedValue) {
+            setLockedVente({
+              value: Number(data.coutVenteLockedValue),
+              at: data.coutVenteLockedAt || '',
+            });
+          }
         }
       })
       .catch(err => console.error('DP load error:', err))
@@ -200,8 +214,8 @@ export default function CostSaleView({ articles, factures, subCategories, genera
       const totalHT = hasCustData ? valAchatMad + fraisCmd + di + tpi + tic : 0;
       const marge = hasCustData ? totalHT * MARGE_RATE : 0;
 
-      // Base TVA = Valeur Douane + DI + TPI + Frais Log (sans valeur d'achat)
-      const baseTva = hasCustData ? valDouane + di + tpi + fraisCmd : 0;
+      // Base TVA = Valeur Douane + DI + TPI + TIC + Frais Log (sans valeur d'achat)
+      const baseTva = hasCustData ? valDouane + di + tpi + tic + fraisCmd : 0;
       const tva = (hasCustData && tvaRate != null) ? baseTva * tvaRate : 0;
 
       // Total Vente TTC = Total HT + Marge + TVA
@@ -228,17 +242,76 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     return { tauxChange, mtFraisTotal, cbmTotal, exchange, transitaire, fraisSupp, totalMarge, totalTVA, rows };
   }, [selectedFacture, categoryLines, subCategories, puMap]);
 
-  // ── Persiste le total Coût de Vente dans Firebase pour la page Déclaration Provisoire ──
+  // ── Valeur live courante du Coût de Vente ──
+  const liveVenteTotal = useMemo(
+    () => analysis?.rows.reduce((s, r) => s + (r.totalVenteTtc || 0), 0) ?? 0,
+    [analysis]
+  );
+
+  // ── Persiste le total Coût de Vente dans Firebase SEULEMENT si non verrouillé ──
   useEffect(() => {
     if (!analysis || !selectedFactureId || !firestore || !user) return;
-    const totalCoutVente = analysis.rows.reduce((s, r) => s + (r.totalVenteTtc || 0), 0);
-    if (totalCoutVente <= 0) return;
+    if (lockedVente !== null) return; // Verrouillé : on ne touche pas
+    if (liveVenteTotal <= 0) return;
     setDoc(
       doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-      { coutVenteTtcTotal: totalCoutVente },
+      { coutVenteTtcTotal: liveVenteTotal },
       { merge: true }
     ).catch(() => {});
-  }, [analysis, selectedFactureId, firestore, user]);
+  }, [analysis, liveVenteTotal, lockedVente, selectedFactureId, firestore, user]);
+
+  // ── Verrouiller le Coût de Vente ──
+  const handleLockVente = useCallback(async () => {
+    if (!selectedFactureId || !firestore || !user || liveVenteTotal <= 0) return;
+    setLockLoading(true);
+    const now = new Date().toISOString();
+    try {
+      await setDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        {
+          coutVenteLocked: true,
+          coutVenteLockedValue: liveVenteTotal,
+          coutVenteLockedAt: now,
+          coutVenteTtcTotal: liveVenteTotal,
+        },
+        { merge: true }
+      );
+      setLockedVente({ value: liveVenteTotal, at: now });
+    } catch (e) {
+      console.error('Lock vente error:', e);
+    } finally {
+      setLockLoading(false);
+    }
+  }, [selectedFactureId, firestore, user, liveVenteTotal]);
+
+  // ── Déverrouiller le Coût de Vente ──
+  const handleUnlockVente = useCallback(async () => {
+    if (!selectedFactureId || !firestore || !user) return;
+    setLockLoading(true);
+    try {
+      await updateDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        {
+          coutVenteLocked: deleteField(),
+          coutVenteLockedValue: deleteField(),
+          coutVenteLockedAt: deleteField(),
+        }
+      );
+      setLockedVente(null);
+      setConfirmUnlock(false);
+    } catch (e) {
+      console.error('Unlock vente error:', e);
+    } finally {
+      setLockLoading(false);
+    }
+  }, [selectedFactureId, firestore, user]);
+
+  const formatDate = (iso: string) => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch { return iso; }
+  };
 
   const missingDPCount = analysis?.rows.filter(r => r.missingDP).length || 0;
 
@@ -352,7 +425,99 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         </div>
       )}
 
-      {selectedFacture && !loading && analysis && (
+      {/* ── Bandeau de verrouillage Coût de Vente ── */}
+      {selectedFacture && analysis && !loading && (
+        <div className={`rounded-2xl border-2 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all ${
+          lockedVente
+            ? 'bg-emerald-950/80 border-emerald-500/40'
+            : 'bg-stone-900/60 border-white/10'
+        }`}>
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${lockedVente ? 'bg-emerald-500/20' : 'bg-white/5'}`}>
+              {lockedVente
+                ? <Lock className="w-5 h-5 text-emerald-400" />
+                : <LockOpen className="w-5 h-5 text-stone-400" />
+              }
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                {lockedVente ? (
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-emerald-500/30">
+                    <ShieldCheck className="w-3 h-3" /> Verrouillé
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 bg-white/5 text-stone-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/10">
+                    <LockOpen className="w-3 h-3" /> Non verrouillé
+                  </span>
+                )}
+                {lockedVente && (
+                  <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">
+                    le {formatDate(lockedVente.at)}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className={`text-2xl font-black leading-none ${lockedVente ? 'text-emerald-400' : 'text-white'}`}>
+                  {(lockedVente ? lockedVente.value : liveVenteTotal).toLocaleString('fr-MA', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-[10px] font-bold text-stone-500 uppercase">MAD TTC</p>
+                {lockedVente && liveVenteTotal > 0 && Math.abs(liveVenteTotal - lockedVente.value) > 1 && (
+                  <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                    Live : {liveVenteTotal.toLocaleString('fr-MA', { maximumFractionDigits: 0 })} MAD
+                  </span>
+                )}
+              </div>
+              <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest mt-0.5">
+                {lockedVente
+                  ? 'Valeur figée — insensible aux changements de données'
+                  : 'Valeur recalculée automatiquement à chaque changement'
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Boutons Approuver / Déverrouiller */}
+          <div className="flex items-center gap-2 shrink-0">
+            {!lockedVente ? (
+              <button
+                onClick={handleLockVente}
+                disabled={lockLoading || liveVenteTotal <= 0}
+                className="flex items-center gap-2 h-10 px-5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-stone-700 disabled:text-stone-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                {lockLoading ? 'Verrouillage...' : 'Approuver & Verrouiller'}
+              </button>
+            ) : confirmUnlock ? (
+              <>
+                <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Confirmer ?</span>
+                <button
+                  onClick={handleUnlockVente}
+                  disabled={lockLoading}
+                  className="flex items-center gap-1.5 h-10 px-4 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95"
+                >
+                  {lockLoading ? 'Déverrouillage...' : 'Oui, déverrouiller'}
+                </button>
+                <button
+                  onClick={() => setConfirmUnlock(false)}
+                  className="flex items-center gap-1.5 h-10 px-4 bg-white/10 hover:bg-white/20 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
+                >
+                  Annuler
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmUnlock(true)}
+                className="flex items-center gap-2 h-10 px-5 bg-white/10 hover:bg-white/20 text-stone-300 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all border border-white/10 active:scale-95"
+              >
+                <LockOpen className="w-3.5 h-3.5" />
+                Déverrouiller
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {selectedFacture && analysis && !loading && (
         <>
           {/* Synthèse */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">

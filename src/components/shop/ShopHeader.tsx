@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -144,27 +145,17 @@ export default function ShopHeader() {
             {/* ── Logo ──────────────────────────────────────────────────── */}
             <Link
               href="/shop"
-              className="flex-shrink-0 flex items-center gap-0.5 group"
+              className="flex-shrink-0 flex items-center group"
               aria-label="LEBTEX - Accueil"
             >
-              <span
-                className="font-display text-2xl lg:text-3xl font-black tracking-tight leading-none transition-opacity group-hover:opacity-80"
-                style={{ color: "#0F0F0F" }}
-              >
-                LEB
-              </span>
-              <span
-                className="font-display text-2xl lg:text-3xl font-black tracking-tight leading-none transition-opacity group-hover:opacity-80"
-                style={{ color: "#C8102E" }}
-              >
-                TEX
-              </span>
-              <span
-                className="ml-2 text-[10px] font-semibold tracking-widest uppercase hidden sm:inline-block mt-1 self-end mb-0.5 opacity-50"
-                style={{ color: "#0F0F0F", fontFamily: "Inter, sans-serif" }}
-              >
-                Mercerie
-              </span>
+              <Image
+                src="/logo.png"
+                alt="LEBTEX — Mercerie & Accessoires Textiles au Maroc"
+                width={140}
+                height={48}
+                className="h-10 lg:h-12 w-auto object-contain transition-opacity group-hover:opacity-80"
+                priority
+              />
             </Link>
 
             {/* ── Desktop Navigation ────────────────────────────────────── */}
@@ -377,18 +368,14 @@ export default function ShopHeader() {
             onClick={() => setIsMobileMenuOpen(false)}
             className="flex items-center"
           >
-            <span
-              className="font-display text-2xl font-black"
-              style={{ color: "#0F0F0F" }}
-            >
-              LEB
-            </span>
-            <span
-              className="font-display text-2xl font-black"
-              style={{ color: "#C8102E" }}
-            >
-              TEX
-            </span>
+            <Image
+              src="/logo.png"
+              alt="LEBTEX"
+              width={110}
+              height={38}
+              className="h-9 w-auto object-contain"
+              priority
+            />
           </Link>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
