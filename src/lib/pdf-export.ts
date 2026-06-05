@@ -303,7 +303,7 @@ export async function exportCoutRevientSimplePDF(
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 50, 25); resolve(); };
     img.onerror = () => {
       doc.setTextColor(...NAVY);
       doc.setFontSize(18);
@@ -511,7 +511,7 @@ export async function exportCoutVenteSimplePDF(
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 50, 25); resolve(); };
     img.onerror = () => {
       doc.setTextColor(...NAVY);
       doc.setFontSize(18);
@@ -718,7 +718,7 @@ export async function exportDossierArticlesPDF(
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 32, 16); resolve(); };
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 50, 25); resolve(); };
     img.onerror = () => {
       doc.setTextColor(...NAVY);
       doc.setFontSize(18);
@@ -1096,7 +1096,7 @@ export async function exportDPPDF(
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 36, 18); resolve(); };
+    img.onload = () => { doc.addImage(img, 'PNG', marginX, yPos, 50, 25); resolve(); };
     img.onerror = () => {
       doc.setTextColor(...NAVY);
       doc.setFontSize(22);
@@ -1620,7 +1620,7 @@ export async function exportClientDossierPDF(
     const img = new Image();
     img.src = "/logo.png";
     img.onload = () => {
-      doc.addImage(img, "PNG", marginX, yPos, 36, 18);
+      doc.addImage(img, "PNG", marginX, yPos, 50, 25);
       resolve();
     };
     img.onerror = () => {
@@ -1847,7 +1847,7 @@ export async function exportDevisClientPIPDF(params: {
   await new Promise<void>(resolve => {
     const img = new Image();
     img.src = '/logo.png';
-    img.onload = () => { doc.addImage(img, 'PNG', 10, 6, 32, 16); resolve(); };
+    img.onload = () => { doc.addImage(img, 'PNG', 10, 6, 50, 25); resolve(); };
     img.onerror = () => {
       doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
       doc.text('LEBTEX', 12, 20);
