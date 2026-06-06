@@ -10,7 +10,7 @@ import {
   ListTodo, Trash2, ArrowRight, Pencil, Settings2, MousePointer2,
   Flame, AlertTriangle, CheckSquare, MessageSquareWarning, Send,
   ChevronDown, Package, X, Clock, CheckCircle2, Anchor, ChevronRight,
-  Container
+  Container, FileText, Check
 } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 import ExportBonCommande from './export-bon-commande';
 import ExportClientCommande from './export-client-commande';
+import { exportPropositionFournisseurPDF } from '@/lib/export-proposition-pdf';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -43,6 +44,23 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     (supplierProfiles || []).forEach((p: any) => { if (p.id) map[p.id] = p; });
     return map;
   }, [supplierProfiles]);
+
+  // ── Sélection pour proposition fournisseur ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showPropositionModal, setShowPropositionModal] = useState(false);
+  const [propositionFournisseur, setPropositionFournisseur] = useState('');
+  const [propositionNote, setPropositionNote] = useState('');
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   // Réclamation state — étape 1 : arrivage, étape 2 : commande
   const [selectedFactureId, setSelectedFactureId] = useState<string>('');
@@ -107,6 +125,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   const articlesWithReclamation = useMemo(() => {
     return articles.filter(a => a.reclamation && a.reclamation.trim() !== '');
   }, [articles]);
+
+  // ── Articles sélectionnés pour proposition ───────────────────────────
+  const selectedArticles = useMemo(
+    () => toOrderArticles.filter(o => selectedIds.has(o.id)),
+    [toOrderArticles, selectedIds]
+  );
 
   // ── Helpers ──────────────────────────────────────────────────────────
   const getFactureLabel = (f: any) => {
@@ -181,6 +205,32 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     toast({ title: "Réclamation clôturée", description: articleName });
   };
 
+  // ── Ouvrir modal proposition ─────────────────────────────────────────
+  const handleOpenProposition = () => {
+    // Pré-remplir le fournisseur si tous les articles ont le même supplierId
+    const suppliers = [...new Set(selectedArticles.map(a => a.supplierId).filter(Boolean))];
+    setPropositionFournisseur(suppliers.length === 1 ? suppliers[0] : '');
+    setPropositionNote('');
+    setShowPropositionModal(true);
+  };
+
+  // ── Générer le PDF de proposition ───────────────────────────────────
+  const handleGenerateProposition = async () => {
+    if (selectedArticles.length === 0) return;
+    setIsGeneratingPDF(true);
+    try {
+      await exportPropositionFournisseurPDF(selectedArticles, propositionFournisseur, propositionNote);
+      setShowPropositionModal(false);
+      clearSelection();
+      toast({ title: "PDF généré ✓", description: `Proposition pour ${propositionFournisseur || 'fournisseur'} — ${selectedArticles.length} article(s)` });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur PDF", variant: "destructive" });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const selectedFacture = factures.find(f => f.id === selectedFactureId);
   const selectedReclamationArticle = articlesOfSelectedFacture.find(a => a.id === reclamationArticleId);
 
@@ -188,6 +238,25 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   const importantCount = toOrderArticles.filter(a => (a.priority || 'todo') === 'important').length;
   const todoCount = toOrderArticles.filter(a => (a.priority || 'todo') === 'todo').length;
   const openReclamations = articlesWithReclamation.filter(a => a.reclamationStatus !== 'closed').length;
+
+  // ── Composant case à cocher article ─────────────────────────────────
+  const ArticleCheckbox = ({ id }: { id: string }) => {
+    const checked = selectedIds.has(id);
+    return (
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); toggleSelect(id); }}
+        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${
+          checked
+            ? 'bg-amber-500 border-amber-500 shadow-md shadow-amber-500/30'
+            : 'border-stone-300 hover:border-amber-400 bg-white'
+        }`}
+        title={checked ? 'Désélectionner' : 'Sélectionner pour proposition'}
+      >
+        {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+      </button>
+    );
+  };
 
   return (
     <div className="space-y-8 fade-in">
@@ -199,7 +268,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
           <div>
             <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique — Gestion</p>
             <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-none">
-              Besoins &amp;<br /><span className="text-amber-500">Réclamations</span>
+              Besoins &<br /><span className="text-amber-500">Réclamations</span>
             </h2>
             <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-3">Articles en attente · Incidents qualité</p>
           </div>
@@ -244,7 +313,6 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
             const collapsed = collapsedContainers.has(supplier);
             return (
               <div key={supplier} className="rounded-2xl border-2 border-orange-200 bg-orange-50/40 overflow-hidden shadow-sm">
-                {/* Group header */}
                 <button
                   type="button"
                   onClick={() => toggleContainer(supplier)}
@@ -267,9 +335,11 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                         important: { dot: 'bg-amber-400', label: 'Important', badge: 'bg-amber-100 text-amber-700', borderLeft: 'border-l-amber-400' },
                         todo: { dot: 'bg-stone-400', label: 'À faire', badge: 'bg-stone-100 text-stone-500', borderLeft: 'border-l-stone-300' },
                       }[o.priority || 'todo'] || { dot: 'bg-stone-400', label: 'À faire', badge: 'bg-stone-100 text-stone-500', borderLeft: 'border-l-stone-300' };
+                      const isSelected = selectedIds.has(o.id);
                       return (
-                        <div key={o.id} className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all p-4 space-y-2.5 border-l-4 ${priorityConf.borderLeft}`}>
+                        <div key={o.id} className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all p-4 space-y-2.5 border-l-4 ${priorityConf.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
                           <div className="flex items-start justify-between gap-2">
+                            <ArticleCheckbox id={o.id} />
                             <div className="flex-1 min-w-0">
                               <p className="font-black text-stone-900 text-[11px] uppercase leading-tight truncate">{o.name}</p>
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -338,10 +408,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                   <div className="bg-white rounded-2xl border border-dashed border-stone-200 py-8 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">Vide</div>
                 ) : colArts.map(o => {
                   const isZipper = isZipperCategory(o.categoryId);
+                  const isSelected = selectedIds.has(o.id);
                   return (
-                    <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft}`}>
+                    <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <ArticleCheckbox id={o.id} />
+                        <div className="flex-1 min-w-0">
                           <p className="font-black text-stone-900 text-[12px] uppercase leading-tight">{o.name}</p>
                           {o.isPreorder && o.clientName && (
                             <span className="inline-flex items-center gap-1 text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full mt-1 uppercase">
@@ -446,7 +518,6 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                     </span>
                     <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${factureDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
-                  {/* N° BL display when facture selected */}
                   {selectedFacture?.noBL && (
                     <div className="mt-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center gap-2">
                       <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">N° BL :</span>
@@ -593,14 +664,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
 
                       {/* Infos commande + arrivage */}
                       <div className="flex-shrink-0 min-w-[180px] space-y-1">
-                        {/* Arrivage */}
                         {a.reclamationFactureLabel && (
                           <div className="flex items-center gap-1.5 mb-2">
                             <Anchor className="w-3 h-3 text-orange-400 flex-shrink-0" />
                             <span className="text-[10px] font-black text-orange-700 uppercase">{a.reclamationFactureLabel}</span>
                           </div>
                         )}
-                        {/* Article */}
                         <div className="flex items-center gap-2">
                           <Package className="w-3.5 h-3.5 text-stone-400 flex-shrink-0" />
                           <span className="font-black text-stone-900 text-xs uppercase">{a.name}</span>
@@ -654,6 +723,148 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
       </div>
 
       <LaunchOrderModal open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen} article={selectedArticle} />
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* BANDEAU FLOTTANT — Proposition fournisseur                    */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-stone-900 border border-white/10 shadow-2xl rounded-2xl px-5 py-3.5 flex items-center gap-4 min-w-[420px] max-w-[600px]">
+            {/* Icône + compteur */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30 shrink-0">
+                <FileText className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-white uppercase tracking-widest leading-none">
+                  {selectedIds.size} article{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
+                </p>
+                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-0.5">
+                  {selectedArticles.map(a => a.name || a.categoryId).join(' · ').slice(0, 60)}{selectedIds.size > 3 ? '…' : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              <button
+                onClick={clearSelection}
+                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-stone-400 hover:text-white flex items-center justify-center transition-all"
+                title="Annuler la sélection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleOpenProposition}
+                className="flex items-center gap-2 h-9 px-4 bg-amber-500 hover:bg-amber-400 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-500/30 active:scale-95"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Proposer au fournisseur
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* MODAL — Proposition fournisseur                               */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {showPropositionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+
+            {/* Header modal */}
+            <div className="bg-stone-900 px-7 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500 rounded-xl">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Export PDF</p>
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight leading-none">Proposition Fournisseur</h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPropositionModal(false)}
+                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-stone-400 hover:text-white flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Corps modal */}
+            <div className="p-7 space-y-5">
+
+              {/* Résumé articles */}
+              <div className="bg-stone-50 rounded-2xl border border-stone-100 p-4">
+                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">
+                  {selectedArticles.length} article{selectedArticles.length > 1 ? 's' : ''} inclus dans la proposition
+                </p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                  {selectedArticles.map(a => (
+                    <div key={a.id} className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        a.priority === 'urgent' ? 'bg-red-500' :
+                        a.priority === 'important' ? 'bg-amber-400' : 'bg-stone-300'
+                      }`} />
+                      <span className="text-[11px] font-bold text-stone-700 uppercase">{a.name || a.categoryId}</span>
+                      <span className="ml-auto text-[10px] font-black text-stone-500">
+                        {Number(a.quantity).toLocaleString()} {a.unitOfMeasure}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Champ fournisseur */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">
+                  Nom du Fournisseur
+                </label>
+                <input
+                  type="text"
+                  value={propositionFournisseur}
+                  onChange={e => setPropositionFournisseur(e.target.value)}
+                  placeholder="Ex : YKK China, Coats Shanghai…"
+                  className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-400 focus:outline-none text-stone-900 text-sm font-bold rounded-xl px-4 h-11 transition-colors placeholder:text-stone-300"
+                />
+              </div>
+
+              {/* Champ note */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">
+                  Remarques / Note (optionnel)
+                </label>
+                <textarea
+                  value={propositionNote}
+                  onChange={e => setPropositionNote(e.target.value)}
+                  placeholder="Ex : Livraison demandée avant le 30 juillet. Incoterm FOB Shanghai."
+                  rows={3}
+                  className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-400 focus:outline-none text-stone-900 text-sm font-medium rounded-xl px-4 py-3 resize-none transition-colors placeholder:text-stone-300"
+                />
+              </div>
+
+              {/* Boutons */}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setShowPropositionModal(false)}
+                  className="flex-1 h-11 rounded-xl border-2 border-stone-200 text-stone-500 font-black text-[10px] uppercase tracking-widest hover:bg-stone-50 transition-all"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleGenerateProposition}
+                  disabled={isGeneratingPDF}
+                  className="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-stone-200 disabled:text-stone-400 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95"
+                >
+                  <FileText className="w-4 h-4" />
+                  {isGeneratingPDF ? 'Génération…' : 'Générer le PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
