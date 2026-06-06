@@ -2300,7 +2300,9 @@ function GroupedArticleList({
   return (
     <div className="space-y-3">
       {STATUS_GROUPS.map(group => {
-        const groupArticles = articles.filter(a => a.status === group.key);
+        const groupArticles = articles
+          .filter(a => a.status === group.key)
+          .sort((a, b) => (a.categoryId || a.name || '').localeCompare(b.categoryId || b.name || '', 'fr', { sensitivity: 'base' }));
         if (groupArticles.length === 0) return null;
         const isOpen = openGroups.has(group.key);
         const now = new Date();

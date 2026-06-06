@@ -1,6 +1,6 @@
 // export-proposition-pdf.ts
-// Two PDF types for supplier proposals:
-//  1. exportPropositionFournisseurPDF  — quantities only, NO status/priority columns
+// Two PDF types for supplier proposals (all text in English):
+//  1. exportPropositionFournisseurPDF  — quantities only, no status/priority columns
 //  2. exportPriceProposalPDF           — price columns for the supplier to fill in
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -14,7 +14,6 @@ export async function exportPropositionFournisseurPDF(
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
-  // ── Palette ──
   const NAVY:       [number,number,number] = [15,  23,  42];
   const GOLD:       [number,number,number] = [196, 160, 98];
   const AMBER:      [number,number,number] = [245, 158, 11];
@@ -29,7 +28,7 @@ export async function exportPropositionFournisseurPDF(
   const mX    = 14;
   const cW    = pageW - mX * 2;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const todayFr  = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
+  const todayEn  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
   let y = 14;
 
@@ -55,17 +54,17 @@ export async function exportPropositionFournisseurPDF(
   doc.setTextColor(...NAVY);
   doc.setFontSize(17);
   doc.setFont('helvetica', 'bold');
-  doc.text('DEMANDE DE PROPOSITION', pageW - mX, y + 6, { align: 'right' });
+  doc.text('PURCHASE PROPOSAL REQUEST', pageW - mX, y + 6, { align: 'right' });
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(0.6);
-  doc.line(pageW - mX - 80, y + 9, pageW - mX, y + 9);
+  doc.line(pageW - mX - 90, y + 9, pageW - mX, y + 9);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_MAIN);
-  doc.text(`Date : ${todayFr}`, pageW - mX, y + 16, { align: 'right' });
+  doc.text(`Date: ${todayEn}`, pageW - mX, y + 16, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('LEBTEX Textile Import — Confidentiel', pageW - mX, y + 21, { align: 'right' });
+  doc.text('LEBTEX Textile Import — Confidential', pageW - mX, y + 21, { align: 'right' });
 
   y += 32;
 
@@ -75,7 +74,7 @@ export async function exportPropositionFournisseurPDF(
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...GOLD);
-  doc.text('DESTINATAIRE — FOURNISSEUR', mX + 5, y + 7);
+  doc.text('RECIPIENT — SUPPLIER', mX + 5, y + 7);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
@@ -83,11 +82,11 @@ export async function exportPropositionFournisseurPDF(
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...GOLD);
-  doc.text(`${articles.length} article${articles.length > 1 ? 's' : ''}`, pageW - mX - 5, y + 9, { align: 'right' });
+  doc.text(`${articles.length} item${articles.length > 1 ? 's' : ''}`, pageW - mX - 5, y + 9, { align: 'right' });
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(180, 180, 180);
-  doc.text('référencés dans ce document', pageW - mX - 5, y + 14, { align: 'right' });
+  doc.text('referenced in this document', pageW - mX - 5, y + 14, { align: 'right' });
 
   y += 26;
 
@@ -102,7 +101,7 @@ export async function exportPropositionFournisseurPDF(
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...AMBER);
-    doc.text('REMARQUES', mX + 8, y + 6);
+    doc.text('REMARKS', mX + 8, y + 6);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MAIN);
@@ -115,18 +114,17 @@ export async function exportPropositionFournisseurPDF(
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  const intro = `Madame, Monsieur,\n\nNous vous soumettons ci-dessous notre liste de besoins. Nous vous remercions de bien vouloir nous faire parvenir votre meilleure offre de prix pour chacun des articles référencés, avec délais de livraison et conditions de paiement.`;
+  const intro = `Dear Sir / Madam,\n\nPlease find below our list of requirements. We kindly ask you to send us your best offer for each of the referenced items, including lead times and payment terms.`;
   const introLines = doc.splitTextToSize(intro, cW);
   doc.text(introLines, mX, y);
   y += introLines.length * 5 + 4;
 
-  // Helper
   const isZipperCat = (cat: string) => {
     const c = (cat || '').toUpperCase();
     return c.includes('ZIPPER') && !c.includes('LONG CHAIN') && !c.includes('SLIDER');
   };
 
-  // Table rows — NO priority/status column
+  // Table rows — quantities only, NO priority/status
   const tableRows = articles.map((o, idx) => {
     const specs = isZipperCat(o.categoryId)
       ? [o.zipperType, o.slider, o.sliderType].filter(Boolean).join(' / ')
@@ -138,19 +136,19 @@ export async function exportPropositionFournisseurPDF(
       o.size  ? o.size.toUpperCase()  : '—',
       o.color ? o.color.toUpperCase() : '—',
       specs || '—',
-      Number(o.quantity || 0).toLocaleString('fr-MA'),
+      Number(o.quantity || 0).toLocaleString('en-US'),
       (o.unitOfMeasure || 'PCS').toUpperCase(),
     ];
   });
 
   autoTable(doc, {
     startY: y,
-    head: [['#', 'Désignation', 'Catégorie', 'Taille', 'Couleur', 'Spécification', 'Quantité', 'Unité']],
+    head: [['#', 'Description', 'Category', 'Size', 'Color', 'Specification', 'Quantity', 'Unit']],
     body: tableRows,
     foot: [[
       '',
-      { content: `TOTAL — ${articles.length} article${articles.length > 1 ? 's' : ''}`, colSpan: 5, styles: { halign: 'left' as const } },
-      { content: articles.reduce((s, o) => s + Number(o.quantity || 0), 0).toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: `TOTAL — ${articles.length} item${articles.length > 1 ? 's' : ''}`, colSpan: 5, styles: { halign: 'left' as const } },
+      { content: articles.reduce((s, o) => s + Number(o.quantity || 0), 0).toLocaleString('en-US'), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
       '',
     ]],
     margin: { left: mX, right: mX, bottom: 50 },
@@ -177,8 +175,8 @@ export async function exportPropositionFournisseurPDF(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
-    doc.text("Dans l'attente de votre retour, nous restons à votre disposition pour tout renseignement complémentaire.", mX, closingY);
-    doc.text('Cordialement,', mX, closingY + 7);
+    doc.text('We remain at your disposal for any additional information and look forward to your reply.', mX, closingY);
+    doc.text('Best regards,', mX, closingY + 7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...NAVY);
     doc.text('LEBTEX Textile Import', mX, closingY + 13);
@@ -194,20 +192,20 @@ export async function exportPropositionFournisseurPDF(
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
-    doc.text('LEBTEX TEXTILE IMPORT — 31 Rue 65 Lotissement Al Hamd Ain-Chock, Casablanca, Maroc', pageW / 2, pageH - 24, { align: 'center' });
-    doc.text('Tél : +212 522 25 77 78  /  +212 522 31 62 88  —  Email : Contact.lebtex@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
-    doc.text('Patente : 34011181  —  R.C : 704617  —  I.F : 68814237  —  ICE : 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
+    doc.text('LEBTEX TEXTILE IMPORT — 31 Rue 65 Lotissement Al Hamd Ain-Chock, Casablanca, Morocco', pageW / 2, pageH - 24, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78  /  +212 522 31 62 88  —  Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
+    doc.text('Patente: 34011181  —  R.C: 704617  —  I.F: 68814237  —  ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
     doc.setFillColor(...NAVY);
     doc.rect(0, pageH - 10, pageW, 10, 'F');
     doc.setFillColor(...GOLD);
     doc.rect(0, pageH - 10, 4, 10, 'F');
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text(`DEMANDE DE PROPOSITION — ${todayIso}  |  Confidentiel`, mX + 4, pageH - 4);
+    doc.text(`PURCHASE PROPOSAL REQUEST — ${todayIso}  |  Confidential`, mX + 4, pageH - 4);
     doc.text(`Page ${i} / ${pageCount}`, pageW - mX, pageH - 4, { align: 'right' });
   }
 
-  doc.save(`Proposition_${(fournisseur || 'Fournisseur').toUpperCase().replace(/\s+/g, '_')}_${todayIso}.pdf`);
+  doc.save(`Proposal_${(fournisseur || 'Supplier').toUpperCase().replace(/\s+/g, '_')}_${todayIso}.pdf`);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -221,7 +219,6 @@ export async function exportPriceProposalPDF(
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
-  // ── Palette ──
   const NAVY:       [number,number,number] = [15,  23,  42];
   const GOLD:       [number,number,number] = [196, 160, 98];
   const AMBER:      [number,number,number] = [245, 158, 11];
@@ -237,7 +234,7 @@ export async function exportPriceProposalPDF(
   const mX    = 14;
   const cW    = pageW - mX * 2;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const todayFr  = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
+  const todayEn  = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
   let y = 14;
 
@@ -263,17 +260,17 @@ export async function exportPriceProposalPDF(
   doc.setTextColor(...INDIGO);
   doc.setFontSize(17);
   doc.setFont('helvetica', 'bold');
-  doc.text('DEMANDE DE PRIX', pageW - mX, y + 6, { align: 'right' });
+  doc.text('PRICE QUOTATION REQUEST', pageW - mX, y + 6, { align: 'right' });
   doc.setDrawColor(...INDIGO);
   doc.setLineWidth(0.6);
-  doc.line(pageW - mX - 70, y + 9, pageW - mX, y + 9);
+  doc.line(pageW - mX - 85, y + 9, pageW - mX, y + 9);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_MAIN);
-  doc.text(`Date : ${todayFr}`, pageW - mX, y + 16, { align: 'right' });
+  doc.text(`Date: ${todayEn}`, pageW - mX, y + 16, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  doc.text('LEBTEX Textile Import — Confidentiel', pageW - mX, y + 21, { align: 'right' });
+  doc.text('LEBTEX Textile Import — Confidential', pageW - mX, y + 21, { align: 'right' });
 
   y += 32;
 
@@ -283,7 +280,7 @@ export async function exportPriceProposalPDF(
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...GOLD);
-  doc.text('DESTINATAIRE — FOURNISSEUR', mX + 5, y + 7);
+  doc.text('RECIPIENT — SUPPLIER', mX + 5, y + 7);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
@@ -291,11 +288,11 @@ export async function exportPriceProposalPDF(
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...GOLD);
-  doc.text(`${articles.length} article${articles.length > 1 ? 's' : ''}`, pageW - mX - 5, y + 9, { align: 'right' });
+  doc.text(`${articles.length} item${articles.length > 1 ? 's' : ''}`, pageW - mX - 5, y + 9, { align: 'right' });
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(180, 180, 180);
-  doc.text('référencés dans ce document', pageW - mX - 5, y + 14, { align: 'right' });
+  doc.text('referenced in this document', pageW - mX - 5, y + 14, { align: 'right' });
 
   y += 26;
 
@@ -310,7 +307,7 @@ export async function exportPriceProposalPDF(
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...AMBER);
-    doc.text('REMARQUES', mX + 8, y + 6);
+    doc.text('REMARKS', mX + 8, y + 6);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MAIN);
@@ -323,7 +320,7 @@ export async function exportPriceProposalPDF(
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_MUTED);
-  const intro = `Madame, Monsieur,\n\nNous vous prions de bien vouloir nous communiquer vos meilleurs prix unitaires pour les articles ci-dessous. Merci de compléter les colonnes "Prix Unitaire" et "Total" et de nous retourner ce document signé dans les meilleurs délais.`;
+  const intro = `Dear Sir / Madam,\n\nWe kindly ask you to provide us with your best unit prices for the items listed below. Please complete the "Unit Price" and "Total" columns and return this signed document at your earliest convenience.`;
   const introLines = doc.splitTextToSize(intro, cW);
   doc.text(introLines, mX, y);
   y += introLines.length * 5 + 4;
@@ -333,7 +330,7 @@ export async function exportPriceProposalPDF(
     return c.includes('ZIPPER') && !c.includes('LONG CHAIN') && !c.includes('SLIDER');
   };
 
-  // Table rows with empty price columns for supplier to fill
+  // Table rows with blank price columns
   const tableRows = articles.map((o, idx) => {
     const specs = isZipperCat(o.categoryId)
       ? [o.zipperType, o.slider, o.sliderType].filter(Boolean).join(' / ')
@@ -345,21 +342,21 @@ export async function exportPriceProposalPDF(
       o.size  ? o.size.toUpperCase()  : '—',
       o.color ? o.color.toUpperCase() : '—',
       specs || '—',
-      Number(o.quantity || 0).toLocaleString('fr-MA'),
+      Number(o.quantity || 0).toLocaleString('en-US'),
       (o.unitOfMeasure || 'PCS').toUpperCase(),
-      '',  // Prix Unitaire — à remplir par le fournisseur
-      '',  // Total         — à remplir par le fournisseur
+      '',  // Unit Price — to be filled by supplier
+      '',  // Total      — to be filled by supplier
     ];
   });
 
   autoTable(doc, {
     startY: y,
-    head: [['#', 'Désignation', 'Catégorie', 'Taille', 'Couleur', 'Spécification', 'Quantité', 'Unité', 'Prix Unitaire', 'Total']],
+    head: [['#', 'Description', 'Category', 'Size', 'Color', 'Specification', 'Quantity', 'Unit', 'Unit Price', 'Total']],
     body: tableRows,
     foot: [[
       '',
-      { content: `TOTAL — ${articles.length} article${articles.length > 1 ? 's' : ''}`, colSpan: 5, styles: { halign: 'left' as const } },
-      { content: articles.reduce((s, o) => s + Number(o.quantity || 0), 0).toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      { content: `TOTAL — ${articles.length} item${articles.length > 1 ? 's' : ''}`, colSpan: 5, styles: { halign: 'left' as const } },
+      { content: articles.reduce((s, o) => s + Number(o.quantity || 0), 0).toLocaleString('en-US'), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
       '',
       '',
       '',
@@ -400,15 +397,15 @@ export async function exportPriceProposalPDF(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
-    doc.text('Merci de compléter et retourner ce document à : Contact.lebtex@gmail.com', mX, sigY);
+    doc.text('Please complete and return this document to: Contact.lebtex@gmail.com', mX, sigY);
 
     const sigLineY = sigY + 18;
     doc.setFontSize(7.5);
-    doc.text('Cachet & Signature Fournisseur :', mX, sigLineY);
+    doc.text('Stamp & Supplier Signature:', mX, sigLineY);
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.4);
-    doc.line(mX + 62, sigLineY, pageW - mX, sigLineY);
-    doc.text('Date : _____ / _____ / _____', pageW - mX, sigLineY + 8, { align: 'right' });
+    doc.line(mX + 58, sigLineY, pageW - mX, sigLineY);
+    doc.text('Date: _____ / _____ / _____', pageW - mX, sigLineY + 8, { align: 'right' });
   }
 
   // Footer — all pages
@@ -421,18 +418,18 @@ export async function exportPriceProposalPDF(
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...TEXT_MUTED);
-    doc.text('LEBTEX TEXTILE IMPORT — 31 Rue 65 Lotissement Al Hamd Ain-Chock, Casablanca, Maroc', pageW / 2, pageH - 24, { align: 'center' });
-    doc.text('Tél : +212 522 25 77 78  /  +212 522 31 62 88  —  Email : Contact.lebtex@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
-    doc.text('Patente : 34011181  —  R.C : 704617  —  I.F : 68814237  —  ICE : 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
+    doc.text('LEBTEX TEXTILE IMPORT — 31 Rue 65 Lotissement Al Hamd Ain-Chock, Casablanca, Morocco', pageW / 2, pageH - 24, { align: 'center' });
+    doc.text('Tel: +212 522 25 77 78  /  +212 522 31 62 88  —  Email: Contact.lebtex@gmail.com', pageW / 2, pageH - 19, { align: 'center' });
+    doc.text('Patente: 34011181  —  R.C: 704617  —  I.F: 68814237  —  ICE: 003823212000094', pageW / 2, pageH - 14, { align: 'center' });
     doc.setFillColor(...NAVY);
     doc.rect(0, pageH - 10, pageW, 10, 'F');
     doc.setFillColor(...GOLD);
     doc.rect(0, pageH - 10, 4, 10, 'F');
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text(`DEMANDE DE PRIX — ${todayIso}  |  Confidentiel`, mX + 4, pageH - 4);
+    doc.text(`PRICE QUOTATION REQUEST — ${todayIso}  |  Confidential`, mX + 4, pageH - 4);
     doc.text(`Page ${i} / ${pageCount}`, pageW - mX, pageH - 4, { align: 'right' });
   }
 
-  doc.save(`Demande_Prix_${(fournisseur || 'Fournisseur').toUpperCase().replace(/\s+/g, '_')}_${todayIso}.pdf`);
+  doc.save(`Price_Quotation_${(fournisseur || 'Supplier').toUpperCase().replace(/\s+/g, '_')}_${todayIso}.pdf`);
 }
