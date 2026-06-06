@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -18,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import LaunchOrderModal from './launch-order-modal';
 import ExportBonCommande from './export-bon-commande';
 import ExportClientCommande from './export-client-commande';
-import { exportPropositionFournisseurPDF } from '@/lib/export-proposition-pdf';
+import { exportPropositionFournisseurPDF, exportPriceProposalPDF } from '@/lib/export-proposition-pdf';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -214,7 +213,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     setShowPropositionModal(true);
   };
 
-  // ── Générer le PDF de proposition ───────────────────────────────────
+  // ── Generate quantity proposal PDF (no statuses) ─────────────────────
   const handleGenerateProposition = async () => {
     if (selectedArticles.length === 0) return;
     setIsGeneratingPDF(true);
@@ -222,10 +221,27 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
       await exportPropositionFournisseurPDF(selectedArticles, propositionFournisseur, propositionNote);
       setShowPropositionModal(false);
       clearSelection();
-      toast({ title: "PDF généré ✓", description: `Proposition pour ${propositionFournisseur || 'fournisseur'} — ${selectedArticles.length} article(s)` });
+      toast({ title: "PDF generated ✓", description: `Proposal for ${propositionFournisseur || 'supplier'} — ${selectedArticles.length} item(s)` });
     } catch (e) {
       console.error(e);
-      toast({ title: "Erreur PDF", variant: "destructive" });
+      toast({ title: "PDF Error", variant: "destructive" });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  // ── Generate price proposal PDF ───────────────────────────────────────
+  const handleGeneratePricePDF = async () => {
+    if (selectedArticles.length === 0) return;
+    setIsGeneratingPDF(true);
+    try {
+      await exportPriceProposalPDF(selectedArticles, propositionFournisseur, propositionNote);
+      setShowPropositionModal(false);
+      clearSelection();
+      toast({ title: "Price PDF generated ✓", description: `Price proposal for ${propositionFournisseur || 'supplier'} — ${selectedArticles.length} item(s)` });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "PDF Error", variant: "destructive" });
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -258,8 +274,54 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     );
   };
 
+  // ── Separate client articles from normal in kanban ──
+  const clientNormalArticles = useMemo(() => normalArticles.filter(o => o.isPreorder && o.clientName), [normalArticles]);
+  const pureNormalArticles   = useMemo(() => normalArticles.filter(o => !(o.isPreorder && o.clientName)), [normalArticles]);
+
   return (
     <div className="space-y-8 fade-in">
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* STICKY TOP BAR — Supplier Proposal (replaces fixed bottom bar)  */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-16 z-40 animate-in slide-in-from-top-2 duration-300 -mx-0">
+          <div className="bg-stone-900 border-b border-white/10 shadow-2xl px-5 py-3 flex items-center gap-4">
+            {/* Icon + counter */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30 shrink-0">
+                <FileText className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-white uppercase tracking-widest leading-none">
+                  {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
+                </p>
+                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-0.5">
+                  {selectedArticles.map(a => a.name || a.categoryId).join(' · ').slice(0, 60)}{selectedIds.size > 3 ? '…' : ''}
+                </p>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              <button
+                onClick={clearSelection}
+                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-stone-400 hover:text-white flex items-center justify-center transition-all"
+                title="Clear selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleOpenProposition}
+                className="flex items-center gap-2 h-9 px-4 bg-amber-500 hover:bg-amber-400 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-500/30 active:scale-95"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Propose to Supplier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Header premium ─── */}
       <header className="bg-stone-900 rounded-[2rem] shadow-2xl overflow-hidden relative">
@@ -382,7 +444,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
         </div>
       )}
 
-      {/* ─── Besoins Kanban (articles normaux) ─── */}
+      {/* ─── Besoins Kanban ─── */}
       {normalArticles.length === 0 && containerGroups.length === 0 ? (
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="py-20 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">
@@ -390,62 +452,152 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
           </CardContent>
         </Card>
       ) : normalArticles.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {([
-            { prio: 'urgent', label: 'Urgent', dotColor: 'bg-red-500', borderColor: 'border-red-200', borderLeft: 'border-l-red-400', bgColor: 'bg-red-50', textColor: 'text-red-700', badgeCls: 'bg-red-500 text-white' },
-            { prio: 'important', label: 'Important', dotColor: 'bg-amber-400', borderColor: 'border-amber-200', borderLeft: 'border-l-amber-400', bgColor: 'bg-amber-50', textColor: 'text-amber-700', badgeCls: 'bg-amber-400 text-white' },
-            { prio: 'todo', label: 'À faire', dotColor: 'bg-stone-400', borderColor: 'border-stone-200', borderLeft: 'border-l-stone-300', bgColor: 'bg-stone-50', textColor: 'text-stone-600', badgeCls: 'bg-stone-100 text-stone-500 border border-stone-200' },
-          ] as const).map(col => {
-            const colArts = normalArticles.filter(o => (o.priority || 'todo') === col.prio);
-            return (
-              <div key={col.prio} className="space-y-3">
-                <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${col.bgColor} border ${col.borderColor}`}>
-                  <span className={`w-2 h-2 rounded-full ${col.dotColor}`} />
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${col.textColor}`}>{col.label}</span>
-                  <span className={`ml-auto text-[9px] font-black px-2 py-0.5 rounded-full ${col.badgeCls}`}>{colArts.length}</span>
+        <div className="space-y-8">
+
+          {/* ── Client Orders ── */}
+          {clientNormalArticles.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-200">
+                  <CheckSquare className="w-4 h-4 text-indigo-600" />
                 </div>
-                {colArts.length === 0 ? (
-                  <div className="bg-white rounded-2xl border border-dashed border-stone-200 py-8 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">Vide</div>
-                ) : colArts.map(o => {
-                  const isZipper = isZipperCategory(o.categoryId);
-                  const isSelected = selectedIds.has(o.id);
+                <div>
+                  <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Client Pre-orders</p>
+                  <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">Client <span className="text-indigo-500">Assigned</span></p>
+                </div>
+                <span className="ml-auto text-[9px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                  {clientNormalArticles.length} article{clientNormalArticles.length > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {([
+                  { prio: 'urgent',    label: 'Urgent',    dotColor: 'bg-red-500',   borderColor: 'border-red-200',   borderLeft: 'border-l-red-400',   bgColor: 'bg-red-50',    textColor: 'text-red-700',   badgeCls: 'bg-red-500 text-white' },
+                  { prio: 'important', label: 'Important', dotColor: 'bg-amber-400', borderColor: 'border-amber-200', borderLeft: 'border-l-amber-400', bgColor: 'bg-amber-50',  textColor: 'text-amber-700', badgeCls: 'bg-amber-400 text-white' },
+                  { prio: 'todo',      label: 'To Do',     dotColor: 'bg-stone-400', borderColor: 'border-stone-200', borderLeft: 'border-l-stone-300', bgColor: 'bg-stone-50',  textColor: 'text-stone-600', badgeCls: 'bg-stone-100 text-stone-500 border border-stone-200' },
+                ] as const).map(col => {
+                  const colArts = clientNormalArticles.filter(o => (o.priority || 'todo') === col.prio);
                   return (
-                    <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <ArticleCheckbox id={o.id} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-black text-stone-900 text-[12px] uppercase leading-tight">{o.name}</p>
-                          {o.isPreorder && o.clientName && (
-                            <span className="inline-flex items-center gap-1 text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full mt-1 uppercase">
-                              {o.clientName}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-black text-stone-900 whitespace-nowrap shrink-0">
-                          {Number(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-bold">{o.unitOfMeasure}</span>
-                        </span>
+                    <div key={col.prio} className="space-y-3">
+                      <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${col.bgColor} border ${col.borderColor}`}>
+                        <span className={`w-2 h-2 rounded-full ${col.dotColor}`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${col.textColor}`}>{col.label}</span>
+                        <span className={`ml-auto text-[9px] font-black px-2 py-0.5 rounded-full ${col.badgeCls}`}>{colArts.length}</span>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {o.size && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.size}</span>}
-                        {o.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.color}</span>}
-                        {isZipper && o.zipperType && <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg uppercase">{o.zipperType} {o.slider || ''}</span>}
-                        {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
-                      </div>
-                      <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
-                        {o.clientName && <ExportClientCommande article={o} />}
-                        <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                        <Button size="sm" onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[8px] tracking-widest px-3 h-7 rounded-lg ml-1 gap-1">
-                          Commander <ArrowRight className="w-2.5 h-2.5" />
-                        </Button>
-                      </div>
+                      {colArts.length === 0 ? (
+                        <div className="bg-white rounded-2xl border border-dashed border-stone-200 py-8 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">Empty</div>
+                      ) : colArts.map(o => {
+                        const isZipper = isZipperCategory(o.categoryId);
+                        const isSelected = selectedIds.has(o.id);
+                        return (
+                          <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <ArticleCheckbox id={o.id} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-stone-900 text-[12px] uppercase leading-tight">{o.name}</p>
+                                <span className="inline-flex items-center gap-1 text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full mt-1 uppercase">
+                                  👤 {o.clientName}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-black text-stone-900 whitespace-nowrap shrink-0">
+                                {Number(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-bold">{o.unitOfMeasure}</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {o.size && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.size}</span>}
+                              {o.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.color}</span>}
+                              {isZipper && o.zipperType && <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg uppercase">{o.zipperType} {o.slider || ''}</span>}
+                              {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
+                            </div>
+                            <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
+                              {o.clientName && <ExportClientCommande article={o} />}
+                              <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              <Button size="sm" onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[8px] tracking-widest px-3 h-7 rounded-lg ml-1 gap-1">
+                                Order <ArrowRight className="w-2.5 h-2.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
               </div>
-            );
-          })}
+            </div>
+          )}
+
+          {/* ── Standard Orders ── */}
+          {pureNormalArticles.length > 0 && (
+            <div className="space-y-4">
+              {clientNormalArticles.length > 0 && (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-stone-100 rounded-xl border border-stone-200">
+                    <ListTodo className="w-4 h-4 text-stone-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Standard Needs</p>
+                    <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">General <span className="text-amber-500">Orders</span></p>
+                  </div>
+                  <span className="ml-auto text-[9px] font-black bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                    {pureNormalArticles.length} article{pureNormalArticles.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {([
+                  { prio: 'urgent',    label: 'Urgent',    dotColor: 'bg-red-500',   borderColor: 'border-red-200',   borderLeft: 'border-l-red-400',   bgColor: 'bg-red-50',   textColor: 'text-red-700',   badgeCls: 'bg-red-500 text-white' },
+                  { prio: 'important', label: 'Important', dotColor: 'bg-amber-400', borderColor: 'border-amber-200', borderLeft: 'border-l-amber-400', bgColor: 'bg-amber-50', textColor: 'text-amber-700', badgeCls: 'bg-amber-400 text-white' },
+                  { prio: 'todo',      label: 'To Do',     dotColor: 'bg-stone-400', borderColor: 'border-stone-200', borderLeft: 'border-l-stone-300', bgColor: 'bg-stone-50', textColor: 'text-stone-600', badgeCls: 'bg-stone-100 text-stone-500 border border-stone-200' },
+                ] as const).map(col => {
+                  const colArts = pureNormalArticles.filter(o => (o.priority || 'todo') === col.prio);
+                  return (
+                    <div key={col.prio} className="space-y-3">
+                      <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${col.bgColor} border ${col.borderColor}`}>
+                        <span className={`w-2 h-2 rounded-full ${col.dotColor}`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${col.textColor}`}>{col.label}</span>
+                        <span className={`ml-auto text-[9px] font-black px-2 py-0.5 rounded-full ${col.badgeCls}`}>{colArts.length}</span>
+                      </div>
+                      {colArts.length === 0 ? (
+                        <div className="bg-white rounded-2xl border border-dashed border-stone-200 py-8 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">Empty</div>
+                      ) : colArts.map(o => {
+                        const isZipper = isZipperCategory(o.categoryId);
+                        const isSelected = selectedIds.has(o.id);
+                        return (
+                          <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <ArticleCheckbox id={o.id} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-stone-900 text-[12px] uppercase leading-tight">{o.name}</p>
+                              </div>
+                              <span className="text-[10px] font-black text-stone-900 whitespace-nowrap shrink-0">
+                                {Number(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-bold">{o.unitOfMeasure}</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {o.size && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.size}</span>}
+                              {o.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.color}</span>}
+                              {isZipper && o.zipperType && <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg uppercase">{o.zipperType} {o.slider || ''}</span>}
+                              {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
+                            </div>
+                            <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
+                              {o.clientName && <ExportClientCommande article={o} />}
+                              <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                              <Button size="sm" onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }} className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[8px] tracking-widest px-3 h-7 rounded-lg ml-1 gap-1">
+                                Order <ArrowRight className="w-2.5 h-2.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -725,48 +877,6 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
       <LaunchOrderModal open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen} article={selectedArticle} />
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* BANDEAU FLOTTANT — Proposition fournisseur                    */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-stone-900 border border-white/10 shadow-2xl rounded-2xl px-5 py-3.5 flex items-center gap-4 min-w-[420px] max-w-[600px]">
-            {/* Icône + compteur */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30 shrink-0">
-                <FileText className="w-4.5 h-4.5 text-white" />
-              </div>
-              <div>
-                <p className="text-[11px] font-black text-white uppercase tracking-widest leading-none">
-                  {selectedIds.size} article{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
-                </p>
-                <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-0.5">
-                  {selectedArticles.map(a => a.name || a.categoryId).join(' · ').slice(0, 60)}{selectedIds.size > 3 ? '…' : ''}
-                </p>
-              </div>
-            </div>
-
-            {/* Boutons */}
-            <div className="flex items-center gap-2 ml-auto shrink-0">
-              <button
-                onClick={clearSelection}
-                className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-stone-400 hover:text-white flex items-center justify-center transition-all"
-                title="Annuler la sélection"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleOpenProposition}
-                className="flex items-center gap-2 h-9 px-4 bg-amber-500 hover:bg-amber-400 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-500/30 active:scale-95"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                Proposer au fournisseur
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════ */}
       {/* MODAL — Proposition fournisseur                               */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {showPropositionModal && (
@@ -850,7 +960,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                   onClick={() => setShowPropositionModal(false)}
                   className="flex-1 h-11 rounded-xl border-2 border-stone-200 text-stone-500 font-black text-[10px] uppercase tracking-widest hover:bg-stone-50 transition-all"
                 >
-                  Annuler
+                  Cancel
                 </button>
                 <button
                   onClick={handleGenerateProposition}
@@ -858,7 +968,15 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                   className="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-stone-200 disabled:text-stone-400 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/25 active:scale-95"
                 >
                   <FileText className="w-4 h-4" />
-                  {isGeneratingPDF ? 'Génération…' : 'Générer le PDF'}
+                  {isGeneratingPDF ? 'Generating…' : 'Proposal PDF (Qty)'}
+                </button>
+                <button
+                  onClick={handleGeneratePricePDF}
+                  disabled={isGeneratingPDF}
+                  className="flex-1 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-stone-200 disabled:text-stone-400 text-white font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 active:scale-95"
+                >
+                  <FileText className="w-4 h-4" />
+                  {isGeneratingPDF ? 'Generating…' : 'Price PDF'}
                 </button>
               </div>
             </div>

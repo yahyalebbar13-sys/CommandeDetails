@@ -2343,13 +2343,13 @@ function GroupedArticleList({
                 <div className="p-3 space-y-2">
                   {groupArticles.map(a => {
                     const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
-                    // Resolve image: article own image first, then matching category fallback
+                    // Resolve image: article own image first (incl. designImageUrl for cursors/sliders), then matching category fallback
                     const catName = (a.categoryId || '').trim().toLowerCase();
                     const cat = categories.find((c: any) => {
                       const cName = (c.name || '').trim().toLowerCase();
                       return cName === catName || c.id === a.categoryId;
                     });
-                    const displayImage = a.imageUrl || cat?.imageUrl || null;
+                    const displayImage = a.imageUrl || a.designImageUrl || cat?.imageUrl || null;
                     return (
                       <div
                         key={a.id}
@@ -2782,10 +2782,10 @@ export function ClientDetailView({
                 </div>
 
                 {/* Product image — shown below header if available */}
-                {(selectedArticle.imageUrl || selectedCategory?.imageUrl) && (
+                {(selectedArticle.imageUrl || selectedArticle.designImageUrl || selectedCategory?.imageUrl) && (
                   <div className="w-full bg-white border-b border-stone-100 flex items-center justify-center" style={{ maxHeight: 220 }}>
                     <img
-                      src={selectedArticle.imageUrl || selectedCategory?.imageUrl}
+                      src={selectedArticle.imageUrl || selectedArticle.designImageUrl || selectedCategory?.imageUrl}
                       alt={selectedArticle.categoryId}
                       className="max-h-52 w-full object-contain"
                     />
