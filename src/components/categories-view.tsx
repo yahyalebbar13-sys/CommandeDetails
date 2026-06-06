@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -30,7 +30,12 @@ import {
   Hash,
   ImagePlus,
   Loader2,
-  X as XIcon
+  X as XIcon,
+  ChevronDown,
+  ChevronRight,
+  ArrowRightLeft,
+  ArrowDownToLine,
+  ArrowUpFromLine
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
@@ -46,17 +51,22 @@ import { doc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
+import { isZipperCategory as isTechnicalZipper } from '@/lib/constants';
+import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
+import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
 interface CategoriesViewProps {
   articles: any[];
   factures: any[];
   generalCategories: any[];
   subCategories: any[];
+  stockItems?: any[];
   selectedCategory: string | null;
   setSelectedCategory: (category: string | null) => void;
   selectedGeneralCategoryId: string | null;
   onSelectGeneralCategory: (id: string | null) => void;
   onBackToGroupes?: () => void;
+  movements?: any[];
 }
 
 const UI_COLORS = ['#CC8626', '#1E293B', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#8B5CF6', '#EC4899'];
@@ -65,28 +75,210 @@ const STATUS_COLORS = {
   'ARRIVED': '#10B981',
   'PENDING': '#F59E0B'
 };
+// ── FicheStock : fiche dépliable par produit ────────────────────────────────
+function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures }: {
+  article: any; color: string; pct: number;
+  entriesIN: any[]; entriesOUT: any[]; factures: any[];
+}) {
+  const [open, setOpen] = React.useState(false);
+  const totalIn  = a.initialQty + a.mouvementsIn;
+  const totalOut = a.mouvementsOut;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-md border border-stone-100 overflow-hidden transition-all duration-300">
+      {/* ── En-tête produit (toujours visible) ── */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full text-left"
+      >
+        {/* barre couleur */}
+        <div className="h-1 w-full" style={{ backgroundColor: color }} />
+        <div className="flex items-center gap-4 px-5 py-4">
+
+          {/* Swatch couleur */}
+          <div className="w-10 h-10 rounded-xl border border-stone-100 shrink-0 flex items-center justify-center"
+            style={{ backgroundColor: a.color ? (() => {
+              const m: Record<string,string> = { rouge:'#ef4444',bleu:'#3b82f6',vert:'#22c55e',noir:'#1c1917',blanc:'#f5f5f4',gris:'#6b7280',jaune:'#eab308',orange:'#f97316',violet:'#8b5cf6',rose:'#f43f5e',marron:'#92400e',beige:'#d6c5a3',kaki:'#6b7a42' };
+              return m[a.color.toLowerCase()] || '#e7e5e4';
+            })() : '#f5f5f4' }}>
+            {!a.color && <Package className="w-4 h-4 text-stone-300" />}
+          </div>
+
+          {/* Infos produit */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-black text-stone-900 uppercase tracking-tighter leading-tight">{a.productName}</p>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              {a.size  && <span className="text-[7px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
+              {a.color && <span className="text-[7px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
+            </div>
+          </div>
+
+          {/* Stats compactes */}
+          <div className="flex items-center gap-5 shrink-0">
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Entrées</p>
+              <p className="text-[13px] font-black text-emerald-600">+{Number(totalIn).toLocaleString('fr-MA')}</p>
+              <p className="text-[7px] text-stone-300 font-bold">{a.unitOfMeasure}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Sorties</p>
+              <p className={`text-[13px] font-black ${totalOut > 0 ? 'text-rose-600' : 'text-stone-300'}`}>
+                {totalOut > 0 ? `-${Number(totalOut).toLocaleString('fr-MA')}` : '—'}
+              </p>
+              <p className="text-[7px] text-stone-300 font-bold">{totalOut > 0 ? a.unitOfMeasure : ''}</p>
+            </div>
+            <div className="text-center bg-stone-50 rounded-xl px-3 py-2 min-w-[80px]">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Stock Réel</p>
+              <p className="text-[16px] font-black text-stone-900">{Number(a.currentQty).toLocaleString('fr-MA')}</p>
+              <div className="h-1 bg-stone-200 rounded-full mt-1 overflow-hidden">
+                <div className={`h-full rounded-full ${pct < 30 ? 'bg-rose-400' : pct < 60 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase">Valeur</p>
+              <p className="text-[11px] font-black" style={{ color }}>{Number(a.totalValue).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}</p>
+            </div>
+
+            {/* Chevron */}
+            <div className={`w-7 h-7 rounded-xl border border-stone-200 flex items-center justify-center transition-transform duration-300 ${open ? 'rotate-180 bg-stone-900 border-stone-900' : 'bg-white'}`}>
+              <ChevronDown className={`w-4 h-4 ${open ? 'text-white' : 'text-stone-400'}`} />
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* ── Détail historique (déplié) ── */}
+      {open && (
+        <div className="border-t border-stone-100 bg-stone-50/60 px-5 py-4 space-y-5 animate-in slide-in-from-top-2 duration-200">
+
+          {/* ENTRÉES */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
+              </div>
+              <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest">Entrées en stock — {entriesIN.length} arrivage{entriesIN.length > 1 ? 's' : ''}</p>
+            </div>
+            {entriesIN.length === 0 ? (
+              <p className="text-[9px] text-stone-300 font-bold pl-7">Aucune entrée enregistrée</p>
+            ) : (
+              <div className="space-y-2">
+                {entriesIN.map((mv, i) => {
+                  const facture = factures.find((f: any) => f.id === mv.factureId);
+                  const hasCost = mv.purchasePriceMAD != null && mv.purchasePriceMAD > 0;
+                  return (
+                    <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-emerald-100 shadow-sm">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                      <div className="flex-1 grid grid-cols-4 gap-3 text-[10px]">
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Date</p>
+                          <p className="font-black text-stone-700">{mv.date || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Quantité</p>
+                          <p className="font-black text-emerald-700">+{Number(mv.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Coût de Revient</p>
+                          {hasCost ? (
+                            <p className="font-black text-violet-700">{Number(mv.purchasePriceMAD).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD/u</p>
+                          ) : (
+                            <p className="font-bold text-stone-300">—</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Arrivage</p>
+                          <p className="font-black text-stone-500 truncate">{facture?.id || mv.factureId || mv.notes || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SORTIES */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 rounded-lg bg-rose-100 flex items-center justify-center">
+                <ArrowUpFromLine className="w-3 h-3 text-rose-600" />
+              </div>
+              <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest">Sorties — {entriesOUT.length} mouvement{entriesOUT.length > 1 ? 's' : ''}</p>
+            </div>
+            {entriesOUT.length === 0 ? (
+              <p className="text-[9px] text-stone-300 font-bold pl-7">Aucune sortie enregistrée</p>
+            ) : (
+              <div className="space-y-2">
+                {entriesOUT.map((mv, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-rose-100 shadow-sm">
+                    <div className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
+                    <div className="flex-1 grid grid-cols-3 gap-3 text-[10px]">
+                      <div>
+                        <p className="text-stone-400 font-bold uppercase text-[7px]">Date</p>
+                        <p className="font-black text-stone-700">{mv.date || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-stone-400 font-bold uppercase text-[7px]">Quantité</p>
+                        <p className="font-black text-rose-600">-{Number(mv.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure}</p>
+                      </div>
+                      <div>
+                        <p className="text-stone-400 font-bold uppercase text-[7px]">Raison</p>
+                        <p className="font-black text-stone-500">{mv.reason || mv.notes || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CategoriesView({
   articles = [],
   factures = [],
   generalCategories = [],
   subCategories = [],
+  stockItems = [],
   selectedCategory,
   setSelectedCategory,
   selectedGeneralCategoryId,
   onSelectGeneralCategory,
-  onBackToGroupes
+  onBackToGroupes,
+  movements = []
 }: CategoriesViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [todayStr, setTodayStr] = useState('');
+  const [todayStr, setTodayStr] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  // ── Reorder schedule config modal
+  const [reorderConfigCat, setReorderConfigCat] = useState<any>(null);
+  const [reorderSeasons, setReorderSeasons] = useState<OrderScheduleSeason[]>([]);
+  const [reorderSaving, setReorderSaving] = useState(false);
+  
+  const [expandedStockItems, setExpandedStockItems] = useState<Set<string>>(new Set());
+  
+  const toggleStockExpand = (articleId: string) => {
+    setExpandedStockItems(prev => {
+      const next = new Set(prev);
+      if (next.has(articleId)) next.delete(articleId);
+      else next.add(articleId);
+      return next;
+    });
+  };
 
   // Debounce search: only filter after 200ms of inactivity
   useEffect(() => {
@@ -126,8 +318,7 @@ export default function CategoriesView({
     if (!user || !firestore || !currentCategoryObj) return;
     const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
     updateDocumentNonBlocking(docRef, {
-      ...currentCategoryObj,
-      hsCode: customsForm.hsCode,
+      hsCode: customsForm.hsCode || null,
       customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
       importDutyRate: customsForm.importDutyRate === '' ? null : Number(customsForm.importDutyRate),
       tpiRate: customsForm.tpiRate === '' ? null : Number(customsForm.tpiRate),
@@ -165,7 +356,7 @@ export default function CategoriesView({
           async () => {
             const url = await getDownloadURL(task.snapshot.ref);
             const docRef = doc(firestore!, 'users', user.uid, 'categories', currentCategoryObj.id);
-            updateDocumentNonBlocking(docRef, { ...currentCategoryObj, imageUrl: url });
+            updateDocumentNonBlocking(docRef, { imageUrl: url });
             resolve();
           }
         );
@@ -184,27 +375,29 @@ export default function CategoriesView({
       const storage = getStorage(getApp());
       await deleteObject(storageRef(storage, `users/${user.uid}/categories/${currentCategoryObj.id}/photo`)).catch(() => {});
       const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
-      updateDocumentNonBlocking(docRef, { ...currentCategoryObj, imageUrl: null });
+      updateDocumentNonBlocking(docRef, { imageUrl: null });
       toast({ title: 'Photo supprimée' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     }
   };
 
-  useEffect(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    setTodayStr(`${year}-${month}-${day}`);
-  }, []);
 
-  // Memoized with useCallback so it's not re-created on every render
-  const isTechnicalZipper = useCallback((catName: string | undefined): boolean => {
-    if (!catName) return false;
-    const upper = catName.toUpperCase();
-    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
-  }, []);
+  // isTechnicalZipper importé depuis @/lib/constants
+
+  // ── Alertes de réapprovisionnement
+  const reorderAlerts = useMemo(() => {
+    const result: Record<string, ReturnType<typeof computeReorderAlert>> = {};
+    subCategories.forEach(sc => { result[sc.name] = computeReorderAlert(sc, articles); });
+    return result;
+  }, [subCategories, articles]);
+
+  const activeAlerts = useMemo(() =>
+    subCategories
+      .map(sc => ({ cat: sc, alert: reorderAlerts[sc.name] }))
+      .filter(x => x.alert && x.alert.level !== 'OK')
+      .sort((a, b) => a.alert!.daysLeft - b.alert!.daysLeft),
+  [subCategories, reorderAlerts]);
 
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
@@ -383,13 +576,14 @@ export default function CategoriesView({
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Filter specifically for NO5 NYLON ZIPPER
-    const isTargetCategory = selectedCategory.toUpperCase().includes('NO5') && selectedCategory.toUpperCase().includes('NYLON') && selectedCategory.toUpperCase().includes('ZIPPER');
+    // Filtre de taille optionnel — lu depuis currentCategoryObj.sizeFilter
+    const allowedSizes: string[] | null =
+      Array.isArray(currentCategoryObj?.sizeFilter) && currentCategoryObj.sizeFilter.length > 0
+        ? currentCategoryObj.sizeFilter : null;
     
     const productsSet = new Set<string>();
     currentArticles.forEach(a => {
-      // Apply size filter for target category
-      if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
+      if (allowedSizes && !allowedSizes.includes(a.size)) return;
 
       const parts = [];
       const isTechnical = isTechnicalZipper(a.categoryId);
@@ -413,7 +607,7 @@ export default function CategoriesView({
       const date = a.orderDate || (a.createdAt ? new Date(a.createdAt.seconds * 1000).toISOString().split('T')[0] : null);
       if (!date) return;
 
-      if (isTargetCategory && !(a.size === '75cm' || a.size === '1m20')) return;
+      if (allowedSizes && !allowedSizes.includes(a.size)) return;
 
       if (!dateGroups[date]) dateGroups[date] = { date };
       
@@ -529,7 +723,7 @@ export default function CategoriesView({
       {
         key: 'stock' as const,
         label: 'En Stock',
-        count: groupedData.arrived.length,
+        count: stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0).length,
         icon: CheckCircle2,
         activeColor: 'bg-emerald-500',
         activeBg: 'bg-emerald-50 text-emerald-800',
@@ -889,73 +1083,46 @@ export default function CategoriesView({
               </Table>
             )}
 
-            {/* Stock table */}
-            {activeManifeste === 'stock' && (
-              <Table>
-                <TableHeader className="bg-stone-50/80">
-                  <TableRow>
-                    <TableHead className="text-[10px] font-black uppercase py-4 px-6 text-stone-500">Désignation</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Taille</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Couleur</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Technique</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Date Cmd</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase py-4 text-stone-500">Entrée Stock</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 text-stone-500">Stock Réel</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase py-4 px-6 text-stone-500">Valeur</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedData.arrived.length > 0 ? groupedData.arrived.map(a => {
-                    const isTechnical = isTechnicalZipper(a.categoryId);
+            {/* ── Fiches de Stock par produit ── */}
+            {activeManifeste === 'stock' && (() => {
+              const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
+              if (currentStock.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-stone-50 flex items-center justify-center mb-4">
+                      <Package className="w-7 h-7 text-stone-200" />
+                    </div>
+                    <p className="text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucun article validé en stock</p>
+                    <p className="text-stone-200 text-[9px] font-bold mt-1">Validez un arrivage depuis l'onglet Arrivages pour l'afficher ici</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="p-4 space-y-3">
+                  {currentStock.map((a, idx) => {
+                    const color = UI_COLORS[idx % UI_COLORS.length];
+                    const artMovements = movements.filter(m => m.articleId === a.articleId);
+                    const entriesIN  = artMovements.filter(m => m.type === 'IN').sort((x,y) => (y.date||'').localeCompare(x.date||''));
+                    const entriesOUT = artMovements.filter(m => m.type === 'OUT').sort((x,y) => (y.date||'').localeCompare(x.date||''));
+                    const pct = a.initialQty + a.mouvementsIn > 0
+                      ? Math.min(100, Math.round((a.currentQty / (a.initialQty + a.mouvementsIn)) * 100))
+                      : 100;
+
                     return (
-                      <TableRow key={a.id} className="hover:bg-emerald-50/20 transition-colors border-stone-50">
-                        <TableCell className="py-3.5 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
-                            <span>{a.name}</span>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}><Pencil className="w-3 h-3" /></Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
-                        <TableCell className="py-3.5">
-                          {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
-                              <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
-                            </div>
-                          ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
-                        </TableCell>
-                        <TableCell className="text-[10px] py-3.5">
-                          {isTechnical ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
-                            </div>
-                          ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
-                        </TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-3.5">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="py-3.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase">
-                            <CheckCircle2 className="w-2.5 h-2.5" />{a.stockEntryDate || a.arrivalDate}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right py-3.5">
-                          <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                          <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
-                          {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
-                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right py-3.5 px-6">
-                          <span className="font-black text-emerald-700 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
-                        </TableCell>
-                      </TableRow>
+                      <FicheStock
+                        key={a.articleId}
+                        article={a}
+                        color={color}
+                        pct={pct}
+                        entriesIN={entriesIN}
+                        entriesOUT={entriesOUT}
+                        factures={factures}
+                      />
                     );
-                  }) : (
-                    <TableRow><TableCell colSpan={8} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Rupture de stock physique</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -1120,6 +1287,7 @@ export default function CategoriesView({
   if (selectedGeneralCategoryId) {
     const parent = generalCategories.find(g => g.id === selectedGeneralCategoryId);
     return (
+      <>
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[1.5rem] shadow-xl border border-stone-100">
           <div className="flex items-center gap-4">
@@ -1143,20 +1311,63 @@ export default function CategoriesView({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {subCategoryStats.map((sc, idx) => (
+
+          {/* Banner alertes */}
+          {activeAlerts.length > 0 && (
+            <div className="col-span-full rounded-2xl border border-orange-200 bg-orange-50 overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-2.5 bg-orange-100/70 border-b border-orange-200">
+                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                <span className="text-[10px] font-black text-orange-800 uppercase tracking-widest flex-1">
+                  {activeAlerts.length} catégorie{activeAlerts.length > 1 ? 's' : ''} à commander bientôt
+                </span>
+              </div>
+              <div className="divide-y divide-orange-100">
+                {activeAlerts.map(({ cat, alert }) => (
+                  <div key={cat.id} className="flex items-center gap-3 px-5 py-2 hover:bg-orange-100/40 transition-colors cursor-pointer" onClick={() => setSelectedCategory(cat.name)}>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                      alert!.level === 'OVERDUE' ? 'bg-red-100 text-red-700' :
+                      alert!.level === 'URGENT' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'
+                    }`}>{alert!.level === 'OVERDUE' ? 'Dépassé' : alert!.level === 'URGENT' ? 'Urgent' : 'Bientôt'}</span>
+                    <span className="text-[10px] font-black text-stone-800 uppercase flex-1">{cat.name}</span>
+                    <span className="text-[9px] font-bold text-stone-500">{formatReorderBadge(alert!)}</span>
+                    <span className="text-[8px] text-stone-400 font-bold">{alert!.season.season}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {subCategoryStats.map((sc, idx) => {
+            const alert = reorderAlerts[sc.name];
+            const alertVisible = alert && alert.level !== 'OK';
+            const alertColor = alert?.level === 'OVERDUE'
+              ? { bg: 'bg-red-500', border: 'border-red-200', text: 'text-red-700', light: 'bg-red-50' }
+              : alert?.level === 'URGENT'
+              ? { bg: 'bg-orange-500', border: 'border-orange-200', text: 'text-orange-700', light: 'bg-orange-50' }
+              : { bg: 'bg-amber-400', border: 'border-amber-200', text: 'text-amber-700', light: 'bg-amber-50' };
+            const catObj = subCategories.find(s => s.name === sc.name);
+            return (
             <Card 
               key={sc.id} 
-              className="cursor-pointer border-stone-100 hover:border-amber-400 hover:bg-amber-50/20 transition-all shadow-lg hover:shadow-amber-500/10 group rounded-[1.2rem] overflow-hidden bg-white active:scale-95"
+              className={`cursor-pointer border-stone-100 hover:border-amber-400 hover:bg-amber-50/20 transition-all shadow-lg hover:shadow-amber-500/10 group rounded-[1.2rem] overflow-hidden bg-white active:scale-95${alertVisible ? ` ring-1 ring-offset-1 ${alertColor.border}` : ''}`}
               onClick={() => setSelectedCategory(sc.name)}
             >
               <CardContent className="p-0">
                 <div className={`h-1 w-full ${UI_COLORS[idx % UI_COLORS.length]}`} style={{ backgroundColor: UI_COLORS[idx % UI_COLORS.length] }} />
-                <div className="p-4">
+                <div className="p-4 pb-2">
                   <div className="flex justify-between items-start mb-3">
                     <div className="p-2 bg-stone-50 rounded-lg group-hover:bg-white transition-colors">
                       <Package className="w-3.5 h-3.5 text-stone-300 group-hover:text-stone-900" />
                     </div>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Configurer le rappel de commande"
+                        onClick={(e) => { e.stopPropagation(); if (catObj) { setReorderConfigCat(catObj); setReorderSeasons(catObj.orderSchedule ? [...catObj.orderSchedule] : []); } }}
+                      >
+                        <Settings2 className="w-3 h-3" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -1168,8 +1379,18 @@ export default function CategoriesView({
                       <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
                     </div>
                   </div>
-                  <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-4 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
-                  
+                    <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-3 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
+
+                  {alertVisible && (
+                    <div className={`mb-2 px-2.5 py-1.5 rounded-xl border ${alertColor.border} ${alertColor.light} flex items-center gap-2`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${alertColor.bg} shrink-0 animate-pulse`} />
+                      <span className={`text-[8px] font-black uppercase tracking-wider ${alertColor.text} flex-1 leading-tight`}>
+                        {formatReorderBadge(alert!)}
+                      </span>
+                      <span className="text-[7px] text-stone-400 font-bold shrink-0">{alert!.season.season}</span>
+                    </div>
+                  )}
+
                   <div className="space-y-2 pt-3 border-t border-stone-50">
                     <div className="flex justify-between items-center text-[8px]">
                       <span className="text-stone-400 font-black uppercase flex items-center gap-1">
@@ -1191,9 +1412,91 @@ export default function CategoriesView({
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* ── Modal configuration rappel de commande ── */}
+      <Dialog open={!!reorderConfigCat} onOpenChange={open => { if (!open) setReorderConfigCat(null); }}>
+        <DialogContent className="sm:max-w-lg rounded-3xl border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-[11px] font-black uppercase tracking-widest text-stone-500">Rappel de Commande</DialogTitle>
+            <p className="text-base font-black text-stone-900 uppercase tracking-tight mt-0.5">{reorderConfigCat?.name}</p>
+          </DialogHeader>
+          <div className="space-y-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
+            <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Intervalles de commande par saison</p>
+            {reorderSeasons.length === 0 && (
+              <p className="text-xs text-stone-400 text-center py-4">Aucune saison configurée. Ajoutez-en une ci-dessous.</p>
+            )}
+            {reorderSeasons.map((s, i) => (
+              <div key={i} className="bg-stone-50 border border-stone-100 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Saison {i + 1}</span>
+                  <button type="button" onClick={() => setReorderSeasons(prev => prev.filter((_, j) => j !== i))}
+                    className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Nom de la saison</Label>
+                    <Input value={s.season} onChange={e => setReorderSeasons(prev => prev.map((x, j) => j === i ? { ...x, season: e.target.value } : x))}
+                      placeholder="Été, Hiver, Ramadan..." className="h-9 text-xs font-bold rounded-xl border-stone-200" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Intervalle (jours)</Label>
+                    <Input type="number" min={1} value={s.intervalDays}
+                      onChange={e => setReorderSeasons(prev => prev.map((x, j) => j === i ? { ...x, intervalDays: Number(e.target.value) } : x))}
+                      placeholder="60" className="h-9 text-xs font-bold rounded-xl border-stone-200" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
+                    Mois actifs <span className="font-normal text-stone-400 normal-case">(vide = toute l&apos;année)</span>
+                  </Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'].map((m, mi) => {
+                      const active = s.months.includes(mi + 1);
+                      return (
+                        <button key={mi} type="button"
+                          onClick={() => setReorderSeasons(prev => prev.map((x, j) => j !== i ? x : {
+                            ...x, months: active ? x.months.filter(n => n !== mi + 1) : [...x.months, mi + 1].sort((a,b)=>a-b)
+                          }))}
+                          className={`text-[9px] font-black px-2.5 py-1 rounded-lg border transition-all uppercase ${
+                            active ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
+                          }`}>{m}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button type="button"
+              onClick={() => setReorderSeasons(prev => [...prev, { season: '', intervalDays: 60, months: [] }])}
+              className="w-full py-2.5 rounded-2xl border-2 border-dashed border-stone-200 text-[10px] font-black text-stone-400 hover:border-amber-400 hover:text-amber-600 transition-all uppercase tracking-widest">
+              + Ajouter une saison
+            </button>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setReorderConfigCat(null)} className="rounded-xl text-[10px] font-black uppercase">Annuler</Button>
+            <Button disabled={reorderSaving}
+              onClick={() => {
+                if (!user || !firestore || !reorderConfigCat) return;
+                setReorderSaving(true);
+                const docRef = doc(firestore, 'users', user.uid, 'categories', reorderConfigCat.id);
+                updateDocumentNonBlocking(docRef, { orderSchedule: reorderSeasons });
+                toast({ title: 'Rappel enregistré', description: reorderConfigCat.name });
+                setReorderSaving(false);
+                setReorderConfigCat(null);
+              }}
+              className="bg-stone-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest px-6 rounded-xl">
+              {reorderSaving ? 'Sauvegarde...' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </>
     );
   }
 

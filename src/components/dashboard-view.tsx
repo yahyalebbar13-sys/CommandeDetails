@@ -227,7 +227,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     };
 
     // Grouper par société
-    const byCompany = ['New fournitures', 'Lebtex', 'Robe in box'].map(company => {
+    const byCompany = COMPANIES.map(company => {
       const dossiers = safeFactures
         .filter(f => f.declaringCompany === company)
         .map(calcDossier)
@@ -335,8 +335,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         freightByMonth[month].total += cost;
         freightByMonth[month].count += 1;
       }
-      const sup = f.supplierId || 'Inconnu';
-      supplierMap[sup] = (supplierMap[sup] || 0) + (Number(f.freightCost) || Number(f.freight) || 0);
+      // Note: le fret n'est PAS ajouté dans supplierMap — les valeurs des articles suffisent
     });
 
     const groupValueData = Object.entries(groupMap)
