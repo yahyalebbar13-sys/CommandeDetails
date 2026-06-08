@@ -150,8 +150,8 @@ export default function ShopHeader() {
               <img
                 src="/logo.png"
                 alt="LEBTEX Mercerie"
-                className="h-10 lg:h-12 w-auto transition-opacity group-hover:opacity-80"
-                style={{ maxWidth: '180px' }}
+                className="h-14 lg:h-16 w-auto transition-opacity group-hover:opacity-80"
+                style={{ maxWidth: '240px' }}
               />
             </Link>
 
@@ -368,8 +368,8 @@ export default function ShopHeader() {
             <img
               src="/logo.png"
               alt="LEBTEX"
-              className="h-9 w-auto"
-              style={{ maxWidth: '130px' }}
+              className="h-11 w-auto"
+              style={{ maxWidth: '160px' }}
             />
           </Link>
           <button
