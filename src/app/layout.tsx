@@ -9,9 +9,12 @@ export const metadata: Metadata = {
   description: 'Spécialiste en fermetures éclair, boutons, élastiques, rubans et accessoires textiles. Livraison rapide partout au Maroc.',
   icons: {
     icon: [
-      { url: '/favicon.png', type: 'image/png' },
+      { url: '/favicon.png', type: 'image/png', sizes: '512x512' },
+      { url: '/favicon.png', type: 'image/png', sizes: '192x192' },
+      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon.png', type: 'image/png', sizes: '16x16' },
     ],
-    apple: '/favicon.png',
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
     shortcut: '/favicon.png',
   },
 };

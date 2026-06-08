@@ -144,27 +144,15 @@ export default function ShopHeader() {
             {/* ── Logo ──────────────────────────────────────────────────── */}
             <Link
               href="/shop"
-              className="flex-shrink-0 flex items-center gap-0.5 group"
+              className="flex-shrink-0 group"
               aria-label="LEBTEX - Accueil"
             >
-              <span
-                className="font-display text-2xl lg:text-3xl font-black tracking-tight leading-none transition-opacity group-hover:opacity-80"
-                style={{ color: "#0F0F0F" }}
-              >
-                LEB
-              </span>
-              <span
-                className="font-display text-2xl lg:text-3xl font-black tracking-tight leading-none transition-opacity group-hover:opacity-80"
-                style={{ color: "#C8102E" }}
-              >
-                TEX
-              </span>
-              <span
-                className="ml-2 text-[10px] font-semibold tracking-widest uppercase hidden sm:inline-block mt-1 self-end mb-0.5 opacity-50"
-                style={{ color: "#0F0F0F", fontFamily: "Inter, sans-serif" }}
-              >
-                Mercerie
-              </span>
+              <img
+                src="/logo.png"
+                alt="LEBTEX Mercerie"
+                className="h-10 lg:h-12 w-auto transition-opacity group-hover:opacity-80"
+                style={{ maxWidth: '180px' }}
+              />
             </Link>
 
             {/* ── Desktop Navigation ────────────────────────────────────── */}
@@ -377,18 +365,12 @@ export default function ShopHeader() {
             onClick={() => setIsMobileMenuOpen(false)}
             className="flex items-center"
           >
-            <span
-              className="font-display text-2xl font-black"
-              style={{ color: "#0F0F0F" }}
-            >
-              LEB
-            </span>
-            <span
-              className="font-display text-2xl font-black"
-              style={{ color: "#C8102E" }}
-            >
-              TEX
-            </span>
+            <img
+              src="/logo.png"
+              alt="LEBTEX"
+              className="h-9 w-auto"
+              style={{ maxWidth: '130px' }}
+            />
           </Link>
           <button
             onClick={() => setIsMobileMenuOpen(false)}
