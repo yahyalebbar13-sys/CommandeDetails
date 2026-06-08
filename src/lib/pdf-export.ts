@@ -2127,24 +2127,23 @@ export async function exportBesoinsPDF(articles: any[]) {
   const MX = 14;
   const CW = W - MX * 2;
 
-  // ── Helper: load an image as data URL (returns null on failure) ─────────
-  const loadImage = (url: string): Promise<string | null> =>
-    new Promise(resolve => {
-      if (!url) return resolve(null);
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          canvas.getContext('2d')!.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-        } catch (_) { resolve(null); }
-      };
-      img.onerror = () => resolve(null);
-      img.src = url;
-    });
+  // ── Helper: load an image as data URL via fetch (bypasses CORS canvas restriction) ─
+  const loadImage = async (url: string): Promise<string | null> => {
+    if (!url) return null;
+    try {
+      const resp = await fetch(url, { mode: 'cors', cache: 'no-store' });
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return await new Promise<string | null>(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch (_) {
+      return null;
+    }
+  };
 
   // ── Priority config ─────────────────────────────────────────────────────
   const PRIO: Record<string, { label: string; color: [number, number, number] }> = {

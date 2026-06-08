@@ -9,7 +9,7 @@ import {
   ListTodo, Trash2, ArrowRight, Pencil, Settings2, MousePointer2,
   Flame, AlertTriangle, CheckSquare, MessageSquareWarning, Send,
   ChevronDown, Package, X, Clock, CheckCircle2, Anchor, ChevronRight,
-  Container, FileText, Check
+  Container, FileText, Check, UserCircle2
 } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
@@ -251,11 +251,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
 
   // ── Export Besoins PDF (mes commandes uniquement) ─────────────────────
   const handleExportBesoinsPDF = async () => {
-    if (pureNormalArticles.length === 0) return;
+    const toExport = besoinTab === 'mine' ? pureNormalArticles : clientNormalArticles;
+    if (toExport.length === 0) return;
     setIsExportingBesoinsPDF(true);
     try {
-      await exportBesoinsPDF(pureNormalArticles);
-      toast({ title: "PDF Besoins généré ✓", description: `${pureNormalArticles.length} article(s) exporté(s)` });
+      await exportBesoinsPDF(toExport);
+      toast({ title: "PDF Besoins généré ✓", description: `${toExport.length} article(s) exporté(s)` });
     } catch (e) {
       console.error(e);
       toast({ title: "Erreur PDF", variant: "destructive" });
@@ -295,6 +296,9 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   const clientNormalArticles = useMemo(() => normalArticles.filter(o => o.isPreorder && o.clientName), [normalArticles]);
   const pureNormalArticles   = useMemo(() => normalArticles.filter(o => !(o.isPreorder && o.clientName)), [normalArticles]);
 
+  // ── Onglet actif dans la section Besoins ────────────────────────────
+  const [besoinTab, setBesoinTab] = useState<'mine' | 'clients'>('mine');
+  const activeBesoinArticles = besoinTab === 'mine' ? pureNormalArticles : clientNormalArticles;
   return (
     <div className="space-y-8 fade-in">
 
@@ -556,21 +560,70 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
             </div>
           )}
 
-          {/* ── Standard Orders ── */}
-          {pureNormalArticles.length > 0 && (
+          {/* ── Standard Orders — avec onglets Mes Commandes / Clients ── */}
+          {(pureNormalArticles.length > 0 || clientNormalArticles.length > 0) && (
             <div className="space-y-4">
-              {clientNormalArticles.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-stone-100 rounded-xl border border-stone-200">
-                    <ListTodo className="w-4 h-4 text-stone-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Mes Commandes</p>
-                    <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">Général <span className="text-amber-500">Besoins</span></p>
-                  </div>
-                  <span className="ml-auto text-[9px] font-black bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1 rounded-full uppercase tracking-widest">
-                    {pureNormalArticles.length} article{pureNormalArticles.length > 1 ? 's' : ''}
+
+              {/* Tab Bar */}
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-1.5 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setBesoinTab('mine')}
+                  className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-200 ${
+                    besoinTab === 'mine'
+                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+                      : 'text-stone-400 hover:text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  <Package className="w-4 h-4 shrink-0" />
+                  Mes Commandes
+                  <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-black ${
+                    besoinTab === 'mine' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {pureNormalArticles.length}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBesoinTab('clients')}
+                  className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-200 ${
+                    besoinTab === 'clients'
+                      ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-200'
+                      : 'text-stone-400 hover:text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  <UserCircle2 className="w-4 h-4 shrink-0" />
+                  Commandes Clients
+                  <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-black ${
+                    besoinTab === 'clients' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+                  }`}>
+                    {clientNormalArticles.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Section header with export button */}
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl border ${
+                  besoinTab === 'mine' ? 'bg-stone-100 border-stone-200' : 'bg-indigo-50 border-indigo-200'
+                }`}>
+                  <ListTodo className={`w-4 h-4 ${besoinTab === 'mine' ? 'text-stone-600' : 'text-indigo-600'}`} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">
+                    {besoinTab === 'mine' ? 'Mes Commandes' : 'Commandes Clients'}
+                  </p>
+                  <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">
+                    {besoinTab === 'mine'
+                      ? <>Général <span className="text-amber-500">Besoins</span></>
+                      : <>Précommandes <span className="text-indigo-500">Clients</span></>
+                    }
+                  </p>
+                </div>
+                <span className="ml-auto text-[9px] font-black bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1 rounded-full uppercase tracking-widest">
+                  {activeBesoinArticles.length} article{activeBesoinArticles.length > 1 ? 's' : ''}
+                </span>
+                {activeBesoinArticles.length > 0 && (
                   <button
                     type="button"
                     onClick={handleExportBesoinsPDF}
@@ -580,15 +633,21 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                     <FileText className="w-3.5 h-3.5" />
                     {isExportingBesoinsPDF ? 'Export...' : 'Export PDF'}
                   </button>
+                )}
+              </div>
+
+              {activeBesoinArticles.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-stone-200 py-16 text-center text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                  {besoinTab === 'mine' ? 'Aucune commande personnelle.' : 'Aucune commande client.'}
                 </div>
-              )}
+              ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {([
                   { prio: 'urgent',    label: 'Urgent',    dotColor: 'bg-red-500',   borderColor: 'border-red-200',   borderLeft: 'border-l-red-400',   bgColor: 'bg-red-50',   textColor: 'text-red-700',   badgeCls: 'bg-red-500 text-white' },
                   { prio: 'important', label: 'Important', dotColor: 'bg-amber-400', borderColor: 'border-amber-200', borderLeft: 'border-l-amber-400', bgColor: 'bg-amber-50', textColor: 'text-amber-700', badgeCls: 'bg-amber-400 text-white' },
                   { prio: 'todo',      label: 'To Do',     dotColor: 'bg-stone-400', borderColor: 'border-stone-200', borderLeft: 'border-l-stone-300', bgColor: 'bg-stone-50', textColor: 'text-stone-600', badgeCls: 'bg-stone-100 text-stone-500 border border-stone-200' },
                 ] as const).map(col => {
-                  const colArts = pureNormalArticles.filter(o => (o.priority || 'todo') === col.prio);
+                  const colArts = activeBesoinArticles.filter(o => (o.priority || 'todo') === col.prio);
                   return (
                     <div key={col.prio} className="space-y-3">
                       <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${col.bgColor} border ${col.borderColor}`}>
@@ -634,6 +693,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                   );
                 })}
               </div>
+              )}
             </div>
           )}
         </div>
