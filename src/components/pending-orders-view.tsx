@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -7,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Clock, ArrowRight, Trash2, Pencil,
-  Settings2, MousePointer2, Container, UserCircle2,
+  Container, UserCircle2,
   Maximize, Palette, ChevronDown, ChevronUp, Package
 } from 'lucide-react';
 import ValidateOrderModal from './validate-order-modal';
@@ -29,6 +28,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
   const [isValidating, setIsValidating] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'mine' | 'clients'>('mine');
 
   const pendingOrders = useMemo(() => {
     return articles
@@ -36,12 +36,18 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
   }, [articles]);
 
+  // Separate into my orders and client orders
+  const myOrders = useMemo(() => pendingOrders.filter(o => !(o.isPreorder && o.clientName)), [pendingOrders]);
+  const clientOrders = useMemo(() => pendingOrders.filter(o => o.isPreorder && o.clientName), [pendingOrders]);
+
+  const activeOrders = activeTab === 'mine' ? myOrders : clientOrders;
+
   // Group by containerRef (if set), then remaining by supplier
   const { containerRefGroups, supplierGroups } = useMemo(() => {
     const byRef = new Map<string, any[]>();
     const noRef: any[] = [];
 
-    pendingOrders.forEach(o => {
+    activeOrders.forEach(o => {
       const ref = (o.containerRef || '').trim();
       if (ref) {
         if (!byRef.has(ref)) byRef.set(ref, []);
@@ -66,9 +72,9 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
     });
 
     return { containerRefGroups, supplierGroups: bySupplier };
-  }, [pendingOrders]);
+  }, [activeOrders]);
 
-  const totalValue = pendingOrders.reduce((s, o) =>
+  const totalValue = activeOrders.reduce((s, o) =>
     s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0);
 
   const toggleGroup = (key: string) => {
@@ -101,7 +107,6 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
     });
   };
 
-  // Reusable article card
   const ArticleCard = ({ o }: { o: any }) => {
     const isZipper = isZipperCategory(o.categoryId);
     const expanded = expandedIds.has(o.id);
@@ -227,12 +232,12 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
           </div>
           <div className="grid grid-cols-3 gap-3 lg:w-auto w-full">
             <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl text-center">
-              <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest mb-1">Lignes PI</p>
-              <div className="text-2xl font-black text-amber-400">{pendingOrders.length}</div>
+              <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest mb-1">Mes PI</p>
+              <div className="text-2xl font-black text-amber-400">{myOrders.length}</div>
             </div>
-            <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-2xl text-center">
-              <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest mb-1">Conteneurs</p>
-              <div className="text-2xl font-black text-orange-400">{containerRefGroups.length}</div>
+            <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-2xl text-center">
+              <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">PI Clients</p>
+              <div className="text-2xl font-black text-indigo-400">{clientOrders.length}</div>
             </div>
             <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl text-center">
               <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Valeur Est.</p>
@@ -242,10 +247,53 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
         </div>
       </header>
 
-      {pendingOrders.length === 0 ? (
+      {/* ─── Tab Bar ─── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-1.5 flex gap-1.5">
+        {/* Mes Commandes — prioritaire, actif par défaut */}
+        <button
+          type="button"
+          onClick={() => { setActiveTab('mine'); setCollapsedGroups(new Set()); }}
+          className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-200 ${
+            activeTab === 'mine'
+              ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+              : 'text-stone-400 hover:text-stone-700 hover:bg-stone-50'
+          }`}
+        >
+          <Package className="w-4 h-4 shrink-0" />
+          Mes Commandes
+          <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-black ${
+            activeTab === 'mine' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {myOrders.length}
+          </span>
+        </button>
+
+        {/* Commandes Clients */}
+        <button
+          type="button"
+          onClick={() => { setActiveTab('clients'); setCollapsedGroups(new Set()); }}
+          className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-200 ${
+            activeTab === 'clients'
+              ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-200'
+              : 'text-stone-400 hover:text-stone-700 hover:bg-stone-50'
+          }`}
+        >
+          <UserCircle2 className="w-4 h-4 shrink-0" />
+          Commandes Clients
+          <span className={`inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-black ${
+            activeTab === 'clients' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+          }`}>
+            {clientOrders.length}
+          </span>
+        </button>
+      </div>
+
+      {activeOrders.length === 0 ? (
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
           <CardContent className="py-20 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">
-            Aucune commande en production détectée.
+            {activeTab === 'mine'
+              ? 'Aucune commande personnelle en production.'
+              : 'Aucune commande client en production.'}
           </CardContent>
         </Card>
       ) : (
@@ -267,7 +315,6 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
                 const collapsed = collapsedGroups.has(ref);
                 return (
                   <div key={ref} className="rounded-2xl border-2 border-orange-200 bg-orange-50/30 overflow-hidden shadow-sm">
-                    {/* Group header — clickable to collapse */}
                     <button
                       type="button"
                       onClick={() => toggleGroup(ref)}
@@ -309,7 +356,9 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
             <div key={supplier} className="space-y-4">
               <div className="flex items-center gap-3 px-2">
                 <div className="h-px flex-1 bg-stone-100" />
-                <Badge className="bg-stone-900 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+                <Badge className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] ${
+                  activeTab === 'mine' ? 'bg-stone-900 text-white' : 'bg-indigo-600 text-white'
+                }`}>
                   {supplier}
                 </Badge>
                 <div className="h-px flex-1 bg-stone-100" />

@@ -18,6 +18,7 @@ import LaunchOrderModal from './launch-order-modal';
 import ExportBonCommande from './export-bon-commande';
 import ExportClientCommande from './export-client-commande';
 import { exportPropositionFournisseurPDF, exportPriceProposalPDF } from '@/lib/export-proposition-pdf';
+import { exportBesoinsPDF } from '@/lib/pdf-export';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -50,6 +51,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   const [propositionFournisseur, setPropositionFournisseur] = useState('');
   const [propositionNote, setPropositionNote] = useState('');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isExportingBesoinsPDF, setIsExportingBesoinsPDF] = useState(false);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -247,8 +249,23 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     }
   };
 
-  const selectedFacture = factures.find(f => f.id === selectedFactureId);
+  // ── Export Besoins PDF (mes commandes uniquement) ─────────────────────
+  const handleExportBesoinsPDF = async () => {
+    if (pureNormalArticles.length === 0) return;
+    setIsExportingBesoinsPDF(true);
+    try {
+      await exportBesoinsPDF(pureNormalArticles);
+      toast({ title: "PDF Besoins généré ✓", description: `${pureNormalArticles.length} article(s) exporté(s)` });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur PDF", variant: "destructive" });
+    } finally {
+      setIsExportingBesoinsPDF(false);
+    }
+  };
+
   const selectedReclamationArticle = articlesOfSelectedFacture.find(a => a.id === reclamationArticleId);
+  const selectedFacture = factures.find(f => f.id === selectedFactureId);
 
   const urgentCount = toOrderArticles.filter(a => (a.priority || 'todo') === 'urgent').length;
   const importantCount = toOrderArticles.filter(a => (a.priority || 'todo') === 'important').length;
@@ -333,6 +350,17 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
               Besoins &<br /><span className="text-amber-500">Réclamations</span>
             </h2>
             <p className="text-stone-400 text-xs font-bold uppercase tracking-widest mt-3">Articles en attente · Incidents qualité</p>
+            {pureNormalArticles.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportBesoinsPDF}
+                disabled={isExportingBesoinsPDF}
+                className="mt-4 flex items-center gap-2 h-9 px-5 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-stone-900 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-95"
+              >
+                <FileText className="w-4 h-4" />
+                {isExportingBesoinsPDF ? 'Génération...' : 'Exporter PDF Mes Commandes'}
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:w-auto w-full">
             <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-center">
@@ -354,6 +382,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
           </div>
         </div>
       </header>
+
 
       {/* ─── Conteneurs Complets ─── */}
       {containerGroups.length > 0 && (
@@ -536,12 +565,21 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                     <ListTodo className="w-4 h-4 text-stone-600" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Standard Needs</p>
-                    <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">General <span className="text-amber-500">Orders</span></p>
+                    <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Mes Commandes</p>
+                    <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">Général <span className="text-amber-500">Besoins</span></p>
                   </div>
                   <span className="ml-auto text-[9px] font-black bg-stone-100 text-stone-700 border border-stone-200 px-3 py-1 rounded-full uppercase tracking-widest">
                     {pureNormalArticles.length} article{pureNormalArticles.length > 1 ? 's' : ''}
                   </span>
+                  <button
+                    type="button"
+                    onClick={handleExportBesoinsPDF}
+                    disabled={isExportingBesoinsPDF}
+                    className="flex items-center gap-1.5 h-8 px-4 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-all shadow-md shadow-amber-200 active:scale-95"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {isExportingBesoinsPDF ? 'Export...' : 'Export PDF'}
+                  </button>
                 </div>
               )}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -2100,3 +2100,305 @@ export async function exportDevisClientPIPDF(params: {
   doc.save(`DEVIS-LEBTEX-${artLabel}-${todayStr}.pdf`);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+//  EXPORT BESOINS PDF — Liste des commandes à passer avec images
+// ─────────────────────────────────────────────────────────────────────────
+export async function exportBesoinsPDF(articles: any[]) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const NAVY: [number, number, number]   = [15, 23, 42];
+  const GOLD: [number, number, number]   = [196, 160, 98];
+  const AMBER: [number, number, number]  = [245, 158, 11];
+  const RED: [number, number, number]    = [220, 38, 38];
+  const INDIGO: [number, number, number] = [99, 102, 241];
+  const STONE: [number, number, number]  = [120, 113, 108];
+  const TEXT: [number, number, number]   = [30, 41, 59];
+  const MUTED: [number, number, number]  = [100, 116, 139];
+  const LIGHT: [number, number, number]  = [248, 250, 252];
+  const BORDER: [number, number, number] = [226, 232, 240];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFr  = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const MX = 14;
+  const CW = W - MX * 2;
+
+  // ── Helper: load an image as data URL (returns null on failure) ─────────
+  const loadImage = (url: string): Promise<string | null> =>
+    new Promise(resolve => {
+      if (!url) return resolve(null);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d')!.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        } catch (_) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+
+  // ── Priority config ─────────────────────────────────────────────────────
+  const PRIO: Record<string, { label: string; color: [number, number, number] }> = {
+    urgent:    { label: 'URGENT',    color: RED },
+    important: { label: 'IMPORTANT', color: AMBER },
+    todo:      { label: 'À FAIRE',   color: STONE },
+  };
+
+  const urgentCount    = articles.filter(a => (a.priority || 'todo') === 'urgent').length;
+  const importantCount = articles.filter(a => (a.priority || 'todo') === 'important').length;
+  const todoCount      = articles.filter(a => (a.priority || 'todo') === 'todo').length;
+
+  // ── PAGE 1 — Header + KPIs ──────────────────────────────────────────────
+  let page = 1;
+  const addPageFooter = () => {
+    const pages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...MUTED);
+      doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc', W / 2, H - 14.5, { align: 'center' });
+      doc.text('Tél : +212 5 22 25 77 78  |  Email : Contact.lebtex@gmail.com', W / 2, H - 11, { align: 'center' });
+      doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
+      doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
+      doc.setFontSize(6.5); doc.setTextColor(148, 163, 184);
+      doc.text(`LISTE DES BESOINS  |  ${todayStr}  |  USAGE INTERNE`, MX + 5, H - 3.5);
+      doc.text(`Page ${i} / ${pages}`, W - MX, H - 3.5, { align: 'right' });
+    }
+  };
+
+  let y = MX;
+
+  // Logo
+  await addPdfLogoHeader(doc, MX, y, 40, 20);
+
+  // Title block
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('LISTE DES BESOINS', W - MX, y + 5, { align: 'right' });
+
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.6);
+  doc.line(W - MX - 78, y + 8, W - MX, y + 8);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(`Date : ${todayFr}`, W - MX, y + 14, { align: 'right' });
+  doc.text(`${articles.length} article${articles.length > 1 ? 's' : ''} à commander`, W - MX, y + 19, { align: 'right' });
+  y += 28;
+
+  // KPI bar
+  const kpis: [string, string, [number,number,number]][] = [
+    ['URGENT',    String(urgentCount),    RED],
+    ['IMPORTANT', String(importantCount), AMBER],
+    ['À FAIRE',   String(todoCount),      STONE],
+    ['TOTAL',     String(articles.length), NAVY],
+  ];
+  const kW = CW / kpis.length;
+  kpis.forEach(([label, value, color], i) => {
+    const kx = MX + i * kW;
+    const isLast = i === kpis.length - 1;
+    doc.setFillColor(isLast ? NAVY[0] : 245, isLast ? NAVY[1] : 245, isLast ? NAVY[2] : 244);
+    doc.roundedRect(kx + (i > 0 ? 2 : 0), y, kW - 2, 18, 2, 2, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(isLast ? 200 : color[0], isLast ? 200 : color[1], isLast ? 200 : color[2]);
+    doc.text(label, kx + (i > 0 ? 6 : 4), y + 6);
+    doc.setFontSize(isLast ? 14 : 13);
+    doc.setTextColor(isLast ? 255 : TEXT[0], isLast ? 255 : TEXT[1], isLast ? 255 : TEXT[2]);
+    doc.text(value, kx + (i > 0 ? 6 : 4), y + 14);
+  });
+  y += 25;
+
+  // ── Render articles by priority order ───────────────────────────────────
+  const sortedArticles = [...articles].sort((a, b) => {
+    const order: Record<string, number> = { urgent: 0, important: 1, todo: 2 };
+    const pa = order[a.priority || 'todo'] ?? 2;
+    const pb = order[b.priority || 'todo'] ?? 2;
+    return pa - pb;
+  });
+
+  const IMG_W = 28;
+  const IMG_H = 28;
+  const ROW_H = 34;
+  const COL_LEFT = MX + IMG_W + 5;
+  const COL_RIGHT = W - MX;
+
+  for (let idx = 0; idx < sortedArticles.length; idx++) {
+    const a = sortedArticles[idx];
+
+    // Check if we need a new page
+    if (y + ROW_H + 4 > H - 20) {
+      doc.addPage();
+      y = MX;
+    }
+
+    const prio = PRIO[a.priority || 'todo'] || PRIO.todo;
+
+    // Card background
+    doc.setFillColor(...LIGHT);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(MX, y, CW, ROW_H, 2, 2, 'FD');
+
+    // Priority accent bar (left side)
+    doc.setFillColor(...prio.color);
+    doc.roundedRect(MX, y, 2.5, ROW_H, 1, 1, 'F');
+
+    // Image (or colored placeholder)
+    const imgData = await loadImage(a.imageUrl || a.image || '');
+    if (imgData) {
+      try {
+        doc.addImage(imgData, 'JPEG', MX + 4, y + 3, IMG_W, IMG_H);
+      } catch (_) {
+        // Placeholder
+        doc.setFillColor(...prio.color);
+        doc.roundedRect(MX + 4, y + 3, IMG_W, IMG_H, 2, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        const initials = (a.name || a.categoryId || '?').slice(0, 2).toUpperCase();
+        doc.text(initials, MX + 4 + IMG_W / 2, y + 3 + IMG_H / 2 + 2, { align: 'center' });
+      }
+    } else {
+      // Colored placeholder
+      doc.setFillColor(prio.color[0], prio.color[1], prio.color[2]);
+      doc.roundedRect(MX + 4, y + 3, IMG_W, IMG_H, 2, 2, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const initials = (a.name || a.categoryId || '?').slice(0, 2).toUpperCase();
+      doc.text(initials, MX + 4 + IMG_W / 2, y + 3 + IMG_H / 2 + 3, { align: 'center' });
+    }
+
+    // Priority badge (top-right of card)
+    doc.setFillColor(...prio.color);
+    doc.roundedRect(COL_RIGHT - 22, y + 3, 20, 6, 1, 1, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(prio.label, COL_RIGHT - 12, y + 7, { align: 'center' });
+
+    // Article name
+    doc.setTextColor(...NAVY);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const artName = (a.name || a.categoryId || 'Article').toUpperCase();
+    doc.text(artName.length > 40 ? artName.slice(0, 39) + '…' : artName, COL_LEFT, y + 9);
+
+    // Category
+    if (a.categoryId) {
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text((a.categoryId || '').toUpperCase(), COL_LEFT, y + 14);
+    }
+
+    // Specs row (size, color, specs, zipper)
+    const specParts: string[] = [];
+    if (a.size && a.size !== 'various') specParts.push(`Taille: ${a.size}`);
+    if (a.color && a.color !== 'various') specParts.push(`Couleur: ${a.color}`);
+    if (a.zipperType) specParts.push(`${a.zipperType}${a.slider ? ' / ' + a.slider : ''}`);
+    if (!a.zipperType && a.specs) specParts.push(a.specs);
+    if (a.supplierId) specParts.push(`Fourn.: ${a.supplierId}`);
+    if (specParts.length > 0) {
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(specParts.join('  ·  ').slice(0, 80), COL_LEFT, y + 20);
+    }
+
+    // Client badge if preorder
+    if (a.isPreorder && a.clientName) {
+      doc.setFillColor(...INDIGO);
+      doc.roundedRect(COL_LEFT, y + 23, 30, 5.5, 1, 1, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`👤 ${(a.clientName || '').toUpperCase()}`, COL_LEFT + 2, y + 27);
+    }
+
+    // Quantity + price block (right side)
+    const qty = Number(a.quantity || 0);
+    const price = Number(a.purchasePricePerUnit || 0);
+    const total = qty * price;
+
+    doc.setTextColor(...NAVY);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(
+      `${qty.toLocaleString('fr-MA')} ${(a.unitOfMeasure || 'U').toUpperCase()}`,
+      COL_RIGHT - 25,
+      y + 16,
+      { align: 'right' }
+    );
+
+    if (price > 0) {
+      doc.setFontSize(7.5);
+      doc.setTextColor(...MUTED);
+      doc.text(
+        `P.A: $${price.toFixed(4)}`,
+        COL_RIGHT - 25,
+        y + 22,
+        { align: 'right' }
+      );
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(180, 100, 0);
+      doc.text(
+        `$${total.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}`,
+        COL_RIGHT - 25,
+        y + 28,
+        { align: 'right' }
+      );
+    }
+
+    // Separator line number
+    doc.setTextColor(200, 200, 200);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${idx + 1}`, MX + 3, y + ROW_H - 2);
+
+    y += ROW_H + 3;
+  }
+
+  // ── Summary totals ───────────────────────────────────────────────────────
+  if (y + 20 > H - 20) { doc.addPage(); y = MX; }
+
+  const totalQty = articles.reduce((s, a) => s + Number(a.quantity || 0), 0);
+  const totalVal = articles.reduce((s, a) => s + (Number(a.quantity || 0) * Number(a.purchasePricePerUnit || 0)), 0);
+
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MX, y + 2, CW, 16, 2, 2, 'F');
+  doc.setFillColor(...GOLD);
+  doc.roundedRect(MX, y + 2, 3, 16, 1, 1, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`TOTAL — ${articles.length} ARTICLE${articles.length > 1 ? 'S' : ''}`, MX + 8, y + 11);
+
+  doc.setTextColor(...GOLD);
+  doc.setFontSize(8);
+  doc.text(
+    `Quantité : ${totalQty.toLocaleString('fr-MA')}  |  Valeur estimée : $${totalVal.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}`,
+    W - MX,
+    y + 11,
+    { align: 'right' }
+  );
+
+  addPageFooter();
+
+  doc.save(`Besoins_LEBTEX_${todayStr}.pdf`);
+}

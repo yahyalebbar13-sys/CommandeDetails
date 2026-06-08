@@ -610,17 +610,20 @@ function SupplierDetailView({
   
 
   const supplierFactures = useMemo(() => {
+    // Build the list of dossier IDs linked to this supplier
     const ids = Array.from(new Set(supArticles.map(a => a.factureId).filter(Boolean)));
-    
+
     return ids.map(id => {
       const factInfo = factures.find(f => f.id === id);
-      const fArticles = supArticles.filter(a => a.factureId === id);
-      const itemsVal = fArticles.reduce((s, a) => s + (a.quantity * a.purchasePricePerUnit), 0);
-      const cbm = fArticles.reduce((s, a) => s + (a.cubicMeasurement || 0), 0);
+      // Use ALL articles of the dossier (not just supplier-filtered ones)
+      // to avoid missing articles with null/mismatched supplierId
+      const fArticles = articles.filter(a => a.factureId === id);
+      const itemsVal = fArticles.reduce((s, a) => s + (Number(a.quantity) * Number(a.purchasePricePerUnit || 0)), 0);
+      const cbm = fArticles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
       const freight = getFreight(factInfo);
-      const declared = Number(factInfo?.declaredValue) || itemsVal + freight;
+      const declared = Number(factInfo?.declaredValue) || 0;
       const now = new Date();
-      
+
       return {
         id,
         arrivalDate: factInfo?.arrivalDate || fArticles[0]?.arrivalDate || '-',
@@ -632,7 +635,7 @@ function SupplierDetailView({
         isArrived: factInfo?.arrivalDate ? new Date(factInfo.arrivalDate) <= now : false
       };
     }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
-  }, [supArticles, factures]);
+  }, [supArticles, articles, factures]);
   const totalRealVal = supplierFactures.reduce((s, f) => s + f.totalReal, 0);
   const totalDeclaredVal = supplierFactures.reduce((s, f) => s + f.declared, 0);
   const totalPaid = supPayments.reduce((s, p) => s + Number(p.amount), 0);
