@@ -19,7 +19,6 @@ import ExportBonCommande from './export-bon-commande';
 import ExportClientCommande from './export-client-commande';
 import { exportPropositionFournisseurPDF, exportPriceProposalPDF } from '@/lib/export-proposition-pdf';
 import { exportBesoinsPDF } from '@/lib/pdf-export';
-import { getStorage, ref as storageRef, getBlob } from 'firebase/storage';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -250,20 +249,33 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     }
   };
 
-  // ── Firebase Storage image loader (bypasses CORS via SDK) ─────────────
+  // ── Image loader via proxy serveur ──────────────────────────────────────
   const firebaseImageLoader = async (url: string): Promise<string | null> => {
     if (!url) return null;
     try {
-      const storage = getStorage();
-      const ref = storageRef(storage, url);
-      const blob = await getBlob(ref);
+      const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+      console.log('[PDF-LOADER] Fetching:', proxyUrl.slice(0, 100));
+      const resp = await fetch(proxyUrl);
+      console.log('[PDF-LOADER] Status:', resp.status, '| ok:', resp.ok, '| type:', resp.headers.get('content-type'));
+      if (!resp.ok) {
+        console.error('[PDF-LOADER] Proxy KO:', resp.status, await resp.text());
+        return null;
+      }
+      const blob = await resp.blob();
+      console.log('[PDF-LOADER] Blob size:', blob.size, '| type:', blob.type);
+      if (blob.size === 0) { console.error('[PDF-LOADER] Empty blob!'); return null; }
       return await new Promise<string | null>(resolve => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
+        reader.onload = () => {
+          const r = reader.result as string;
+          console.log('[PDF-LOADER] DataURL OK, length:', r?.length, '| prefix:', r?.slice(0, 30));
+          resolve(r);
+        };
+        reader.onerror = () => { console.error('[PDF-LOADER] FileReader error'); resolve(null); };
         reader.readAsDataURL(blob);
       });
-    } catch {
+    } catch (err) {
+      console.error('[PDF-LOADER] Exception:', err);
       return null;
     }
   };

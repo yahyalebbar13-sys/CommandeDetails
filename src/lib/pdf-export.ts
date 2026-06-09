@@ -2130,9 +2130,17 @@ export async function exportBesoinsPDF(
   const MX = 14;
   const CW = W - MX * 2;
 
-  // ── Helper: load an image as data URL via fetch (bypasses CORS canvas restriction) ─
+  // ── Helper: charge une image via le loader injecté (proxy), ou fetch direct ─
   const loadImage = async (url: string): Promise<string | null> => {
     if (!url) return null;
+    // 1. Utiliser le loader injecté (proxy serveur — pas de CORS)
+    if (imageLoader) {
+      try {
+        const result = await imageLoader(url);
+        if (result) return result;
+      } catch (_) { /* continue to fallback */ }
+    }
+    // 2. Fallback : fetch direct (uniquement si CORS configuré côté Firebase)
     try {
       const resp = await fetch(url, { mode: 'cors', cache: 'no-store' });
       if (!resp.ok) return null;
@@ -2259,12 +2267,19 @@ export async function exportBesoinsPDF(
     doc.roundedRect(MX, y, 2.5, ROW_H, 1, 1, 'F');
 
     // Image (or colored placeholder)
-    const imgUrl = a.imageUrl || a.designImageUrl || a.image || '';
-    const imgData = await loadImage(imgUrl);
+    // Note: some articles have imageUrl stored as the string "undefined" — filter it out
+    const rawUrl = a.imageUrl || a.designImageUrl || a.image || '';
+    const imgUrl = (rawUrl && rawUrl !== 'undefined' && rawUrl.startsWith('http')) ? rawUrl : '';
+    console.log(`[PDF] Article: "${a.name || a.categoryId}" | imgUrl: "${imgUrl ? imgUrl.slice(0, 60) + '...' : 'vide'}"`);
+    const imgData = imgUrl ? await loadImage(imgUrl) : null;
+    console.log(`[PDF] → ${imgData ? 'Image chargée ✓' : 'Placeholder ✗'}`);
     if (imgData) {
       try {
-        doc.addImage(imgData, 'JPEG', MX + 4, y + 3, IMG_W, IMG_H);
-      } catch (_) {
+        // Auto-détecter le format depuis le data URL
+        const fmt = imgData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(imgData, fmt, MX + 4, y + 3, IMG_W, IMG_H);
+      } catch (e) {
+        console.error('[PDF] addImage FAILED:', e, '| data length:', imgData?.length, '| prefix:', imgData?.slice(0, 30));
         // Placeholder
         doc.setFillColor(...prio.color);
         doc.roundedRect(MX + 4, y + 3, IMG_W, IMG_H, 2, 2, 'F');
