@@ -18,8 +18,8 @@ const STORES = [
     description:
       "Notre magasin historique et principal. Vous y trouverez l'intégralité de notre gamme : fermetures éclair nylon, métal et plastique, élastiques, rubans, boutons, accessoires couture et bien plus. Un stock massif sur place, disponible immédiatement.",
     mapUrl:
-      "https://maps.google.com/maps?q=Boulevard+Haifa+Casablanca+Maroc&output=embed&hl=fr",
-    mapLink: "https://maps.google.com/?q=Boulevard+Haifa+Casablanca+Maroc",
+      "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3325.960193314!2d-7.60478372449582!3d33.52842057335868!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xda633655c4f8119%3A0x1c70dc167bfb1beb!2sLEBTEX!5e0!3m2!1sfr!2sma!4v1781027009148!5m2!1sfr!2sma",
+    mapLink: "https://maps.google.com/?cid=2046553088855253995",
     photos: [
       "/boutiques/haifa-1.jpg",
       "/boutiques/haifa-2.jpg",
