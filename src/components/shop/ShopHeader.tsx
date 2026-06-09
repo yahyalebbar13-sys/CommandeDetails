@@ -28,6 +28,7 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
+  { labelKey: "nav_boutiques", href: "/shop/boutiques" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
@@ -150,8 +151,8 @@ export default function ShopHeader() {
               <img
                 src="/logo.png"
                 alt="LEBTEX Mercerie"
-                className="h-16 lg:h-20 w-auto transition-opacity group-hover:opacity-80"
-                style={{ maxWidth: '320px' }}
+                className="h-20 lg:h-24 w-auto transition-opacity group-hover:opacity-80"
+                style={{ maxWidth: '360px', objectFit: 'contain' }}
               />
             </Link>
 

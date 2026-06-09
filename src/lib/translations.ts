@@ -10,6 +10,7 @@ export const translations: Translations = {
   nav_promos:       { fr: 'Promotions',     ar: 'التخفيضات' },
   nav_tracking:     { fr: 'Suivi commande', ar: 'تتبع الطلب' },
   nav_contact:      { fr: 'Contact',        ar: 'اتصل بنا' },
+  nav_boutiques:    { fr: 'Nos Boutiques',  ar: 'متاجرنا' },
   nav_all_cats:     { fr: 'Toutes les catégories', ar: 'كل التصنيفات' },
 
   // ── Hero section ──────────────────────────────────────────────────────────
