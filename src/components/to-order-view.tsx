@@ -19,6 +19,7 @@ import ExportBonCommande from './export-bon-commande';
 import ExportClientCommande from './export-client-commande';
 import { exportPropositionFournisseurPDF, exportPriceProposalPDF } from '@/lib/export-proposition-pdf';
 import { exportBesoinsPDF } from '@/lib/pdf-export';
+import { getStorage, ref as storageRef, getBlob } from 'firebase/storage';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -249,13 +250,31 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
     }
   };
 
-  // ── Export Besoins PDF (mes commandes uniquement) ─────────────────────
+  // ── Firebase Storage image loader (bypasses CORS via SDK) ─────────────
+  const firebaseImageLoader = async (url: string): Promise<string | null> => {
+    if (!url) return null;
+    try {
+      const storage = getStorage();
+      const ref = storageRef(storage, url);
+      const blob = await getBlob(ref);
+      return await new Promise<string | null>(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  // ── Export Besoins PDF ────────────────────────────────────────────────
   const handleExportBesoinsPDF = async () => {
     const toExport = besoinTab === 'mine' ? pureNormalArticles : clientNormalArticles;
     if (toExport.length === 0) return;
     setIsExportingBesoinsPDF(true);
     try {
-      await exportBesoinsPDF(toExport);
+      await exportBesoinsPDF(toExport, firebaseImageLoader);
       toast({ title: "PDF Besoins généré ✓", description: `${toExport.length} article(s) exporté(s)` });
     } catch (e) {
       console.error(e);
@@ -487,78 +506,6 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
       ) : normalArticles.length > 0 && (
         <div className="space-y-8">
 
-          {/* ── Client Orders ── */}
-          {clientNormalArticles.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-200">
-                  <CheckSquare className="w-4 h-4 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-stone-500 uppercase tracking-[0.25em]">Client Pre-orders</p>
-                  <p className="text-lg font-black text-stone-900 uppercase tracking-tight leading-none">Client <span className="text-indigo-500">Assigned</span></p>
-                </div>
-                <span className="ml-auto text-[9px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-full uppercase tracking-widest">
-                  {clientNormalArticles.length} article{clientNormalArticles.length > 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {([
-                  { prio: 'urgent',    label: 'Urgent',    dotColor: 'bg-red-500',   borderColor: 'border-red-200',   borderLeft: 'border-l-red-400',   bgColor: 'bg-red-50',    textColor: 'text-red-700',   badgeCls: 'bg-red-500 text-white' },
-                  { prio: 'important', label: 'Important', dotColor: 'bg-amber-400', borderColor: 'border-amber-200', borderLeft: 'border-l-amber-400', bgColor: 'bg-amber-50',  textColor: 'text-amber-700', badgeCls: 'bg-amber-400 text-white' },
-                  { prio: 'todo',      label: 'To Do',     dotColor: 'bg-stone-400', borderColor: 'border-stone-200', borderLeft: 'border-l-stone-300', bgColor: 'bg-stone-50',  textColor: 'text-stone-600', badgeCls: 'bg-stone-100 text-stone-500 border border-stone-200' },
-                ] as const).map(col => {
-                  const colArts = clientNormalArticles.filter(o => (o.priority || 'todo') === col.prio);
-                  return (
-                    <div key={col.prio} className="space-y-3">
-                      <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${col.bgColor} border ${col.borderColor}`}>
-                        <span className={`w-2 h-2 rounded-full ${col.dotColor}`} />
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${col.textColor}`}>{col.label}</span>
-                        <span className={`ml-auto text-[9px] font-black px-2 py-0.5 rounded-full ${col.badgeCls}`}>{colArts.length}</span>
-                      </div>
-                      {colArts.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-dashed border-stone-200 py-8 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">Empty</div>
-                      ) : colArts.map(o => {
-                        const isZipper = isZipperCategory(o.categoryId);
-                        const isSelected = selectedIds.has(o.id);
-                        return (
-                          <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <ArticleCheckbox id={o.id} />
-                              <div className="flex-1 min-w-0">
-                                <p className="font-black text-stone-900 text-[12px] uppercase leading-tight">{o.name}</p>
-                                <span className="inline-flex items-center gap-1 text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full mt-1 uppercase">
-                                  👤 {o.clientName}
-                                </span>
-                              </div>
-                              <span className="text-[10px] font-black text-stone-900 whitespace-nowrap shrink-0">
-                                {Number(o.quantity).toLocaleString()} <span className="text-[9px] text-stone-400 font-bold">{o.unitOfMeasure}</span>
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {o.size && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.size}</span>}
-                              {o.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.color}</span>}
-                              {isZipper && o.zipperType && <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg uppercase">{o.zipperType} {o.slider || ''}</span>}
-                              {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
-                            </div>
-                            <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
-                              {o.clientName && <ExportClientCommande article={o} />}
-                              <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => onEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={() => handleActionDelete(o.id, o.name)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                              <Button size="sm" onClick={() => { setSelectedArticle(o); setIsLaunchModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[8px] tracking-widest px-3 h-7 rounded-lg ml-1 gap-1">
-                                Order <ArrowRight className="w-2.5 h-2.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* ── Standard Orders — avec onglets Mes Commandes / Clients ── */}
           {(pureNormalArticles.length > 0 || clientNormalArticles.length > 0) && (

@@ -2103,7 +2103,10 @@ export async function exportDevisClientPIPDF(params: {
 // ─────────────────────────────────────────────────────────────────────────
 //  EXPORT BESOINS PDF — Liste des commandes à passer avec images
 // ─────────────────────────────────────────────────────────────────────────
-export async function exportBesoinsPDF(articles: any[]) {
+export async function exportBesoinsPDF(
+  articles: any[],
+  imageLoader?: (url: string) => Promise<string | null>
+) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
@@ -2256,7 +2259,8 @@ export async function exportBesoinsPDF(articles: any[]) {
     doc.roundedRect(MX, y, 2.5, ROW_H, 1, 1, 'F');
 
     // Image (or colored placeholder)
-    const imgData = await loadImage(a.imageUrl || a.image || '');
+    const imgUrl = a.imageUrl || a.designImageUrl || a.image || '';
+    const imgData = await loadImage(imgUrl);
     if (imgData) {
       try {
         doc.addImage(imgData, 'JPEG', MX + 4, y + 3, IMG_W, IMG_H);
