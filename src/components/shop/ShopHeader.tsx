@@ -151,8 +151,8 @@ export default function ShopHeader() {
               <img
                 src="/logo.png"
                 alt="LEBTEX Mercerie"
-                className="h-20 lg:h-24 w-auto transition-opacity group-hover:opacity-80"
-                style={{ maxWidth: '360px', objectFit: 'contain' }}
+                className="h-10 lg:h-12 w-auto transition-opacity group-hover:opacity-80"
+                style={{ maxWidth: '200px', objectFit: 'contain' }}
               />
             </Link>
 
