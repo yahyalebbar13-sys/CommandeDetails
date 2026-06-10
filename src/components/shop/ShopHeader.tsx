@@ -29,6 +29,7 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
+  { labelKey: "nav_boutiques", href: "/shop/boutiques" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
@@ -145,16 +146,14 @@ export default function ShopHeader() {
             {/* ── Logo ──────────────────────────────────────────────────── */}
             <Link
               href="/shop"
-              className="flex-shrink-0 flex items-center group"
+              className="flex-shrink-0 group"
               aria-label="LEBTEX - Accueil"
             >
-              <Image
+              <img
                 src="/logo.png"
-                alt="LEBTEX — Mercerie & Accessoires Textiles au Maroc"
-                width={140}
-                height={48}
-                className="h-10 lg:h-12 w-auto object-contain transition-opacity group-hover:opacity-80"
-                priority
+                alt="LEBTEX Mercerie"
+                className="h-10 lg:h-12 w-auto transition-opacity group-hover:opacity-80"
+                style={{ maxWidth: '200px', objectFit: 'contain' }}
               />
             </Link>
 
@@ -368,13 +367,11 @@ export default function ShopHeader() {
             onClick={() => setIsMobileMenuOpen(false)}
             className="flex items-center"
           >
-            <Image
+            <img
               src="/logo.png"
               alt="LEBTEX"
-              width={110}
-              height={38}
-              className="h-9 w-auto object-contain"
-              priority
+              className="h-12 w-auto"
+              style={{ maxWidth: '180px' }}
             />
           </Link>
           <button
