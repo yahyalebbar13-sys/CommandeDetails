@@ -497,11 +497,12 @@ export default function CategoriesView({
     return {
       transit: currentArticles.filter(a => {
         const eff = computeEffectiveStatus(a);
-        return eff === 'TRANSIT' || eff === 'SHIPPED' || eff === 'CUSTOMS';
+        return eff === 'TRANSIT' || eff === 'SHIPPED'; // seulement les vraies commandes en chemin
       }),
       arrived: currentArticles.filter(a => {
         const eff = computeEffectiveStatus(a);
-        return eff === 'STOCK' || eff === 'DELIVERED';
+        // CUSTOMS = arrivé au port, pas encore validé en stock → considéré "arrivé"
+        return eff === 'STOCK' || eff === 'DELIVERED' || eff === 'CUSTOMS';
       }),
       production: currentArticles.filter(a => computeEffectiveStatus(a) === 'PI'),
       pending: currentArticles.filter(a => computeEffectiveStatus(a) === 'TO_ORDER')
@@ -723,7 +724,7 @@ export default function CategoriesView({
       {
         key: 'stock' as const,
         label: 'En Stock',
-        count: stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0).length,
+        count: groupedData.arrived.length, // articles arrivés (CUSTOMS + STOCK + DELIVERED)
         icon: CheckCircle2,
         activeColor: 'bg-emerald-500',
         activeBg: 'bg-emerald-50 text-emerald-800',
@@ -1083,43 +1084,99 @@ export default function CategoriesView({
               </Table>
             )}
 
-            {/* ── Fiches de Stock par produit ── */}
+            {/* ── Articles Arrivés / En Stock ── */}
             {activeManifeste === 'stock' && (() => {
-              const currentStock = stockItems.filter(i => i.categoryId === selectedCategory && i.currentQty > 0);
-              if (currentStock.length === 0) {
+              if (groupedData.arrived.length === 0) {
                 return (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="w-14 h-14 rounded-2xl bg-stone-50 flex items-center justify-center mb-4">
                       <Package className="w-7 h-7 text-stone-200" />
                     </div>
-                    <p className="text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucun article validé en stock</p>
-                    <p className="text-stone-200 text-[9px] font-bold mt-1">Validez un arrivage depuis l'onglet Arrivages pour l'afficher ici</p>
+                    <p className="text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucun article arrivé</p>
+                    <p className="text-stone-200 text-[9px] font-bold mt-1">Les commandes arrivées apparaîtront ici automatiquement</p>
                   </div>
                 );
               }
+              // Articles arrivés = CUSTOMS (arrivé, pas encore validé) OU STOCK/DELIVERED (validé)
+              const arrivedArticles = groupedData.arrived;
+              const validatedIds = new Set(stockItems.map(s => s._realArticleId || s.articleId));
               return (
-                <div className="p-4 space-y-3">
-                  {currentStock.map((a, idx) => {
-                    const color = UI_COLORS[idx % UI_COLORS.length];
-                    const artMovements = movements.filter(m => m.articleId === a.articleId);
-                    const entriesIN  = artMovements.filter(m => m.type === 'IN').sort((x,y) => (y.date||'').localeCompare(x.date||''));
-                    const entriesOUT = artMovements.filter(m => m.type === 'OUT').sort((x,y) => (y.date||'').localeCompare(x.date||''));
-                    const pct = a.initialQty + a.mouvementsIn > 0
-                      ? Math.min(100, Math.round((a.currentQty / (a.initialQty + a.mouvementsIn)) * 100))
-                      : 100;
-
-                    return (
-                      <FicheStock
-                        key={a.articleId}
-                        article={a}
-                        color={color}
-                        pct={pct}
-                        entriesIN={entriesIN}
-                        entriesOUT={entriesOUT}
-                        factures={factures}
-                      />
-                    );
-                  })}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-stone-50/80 backdrop-blur-sm">
+                      <TableRow>
+                        <TableHead className="text-[10px] uppercase font-black py-4 px-6 text-stone-500">Désignation</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Taille</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Couleur</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Technique</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Fournisseur</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Arrivée</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Dossier</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black py-4 text-stone-500">Statut Stock</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase font-black py-4 text-stone-500">Quantité</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase font-black py-4 px-6 text-stone-500">Valeur</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {arrivedArticles.map(a => {
+                        const eff = computeEffectiveStatus(a);
+                        const isValidated = validatedIds.has(a.id);
+                        const isTechnical = isTechnicalZipper(a.categoryId);
+                        return (
+                          <TableRow key={a.id} className={`transition-colors border-stone-50 ${
+                            isValidated ? 'hover:bg-emerald-50/20' : 'hover:bg-amber-50/20'
+                          }`}>
+                            <TableCell className="py-3.5 px-6 align-top">
+                              <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
+                                <span>{a.name}</span>
+                                <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                            <TableCell className="py-3.5">
+                              {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
+                                  <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
+                                </div>
+                              ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
+                            </TableCell>
+                            <TableCell className="text-[10px] py-3.5">
+                              {isTechnical ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
+                                  <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'}</span>
+                                </div>
+                              ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
+                            </TableCell>
+                            <TableCell className="py-3.5"><span className="text-[9px] font-black text-stone-600 bg-stone-50 border border-stone-100 px-2 py-1 rounded uppercase">{a.supplierId}</span></TableCell>
+                            <TableCell className="py-3.5">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                                <CheckCircle2 className="w-2.5 h-2.5" />{a.arrivalDate || '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-3.5"><span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 uppercase">{a.factureId || '-'}</span></TableCell>
+                            <TableCell className="py-3.5">
+                              {isValidated ? (
+                                <span className="inline-flex items-center gap-1 text-[8px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-2.5 h-2.5" /> Validé Stock</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[8px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⚠ Arrivé — À valider</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right py-3.5">
+                              <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                              <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                            </TableCell>
+                            <TableCell className="text-right py-3.5 px-6">
+                              <span className="font-black text-emerald-700 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               );
             })()}
