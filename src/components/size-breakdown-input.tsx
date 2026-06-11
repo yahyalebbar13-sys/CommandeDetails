@@ -90,7 +90,12 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
     const next = rows.map((r, i) => {
       if (i !== index) return r;
       if (field === 'quantity') return { ...r, [field]: parseFloat(val) || 0 };
-      if (field === 'priceOverride') return { ...r, [field]: val === '' ? '' : parseFloat(val) || 0 };
+      if (field === 'priceOverride') {
+        // Allow comma as decimal separator (French locale)
+        const normalised = val.replace(',', '.');
+        const parsed = parseFloat(normalised);
+        return { ...r, [field]: val === '' ? '' : (isNaN(parsed) ? r.priceOverride : normalised) };
+      }
       return { ...r, [field]: val };
     });
     setRows(next);
@@ -222,14 +227,13 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
                     </div>
                     <div className="px-2 py-1">
                       <Input
-                        type="number"
-                        step="0.01"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
                         value={row.priceOverride === '' ? '' : row.priceOverride}
                         onChange={e => handleRowChange(i, 'priceOverride', e.target.value)}
                         className="h-8 border border-transparent hover:border-teal-200 focus:border-teal-400 bg-transparent font-bold text-[10px] text-teal-700 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-2 rounded placeholder:text-teal-200 transition-colors"
                         placeholder="Normal"
-                        title="Prix spécifique si différent du prix global"
+                        title="Prix spécifique si différent du prix global (ex: 1.6 ou 1,6)"
                       />
                     </div>
                     <div className="px-2 py-1">

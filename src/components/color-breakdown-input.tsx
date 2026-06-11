@@ -122,11 +122,23 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
     setRawInputs(prev => { const n = { ...prev }; delete n[index]; return n; });
   };
 
-  const handleRowChange = (index: number, field: keyof ColorBreakdownRow, val: string) => {
-    if (field === 'rolls') { handleRollsChange(index, val); return; }
+  const handlePriceOverrideChange = (index: number, val: string) => {
+    // Allow comma as decimal separator (French locale)
+    const normalised = val.replace(',', '.');
+    const parsed = parseFloat(normalised);
     const next = rows.map((r, i) => {
       if (i !== index) return r;
-      if (field === 'priceOverride') return { ...r, [field]: val === '' ? '' : parseFloat(val) || 0 };
+      return { ...r, priceOverride: val === '' ? '' : (isNaN(parsed) ? r.priceOverride : normalised) };
+    });
+    setRows(next);
+    notifyParent(next, enabled);
+  };
+
+  const handleRowChange = (index: number, field: keyof ColorBreakdownRow, val: string) => {
+    if (field === 'rolls') { handleRollsChange(index, val); return; }
+    if (field === 'priceOverride') { handlePriceOverrideChange(index, val); return; }
+    const next = rows.map((r, i) => {
+      if (i !== index) return r;
       return { ...r, [field]: val };
     });
     setRows(next);
@@ -265,14 +277,13 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
                     </div>
                     <div className="px-2 py-1">
                       <Input
-                        type="number"
-                        step="0.01"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
                         value={row.priceOverride === '' ? '' : row.priceOverride}
                         onChange={e => handleRowChange(i, 'priceOverride', e.target.value)}
                         className="h-8 border border-transparent hover:border-violet-200 focus:border-violet-400 bg-transparent font-bold text-[10px] text-violet-700 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-2 rounded placeholder:text-violet-200 transition-colors"
                         placeholder="Normal"
-                        title="Prix spécifique si différent du prix global"
+                        title="Prix spécifique si différent du prix global (ex: 1.6 ou 1,6)"
                       />
                     </div>
                     <div className="px-2 py-1">
