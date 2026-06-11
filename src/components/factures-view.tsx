@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle
 } from 'lucide-react';
 import { exportFacturePDF } from '@/lib/pdf-export';
 import { isZipperCategory } from '@/lib/constants';
@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, getDocs } from 'firebase/firestore';
+import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
@@ -51,6 +51,8 @@ export default function FacturesView({
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
   const [checklistFacture, setChecklistFacture] = useState<any>(null);
+  const [factureToDelete, setFactureToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
@@ -218,7 +220,39 @@ export default function FacturesView({
     setIsEditModalOpen(true);
   };
 
-  // isZipperCategory importée depuis @/lib/constants
+  const handleDeleteFacture = async (facture: any) => {
+    if (!user || !firestore || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      // Unlink all articles referencing this facture (batch update)
+      const linkedArticles = articles.filter(a => a.factureId === facture.id);
+      if (linkedArticles.length > 0) {
+        const batch = writeBatch(firestore);
+        linkedArticles.forEach(a => {
+          const ref = doc(firestore, 'users', user.uid, 'articles', a.id);
+          batch.update(ref, { factureId: '', status: 'SHIPPED' });
+        });
+        await batch.commit();
+      }
+      // Delete the facture document
+      deleteDocumentNonBlocking(
+        doc(firestore, 'users', user.uid, 'factures', facture.id)
+      );
+      toast({
+        title: '🗑️ Arrivage supprimé',
+        description: linkedArticles.length > 0
+          ? `Dossier ${facture.id} supprimé. ${linkedArticles.length} article(s) détaché(s).`
+          : `Dossier ${facture.id} supprimé.`,
+      });
+      setFactureToDelete(null);
+      // If we were viewing this facture's detail, go back to list
+      if (selectedFactureId === facture.id) setSelectedFactureId(null);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (selectedFactureId && selectedFacture) {
     return (
@@ -477,6 +511,13 @@ export default function FacturesView({
           >
             Paramétrer le Dossier
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setFactureToDelete(selectedFacture)}
+            className="h-10 text-[10px] font-black uppercase tracking-widest border-red-200 text-red-600 hover:bg-red-50 rounded-xl px-5 gap-2"
+          >
+            <Trash2 className="w-4 h-4" /> Supprimer le Dossier
+          </Button>
         </div>
 
         <AddFactureModal
@@ -501,6 +542,65 @@ export default function FacturesView({
           facture={checklistFacture}
           articles={articles}
         />
+
+          {/* Confirmation suppression */}
+          <Dialog open={!!factureToDelete} onOpenChange={(open) => !open && setFactureToDelete(null)}>
+            <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
+              <div className="bg-red-600 p-5 flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/10 rounded-lg shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
+                    Supprimer l&apos;Arrivage
+                  </DialogTitle>
+                  <p className="text-[9px] font-bold text-red-200 uppercase tracking-widest mt-0.5">
+                    {factureToDelete?.id} — action irréversible
+                  </p>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                {(() => {
+                  const linked = articles.filter(a => a.factureId === factureToDelete?.id);
+                  return linked.length > 0 ? (
+                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
+                          {linked.length} article(s) lié(s)
+                        </p>
+                        <p className="text-[10px] font-medium text-amber-700 mt-1">
+                          Ces articles seront <strong>détachés</strong> du dossier mais ne seront <strong>pas supprimés</strong>.
+                          Leur statut sera remis à &quot;Expédié&quot;.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-stone-500 font-medium">
+                      Aucun article lié à ce dossier. La suppression est sûre.
+                    </p>
+                  );
+                })()}
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setFactureToDelete(null)}
+                    className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl border-stone-200"
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={() => factureToDelete && handleDeleteFacture(factureToDelete)}
+                    disabled={isDeleting}
+                    className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-red-600 hover:bg-red-700 text-white gap-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {isDeleting ? 'Suppression...' : 'Confirmer la suppression'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
         {/* Color Breakdown Detail Dialog */}
         {colorDetailArticle && (
@@ -625,7 +725,16 @@ export default function FacturesView({
             onClick={() => setSelectedFactureId(f.id)}
             className="group bg-white rounded-[2rem] shadow-xl border border-stone-100 p-8 hover:border-amber-500 cursor-pointer transition-all flex flex-col relative overflow-hidden active:scale-95 status-glow-amber"
           >
-            <div className="absolute top-0 left-0 w-2 h-full bg-amber-500 group-hover:w-3 transition-all" />
+            {/* Bouton Supprimer sur la carte (visible au hover) */}
+          <button
+            onClick={e => { e.stopPropagation(); setFactureToDelete(f); }}
+            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white border border-stone-200 flex items-center justify-center text-stone-300 hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 shadow-sm z-10"
+            title="Supprimer cet arrivage"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="absolute top-0 left-0 w-2 h-full bg-amber-500 group-hover:w-3 transition-all" />
             
             {f.isIncomplete && (
               <div className="absolute top-4 right-4 flex items-center gap-1 bg-orange-100 text-orange-700 border border-orange-200 px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-wide">
@@ -751,6 +860,65 @@ export default function FacturesView({
         editFacture={modalInitialData}
         associatedArticles={modalInitialData ? articles.filter((a: any) => a.factureId === modalInitialData.id) : []}
       />
+
+      {/* Confirmation suppression — accessible depuis la vue liste */}
+      <Dialog open={!!factureToDelete} onOpenChange={(open) => !open && setFactureToDelete(null)}>
+        <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
+          <div className="bg-red-600 p-5 flex items-center gap-3 text-white">
+            <div className="p-2 bg-white/10 rounded-lg shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
+                Supprimer l&apos;Arrivage
+              </DialogTitle>
+              <p className="text-[9px] font-bold text-red-200 uppercase tracking-widest mt-0.5">
+                {factureToDelete?.id} — action irréversible
+              </p>
+            </div>
+          </div>
+          <div className="p-5 space-y-4">
+            {(() => {
+              const linked = articles.filter(a => a.factureId === factureToDelete?.id);
+              return linked.length > 0 ? (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
+                      {linked.length} article(s) lié(s)
+                    </p>
+                    <p className="text-[10px] font-medium text-amber-700 mt-1">
+                      Ces articles seront <strong>détachés</strong> du dossier mais ne seront <strong>pas supprimés</strong>.
+                      Leur statut sera remis à &quot;Expédié&quot;.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-stone-500 font-medium">
+                  Aucun article lié à ce dossier. La suppression est sûre.
+                </p>
+              );
+            })()}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setFactureToDelete(null)}
+                className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl border-stone-200"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={() => factureToDelete && handleDeleteFacture(factureToDelete)}
+                disabled={isDeleting}
+                className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-red-600 hover:bg-red-700 text-white gap-2"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {isDeleting ? 'Suppression...' : 'Confirmer'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
