@@ -221,16 +221,71 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...cleanFormData } = formData;
-    const finalData = {
-      ...cleanFormData,
-      name: formData.categoryId,
-      generalCategoryId: selectedGenCatId,
-      factureId: finalFactureId,
-      status: statusToSave,
-      colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
-    };
+    
+    let isSplit = false;
+    let splitCount = 1;
 
-    updateDocumentNonBlocking(docRef, finalData);
+    const groups = new Map<number, ColorBreakdownRow[]>();
+    if (colorBreakdown && colorBreakdown.length > 0) {
+      for (const row of colorBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
+          ? Number(row.priceOverride)
+          : Number(formData.purchasePricePerUnit || 0);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+    }
+
+    if (groups.size > 1) {
+      isSplit = true;
+      splitCount = groups.size;
+      let isFirst = true;
+      groups.forEach((rows, price) => {
+        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
+        if (isFirst) {
+          // Update the original document
+          const finalData = {
+            ...cleanFormData,
+            name: formData.categoryId,
+            generalCategoryId: selectedGenCatId,
+            factureId: finalFactureId,
+            status: statusToSave,
+            purchasePricePerUnit: price,
+            quantity: groupQty,
+            colorBreakdown: rows,
+          };
+          updateDocumentNonBlocking(docRef, finalData);
+          isFirst = false;
+        } else {
+          // Create new document for other price groups
+          const newId = crypto.randomUUID();
+          const newDocRef = doc(firestore, 'users', user.uid, 'articles', newId);
+          const finalData = {
+            ...cleanFormData,
+            id: newId,
+            name: formData.categoryId,
+            generalCategoryId: selectedGenCatId,
+            factureId: finalFactureId,
+            status: statusToSave,
+            purchasePricePerUnit: price,
+            quantity: groupQty,
+            colorBreakdown: rows,
+            createdAt: serverTimestamp(),
+          };
+          setDocumentNonBlocking(newDocRef, finalData, { merge: true });
+        }
+      });
+    } else {
+      const finalData = {
+        ...cleanFormData,
+        name: formData.categoryId,
+        generalCategoryId: selectedGenCatId,
+        factureId: finalFactureId,
+        status: statusToSave,
+        colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
+      };
+      updateDocumentNonBlocking(docRef, finalData);
+    }
 
     // ── Send Gmail notification if status changed and client is a preorder ──
     // article.rawStatus = real Firestore status (SHIPPED/PI/etc)
@@ -304,7 +359,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       }
     }
 
-    toast({ title: 'Modifié !', description: `L'article a été mis à jour.` });
+    toast({ 
+      title: 'Modifié !', 
+      description: isSplit 
+        ? `L'article a été mis à jour et séparé en ${splitCount} articles (prix différents).` 
+        : `L'article a été mis à jour.` 
+    });
     onOpenChange(false);
   };
 
