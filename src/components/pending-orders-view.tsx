@@ -116,6 +116,15 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-[160px]">
             <div className="flex items-center gap-2 flex-wrap">
+              {o.imageUrl && (
+                <img
+                  src={o.imageUrl}
+                  alt={o.name}
+                  className="w-10 h-10 rounded-xl object-cover border border-stone-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => window.open(o.imageUrl, '_blank')}
+                  title="Voir la photo"
+                />
+              )}
               <p className="font-black text-stone-900 text-[12px] uppercase">{o.name}</p>
               {o.isFullContainer && (
                 <span className="inline-flex items-center gap-0.5 text-[7px] font-black text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full uppercase">
