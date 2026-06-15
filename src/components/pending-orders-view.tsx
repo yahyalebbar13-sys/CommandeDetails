@@ -42,38 +42,34 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
   const clientOrders = useMemo(() => pendingOrders.filter(o => o.isPreorder && o.clientName), [pendingOrders]);
   const activeOrders = activeTab === 'mine' ? myOrders : clientOrders;
 
-  // Group by category
-  // Group: Pôle → Fournisseur → Catégorie
-  const poleGroups = useMemo(() => {
-    // Build pole name map
+  // Group: Fournisseur (primary) → Pôle (secondary) → Catégorie (tertiary)
+  const supplierGroups = useMemo(() => {
     const poleNameMap: Record<string, string> = {};
     (generalCategories || []).forEach((gc: any) => { poleNameMap[gc.id] = gc.name || gc.id; });
 
-    // Group by pôle
-    const byPole = new Map<string, any[]>();
+    const bySup = new Map<string, any[]>();
     activeOrders.forEach(o => {
-      const poleId = o.generalCategoryId || '__other__';
-      if (!byPole.has(poleId)) byPole.set(poleId, []);
-      byPole.get(poleId)!.push(o);
+      const sup = o.supplierId || 'NON SPÉCIFIÉ';
+      if (!bySup.has(sup)) bySup.set(sup, []);
+      bySup.get(sup)!.push(o);
     });
 
-    return Array.from(byPole.entries())
-      .map(([poleId, poleArts]) => {
-        const poleName = poleId === '__other__' ? 'Autres' : (poleNameMap[poleId] || poleId);
-
-        // Sub-group by supplier
-        const bySup = new Map<string, any[]>();
-        poleArts.forEach((o: any) => {
-          const sup = o.supplierId || 'NON SPÉCIFIÉ';
-          if (!bySup.has(sup)) bySup.set(sup, []);
-          bySup.get(sup)!.push(o);
+    return Array.from(bySup.entries())
+      .map(([sup, supArts]) => {
+        // Sub-group by pôle
+        const byPole = new Map<string, any[]>();
+        supArts.forEach((o: any) => {
+          const poleId = o.generalCategoryId || '__other__';
+          if (!byPole.has(poleId)) byPole.set(poleId, []);
+          byPole.get(poleId)!.push(o);
         });
 
-        const supplierGroups = Array.from(bySup.entries())
-          .map(([sup, supArts]) => {
-            // Sub-group by category inside supplier
+        const poleGroups = Array.from(byPole.entries())
+          .map(([poleId, poleArts]) => {
+            const poleName = poleId === '__other__' ? 'Autres' : (poleNameMap[poleId] || poleId);
+            // Sub-group by category inside pôle
             const byCat = new Map<string, any[]>();
-            supArts.forEach((o: any) => {
+            poleArts.forEach((o: any) => {
               const cat = o.categoryId || o.name || 'Non spécifié';
               if (!byCat.has(cat)) byCat.set(cat, []);
               byCat.get(cat)!.push(o);
@@ -81,25 +77,19 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
             const catGroups = Array.from(byCat.entries())
               .map(([cat, catArts]) => ({ cat, arts: catArts }))
               .sort((a, b) => a.cat.localeCompare(b.cat));
-            return {
-              sup,
-              catGroups,
-              allArts: supArts,
-              totalValue: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
-              totalQty: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
-            };
+            return { poleId, poleName, catGroups, allArts: poleArts };
           })
-          .sort((a, b) => a.sup.localeCompare(b.sup));
+          .sort((a, b) => a.poleName.localeCompare(b.poleName));
 
         return {
-          poleId,
-          poleName,
-          supplierGroups,
-          allArts: poleArts,
-          totalValue: poleArts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
+          sup,
+          poleGroups,
+          allArts: supArts,
+          totalValue: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
+          totalQty: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
         };
       })
-      .sort((a, b) => a.poleName.localeCompare(b.poleName));
+      .sort((a, b) => a.sup.localeCompare(b.sup));
   }, [activeOrders, generalCategories]);
 
   const totalValue = activeOrders.reduce((s, o) =>
@@ -363,87 +353,81 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-8">
-          {poleGroups.map(({ poleId, poleName, supplierGroups, allArts, totalValue: poleVal }) => (
-            <div key={poleId} className="space-y-4">
-              {/* ── Pôle header ── */}
-              <div className="flex items-center gap-4">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-stone-200" />
-                <div className="flex items-center gap-3 bg-gradient-to-r from-stone-900 to-stone-800 px-6 py-3 rounded-2xl shadow-lg">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <span className="text-[11px] font-black text-white uppercase tracking-[0.2em]">{poleName}</span>
-                  <span className="text-[9px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full">{allArts.length}</span>
-                  <span className="text-[9px] font-bold text-stone-400">${poleVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                </div>
-                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-stone-200" />
-              </div>
-
-              {/* ── Supplier groups inside pôle ── */}
-              <div className="space-y-4">
-                {supplierGroups.map(({ sup, catGroups, allArts: supArts, totalValue: supVal, totalQty: supQty }) => {
-                  const collapsed = collapsedGroups.has(`${poleId}__${sup}`);
-                  return (
-                    <div key={sup} className="rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm">
-                      {/* Supplier header */}
-                      <button
-                        type="button"
-                        onClick={() => toggleGroup(`${poleId}__${sup}`)}
-                        className="w-full flex items-center gap-4 px-6 py-4 bg-stone-900 hover:bg-stone-800 transition-colors text-left"
-                      >
-                        <div className="p-2 bg-white/10 rounded-xl shrink-0">
-                          <Building2 className="w-5 h-5 text-amber-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[14px] font-black text-white uppercase tracking-wider">{sup}</p>
-                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                            <span className="text-[9px] font-bold text-stone-400 uppercase">
-                              {supArts.length} commande{supArts.length > 1 ? 's' : ''}
-                            </span>
-                            <span className="text-[9px] font-bold text-amber-400 uppercase">
-                              {catGroups.length} catégorie{catGroups.length > 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 shrink-0">
-                          <div className="text-right hidden md:block">
-                            <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Valeur totale</p>
-                            <p className="text-base font-black text-amber-400">${supVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-                          </div>
-                          <Badge className="bg-amber-500 text-white border-none text-[9px] font-black px-3 py-1">
-                            {supQty.toLocaleString()} unités
-                          </Badge>
-                          <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
-                        </div>
-                      </button>
-
-                      {/* Category sub-groups */}
-                      {!collapsed && (
-                        <div className="bg-white/60 divide-y divide-stone-100">
-                          {catGroups.map(({ cat, arts }) => {
-                            const colors = getCategoryColor(cat);
-                            return (
-                              <div key={cat}>
-                                {catGroups.length > 1 && (
-                                  <div className={`flex items-center gap-2 px-6 py-2 ${colors.bg} border-b ${colors.border}`}>
-                                    <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
-                                    <span className={`text-[9px] font-black uppercase tracking-widest ${colors.text}`}>{cat}</span>
-                                    <span className={`ml-auto text-[9px] font-black ${colors.text} opacity-60`}>{arts.length} art.</span>
-                                  </div>
-                                )}
-                                <div className="p-4 space-y-2">
-                                  {(arts as any[]).map((o: any) => <ArticleCard key={o.id} o={o} />)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+        <div className="space-y-5">
+          {supplierGroups.map(({ sup, poleGroups, allArts, totalValue: supVal, totalQty: supQty }) => {
+            const collapsed = collapsedGroups.has(sup);
+            return (
+              <div key={sup} className="rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm">
+                {/* ── Supplier header (primary, collapsible) ── */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(sup)}
+                  className="w-full flex items-center gap-4 px-6 py-4 bg-stone-900 hover:bg-stone-800 transition-colors text-left"
+                >
+                  <div className="p-2 bg-white/10 rounded-xl shrink-0">
+                    <Building2 className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-black text-white uppercase tracking-wider">{sup}</p>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="text-[9px] font-bold text-stone-400 uppercase">
+                        {allArts.length} commande{allArts.length > 1 ? 's' : ''}
+                      </span>
+                      <span className="text-[9px] font-bold text-amber-400 uppercase">
+                        {poleGroups.length} pôle{poleGroups.length > 1 ? 's' : ''}
+                      </span>
                     </div>
-                  );
-                })}
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="text-right hidden md:block">
+                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Valeur totale</p>
+                      <p className="text-base font-black text-amber-400">${supVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                    </div>
+                    <Badge className="bg-amber-500 text-white border-none text-[9px] font-black px-3 py-1">
+                      {supQty.toLocaleString()} unités
+                    </Badge>
+                    <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
+                  </div>
+                </button>
+
+                {/* ── Pôle sub-sections ── */}
+                {!collapsed && (
+                  <div className="bg-white/60 divide-y divide-stone-100">
+                    {poleGroups.map(({ poleId, poleName, catGroups, allArts: poleArts }) => (
+                      <div key={poleId}>
+                        {/* Pôle separator — shown only if supplier has multiple pôles */}
+                        {poleGroups.length > 1 && (
+                          <div className="flex items-center gap-3 px-6 py-2.5 bg-stone-50 border-b border-stone-100">
+                            <Layers className="w-3 h-3 text-stone-400" />
+                            <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{poleName}</span>
+                            <span className="ml-auto text-[9px] font-bold text-stone-400">{poleArts.length} art.</span>
+                          </div>
+                        )}
+                        {/* Categories inside pôle */}
+                        {catGroups.map(({ cat, arts }) => {
+                          const colors = getCategoryColor(cat);
+                          return (
+                            <div key={cat}>
+                              {catGroups.length > 1 && (
+                                <div className={`flex items-center gap-2 px-8 py-1.5 ${colors.bg} border-b ${colors.border}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+                                  <span className={`text-[8px] font-black uppercase tracking-widest ${colors.text}`}>{cat}</span>
+                                  <span className={`ml-auto text-[8px] font-bold ${colors.text} opacity-60`}>{arts.length} art.</span>
+                                </div>
+                              )}
+                              <div className="p-4 space-y-2">
+                                {(arts as any[]).map((o: any) => <ArticleCard key={o.id} o={o} />)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
