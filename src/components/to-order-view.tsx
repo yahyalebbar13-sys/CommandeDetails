@@ -466,12 +466,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                         <div key={o.id} className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all p-4 space-y-2.5 border-l-4 ${priorityConf.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
                           <div className="flex items-start justify-between gap-2">
                             <ArticleCheckbox id={o.id} />
-                            {o.imageUrl && (
+                            {(o.imageUrl || o.designImageUrl) && (
                               <img
-                                src={o.imageUrl}
+                                src={o.imageUrl || o.designImageUrl}
                                 alt={o.name}
-                                className="w-9 h-9 rounded-lg object-cover border border-stone-100 shrink-0 cursor-pointer"
-                                onClick={() => window.open(o.imageUrl, '_blank')}
+                                className="w-9 h-9 rounded-lg object-cover border border-stone-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(o.imageUrl || o.designImageUrl, '_blank')}
                                 title="Voir la photo"
                               />
                             )}
@@ -632,12 +632,12 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                           <div key={o.id} className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all p-4 space-y-3 border-l-4 ${col.borderLeft} ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}>
                             <div className="flex items-start justify-between gap-2">
                               <ArticleCheckbox id={o.id} />
-                              {o.imageUrl && (
+                              {(o.imageUrl || o.designImageUrl) && (
                                 <img
-                                  src={o.imageUrl}
+                                  src={o.imageUrl || o.designImageUrl}
                                   alt={o.name}
                                   className="w-10 h-10 rounded-xl object-cover border border-stone-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => window.open(o.imageUrl, '_blank')}
+                                  onClick={() => window.open(o.imageUrl || o.designImageUrl, '_blank')}
                                   title="Voir la photo"
                                 />
                               )}
