@@ -28,7 +28,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'mine' | 'clients'>('mine');
 
   const pendingOrders = useMemo(() => {
@@ -42,31 +42,44 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
   const activeOrders = activeTab === 'mine' ? myOrders : clientOrders;
 
   // Group by category
-  const categoryGroups = useMemo(() => {
-    const byCat = new Map<string, any[]>();
+  // Group by supplier (primary), then by category (secondary)
+  const supplierGroups = useMemo(() => {
+    const bySup = new Map<string, any[]>();
     activeOrders.forEach(o => {
-      const cat = o.categoryId || o.name || 'Non spécifié';
-      if (!byCat.has(cat)) byCat.set(cat, []);
-      byCat.get(cat)!.push(o);
+      const sup = o.supplierId || 'NON SPÉCIFIÉ';
+      if (!bySup.has(sup)) bySup.set(sup, []);
+      bySup.get(sup)!.push(o);
     });
-    return Array.from(byCat.entries())
-      .map(([cat, arts]) => ({
-        cat,
-        arts: arts.sort((a: any, b: any) => (a.supplierId || '').localeCompare(b.supplierId || '')),
-        totalQty: arts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
-        totalValue: arts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
-        suppliers: [...new Set(arts.map((o: any) => o.supplierId).filter(Boolean))],
-      }))
-      .sort((a, b) => a.cat.localeCompare(b.cat));
+    return Array.from(bySup.entries())
+      .map(([sup, arts]) => {
+        // sub-group by category inside supplier
+        const byCat = new Map<string, any[]>();
+        arts.forEach((o: any) => {
+          const cat = o.categoryId || o.name || 'Non spécifié';
+          if (!byCat.has(cat)) byCat.set(cat, []);
+          byCat.get(cat)!.push(o);
+        });
+        const catGroups = Array.from(byCat.entries())
+          .map(([cat, catArts]) => ({ cat, arts: catArts }))
+          .sort((a, b) => a.cat.localeCompare(b.cat));
+        return {
+          sup,
+          catGroups,
+          allArts: arts,
+          totalValue: arts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
+          totalQty: arts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
+        };
+      })
+      .sort((a, b) => a.sup.localeCompare(b.sup));
   }, [activeOrders]);
 
   const totalValue = activeOrders.reduce((s, o) =>
     s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0);
 
-  const toggleCategory = (cat: string) => {
-    setCollapsedCategories(prev => {
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -276,7 +289,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-1.5 flex gap-1.5">
         <button
           type="button"
-          onClick={() => { setActiveTab('mine'); setCollapsedCategories(new Set()); }}
+          onClick={() => { setActiveTab('mine'); setCollapsedGroups(new Set()); }}
           className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-200 ${
             activeTab === 'mine'
               ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
@@ -294,7 +307,7 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
 
         <button
           type="button"
-          onClick={() => { setActiveTab('clients'); setCollapsedCategories(new Set()); }}
+          onClick={() => { setActiveTab('clients'); setCollapsedGroups(new Set()); }}
           className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all duration-200 ${
             activeTab === 'clients'
               ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-200'
@@ -322,51 +335,63 @@ export default function PendingOrdersView({ articles, factures, onEdit }: Pendin
         </Card>
       ) : (
         <div className="space-y-5">
-          {categoryGroups.map(({ cat, arts, totalQty, totalValue: catVal, suppliers }) => {
-            const colors = getCategoryColor(cat);
-            const collapsed = collapsedCategories.has(cat);
+          {supplierGroups.map(({ sup, catGroups, allArts, totalValue: supVal, totalQty: supQty }) => {
+            const collapsed = collapsedGroups.has(sup);
             return (
-              <div key={cat} className={`rounded-2xl border-2 ${colors.border} overflow-hidden shadow-sm`}>
-                {/* Category header */}
+              <div key={sup} className="rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm">
+                {/* Supplier header */}
                 <button
                   type="button"
-                  onClick={() => toggleCategory(cat)}
-                  className={`w-full flex items-center gap-4 px-6 py-4 ${colors.bg} hover:brightness-95 transition-all text-left`}
+                  onClick={() => toggleGroup(sup)}
+                  className="w-full flex items-center gap-4 px-6 py-4 bg-stone-900 hover:bg-stone-800 transition-colors text-left"
                 >
-                  <div className={`p-2 rounded-xl ${colors.badge} shrink-0`}>
-                    <Layers className="w-4 h-4" />
+                  <div className="p-2 bg-white/10 rounded-xl shrink-0">
+                    <Building2 className="w-5 h-5 text-amber-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-[13px] font-black uppercase tracking-wider ${colors.text}`}>{cat}</p>
+                    <p className="text-[14px] font-black text-white uppercase tracking-wider">{sup}</p>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      <span className={`text-[9px] font-bold ${colors.text} uppercase`}>
-                        {arts.length} commande{arts.length > 1 ? 's' : ''}
+                      <span className="text-[9px] font-bold text-stone-400 uppercase">
+                        {allArts.length} commande{allArts.length > 1 ? 's' : ''}
                       </span>
-                      {/* Fournisseurs de la catégorie */}
-                      {suppliers.length > 0 && (
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-blue-700 uppercase">
-                          <Building2 className="w-2.5 h-2.5" />
-                          {suppliers.join(' · ')}
-                        </span>
-                      )}
+                      <span className="text-[9px] font-bold text-amber-400 uppercase">
+                        {catGroups.length} catégorie{catGroups.length > 1 ? 's' : ''}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-right hidden md:block">
-                      <p className={`text-[8px] font-black uppercase tracking-widest ${colors.text} opacity-60`}>Valeur totale</p>
-                      <p className={`text-base font-black ${colors.text}`}>${catVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Valeur totale</p>
+                      <p className="text-base font-black text-amber-400">${supVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
                     </div>
-                    <Badge className={`${colors.badge} border-none text-[9px] font-black px-3 py-1`}>
-                      {totalQty.toLocaleString()} unités
+                    <Badge className="bg-amber-500 text-white border-none text-[9px] font-black px-3 py-1">
+                      {supQty.toLocaleString()} unités
                     </Badge>
-                    <ChevronDown className={`w-4 h-4 ${colors.text} transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
+                    <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
                   </div>
                 </button>
 
-                {/* Articles */}
+                {/* Category sub-groups */}
                 {!collapsed && (
-                  <div className="p-4 space-y-2 bg-white/60">
-                    {arts.map((o: any) => <ArticleCard key={o.id} o={o} />)}
+                  <div className="bg-white/60 divide-y divide-stone-100">
+                    {catGroups.map(({ cat, arts }) => {
+                      const colors = getCategoryColor(cat);
+                      return (
+                        <div key={cat}>
+                          {/* Category sub-header — only shown if supplier has multiple categories */}
+                          {catGroups.length > 1 && (
+                            <div className={`flex items-center gap-2 px-6 py-2 ${colors.bg} border-b ${colors.border}`}>
+                              <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${colors.text}`}>{cat}</span>
+                              <span className={`ml-auto text-[9px] font-black ${colors.text} opacity-60`}>{arts.length} art.</span>
+                            </div>
+                          )}
+                          <div className="p-4 space-y-2">
+                            {(arts as any[]).map((o: any) => <ArticleCard key={o.id} o={o} />)}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
