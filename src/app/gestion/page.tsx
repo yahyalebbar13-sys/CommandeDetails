@@ -547,7 +547,7 @@ function AdminApp() {
               <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
-              <PendingOrdersView articles={articles} factures={factures} onEdit={setEditingArticle} />
+              <PendingOrdersView articles={articles} factures={factures} generalCategories={generalCategories} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'timeline' ? 'block animate-in fade-in' : 'hidden'}>
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />
