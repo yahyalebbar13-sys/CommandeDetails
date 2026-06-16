@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { addPdfLogoHeader } from "@/lib/pdf-export";
 
 interface ExportClientCommandeProps { article: any; }
 
@@ -50,28 +51,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.rect(0, 0, 5, 38, "F");
 
     // Logo / company name
-    await new Promise<void>((resolve) => {
-      const drawBg = () => {
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(7, 3, 38, 22, 2, 2, "F");
-      };
-      
-      const img = new Image();
-      img.src = "/logo.png";
-      img.onload = () => { drawBg(); doc.addImage(img, "PNG", 10, 6, 32, 16); resolve(); };
-      img.onerror = () => {
-        drawBg();
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(18);
-        doc.setFont("helvetica", "bold");
-        doc.text("LEBTEX", 12, 20);
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...GOLD);
-        doc.text("TEXTILE IMPORT", 12, 26);
-        resolve();
-      };
-    });
+    await addPdfLogoHeader(doc, 10, 6, 32, 16, true);
 
     // Document title (right side of header)
     doc.setTextColor(...WHITE);

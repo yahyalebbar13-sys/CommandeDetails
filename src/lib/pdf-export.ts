@@ -2,34 +2,54 @@
 // Dynamically imported to avoid SSR issues
 
 // ── Shared logo helper ─────────────────────────────────────────────────────
-async function addPdfLogoHeader(
+export async function addPdfLogoHeader(
   doc: any,
   x: number, y: number,
   w = 36, h = 18,
-  withBg = false
+  invertToWhite = false
 ): Promise<void> {
   return new Promise<void>(resolve => {
-    const drawBg = () => {
-      if (withBg) {
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(x - 3, y - 3, w + 6, h + 6, 2, 2, 'F');
-      }
-    };
-
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = '/logo.png';
     img.onload = () => {
       try { 
-        drawBg();
-        doc.addImage(img, 'PNG', x, y, w, h); 
+        if (invertToWhite) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+              const r = data[i], g = data[i + 1], b = data[i + 2];
+              const brightness = (r + g + b) / 3;
+              // Original alpha
+              const alpha = data[i + 3] / 255;
+              // New alpha: transparent if bright, opaque if dark
+              const newAlpha = (255 - brightness) * alpha;
+              
+              data[i] = 255; // R
+              data[i + 1] = 255; // G
+              data[i + 2] = 255; // B
+              data[i + 3] = newAlpha; // A
+            }
+            ctx.putImageData(imageData, 0, 0);
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
+          } else {
+            doc.addImage(img, 'PNG', x, y, w, h);
+          }
+        } else {
+          doc.addImage(img, 'PNG', x, y, w, h); 
+        }
       } catch (_) {}
       resolve();
     };
     img.onerror = () => {
-      drawBg();
       // Texte fallback si l'image ne charge pas
-      doc.setTextColor(withBg ? 15 : 15, withBg ? 23 : 23, withBg ? 42 : 42); // Navy text
+      doc.setTextColor(invertToWhite ? 255 : 15, invertToWhite ? 255 : 23, invertToWhite ? 255 : 42); 
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('LEBTEX', x, y + 8);
