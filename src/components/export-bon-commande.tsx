@@ -52,7 +52,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
     doc.rect(0, 0, 5, 38, "F");
 
     // Logo / company name
-    await addPdfLogoHeader(doc, 10, 6, 32, 16, true);
+    await addPdfLogoHeader(doc, 10, 5, 50, 25, true);
 
     // Document title (right side of header)
     doc.setTextColor(...WHITE);

@@ -1852,7 +1852,7 @@ export async function exportDevisClientPIPDF(params: {
   doc.setFillColor(...GOLD);
   doc.rect(0, 0, 5, 38, 'F');
 
-  await addPdfLogoHeader(doc, 10, 6, 32, 16, true);
+  await addPdfLogoHeader(doc, 10, 5, 50, 25, true);
 
   doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
   doc.text('DEVIS', W - MX, 18, { align: 'right' });
