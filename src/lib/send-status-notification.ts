@@ -125,8 +125,9 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
   try {
     const contact = await resolveClientContact(firestore, adminUid, clientName);
     const { email, whatsappPhone } = contact;
-    // Admin's explicit choice overrides per-client preference
-    const channel = explicitChannel || contact.channel;
+    // Priority: 1. explicit call-site override, 2. global localStorage setting, 3. per-client Firestore setting
+    const globalChannel = (typeof window !== 'undefined' ? localStorage.getItem('notifyChannel') : null) as 'email' | 'whatsapp' | 'both' | null;
+    const channel = explicitChannel || globalChannel || contact.channel;
     const newStatusLabel = STATUS_LABELS[newStatus] || newStatus;
 
     let whatsappSent = false;

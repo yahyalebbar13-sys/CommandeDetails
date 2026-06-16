@@ -403,6 +403,22 @@ function AdminApp() {
   const [editingArticle, setEditingArticle] = useState<any | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [passToStockFactureId, setPassToStockFactureId] = useState<string | null>(null);
+  const [globalNotifyChannel, setGlobalNotifyChannel] = useState<'email' | 'whatsapp' | 'both'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('notifyChannel') as any) || 'email';
+    }
+    return 'email';
+  });
+
+  const cycleChannel = () => {
+    setGlobalNotifyChannel(prev => {
+      const next = prev === 'email' ? 'whatsapp' : prev === 'whatsapp' ? 'both' : 'email';
+      localStorage.setItem('notifyChannel', next);
+      return next;
+    });
+  };
+
+  const channelLabel = globalNotifyChannel === 'email' ? '📧' : globalNotifyChannel === 'whatsapp' ? '📱' : '📧+📱';
   const { toast } = useToast();
 
   const facturesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'factures'), [firestore, user]);
@@ -524,6 +540,18 @@ function AdminApp() {
             <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-3 py-2 h-9 rounded-xl shadow-lg flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest whitespace-nowrap">
               <Plus className="w-3.5 h-3.5 shrink-0" /><span>Nouveau Produit</span>
             </Button>
+            {/* Global notification channel toggle */}
+            <button
+              onClick={cycleChannel}
+              title={`Notifications : ${globalNotifyChannel === 'email' ? 'Email' : globalNotifyChannel === 'whatsapp' ? 'WhatsApp' : 'Email + WhatsApp'}\nCliquer pour changer`}
+              className={`h-9 px-3 rounded-xl border font-black text-[11px] transition-all ${
+                globalNotifyChannel === 'whatsapp' ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' :
+                globalNotifyChannel === 'both' ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' :
+                'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+              }`}
+            >
+              {channelLabel}
+            </button>
             <Button variant="ghost" size="icon" onClick={() => signOut(auth)} className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50 shrink-0">
               <LogOut className="w-4 h-4" />
             </Button>
