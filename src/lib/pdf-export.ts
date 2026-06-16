@@ -1778,6 +1778,7 @@ export async function exportDevisClientPIPDF(params: {
   }>;
   tauxChange: number;
   margePercent: number;
+  remiseGlobale?: number;
 }) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -1945,17 +1946,27 @@ export async function exportDevisClientPIPDF(params: {
   doc.line(MX + 48, y - 1, W - MX, y - 1);
   y += 3;
 
+  // Detect if any item has a remise
+  const hasRemise = items.some(it => (it.computed?.remise || 0) > 0);
+
   // Build line items
-  const lineItems: [string, string, string, string, string][] = [];
+  const lineItems: string[][] = [];
   let index = 1;
   let totalDevisMad = 0;
+  let totalAvantRemise = 0;
+  let totalRemiseMad = 0;
 
   items.forEach(item => {
     const art = item.article;
     const comp = item.computed;
     const pu = comp.prixVenteUniteMad;
+    const puNet = comp.prixRemiseUniteMad ?? pu; // after discount
+    const remise = comp.remise ?? 0;
     const pt = comp.prixVenteTotalMad;
-    totalDevisMad += pt;
+    const ptNet = comp.prixRemiseTotalMad ?? pt;
+    totalAvantRemise += pt;
+    totalRemiseMad += (pt - ptNet);
+    totalDevisMad += ptNet;
 
     const colorBreakdown: any[] = Array.isArray(art.colorBreakdown) ? art.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(art.sizeBreakdown)  ? art.sizeBreakdown  : [];
@@ -1964,53 +1975,100 @@ export async function exportDevisClientPIPDF(params: {
       colorBreakdown.forEach((r: any) => {
         const qty = Number(r.rolls || 0);
         if (qty <= 0) return;
-        const lineTotal = qty * pu;
-        lineItems.push([
+        const lineTotal = qty * puNet;
+        const row: string[] = [
           String(index++),
           `${(art.categoryId || '—').toUpperCase()}${r.colorCode ? ' — ' + r.colorCode.toUpperCase() : ''}${r.description ? ' ' + r.description : ''}`,
           fmtQty(qty, art.unitOfMeasure),
           pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        ]);
+        ];
+        if (hasRemise) {
+          row.push(remise > 0 ? `${remise}%` : '—');
+          row.push(puNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+        row.push(lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        lineItems.push(row);
       });
     } else if (sizeBreakdown.length > 0) {
       sizeBreakdown.forEach((r: any) => {
         const qty = Number(r.quantity || 0);
         if (qty <= 0) return;
-        const lineTotal = qty * pu;
-        lineItems.push([
+        const lineTotal = qty * puNet;
+        const row: string[] = [
           String(index++),
           `${(art.categoryId || '—').toUpperCase()} — Taille ${(r.size || '—').toUpperCase()}`,
           fmtQty(qty, art.unitOfMeasure),
           pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        ]);
+        ];
+        if (hasRemise) {
+          row.push(remise > 0 ? `${remise}%` : '—');
+          row.push(puNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+        row.push(lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        lineItems.push(row);
       });
     } else {
-      lineItems.push([
+      const row: string[] = [
         String(index++),
         (art.name || art.categoryId || '—').toUpperCase(),
         fmtQty(art.quantity, art.unitOfMeasure),
         pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        pt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      ]);
+      ];
+      if (hasRemise) {
+        row.push(remise > 0 ? `${remise}%` : '—');
+        row.push(puNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      }
+      row.push(ptNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      lineItems.push(row);
     }
   });
 
   const COL_N   = 8;
-  const COL_QTE = 28;
-  const COL_PU  = 34;
+  const COL_QTE = 26;
+  const COL_PU  = 30;
+  const COL_REM = hasRemise ? 16 : 0;
+  const COL_PUN = hasRemise ? 30 : 0;
   const COL_TOT = 34;
-  const COL_DES = CW - COL_N - COL_QTE - COL_PU - COL_TOT;
+  const COL_DES = CW - COL_N - COL_QTE - COL_PU - COL_REM - COL_PUN - COL_TOT;
+
+  const tableHead = hasRemise
+    ? [['N°', 'Désignation', 'Quantité', 'P.U. Brut (MAD)', 'Remise', 'P.U. Net (MAD)', 'Total (MAD)']]
+    : [['N°', 'Désignation', 'Quantité', 'Prix Unit. (MAD)', 'Total (MAD)']];
+
+  const tableFoot = hasRemise ? [
+    [{ content: 'Sous-total', colSpan: hasRemise ? 6 : 4, styles: { halign: 'right' as const, fontStyle: 'normal' as const, paddingRight: 15, textColor: [100,116,139] } },
+     { content: totalAvantRemise.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, textColor: [100,116,139] } }],
+    [{ content: 'Remise totale', colSpan: hasRemise ? 6 : 4, styles: { halign: 'right' as const, fontStyle: 'normal' as const, paddingRight: 15, textColor: [220,38,38] } },
+     { content: `- ${totalRemiseMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { halign: 'right' as const, textColor: [220,38,38] } }],
+    [{ content: 'NET TOTAL DEVIS', colSpan: hasRemise ? 6 : 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const, paddingRight: 15 } },
+     { content: totalDevisMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } }],
+  ] : [
+    [{ content: 'TOTAL DEVIS', colSpan: 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const, paddingRight: 15 } },
+     { content: totalDevisMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } }],
+  ];
+
+  const colStylesWithRemise = {
+    0: { cellWidth: COL_N,   halign: 'center' as const, textColor: MUTED },
+    1: { cellWidth: COL_DES, fontStyle: 'bold' as const },
+    2: { cellWidth: COL_QTE, halign: 'right' as const },
+    3: { cellWidth: COL_PU,  halign: 'right' as const },
+    4: { cellWidth: COL_REM, halign: 'center' as const, textColor: [220,38,38] as [number,number,number] },
+    5: { cellWidth: COL_PUN, halign: 'right' as const, textColor: [22,163,74] as [number,number,number] },
+    6: { cellWidth: COL_TOT, halign: 'right' as const, fontStyle: 'bold' as const, textColor: NAVY },
+  };
+  const colStylesNoRemise = {
+    0: { cellWidth: COL_N,   halign: 'center' as const, textColor: MUTED },
+    1: { cellWidth: COL_DES, fontStyle: 'bold' as const },
+    2: { cellWidth: COL_QTE, halign: 'right' as const },
+    3: { cellWidth: COL_PU,  halign: 'right' as const },
+    4: { cellWidth: COL_TOT, halign: 'right' as const, fontStyle: 'bold' as const, textColor: NAVY },
+  };
 
   autoTable(doc, {
     startY: y,
-    head: [['N°', 'Désignation', 'Quantité', 'Prix Unit. (MAD)', 'Total (MAD)']],
+    head: tableHead,
     body: lineItems,
-    foot: [[
-      { content: 'TOTAL DEVIS', colSpan: 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const, paddingRight: 15 } },
-      { content: totalDevisMad.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
-    ]],
+    foot: tableFoot,
     margin: { left: MX, right: MX, bottom: 50 },
     styles: {
       fontSize: 8, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
@@ -2019,13 +2077,7 @@ export async function exportDevisClientPIPDF(params: {
     headStyles: { fillColor: NAVY, textColor: WHITE, fontSize: 7.5, fontStyle: 'bold' },
     footStyles: { fillColor: GOLD_LIGHT, textColor: NAVY, fontStyle: 'bold', fontSize: 8.5 },
     alternateRowStyles: { fillColor: [249, 250, 251] },
-    columnStyles: {
-      0: { cellWidth: COL_N,   halign: 'center' as const, textColor: MUTED },
-      1: { cellWidth: COL_DES, fontStyle: 'bold' as const },
-      2: { cellWidth: COL_QTE, halign: 'right' as const },
-      3: { cellWidth: COL_PU,  halign: 'right' as const },
-      4: { cellWidth: COL_TOT, halign: 'right' as const, fontStyle: 'bold' as const, textColor: NAVY },
-    },
+    columnStyles: hasRemise ? colStylesWithRemise : colStylesNoRemise,
   });
 
   // ── Signature block ──────────────────────────────────────────────────

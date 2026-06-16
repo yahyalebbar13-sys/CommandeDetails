@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Check, Lock, AlertTriangle, X } from 'lucide-react';
+import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Check, Lock, AlertTriangle, X, Percent, Tag } from 'lucide-react';
 import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -34,10 +34,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [isExporting, setIsExporting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [remiseGlobale, setRemiseGlobale] = useState('0');
+  const [remiseParArticle, setRemiseParArticle] = useState<Record<string, string>>({});
 
-  // Only PI articles that have a clientName assigned
+  // All articles with a clientName assigned — all statuses (PI, SHIPPED, DELIVERED, STOCK, TRANSIT, etc.)
   const piArticles = useMemo(() =>
-    articles.filter(a => ['PI', 'pi', 'SHIPPED', 'shipped'].includes(a.status) && a.clientName && a.clientName.trim() !== '')
+    articles.filter(a => a.clientName && a.clientName.trim() !== '')
       .filter(a => {
         if (!search.trim()) return true;
         const q = search.toLowerCase();
@@ -228,6 +230,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
       const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
 
+      // Apply discounts: per-article remise overrides global remise
+      const originalId = article.originalId || article.id;
+      const artRemise = remiseParArticle[originalId] !== undefined ? Number(remiseParArticle[originalId]) : Number(remiseGlobale) || 0;
+      const prixRemiseUniteMad = prixVenteUniteMad * (1 - artRemise / 100);
+      const prixRemiseTotalMad = prixVenteTotalMad * (1 - artRemise / 100);
+
       return {
         article,
         computed: {
@@ -235,16 +243,22 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           valAchatMad, totalTaxesMad,
           coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad,
           fraisTransitMad, fraisChangeMad, fraisSuppMad,
+          remise: artRemise,
+          prixRemiseUniteMad,
+          prixRemiseTotalMad,
           isEstimated: !linkedFac,
           hasCustData: true,
         }
       };
       });
     }).filter(Boolean);
-  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, articles, factures, categories, avgFreightPerCbm]);
+  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, articles, factures, categories, avgFreightPerCbm]);
 
   const totalCoutTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.coutTotalMad || 0), 0);
   const totalPrixVenteTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixVenteTotalMad || 0), 0);
+  const totalRemiseMad = computedArray.reduce((acc, curr) => acc + ((curr?.computed.prixVenteTotalMad || 0) - (curr?.computed.prixRemiseTotalMad || 0)), 0);
+  const totalNetMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixRemiseTotalMad || 0), 0);
+  const hasAnyRemise = computedArray.some(c => (c?.computed.remise || 0) > 0);
 
   const hasIncomplete = computedArray.some(c => 
     !c?.article.purchasePricePerUnit || 
@@ -264,6 +278,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         items: computedArray,
         tauxChange: Number(tauxChange) || DEFAULT_TAUX,
         margePercent: Number(margePercent) || 0,
+        remiseGlobale: Number(remiseGlobale) || 0,
       });
     } finally { setIsExporting(false); }
   };
@@ -283,19 +298,20 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         updates.set(articleId, {
           devisTauxChange: Number(tauxChange),
           devisMargePercent: Number(margePercent),
+          devisRemisePercent: c.computed.remise,
           devisPrixVenteTotalMad: 0,
           devisCoutTotalMad: 0,
           devisDate: new Date().toISOString(),
           devisConfirmedAt: new Date().toISOString(),
           devisConfirmed: true,
-          // We keep the last unit price, though for mixed prices it's an average/approximate concept at the DB level
-          devisPrixVenteUniteMad: c.computed.prixVenteUniteMad,
+          devisPrixVenteUniteMad: c.computed.prixRemiseUniteMad,
         });
       }
       
       const current = updates.get(articleId);
-      current.devisPrixVenteTotalMad += c.computed.prixVenteTotalMad;
+      current.devisPrixVenteTotalMad += c.computed.prixRemiseTotalMad;
       current.devisCoutTotalMad += c.computed.coutTotalMad;
+      if (!current.devisRemise) current.devisRemise = c.computed.remise;
     });
 
     updates.forEach((data, articleId) => {
@@ -324,11 +340,11 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
               <div className="p-2.5 bg-amber-500 rounded-xl"><ReceiptText className="w-6 h-6 text-white" /></div>
               <div>
                 <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Usage confidentiel</p>
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Devis Client PI</h2>
+                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Devis Client</h2>
               </div>
             </div>
             <p className="text-stone-400 text-sm font-medium max-w-lg">
-              Calculez le prix de vente estimatif à communiquer au client, basé sur le coût de revient TTC des articles en production.
+              Calculez le prix de vente et appliquez des remises pour vos devis clients. Tous les articles avec un client assigné sont disponibles, quel que soit leur statut.
             </p>
           </div>
         </div>
@@ -340,7 +356,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           <div className="bg-stone-900 px-6 py-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <Package className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-black text-white uppercase tracking-tight">Articles PI</h3>
+              <h3 className="text-sm font-black text-white uppercase tracking-tight">Articles Clients</h3>
               <span className="bg-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">{piArticles.length} articles</span>
             </div>
             <button 
@@ -364,7 +380,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           </div>
           <div className="overflow-y-auto flex-1" style={{ maxHeight: 420 }}>
             {piArticles.length === 0 ? (
-              <div className="py-16 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucun article PI trouvé</div>
+              <div className="py-16 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucun article avec un client assigné</div>
             ) : piArticles.map(a => {
               const isSelected = selectedArticleIds.has(a.id);
               return (
@@ -380,6 +396,13 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                     <div className="flex items-center gap-2">
                       <p className="text-[11px] font-black text-stone-900 uppercase truncate">{a.name || a.categoryId}</p>
                       {a.devisPrixVenteUniteMad && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-black">CONFIRMÉ</span>}
+                      {/* Status badge */}
+                      <span className={`text-[7px] px-1.5 py-0.5 rounded font-black uppercase ${
+                        ['PI','pi'].includes(a.status) ? 'bg-amber-100 text-amber-700' :
+                        ['SHIPPED','shipped'].includes(a.status) ? 'bg-blue-100 text-blue-700' :
+                        ['DELIVERED','STOCK'].includes(a.status) ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-stone-100 text-stone-500'
+                      }`}>{a.status || '—'}</span>
                     </div>
                     <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">
                       {a.clientName && <span className="text-indigo-500 font-black mr-1">{a.clientName} ·</span>}
@@ -464,6 +487,51 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                         </div>
                       ))}
                     </div>
+
+                  {/* Remises */}
+                  <div className="bg-white rounded-2xl border border-rose-100 shadow-sm p-5 space-y-4">
+                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5"><Percent className="w-3 h-3" /> Remises</p>
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest block">Remise globale (%) — s&apos;applique à tous les articles</label>
+                      <div className="flex items-center gap-2">
+                        <input type="number" step="0.5" min={0} max={100} value={remiseGlobale} onChange={e => setRemiseGlobale(e.target.value)}
+                          className="w-full h-10 border-2 border-rose-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-rose-400 transition-colors text-center" />
+                        <span className="text-sm font-black text-rose-400">%</span>
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {[0, 5, 10, 15, 20].map(v => (
+                          <button key={v} onClick={() => setRemiseGlobale(String(v))}
+                            className={`px-2 py-0.5 rounded-lg text-[8px] font-black border transition-all ${Number(remiseGlobale) === v ? 'bg-rose-500 text-white border-rose-500' : 'bg-rose-50 text-rose-500 border-rose-100 hover:border-rose-300'}`}>
+                            {v === 0 ? 'Aucune' : `${v}%`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Per-article remise overrides */}
+                    {computedArray.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-rose-50">
+                        <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1"><Tag className="w-2.5 h-2.5" /> Remise par article (remplace la globale)</p>
+                        {computedArray.map((c, i) => c && (
+                          <div key={i} className="flex items-center gap-2">
+                            <p className="text-[9px] font-black text-stone-600 uppercase flex-1 truncate min-w-0">{c.article.categoryId || c.article.name}</p>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <input
+                                type="number" step="0.5" min={0} max={100}
+                                placeholder={remiseGlobale || '0'}
+                                value={remiseParArticle[c.article.originalId || c.article.id] ?? ''}
+                                onChange={e => {
+                                  const id = c.article.originalId || c.article.id;
+                                  setRemiseParArticle(prev => ({ ...prev, [id]: e.target.value }));
+                                }}
+                                className="w-16 h-8 border border-rose-200 rounded-lg px-2 font-black text-stone-800 text-xs focus:outline-none focus:border-rose-400 text-center"
+                              />
+                              <span className="text-[9px] text-rose-400 font-black">%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   </div>
 
                   {/* Result per article */}
@@ -484,19 +552,45 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                               </div>
                               <div className="text-right shrink-0">
                                 <p className="text-[8px] font-black text-stone-500 uppercase">P.V. Unitaire</p>
-                                <p className="text-sm font-black text-amber-400">{fmtMAD(c.computed.prixVenteUniteMad)}</p>
-                                <p className="text-[8px] font-bold text-stone-500">{fmtMAD(c.computed.prixVenteTotalMad)} total</p>
+                                {c.computed.remise > 0 ? (
+                                  <>
+                                    <p className="text-[9px] line-through text-stone-600">{fmtMAD(c.computed.prixVenteUniteMad)}</p>
+                                    <p className="text-sm font-black text-rose-400">{fmtMAD(c.computed.prixRemiseUniteMad)}</p>
+                                    <p className="text-[8px] font-bold text-rose-500/70">-{c.computed.remise}%</p>
+                                  </>
+                                ) : (
+                                  <p className="text-sm font-black text-amber-400">{fmtMAD(c.computed.prixVenteUniteMad)}</p>
+                                )}
+                                <p className="text-[8px] font-bold text-stone-500">{fmtMAD(c.computed.prixRemiseTotalMad)} total</p>
                               </div>
                             </div>
                           ))}
                         </div>
 
-                        <div className="border-t border-stone-700 pt-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-[8px] font-black text-stone-500 uppercase">Total prix de vente</p>
-                            <p className="text-2xl font-black text-amber-400">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
-                          </div>
-                          <div className="text-right">
+                        <div className="border-t border-stone-700 pt-3 space-y-1.5">
+                          {hasAnyRemise && (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <p className="text-[8px] font-black text-stone-500 uppercase">Sous-total brut</p>
+                                <p className="text-sm font-black text-stone-400">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <p className="text-[8px] font-black text-rose-400 uppercase">Remise totale</p>
+                                <p className="text-sm font-black text-rose-400">-{fmtMAD(totalRemiseMad)} MAD</p>
+                              </div>
+                              <div className="border-t border-stone-600 pt-1.5 flex items-center justify-between">
+                                <p className="text-[8px] font-black text-stone-400 uppercase">Total net client</p>
+                                <p className="text-2xl font-black text-amber-400">{fmtMAD(totalNetMad)} MAD</p>
+                              </div>
+                            </>
+                          )}
+                          {!hasAnyRemise && (
+                            <div className="flex items-center justify-between">
+                              <p className="text-[8px] font-black text-stone-500 uppercase">Total prix de vente</p>
+                              <p className="text-2xl font-black text-amber-400">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
                             <p className="text-[8px] font-black text-stone-500 uppercase">Coût de revient total</p>
                             <p className="text-lg font-black text-stone-300">{fmtMAD(totalCoutTotalMad)} MAD</p>
                           </div>
@@ -577,10 +671,10 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                 {computedArray.length > 4 && (
                   <p className="text-[9px] font-bold text-stone-400 text-center pt-1">+ {computedArray.length - 4} autre(s)...</p>
                 )}
-                <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between">
-                  <p className="text-[10px] font-black text-stone-500 uppercase">Prix de vente total</p>
-                  <p className="text-sm font-black text-emerald-600">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
-                </div>
+                  <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between">
+                    <p className="text-[10px] font-black text-stone-500 uppercase">Total net client</p>
+                    <p className="text-sm font-black text-emerald-600">{fmtMAD(totalNetMad)} MAD</p>
+                  </div>
               </div>
 
               {/* Actions */}
