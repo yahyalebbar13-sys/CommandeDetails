@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Truck, ShieldCheck, RotateCcw, MessageCircle,
   Zap, Package, Star, MapPin, ChevronRight,
@@ -130,13 +131,15 @@ export default function ShopPage() {
       {/* SECTION 1: HERO                                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        {/* Photo background — high priority load */}
-        <img
-          src="/hero-banner.png"
+        {/* Photo background — high priority load, WebP pour perf */}
+        <Image
+          src="/hero-banner.webp"
           alt="LEBTEX mercerie"
-          className="absolute inset-0 w-full h-full object-cover"
-          fetchPriority="high"
-          loading="eager"
+          fill
+          className="object-cover"
+          priority
+          quality={85}
+          sizes="100vw"
         />
         {/* Dark overlay for readability */}
         <div className="absolute inset-0 bg-[#0F0F0F]/60" />
@@ -282,7 +285,15 @@ export default function ShopPage() {
                     style={{ background: `${cat.color}15`, border: `1px solid ${cat.color}25` }}
                   >
                     {cat.image ? (
-                      <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover" />
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={cat.image as string}
+                          alt={cat.name}
+                          fill
+                          sizes="56px"
+                          className="object-cover"
+                        />
+                      </div>
                     ) : (
                       <span className="text-lg font-bold" style={{ color: cat.color }}>
                         {cat.name.charAt(0).toUpperCase()}

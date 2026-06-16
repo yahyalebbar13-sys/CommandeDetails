@@ -2,10 +2,15 @@
 
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Heart, Star, StarHalf, Package, AlertCircle, CheckCircle2, Eye } from 'lucide-react';
+import Image from 'next/image';
+import { ShoppingCart, Heart, Star, StarHalf, Package, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useShopCart } from '@/contexts/shop-cart-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
+
+// Tiny base64 blur placeholder (1×1 px gris clair) — évite le layout shift
+const BLUR_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/+F9PQAI8wNPvd7POQAAAABJRU5ErkJggg==';
 
 // ─── Star Rating ──────────────────────────────────────────────────────────────
 function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
@@ -85,11 +90,17 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
     >
       <Link href={`/shop/produit/${product.id}`} className="block" tabIndex={-1}>
         {/* ── Image Section ─────────────────────────────────────── */}
-        <div className="shop-img-zoom relative aspect-square bg-gray-50 overflow-hidden">
-          <img
+        <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
+          {/* Skeleton de chargement */}
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse" />
+          <Image
             src={primaryImage}
             alt={product.name}
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover"
+            placeholder="blur"
+            blurDataURL={BLUR_DATA_URL}
             loading="lazy"
           />
 

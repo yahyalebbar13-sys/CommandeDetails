@@ -200,7 +200,15 @@ export default function ShopHeader() {
                           >
                             <div className="flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
                               {cat.image ? (
-                                <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover" />
+                                <div className="relative w-full h-full">
+                                  <Image
+                                    src={cat.image as string}
+                                    alt={cat.name}
+                                    fill
+                                    sizes="32px"
+                                    className="object-cover"
+                                  />
+                                </div>
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: cat.color || '#C8102E' }}>
                                   {cat.name.charAt(0).toUpperCase()}

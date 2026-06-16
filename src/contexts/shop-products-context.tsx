@@ -51,7 +51,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   const [customProducts, setCustomProducts] = useState<ShopProduct[]>([]);
   const [customCategories, setCustomCategories] = useState<ShopCategory[]>([]);
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // false dès le départ → données statiques affichées immédiatement
 
   // Real-time listeners — any change in Firestore appears instantly in the shop
   useEffect(() => {
