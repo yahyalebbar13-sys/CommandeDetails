@@ -201,31 +201,18 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const tva = (cat?.tvaRate ?? 20) / 100;
 
       const valeurFOB = qty * prix;
-      const dossierDeclaredValue = linkedFac ? Number(linkedFac.declaredValue) || 0 : 0;
-      const weightBaseDouaneMad = (nw > 0 && customsVpKg > 0) ? nw * customsVpKg : 0;
-      let valeurDouaneMad = 0;
-
-      if (weightBaseDouaneMad > 0) {
-        valeurDouaneMad = weightBaseDouaneMad;
-      } else if (dossierDeclaredValue > 0 && linkedFac) {
-        const dosArticles = articles.filter(a => a.factureId === linkedFac.id);
-        const totalFOBDossier = dosArticles.reduce((s: number, a: any) => s + (Number(a.quantity) * Number(a.purchasePricePerUnit)), 0);
-        const artFobShare = totalFOBDossier > 0 ? valeurFOB / totalFOBDossier : 0;
-        valeurDouaneMad = (dossierDeclaredValue * artFobShare) * tc;
-      } else {
-        valeurDouaneMad = valeurFOB * tc;
-      }
+      const valeurDouaneMad = (hasCustData && customsVpKg > 0 && nw > 0) ? nw * customsVpKg : 0;
 
       const diMad = valeurDouaneMad * di;
       const tpiMad = valeurDouaneMad * tpi;
       const ticMad = valeurDouaneMad * tic;
-      // TVA Base excludes TIC in CostAnalysisView line 127
-      const tvaMad = (valeurDouaneMad + diMad + tpiMad) * tva;
+      // TVA Base INCLUDES TIC in CostAnalysisView line 136
+      const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
       const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
 
       const valAchatMad = qty * prix * tc;
-      const coutTotalMad = valAchatMad + fraisCmd + totalTaxesMad;
-      const coutUniteMad = qty > 0 ? coutTotalMad / qty : 0;
+      const coutTotalMad = hasCustData ? (valAchatMad + fraisCmd + totalTaxesMad) : 0;
+      const coutUniteMad = (hasCustData && qty > 0) ? coutTotalMad / qty : 0;
       const marge = Number(margePercent) || 0;
       const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
       const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
