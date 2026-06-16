@@ -1892,6 +1892,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   const [notFound, setNotFound] = useState(false);
   const [accessDoc, setAccessDoc] = useState<{ id: string; email: string; notificationEmail?: string } | null>(null);
   const [notificationEmail, setNotificationEmail] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [notifyChannel, setNotifyChannel] = useState<'email' | 'whatsapp' | 'both'>('email');
   const [newPassword, setNewPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   // For clients without a portal account — store email in clientEmails sub-collection
@@ -1904,6 +1906,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
     setNotFound(false);
     setSearching(true);
     setNotificationEmail('');
+    setWhatsappPhone('');
+    setNotifyChannel('email');
     setNewPassword('');
     setCurrentPassword('');
 
@@ -1921,6 +1925,8 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
           const data = d.data();
           setAccessDoc({ id: d.id, email: data.email, notificationEmail: data.notificationEmail || '' });
           setNotificationEmail(data.notificationEmail || '');
+          setWhatsappPhone(data.whatsappPhone || '');
+          setNotifyChannel((data.notifyChannel as any) || 'email');
         } else {
           // 2. No portal account — check clientEmails for a simple notification email
           setNotFound(true);
@@ -1930,7 +1936,10 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
           );
           const snap2 = await getDocs(q2);
           if (!snap2.empty) {
-            setNotificationEmail(snap2.docs[0].data().email || '');
+            const d2 = snap2.docs[0].data();
+            setNotificationEmail(d2.email || '');
+            setWhatsappPhone(d2.whatsappPhone || '');
+            setNotifyChannel((d2.notifyChannel as any) || 'email');
           }
         }
       } catch (err: any) {
@@ -1942,21 +1951,22 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
     })();
   }, [open, user, firestore, clientName]);
 
-  // Save notification email for clients WITHOUT a portal account
-  const handleSaveSimpleEmail = async () => {
-    if (!user || !firestore || !notificationEmail.trim()) return;
+  // Save notification settings for clients WITHOUT a portal account
+  const handleSaveSimpleNotif = async () => {
+    if (!user || !firestore) return;
     setSimpleEmailSaving(true);
     try {
       const clientEmailsRef = collection(firestore, 'users', user.uid, 'clientEmails');
       const q = query(clientEmailsRef, where('clientName', '==', clientName));
       const snap = await getDocs(q);
+      const payload = { email: notificationEmail.trim(), whatsappPhone: whatsappPhone.trim(), notifyChannel, clientName };
       if (!snap.empty) {
-        await updateDoc(doc(firestore, 'users', user.uid, 'clientEmails', snap.docs[0].id), { email: notificationEmail.trim(), clientName });
+        await updateDoc(doc(firestore, 'users', user.uid, 'clientEmails', snap.docs[0].id), payload);
       } else {
         const { addDoc } = await import('firebase/firestore');
-        await addDoc(clientEmailsRef, { email: notificationEmail.trim(), clientName });
+        await addDoc(clientEmailsRef, payload);
       }
-      toast({ title: '✅ Email enregistré', description: `Les notifications iront à ${notificationEmail}` });
+      toast({ title: '✅ Notifications enregistrées', description: `Canal : ${notifyChannel === 'both' ? 'Email + WhatsApp' : notifyChannel === 'whatsapp' ? 'WhatsApp' : 'Email'}` });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     } finally {
@@ -1964,14 +1974,14 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
     }
   };
 
-  // Save notification email
-  const handleSaveNotifEmail = async () => {
+  // Save notification settings for portal clients
+  const handleSaveNotifSettings = async () => {
     if (!user || !firestore || !accessDoc) return;
     setLoading(true);
     try {
-      await updateDoc(doc(firestore, 'clientAccess', accessDoc.id), { notificationEmail });
+      await updateDoc(doc(firestore, 'clientAccess', accessDoc.id), { notificationEmail, whatsappPhone: whatsappPhone.trim(), notifyChannel });
       setAccessDoc(prev => prev ? { ...prev, notificationEmail } : prev);
-      toast({ title: '✅ Email de notification mis à jour', description: `Les notifications seront envoyées à ${notificationEmail || accessDoc.email}` });
+      toast({ title: '✅ Notifications mises à jour', description: `Canal : ${notifyChannel === 'both' ? 'Email + WhatsApp' : notifyChannel === 'whatsapp' ? 'WhatsApp' : 'Email'}` });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     } finally {
@@ -2056,33 +2066,22 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
                   <p className="text-[9px] text-amber-600 font-medium">Vous pouvez quand même définir un email pour les notifications.</p>
                 </div>
               </div>
-              {/* Simple notification email — no portal needed */}
-              <div className="space-y-2">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <Mail className="w-3 h-3" /> Email de Notification
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    autoComplete="off"
-                    placeholder="email@client.com"
-                    value={notificationEmail}
-                    onChange={e => setNotificationEmail(e.target.value)}
-                    className="h-10 text-[11px] font-bold border-stone-200 rounded-xl flex-1"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleSaveSimpleEmail}
-                    disabled={simpleEmailSaving || !notificationEmail.trim()}
-                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl px-4 gap-1.5"
-                  >
-                    {simpleEmailSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
-                    Sauver
-                  </Button>
-                </div>
-                <p className="text-[9px] text-stone-400 font-medium">Cet email recevra les notifications de changement de statut des commandes.</p>
-              </div>
+              {/* Notification channel — no portal needed */}
+              <NotifChannelSelector
+                channel={notifyChannel} onChannelChange={setNotifyChannel}
+                email={notificationEmail} onEmailChange={setNotificationEmail}
+                phone={whatsappPhone} onPhoneChange={setWhatsappPhone}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveSimpleNotif}
+                disabled={simpleEmailSaving}
+                className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl gap-1.5"
+              >
+                {simpleEmailSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                Enregistrer les préférences
+              </Button>
             </div>
           ) : accessDoc ? (
             <>
@@ -2142,38 +2141,26 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
                 </div>
               </div>
 
-              {/* Notification email section */}
+              {/* Notification channel section */}
               <div className="space-y-3">
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <Mail className="w-3 h-3" /> Email de Notification
+                  <Bell className="w-3 h-3" /> Notifications
                 </p>
-                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-[10px] text-indigo-700 font-bold">
-                  Cet email reçoit les notifications de changement de statut. S&apos;il est vide, l&apos;email de connexion est utilisé.
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    autoComplete="off"
-                    placeholder={`Par défaut : ${accessDoc.email}`}
-                    value={notificationEmail}
-                    onChange={e => setNotificationEmail(e.target.value)}
-                    className="h-10 text-[11px] font-bold border-indigo-200 rounded-xl flex-1"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleSaveNotifEmail}
-                    disabled={loading}
-                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl px-4 gap-1.5 shadow-md shadow-indigo-100"
-                  >
-                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
-                    Sauver
-                  </Button>
-                </div>
-                {accessDoc.notificationEmail && (
-                  <p className="text-[9px] text-indigo-600 font-bold">
-                    📧 Actuellement : {accessDoc.notificationEmail}
-                  </p>
-                )}
+                <NotifChannelSelector
+                  channel={notifyChannel} onChannelChange={setNotifyChannel}
+                  email={notificationEmail} onEmailChange={setNotificationEmail}
+                  emailPlaceholder={`Par défaut : ${accessDoc.email}`}
+                  phone={whatsappPhone} onPhoneChange={setWhatsappPhone}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveNotifSettings}
+                  disabled={loading}
+                  className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl gap-1.5 shadow-md shadow-indigo-100"
+                >
+                  {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                  Enregistrer les préférences
+                </Button>
               </div>
             </>
           ) : null}

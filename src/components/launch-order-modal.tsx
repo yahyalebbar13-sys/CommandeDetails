@@ -10,7 +10,7 @@ import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { sendStatusNotification } from '@/lib/send-status-notification';
-import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale, Container, Loader2 } from 'lucide-react';
+import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale, Container, Loader2, Mail, MessageCircle } from 'lucide-react';
 
 interface LaunchOrderModalProps {
   open: boolean;
@@ -32,6 +32,8 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
     containerRef: '',
   });
   const [isSending, setIsSending] = useState(false);
+  const [notifChannel, setNotifChannel] = useState<'email' | 'whatsapp' | 'both'>('email');
+  const [notifyClient, setNotifyClient] = useState(true);
 
   useEffect(() => {
     if (open && article) {
@@ -65,10 +67,8 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
       description: `L'article ${article.name} est maintenant en production (PI).`
     });
 
-    // ── Send notification PI if article is a client preorder ──
     const clientName = (article.clientName || '').trim();
-    if (clientName && article.isPreorder) {
-      toast({ title: '📧 Envoi notification...', description: `Notification client → ${clientName}` });
+    if (clientName && article.isPreorder && notifyClient) {
       const result = await sendStatusNotification({
         firestore,
         adminUid: user.uid,
@@ -83,9 +83,11 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
         size: article.size,
         estimatedProductionDelay: article.estimatedProductionDelay,
         imageUrl: article.imageUrl || undefined,
+        channel: notifChannel,
       });
       if (result.ok) {
-        toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
+        const label = notifChannel === 'both' ? 'Email + WhatsApp' : notifChannel === 'whatsapp' ? 'WhatsApp' : 'Email';
+        toast({ title: `✅ Notification envoyée (${label})`, description: `→ ${clientName}` });
       } else if (result.error) {
         toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
       }
@@ -114,8 +116,46 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
           <div className="font-bold text-stone-800">{article.name}</div>
           <div className="text-sm text-stone-600">{article.quantity?.toLocaleString()} {article.unitOfMeasure} • {article.categoryId}</div>
           {article.isPreorder && article.clientName && (
-            <div className="mt-1 text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-flex items-center gap-1">
-              📧 Notification client : {article.clientName}
+            <div className="mt-2 space-y-2">
+              <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notifier le client : {article.clientName}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setNotifyClient(true); setNotifChannel('email'); }}
+                  className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 ${
+                    notifyClient && notifChannel === 'email' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-stone-500 border-stone-200 hover:border-indigo-300'
+                  }`}
+                >
+                  📧 Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setNotifyClient(true); setNotifChannel('whatsapp'); }}
+                  className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 ${
+                    notifyClient && notifChannel === 'whatsapp' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-stone-500 border-stone-200 hover:border-green-300'
+                  }`}
+                >
+                  📱 WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setNotifyClient(true); setNotifChannel('both'); }}
+                  className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${
+                    notifyClient && notifChannel === 'both' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-stone-500 border-stone-200 hover:border-amber-300'
+                  }`}
+                >
+                  Les deux
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotifyClient(false)}
+                  className={`px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${
+                    !notifyClient ? 'bg-stone-700 text-white border-stone-700' : 'bg-white text-stone-400 border-stone-200 hover:border-stone-400'
+                  }`}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
         </div>
