@@ -9,7 +9,7 @@ import {
   Ship, FileText, ArrowRight, Factory, DollarSign, Plus, 
   Trash2, Landmark, CheckCircle2, History, Building2, Layers, Briefcase, Download, UserCircle2, KeyRound, Loader2, Info, AlertTriangle,
   Search, SortAsc, SortDesc, TrendingUp, ChevronRight, Calculator, MapPin, User,
-  Mail, Settings, RefreshCw
+  Mail, Settings, RefreshCw, Bell, Check
 } from 'lucide-react';
 import CoutDeRevientModal from './cout-de-revient-modal';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,88 @@ interface SuppliersViewProps {
   payments: any[];
   categories?: any[];
   onNavigateToFacture: (factureId: string) => void;
+}
+
+// ── Notification Channel Selector Component ───────────────────────────────
+function NotifChannelSelector({
+  channel, onChannelChange,
+  email, onEmailChange, emailPlaceholder = 'email@client.com',
+  phone, onPhoneChange
+}: {
+  channel: 'email' | 'whatsapp' | 'both';
+  onChannelChange: (val: 'email' | 'whatsapp' | 'both') => void;
+  email: string;
+  onEmailChange: (val: string) => void;
+  emailPlaceholder?: string;
+  phone: string;
+  onPhoneChange: (val: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {/* Channel picker */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChannelChange('email')}
+          className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 ${
+            channel === 'email' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-stone-500 border-stone-200 hover:border-indigo-300'
+          }`}
+        >
+          📧 Email
+        </button>
+        <button
+          type="button"
+          onClick={() => onChannelChange('whatsapp')}
+          className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-1.5 ${
+            channel === 'whatsapp' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-stone-500 border-stone-200 hover:border-green-300'
+          }`}
+        >
+          📱 WhatsApp
+        </button>
+        <button
+          type="button"
+          onClick={() => onChannelChange('both')}
+          className={`flex-1 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${
+            channel === 'both' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-stone-500 border-stone-200 hover:border-amber-300'
+          }`}
+        >
+          Les deux
+        </button>
+      </div>
+
+      {/* Input fields based on channel */}
+      <div className="space-y-2">
+        {(channel === 'email' || channel === 'both') && (
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-stone-400 shrink-0" />
+            <Input
+              type="text"
+              autoComplete="off"
+              placeholder={emailPlaceholder}
+              value={email}
+              onChange={e => onEmailChange(e.target.value)}
+              className="h-9 text-[11px] font-bold border-stone-200 rounded-lg flex-1"
+            />
+          </div>
+        )}
+        {(channel === 'whatsapp' || channel === 'both') && (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-green-500 flex items-center justify-center shrink-0">
+              <span className="text-[10px] text-white">📱</span>
+            </div>
+            <Input
+              type="tel"
+              autoComplete="off"
+              placeholder="+212 600 000 000"
+              value={phone}
+              onChange={e => onPhoneChange(e.target.value)}
+              className="h-9 text-[11px] font-bold border-stone-200 rounded-lg flex-1"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // COMPANIES_LIST importé depuis @/lib/constants
