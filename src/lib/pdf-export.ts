@@ -5,19 +5,31 @@
 async function addPdfLogoHeader(
   doc: any,
   x: number, y: number,
-  w = 36, h = 18
+  w = 36, h = 18,
+  withBg = false
 ): Promise<void> {
   return new Promise<void>(resolve => {
+    const drawBg = () => {
+      if (withBg) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(x - 3, y - 3, w + 6, h + 6, 2, 2, 'F');
+      }
+    };
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = '/logo.png';
     img.onload = () => {
-      try { doc.addImage(img, 'PNG', x, y, w, h); } catch (_) {}
+      try { 
+        drawBg();
+        doc.addImage(img, 'PNG', x, y, w, h); 
+      } catch (_) {}
       resolve();
     };
     img.onerror = () => {
+      drawBg();
       // Texte fallback si l'image ne charge pas
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(withBg ? 15 : 15, withBg ? 23 : 23, withBg ? 42 : 42); // Navy text
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('LEBTEX', x, y + 8);
@@ -1820,7 +1832,7 @@ export async function exportDevisClientPIPDF(params: {
   doc.setFillColor(...GOLD);
   doc.rect(0, 0, 5, 38, 'F');
 
-  await addPdfLogoHeader(doc, 10, 6, 32, 16);
+  await addPdfLogoHeader(doc, 10, 6, 32, 16, true);
 
   doc.setTextColor(...WHITE); doc.setFontSize(18); doc.setFont('helvetica', 'bold');
   doc.text('DEVIS', W - MX, 18, { align: 'right' });

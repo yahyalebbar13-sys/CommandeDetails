@@ -51,11 +51,17 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
 
     // Logo / company name
     await new Promise<void>((resolve) => {
+      const drawBg = () => {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(7, 3, 38, 22, 2, 2, "F");
+      };
+      
       const img = new Image();
       img.src = "/logo.png";
-      img.onload = () => { doc.addImage(img, "PNG", 10, 6, 32, 16); resolve(); };
+      img.onload = () => { drawBg(); doc.addImage(img, "PNG", 10, 6, 32, 16); resolve(); };
       img.onerror = () => {
-        doc.setTextColor(...WHITE);
+        drawBg();
+        doc.setTextColor(15, 23, 42);
         doc.setFontSize(18);
         doc.setFont("helvetica", "bold");
         doc.text("LEBTEX", 12, 20);
