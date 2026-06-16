@@ -200,3 +200,34 @@
   100% { transform: translateX(-50%); }
 }
 .shop-marquee-inner { animation: marquee 20s linear infinite; white-space: nowrap; }
+
+/* ════════════════════════════════════════
+   Protection anti-copie / anti-inspection
+   ════════════════════════════════════════ */
+
+/* Désactiver la sélection globale */
+* {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Bloquer le glisser-déposer des images */
+img {
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+  pointer-events: none !important;
+}
+
+/* Permettre les clics sur les boutons/liens malgré pointer-events: none sur img */
+a, button, input, textarea, select, label, [role="button"] {
+  pointer-events: auto !important;
+}
+
+/* Masquer le contenu lors de l'impression */
+@media print {
+  body {
+    display: none !important;
+  }
+}
