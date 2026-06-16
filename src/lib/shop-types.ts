@@ -45,8 +45,13 @@ export interface ShopProduct {
   rating?: number;
   reviewCount?: number;
   specifications?: Record<string, string>;
-  weight?: number; // grams
-  minOrderQty?: number; // For wholesale
+  // ── Champs fiche produit ──
+  material?: string;       // Matériau
+  specification?: string;  // Spécification
+  weight?: number;         // Poids (grammes)
+  width?: string;          // Largeur
+  packaging?: string;      // Emballage
+  minOrderQty?: number;
   wholesalePrice?: number;
   createdAt?: any;
   updatedAt?: any;

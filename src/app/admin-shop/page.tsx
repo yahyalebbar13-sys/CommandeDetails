@@ -1936,6 +1936,12 @@ function ProduitsView() {
         if (editForm.inStock !== undefined) base.inStock = editForm.inStock;
         if (editForm.stockQty !== undefined) base.stockQty = editForm.stockQty;
       }
+      // Champs fiche produit
+      if ((editForm as any).material) base.material = (editForm as any).material;
+      if ((editForm as any).specification) base.specification = (editForm as any).specification;
+      if ((editForm as any).weight) base.weight = parseFloat((editForm as any).weight) || undefined;
+      if ((editForm as any).width) base.width = (editForm as any).width;
+      if ((editForm as any).packaging) base.packaging = (editForm as any).packaging;
 
       await setDoc(doc(db, 'shop_product_overrides', productId), base, { merge: true });
       setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...base } as any }));
@@ -2285,6 +2291,42 @@ Cette action est irréversible.`)) return;
                     </div>
                   </div>
 
+                  {/* ─── Fiche technique ─── */}
+                  <div className="mt-5 pt-4 border-t border-white/10">
+                    <p className="text-[10px] font-bold text-[#D4A843] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <span>📋</span> Fiche technique
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { key: 'material',      label: '🧵 Matériau',      placeholder: 'Ex: Nylon, Polyester...' },
+                        { key: 'specification', label: '📐 Spécification',  placeholder: 'Ex: NO5, ISO 9001...' },
+                        { key: 'width',         label: '↔️ Largeur',        placeholder: 'Ex: 5 cm, 120mm...' },
+                        { key: 'packaging',     label: '📦 Emballage',      placeholder: 'Ex: Sachet 100 pcs...' },
+                      ].map(({ key, label, placeholder }) => (
+                        <div key={key} className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+                          <input
+                            type="text"
+                            value={(editForm as any)[key] || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, [key]: e.target.value }))}
+                            placeholder={placeholder}
+                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/50 placeholder-gray-600"
+                          />
+                        </div>
+                      ))}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">⚖️ Poids (g)</label>
+                        <input
+                          type="number" min="0"
+                          value={(editForm as any).weight || ''}
+                          onChange={e => setEditForm(prev => ({ ...prev, weight: e.target.value }))}
+                          placeholder="Ex: 250"
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/50 placeholder-gray-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               )}
             </div>
@@ -2332,6 +2374,12 @@ function NouveauProduitModal({
     isNew: true,
     isPromo: false,
     minOrderQty: '1',
+    // Fiche technique
+    material: '',
+    specification: '',
+    weight: '',
+    width: '',
+    packaging: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
   type VariantForm = { id: string; color: string; colorHex: string; stockStatus: StockStatus; price: string };
@@ -2419,6 +2467,12 @@ function NouveauProduitModal({
         // Only include optional fields when they have values
         ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
         ...(form.comparePrice ? { comparePrice: parseFloat(form.comparePrice) } : {}),
+        // Fiche technique
+        ...(form.material.trim() ? { material: form.material.trim() } : {}),
+        ...(form.specification.trim() ? { specification: form.specification.trim() } : {}),
+        ...(form.weight ? { weight: parseFloat(form.weight) } : {}),
+        ...(form.width.trim() ? { width: form.width.trim() } : {}),
+        ...(form.packaging.trim() ? { packaging: form.packaging.trim() } : {}),
       };
       await setDoc(doc(db, 'shop_custom_products', id), product);
       const imgCount = (product.images as string[]).length;
@@ -2501,6 +2555,42 @@ function NouveauProduitModal({
               placeholder="Description détaillée du produit..."
               className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600 resize-none"
             />
+          </div>
+
+          {/* ─── Fiche technique ─── */}
+          <div className="pt-2">
+            <p className="text-[10px] font-bold text-[#D4A843] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <span>📋</span> Fiche technique
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { key: 'material',      label: '🧵 Matériau',      placeholder: 'Ex: Nylon, Polyester...' },
+                { key: 'specification', label: '📐 Spécification',  placeholder: 'Ex: NO5, ISO 9001...' },
+                { key: 'width',         label: '↔️ Largeur',        placeholder: 'Ex: 5 cm, 120mm...' },
+                { key: 'packaging',     label: '📦 Emballage',      placeholder: 'Ex: Sachet 100 pcs...' },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key} className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+                  <input
+                    type="text"
+                    value={(form as any)[key]}
+                    onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
+                  />
+                </div>
+              ))}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">⚖️ Poids (g)</label>
+                <input
+                  type="number" min="0"
+                  value={form.weight}
+                  onChange={e => setForm(p => ({ ...p, weight: e.target.value }))}
+                  placeholder="Ex: 250"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Prix */}

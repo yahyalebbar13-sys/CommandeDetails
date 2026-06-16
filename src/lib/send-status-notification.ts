@@ -125,9 +125,11 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
   try {
     const contact = await resolveClientContact(firestore, adminUid, clientName);
     const { email, whatsappPhone } = contact;
+    console.log(`[Notification] Contact for ${clientName}:`, contact);
     // Priority: 1. explicit call-site override, 2. global localStorage setting, 3. per-client Firestore setting
     const globalChannel = (typeof window !== 'undefined' ? localStorage.getItem('notifyChannel') : null) as 'email' | 'whatsapp' | 'both' | null;
     const channel = explicitChannel || globalChannel || contact.channel;
+    console.log(`[Notification] Channel selected: ${channel} (global: ${globalChannel}, explicit: ${explicitChannel})`);
     const newStatusLabel = STATUS_LABELS[newStatus] || newStatus;
 
     let whatsappSent = false;
@@ -135,6 +137,7 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
 
     // ── WhatsApp ──────────────────────────────────────────────────────────────
     if ((channel === 'whatsapp' || channel === 'both') && whatsappPhone) {
+      console.log(`[Notification] Sending WhatsApp to ${whatsappPhone}...`);
       const msg = buildWhatsAppMessage(params, newStatusLabel);
       const phone = whatsappPhone.replace(/\D/g, '');
       const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
@@ -144,6 +147,7 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
 
     // ── Email ─────────────────────────────────────────────────────────────────
     if ((channel === 'email' || channel === 'both') && email) {
+      console.log(`[Notification] Sending Email to ${email}...`);
       const res = await fetch('/api/send-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,12 +158,15 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
           imageUrl, transitArrivalDate, transitDuration,
         }),
       });
+      console.log(`[Notification] Email API response: ${res.status}`);
       if (res.ok) emailSent = true;
     }
 
     if (whatsappSent || emailSent) return { ok: true, email: email || undefined };
+    console.warn(`[Notification] FAILED: Aucun canal configuré (email ou numéro WhatsApp manquant).`);
     return { ok: false, error: 'Aucun canal configuré (email ou numéro WhatsApp manquant).' };
   } catch (err: any) {
+    console.error(`[Notification] Error:`, err);
     return { ok: false, error: err.message || 'Erreur inconnue.' };
   }
 }

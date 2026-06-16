@@ -469,63 +469,129 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-12">
-          <div className="flex border-b border-[#E8E4DF] mb-6">
-            {[
-              { key: 'description', label: 'Description' },
-              { key: 'specs', label: 'Spécifications' },
-              { key: 'avis', label: `Avis (${product.reviewCount || 0})` },
-            ].map(({ key, label }) => (
-              <button key={key} onClick={() => setActiveTab(key as any)}
-                className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 -mb-px ${
-                  activeTab === key ? 'border-[#C8102E] text-[#C8102E]' : 'border-transparent text-[#6B6B6B] hover:text-[#1A1A1A]'
-                }`}>
-                {label}
-              </button>
-            ))}
+        {/* ═══ FICHE PRODUIT — Description + Tableau de spécifications ══════ */}
+        <div className="mt-12 space-y-6">
+
+          {/* Description */}
+          <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-[#F3EFE8]"
+              style={{ background: 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' }}>
+              <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h2 className="font-bold text-[#1A1A1A] text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                Description du produit
+              </h2>
+            </div>
+            <div className="px-6 py-5">
+              {product.description ? (
+                <div className="space-y-3">
+                  {product.description.split('\n').filter(Boolean).map((para, i) => (
+                    <p key={i} className="text-[#4A4A4A] leading-relaxed text-[15px] flex gap-2">
+                      <span className="text-[#C8102E] mt-1.5 flex-shrink-0">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 8 8">
+                          <circle cx="4" cy="4" r="4"/>
+                        </svg>
+                      </span>
+                      {para}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[#6B6B6B] italic text-sm">Aucune description disponible.</p>
+              )}
+            </div>
           </div>
-          <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6">
-            {activeTab === 'description' && (
-              <div className="prose max-w-none text-[#6B6B6B] leading-relaxed">
-                {product.description.split('\n').map((p, i) => <p key={i}>{p}</p>)}
+
+          {/* Tableau Spécifications */}
+          {(product.material || product.specification || product.weight || product.width || product.packaging) && (
+            <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-[#F3EFE8]"
+                style={{ background: 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' }}>
+                <div className="w-8 h-8 rounded-lg bg-[#D4A843] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <h2 className="font-bold text-[#1A1A1A] text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  Fiche technique
+                </h2>
               </div>
-            )}
-            {activeTab === 'specs' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {product.specifications ? (
-                  Object.entries(product.specifications).map(([k, v]) => (
-                    <div key={k} className="flex justify-between py-3 border-b border-[#F3EFE8]">
-                      <span className="text-sm font-semibold text-[#6B6B6B]">{k}</span>
-                      <span className="text-sm font-bold text-[#1A1A1A]">{v}</span>
+              <div className="divide-y divide-[#F3EFE8]">
+                {[
+                  { label: 'Matériau',      icon: '🧵', value: product.material },
+                  { label: 'Spécification', icon: '📐', value: product.specification },
+                  { label: 'Poids',         icon: '⚖️', value: product.weight ? `${product.weight} g` : undefined },
+                  { label: 'Largeur',       icon: '↔️', value: product.width },
+                  { label: 'Emballage',     icon: '📦', value: product.packaging },
+                ].filter(row => row.value).map((row, i) => (
+                  <div
+                    key={row.label}
+                    className={`flex items-center px-6 py-4 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-white' : 'bg-[#FDFBF8]'}`}
+                  >
+                    <div className="flex items-center gap-3 w-44 flex-shrink-0">
+                      <span className="text-lg">{row.icon}</span>
+                      <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A] transition-colors">
+                        {row.label}
+                      </span>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-[#6B6B6B]">Aucune spécification disponible</p>
-                )}
-              </div>
-            )}
-            {activeTab === 'avis' && (
-              <div className="space-y-4">
-                {REVIEWS.map(r => (
-                  <div key={r.name} className="border-b border-[#F3EFE8] pb-4 last:border-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-9 h-9 rounded-full bg-[#C8102E] text-white flex items-center justify-center font-bold text-sm">{r.name[0]}</div>
-                      <div>
-                        <p className="font-semibold text-[#1A1A1A] text-sm">{r.name} <span className="text-[#6B6B6B] font-normal">— {r.city}</span></p>
-                        <div className="flex text-[#D4A843] text-xs">{'★'.repeat(r.rating)}</div>
-                      </div>
-                      <span className="ml-auto text-xs text-[#6B6B6B]">{r.date}</span>
-                    </div>
-                    <p className="text-sm text-[#6B6B6B] italic ml-12">"{r.text}"</p>
+                    <div className="flex-1 h-px bg-[#E8E4DF] mx-4" />
+                    <span className="text-sm font-bold text-[#1A1A1A] text-right">
+                      {row.value}
+                    </span>
                   </div>
                 ))}
-                <button className="w-full py-3 border border-[#C8102E] text-[#C8102E] rounded-xl font-semibold text-sm hover:bg-[#C8102E] hover:text-white transition-all">
-                  + Rédiger un avis
-                </button>
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Avis clients */}
+          <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-[#F3EFE8]"
+              style={{ background: 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' }}>
+              <div className="w-8 h-8 rounded-lg bg-[#10B981] flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </div>
+              <h2 className="font-bold text-[#1A1A1A] text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                Avis clients ({product.reviewCount || REVIEWS.length})
+              </h2>
+            </div>
+            <div className="px-6 py-5 space-y-5">
+              {REVIEWS.map((r, i) => (
+                <div key={r.name} className={`${i < REVIEWS.length - 1 ? 'border-b border-[#F3EFE8] pb-5' : ''}`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C8102E] to-[#a00d25] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                      {r.name[0]}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-[#1A1A1A] text-sm">{r.name}
+                        <span className="text-[#6B6B6B] font-normal text-xs ml-1">— {r.city}</span>
+                      </p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {Array.from({ length: 5 }, (_, si) => (
+                          <span key={si} className={`text-sm ${si < r.rating ? 'text-[#D4A843]' : 'text-gray-200'}`}>★</span>
+                        ))}
+                        <span className="text-[10px] text-[#6B6B6B] ml-1">{r.date}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[#4A4A4A] leading-relaxed pl-13 italic ml-13">
+                    <span className="text-[#C8102E] text-lg font-serif mr-1">"</span>
+                    {r.text}
+                    <span className="text-[#C8102E] text-lg font-serif ml-1">"</span>
+                  </p>
+                </div>
+              ))}
+              <button className="w-full py-3 border border-[#C8102E] text-[#C8102E] rounded-xl font-semibold text-sm hover:bg-[#C8102E] hover:text-white transition-all mt-2">
+                ✍️ Rédiger un avis
+              </button>
+            </div>
           </div>
+
         </div>
 
         {/* Similar products */}

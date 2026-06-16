@@ -26,6 +26,12 @@ export interface ProductOverride {
   wholesalePrice?: number;
   minOrderQty?: number;
   variants?: import('@/lib/shop-types').ProductVariant[];
+  // Champs fiche produit
+  material?: string;
+  specification?: string;
+  weight?: number;
+  width?: string;
+  packaging?: string;
 }
 
 interface ShopProductsContextType {
@@ -124,6 +130,11 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.description && { description: ov.description }),
         ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
         ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
+        ...(ov.material && { material: ov.material }),
+        ...(ov.specification && { specification: ov.specification }),
+        ...(ov.weight !== undefined && { weight: ov.weight }),
+        ...(ov.width && { width: ov.width }),
+        ...(ov.packaging && { packaging: ov.packaging }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -150,6 +161,11 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
           ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
           ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
+          ...(ov.material && { material: ov.material }),
+          ...(ov.specification && { specification: ov.specification }),
+          ...(ov.weight !== undefined && { weight: ov.weight }),
+          ...(ov.width && { width: ov.width }),
+          ...(ov.packaging && { packaging: ov.packaging }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];
