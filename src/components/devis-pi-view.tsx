@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Check, Lock, AlertTriangle, X, Percent, Tag } from 'lucide-react';
 import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 import { useUser, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, collection, getDocs } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,6 +36,24 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [isConfirming, setIsConfirming] = useState(false);
   const [remiseGlobale, setRemiseGlobale] = useState('0');
   const [remiseParArticle, setRemiseParArticle] = useState<Record<string, string>>({});
+  const [allOverrides, setAllOverrides] = useState<Record<string, any>>({});
+
+  // Load all dp_declarations overrides so we perfectly match cost-analysis-view
+  useEffect(() => {
+    if (!user || !firestore) return;
+    getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
+      .then(snap => {
+        const globalOverrides: Record<string, any> = {};
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.overrides) {
+            Object.assign(globalOverrides, data.overrides);
+          }
+        });
+        setAllOverrides(globalOverrides);
+      })
+      .catch(err => console.error('Error loading overrides', err));
+  }, [user, firestore]);
 
   // All articles with a clientName assigned — all statuses (PI, SHIPPED, DELIVERED, STOCK, TRANSIT, etc.)
   const piArticles = useMemo(() =>
@@ -148,9 +166,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
       return variants.map(article => {
       
-      const qty = Number(article.quantity) || 0;
-      const prix = Number(article.purchasePricePerUnit) || 0;
-      const cbm = Number(article.cubicMeasurement) || 0;
+      const ov = allOverrides[article.originalId || article.id] || {};
+
+      const qty = (ov.quantity != null ? Number(ov.quantity) : Number(article.quantity)) || 0;
+      const prix = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(article.purchasePricePerUnit)) || 0;
+      const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(article.cubicMeasurement)) || 0;
+      const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(article.netWeight)) || 0;
 
       const linkedFac = factures.find(f => f.id === article.factureId);
 
@@ -186,19 +207,23 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const mtFraisTotal = totalFraisHT + fretMad;
 
       const cbmTotal = linkedFac
-        ? (articles.filter(a => a.factureId === linkedFac.id).reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0) || CBM_STD)
+        ? (articles.filter(a => a.factureId === linkedFac.id).reduce((s: number, a: any) => {
+            const aOv = allOverrides[a.id] || {};
+            const aCbm = (aOv.cubicMeasurement != null ? Number(aOv.cubicMeasurement) : Number(a.cubicMeasurement)) || 0;
+            return s + aCbm;
+          }, 0) || CBM_STD)
         : CBM_STD;
 
       const fraisCmd = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
       const cat = categories.find(c => c.name === article.categoryId || c.id === article.categoryId);
-      const hasCustData = cat && cat.customsValuePerKg != null;
-      const nw = Number(article.netWeight) || 0;
-      const customsVpKg = Number(cat?.customsValuePerKg) || 0;
-      const di = (cat?.importDutyRate ?? 0) / 100;
-      const tpi = (cat?.tpiRate ?? 0) / 100;
-      const tic = (cat?.ticRate ?? 0) / 100;
-      const tva = (cat?.tvaRate ?? 20) / 100;
+      const customsVpKg = ov.customsValuePerKg != null ? Number(ov.customsValuePerKg) : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : 0);
+      const di = ov.importDutyRate != null ? Number(ov.importDutyRate) / 100 : (cat?.importDutyRate ?? 0) / 100;
+      const tpi = ov.tpiRate != null ? Number(ov.tpiRate) / 100 : (cat?.tpiRate ?? 0) / 100;
+      const tic = ov.ticRate != null ? Number(ov.ticRate) / 100 : (cat?.ticRate ?? 0) / 100;
+      const tva = ov.tvaRate != null ? Number(ov.tvaRate) / 100 : (cat?.tvaRate ?? 20) / 100;
+      
+      const hasCustData = (ov.customsValuePerKg != null || cat?.customsValuePerKg != null);
 
       const valeurFOB = qty * prix;
       const valeurDouaneMad = (hasCustData && customsVpKg > 0 && nw > 0) ? nw * customsVpKg : 0;
@@ -239,7 +264,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       };
       });
     }).filter(Boolean);
-  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, articles, factures, categories, avgFreightPerCbm]);
+  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, allOverrides, articles, factures, categories, avgFreightPerCbm]);
 
   const totalCoutTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.coutTotalMad || 0), 0);
   const totalPrixVenteTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixVenteTotalMad || 0), 0);
