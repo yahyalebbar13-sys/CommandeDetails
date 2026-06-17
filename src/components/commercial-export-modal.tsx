@@ -16,65 +16,60 @@ interface CommercialExportModalProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   clientName: string;
-  articles: any[];   // all app articles (filtered externally to client's articles)
-  factures: any[];   // all dp_declarations
-  categories: any[]; // sub-categories with tax rates
+  articles: any[];
+  factures: any[];
+  categories: any[];
 }
 
-// Expand an article into color/size rows (same logic as devis-pi-view)
-function expandArticleToRows(article: any): any[] {
+// Build a compact color/size summary string from an article
+function getVariantsSummary(article: any): string {
   const cb = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
   const sb = Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : [];
-
   if (cb.length > 0) {
-    return cb.map((r: any) => ({
-      ...article,
-      _rowId: `${article.id}_cb_${r.color || r.id || Math.random()}`,
-      _parentId: article.id,
-      color: r.color || article.color || '—',
-      quantity: Number(r.rolls) || Number(r.quantity) || 0,
-      purchasePricePerUnit: (r.priceOverride !== '' && r.priceOverride != null)
-        ? Number(r.priceOverride)
-        : Number(article.purchasePricePerUnit || 0),
-    }));
+    return cb.map((r: any) => {
+      const c = r.color || r.colorCode || '?';
+      const q = Number(r.rolls) || Number(r.quantity) || 0;
+      return `${c} ×${q}`;
+    }).join(', ');
   }
   if (sb.length > 0) {
-    return sb.map((r: any) => ({
-      ...article,
-      _rowId: `${article.id}_sb_${r.size || r.id || Math.random()}`,
-      _parentId: article.id,
-      size: r.size || article.size || '—',
-      quantity: Number(r.quantity) || 0,
-      purchasePricePerUnit: (r.priceOverride !== '' && r.priceOverride != null)
-        ? Number(r.priceOverride)
-        : Number(article.purchasePricePerUnit || 0),
-    }));
+    return sb.map((r: any) => {
+      const s = r.size || '?';
+      const q = Number(r.quantity) || 0;
+      return `${s} ×${q}`;
+    }).join(', ');
   }
-  return [{ ...article, _rowId: article.id, _parentId: article.id }];
+  return article.color || '—';
 }
 
-// Compute pauTtc for a single row (simplified, mirrors devis-pi-view logic)
+// Get total quantity (from breakdown or article.quantity)
+function getTotalQty(article: any): number {
+  const cb = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
+  const sb = Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : [];
+  if (cb.length > 0) return cb.reduce((s: number, r: any) => s + (Number(r.rolls) || Number(r.quantity) || 0), 0);
+  if (sb.length > 0) return sb.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
+  return Number(article.quantity) || 0;
+}
+
+// Compute pauTtc for an article (simplified, mirrors devis-pi-view logic)
 function computePauTtc(
-  row: any,
+  article: any,
   allOverrides: Record<string, any>,
   factures: any[],
   allArticles: any[],
   categories: any[]
 ): number {
-  const ov = allOverrides[row._parentId || row.id] || {};
-  const qty = Number(row.quantity) || 0;
-  const prix = Number(row.purchasePricePerUnit) || 0;
-  const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(row.cubicMeasurement)) || 0;
-  const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(row.netWeight)) || 0;
+  const ov = allOverrides[article.id] || {};
+  const qty = getTotalQty(article);
+  const prix = Number(article.purchasePricePerUnit) || 0;
+  const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(article.cubicMeasurement)) || 0;
+  const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(article.netWeight)) || 0;
 
   if (qty === 0) return 0;
 
-  const linkedFac = factures.find(f => f.id === row.factureId);
+  const linkedFac = factures.find(f => f.id === article.factureId);
   let tc = DEFAULT_TAUX;
-  let fraisTransitMad = 0;
-  let fraisChangeMad = 0;
-  let fraisSuppMad = 0;
-  let fretTotal$ = 0;
+  let fraisTransitMad = 0, fraisChangeMad = 0, fraisSuppMad = 0, fretTotal$ = 0;
 
   if (linkedFac) {
     const paid = Number(linkedFac.invoicePaidDhs) || 0;
@@ -102,7 +97,7 @@ function computePauTtc(
 
   const fraisCmd = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
-  const cat = categories.find(c => c.name === row.categoryId || c.id === row.categoryId);
+  const cat = categories.find(c => c.name === article.categoryId || c.id === article.categoryId);
   const customsVpKg = ov.customsValuePerKg != null ? Number(ov.customsValuePerKg) : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : 0);
   const diRate = (ov.importDutyRate != null ? Number(ov.importDutyRate) : (cat?.importDutyRate ?? 0)) / 100;
   const tpiRate = (ov.tpiRate != null ? Number(ov.tpiRate) : (cat?.tpiRate ?? 0)) / 100;
@@ -131,13 +126,13 @@ export default function CommercialExportModal({
   const { user } = useUser();
   const firestore = useFirestore();
   const [overrides, setOverrides] = useState<Record<string, any>>({});
-  const [prices, setPrices] = useState<Record<string, string>>({}); // rowId → prix de vente (string for input)
+  const [prices, setPrices] = useState<Record<string, string>>({}); // articleId → prix de vente
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [expandedDossiers, setExpandedDossiers] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
-  // Load overrides from dp_declarations for client articles
+  // Load overrides from dp_declarations
   useEffect(() => {
     if (!open || !firestore || !user || articles.length === 0) return;
     setLoading(true);
@@ -157,7 +152,6 @@ export default function CommercialExportModal({
             const data = d.data();
             if (data.overrides) Object.assign(merged, data.overrides);
           });
-          // Also check directly by document id = factureId
           try {
             const direct = await getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'));
             direct.docs.forEach(d => {
@@ -177,9 +171,8 @@ export default function CommercialExportModal({
     })();
   }, [open, firestore, user, articles]);
 
-  // Build rows per dossier
+  // Build dossiers — ONE ROW PER ARTICLE (not per color)
   const dossiers = useMemo(() => {
-    // Group articles by factureId (or 'sans-dossier')
     const grouped: Record<string, any[]> = {};
     articles.forEach(article => {
       const key = article.factureId || 'sans-dossier';
@@ -190,23 +183,19 @@ export default function CommercialExportModal({
     return Object.entries(grouped).map(([factureId, dosArticles]) => {
       const facture = factures.find(f => f.id === factureId);
       const label = facture?.reference || facture?.name || facture?.ref || factureId;
-      const rows: any[] = [];
-      dosArticles.forEach(art => {
-        expandArticleToRows(art).forEach(row => rows.push(row));
-      });
-      return { factureId, label, facture, rows };
+      return { factureId, label, facture, rows: dosArticles };
     });
   }, [articles, factures]);
 
-  // Initialise prices from suggestions when overrides/dossiers are ready
+  // Initialise prices from suggestions
   useEffect(() => {
     if (loading || dossiers.length === 0) return;
     const init: Record<string, string> = {};
     dossiers.forEach(d => {
-      d.rows.forEach(row => {
-        if (!prices[row._rowId]) {
-          const sugg = computePauTtc(row, overrides, factures, articles, categories);
-          init[row._rowId] = sugg > 0 ? fmt(sugg).replace(/\s/g, '') : '';
+      d.rows.forEach(art => {
+        if (!prices[art.id]) {
+          const sugg = computePauTtc(art, overrides, factures, articles, categories);
+          init[art.id] = sugg > 0 ? fmt(sugg).replace(/\s/g, '') : '';
         }
       });
     });
@@ -231,11 +220,14 @@ export default function CommercialExportModal({
   const handleGenerate = async () => {
     setGenerating(true);
     try {
+      // Pass articles directly (not expanded) with price + dossier label
       const pdfRows = dossiers.flatMap(d =>
-        d.rows.map(row => ({
-          ...row,
+        d.rows.map(art => ({
+          ...art,
           _dossierLabel: d.label,
-          _prixVente: parseFloat((prices[row._rowId] || '0').replace(/,/g, '.')) || 0,
+          _prixVente: parseFloat((prices[art.id] || '0').replace(/,/g, '.')) || 0,
+          _variantsSummary: getVariantsSummary(art),
+          _totalQty: getTotalQty(art),
         }))
       );
       await exportCommercialPDF(clientName, pdfRows);
@@ -246,9 +238,9 @@ export default function CommercialExportModal({
     }
   };
 
-  const totalTtc = dossiers.flatMap(d => d.rows).reduce((s, row) => {
-    const p = parseFloat((prices[row._rowId] || '0').replace(/,/g, '.')) || 0;
-    return s + p * (Number(row.quantity) || 0);
+  const totalTtc = dossiers.flatMap(d => d.rows).reduce((s, art) => {
+    const p = parseFloat((prices[art.id] || '0').replace(/,/g, '.')) || 0;
+    return s + p * getTotalQty(art);
   }, 0);
 
   return (
@@ -285,7 +277,7 @@ export default function CommercialExportModal({
             </div>
           ) : dossiers.length === 0 ? (
             <div className="text-center py-16 text-stone-400 text-sm">
-              Aucun article trouvé pour ce client.
+              Aucun article trouvé.
             </div>
           ) : (
             dossiers.map(dossier => {
@@ -303,74 +295,79 @@ export default function CommercialExportModal({
                         📦 Dossier : {dossier.label}
                       </span>
                       <Badge variant="outline" className="text-[9px] font-black">
-                        {dossier.rows.length} ligne{dossier.rows.length > 1 ? 's' : ''}
+                        {dossier.rows.length} article{dossier.rows.length > 1 ? 's' : ''}
                       </Badge>
                     </div>
-                    <span className="text-[10px] font-bold text-stone-400">
-                      {dossier.rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString('fr-MA')} unités
-                    </span>
                   </button>
 
-                  {/* Rows */}
+                  {/* Rows — one per article */}
                   {isOpen && (
                     <div className="divide-y divide-stone-100">
                       {/* Column headers */}
-                      <div className="grid px-4 py-2 bg-stone-900 text-white" style={{ gridTemplateColumns: showSuggestions ? '2fr 1fr 1fr 1fr 1.2fr 1.2fr 1fr' : '2fr 1fr 1fr 1fr 1.2fr 1fr' }}>
-                        {['Désignation', 'Couleur', 'Taille', 'Qté', ...(showSuggestions ? ['💡 PA TTC (admin)'] : []), 'Prix Vente (MAD)', 'Total TTC'].map(col => (
+                      <div className="grid px-4 py-2 bg-stone-900 text-white" style={{ gridTemplateColumns: showSuggestions ? '2fr 2.5fr 0.8fr 1fr 1.2fr 1fr' : '2fr 2.5fr 0.8fr 1.2fr 1fr' }}>
+                        {['Désignation', 'Couleurs / Variantes', 'Qté', ...(showSuggestions ? ['💡 PA TTC'] : []), 'Prix Vente (MAD)', 'Total TTC'].map(col => (
                           <span key={col} className="text-[8px] font-black uppercase tracking-widest truncate pr-2">{col}</span>
                         ))}
                       </div>
 
-                      {dossier.rows.map((row, ri) => {
-                        const sugg = computePauTtc(row, overrides, factures, articles, categories);
-                        const priceVal = parseFloat((prices[row._rowId] || '').replace(/,/g, '.')) || 0;
-                        const total = priceVal * (Number(row.quantity) || 0);
+                      {dossier.rows.map((art, ri) => {
+                        const sugg = computePauTtc(art, overrides, factures, articles, categories);
+                        const priceVal = parseFloat((prices[art.id] || '').replace(/,/g, '.')) || 0;
+                        const qty = getTotalQty(art);
+                        const total = priceVal * qty;
+                        const variants = getVariantsSummary(art);
 
                         return (
                           <div
-                            key={row._rowId}
+                            key={art.id}
                             className={`grid items-center px-4 py-2.5 gap-2 ${ri % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'}`}
-                            style={{ gridTemplateColumns: showSuggestions ? '2fr 1fr 1fr 1fr 1.2fr 1.2fr 1fr' : '2fr 1fr 1fr 1fr 1.2fr 1fr' }}
+                            style={{ gridTemplateColumns: showSuggestions ? '2fr 2.5fr 0.8fr 1fr 1.2fr 1fr' : '2fr 2.5fr 0.8fr 1.2fr 1fr' }}
                           >
                             {/* Désignation */}
                             <span className="text-[11px] font-bold text-stone-800 truncate">
-                              {row.categoryId || row.name || '—'}
+                              {art.categoryId || art.name || '—'}
                             </span>
-                            {/* Couleur */}
-                            <span className="text-[10px] font-medium text-stone-600 truncate">
-                              {row.color || '—'}
-                            </span>
-                            {/* Taille */}
-                            <span className="text-[10px] font-medium text-stone-600 truncate">
-                              {row.size || '—'}
-                            </span>
-                            {/* Qté */}
+                            {/* Couleurs / Variantes — compact */}
+                            <div className="flex flex-wrap gap-1">
+                              {Array.isArray(art.colorBreakdown) && art.colorBreakdown.length > 0 ? (
+                                art.colorBreakdown.map((r: any, ci: number) => (
+                                  <span key={ci} className="text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200 rounded px-1.5 py-0.5 whitespace-nowrap">
+                                    {r.color || r.colorCode || '?'} ×{Number(r.rolls) || Number(r.quantity) || 0}
+                                  </span>
+                                ))
+                              ) : Array.isArray(art.sizeBreakdown) && art.sizeBreakdown.length > 0 ? (
+                                art.sizeBreakdown.map((r: any, si: number) => (
+                                  <span key={si} className="text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 whitespace-nowrap">
+                                    {r.size || '?'} ×{Number(r.quantity) || 0}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[10px] font-medium text-stone-500">{art.color || '—'}</span>
+                              )}
+                            </div>
+                            {/* Qté totale */}
                             <span className="text-[10px] font-black text-stone-800">
-                              {(Number(row.quantity) || 0).toLocaleString('fr-MA')} {row.unitOfMeasure || ''}
+                              {qty.toLocaleString('fr-MA')}
                             </span>
                             {/* Suggestion PA TTC (admin only) */}
                             {showSuggestions && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 whitespace-nowrap">
-                                  {sugg > 0 ? `${fmt(sugg)} MAD` : '—'}
-                                </span>
-                              </div>
+                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 whitespace-nowrap w-fit">
+                                {sugg > 0 ? `${fmt(sugg)}` : '—'}
+                              </span>
                             )}
-                            {/* Prix de vente (editable) */}
-                            <div className="flex items-center gap-1">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={prices[row._rowId] || ''}
-                                onChange={e => setPrices(p => ({ ...p, [row._rowId]: e.target.value }))}
-                                className="h-8 text-[11px] font-bold border-indigo-200 rounded-lg text-right focus:border-indigo-500 focus:ring-indigo-200"
-                              />
-                            </div>
+                            {/* Prix de vente */}
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              value={prices[art.id] || ''}
+                              onChange={e => setPrices(p => ({ ...p, [art.id]: e.target.value }))}
+                              className="h-8 text-[11px] font-bold border-indigo-200 rounded-lg text-right focus:border-indigo-500 focus:ring-indigo-200"
+                            />
                             {/* Total */}
                             <span className="text-[11px] font-black text-stone-700 text-right">
-                              {total > 0 ? `${fmt(total)}` : '—'}
+                              {total > 0 ? fmt(total) : '—'}
                             </span>
                           </div>
                         );

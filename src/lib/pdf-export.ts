@@ -2620,7 +2620,7 @@ export async function exportCommercialPDF(
     let dosTtc = 0;
 
     dossierRows.forEach((row, idx) => {
-      const qty = Number(row.quantity) || 0;
+      const qty = Number(row._totalQty) || Number(row.quantity) || 0;
       const pu = Number(row._prixVente) || 0;
       const total = qty * pu;
       dosQty += qty;
@@ -2630,8 +2630,7 @@ export async function exportCommercialPDF(
       tableBody.push([
         idx + 1,
         (row.categoryId || row.name || '—').toUpperCase(),
-        row.color || '—',
-        row.size || '—',
+        row._variantsSummary || row.color || '—',
         qty.toLocaleString('fr-MA'),
         row.unitOfMeasure || 'u',
         pu > 0 ? pu.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
@@ -2644,7 +2643,7 @@ export async function exportCommercialPDF(
         photoRows.push({
           label: (row.categoryId || row.name || '—').toUpperCase(),
           imageUrl: imgUrl,
-          color: row.color || '',
+          color: row._variantsSummary || row.color || '',
           qty,
           pu,
         });
@@ -2653,7 +2652,7 @@ export async function exportCommercialPDF(
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Désignation', 'Couleur', 'Taille', 'Quantité', 'U.M.', 'P.U. TTC (MAD)', 'Total TTC (MAD)']],
+      head: [['#', 'Désignation', 'Couleurs / Variantes', 'Quantité', 'U.M.', 'P.U. TTC (MAD)', 'Total TTC (MAD)']],
       body: tableBody,
       margin: { left: MX, right: MX },
       styles: { font: 'helvetica', fontSize: 8, cellPadding: 3, textColor: [30, 30, 30] },
@@ -2666,13 +2665,12 @@ export async function exportCommercialPDF(
       },
       columnStyles: {
         0: { halign: 'center', cellWidth: 8 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 28 },
-        3: { cellWidth: 20 },
-        4: { halign: 'right', cellWidth: 20 },
-        5: { halign: 'center', cellWidth: 12 },
-        6: { halign: 'right', cellWidth: 28, fontStyle: 'bold' },
-        7: { halign: 'right', cellWidth: 28, fontStyle: 'bold', textColor: NAVY },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 52, fontSize: 7 },
+        3: { halign: 'right', cellWidth: 18 },
+        4: { halign: 'center', cellWidth: 12 },
+        5: { halign: 'right', cellWidth: 26, fontStyle: 'bold' },
+        6: { halign: 'right', cellWidth: 26, fontStyle: 'bold', textColor: NAVY },
       },
       alternateRowStyles: { fillColor: LIGHT },
       didDrawPage: () => addPageFooter(),
