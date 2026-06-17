@@ -2637,13 +2637,15 @@ export async function exportCommercialPDF(
         total > 0 ? total.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
       ]);
 
-      // Collect photo: one entry per unique image URL
-      const imgUrl = row.imageUrl || row.designImageUrl || '';
-      if (imgUrl && !photoRows.find(p => p.imageUrl === imgUrl && p.label === (row.categoryId || row.name || ''))) {
+      // Collect photo for CURSEURS only (slider/puller articles with a designImageUrl)
+      const catUpper = ((row.categoryId || row.name || '') + '').toUpperCase();
+      const isCurseur = catUpper.includes('SLIDER') || catUpper.includes('PULLER');
+      const imgUrl = row.designImageUrl || row.imageUrl || '';
+      if (isCurseur && imgUrl && !photoRows.find(p => p.imageUrl === imgUrl)) {
         photoRows.push({
           label: (row.categoryId || row.name || '—').toUpperCase(),
           imageUrl: imgUrl,
-          color: row._variantsSummary || row.color || '',
+          color: row.designRef || row._variantsSummary || row.color || '',
           qty,
           pu,
         });

@@ -27,7 +27,7 @@ function getVariantsSummary(article: any): string {
   const sb = Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : [];
   if (cb.length > 0) {
     return cb.map((r: any) => {
-      const c = r.color || r.colorCode || '?';
+      const c = r.colorCode || r.color || '?';
       const q = Number(r.rolls) || Number(r.quantity) || 0;
       return `${c} ×${q}`;
     }).join(', ');
@@ -332,7 +332,7 @@ export default function CommercialExportModal({
                               {Array.isArray(art.colorBreakdown) && art.colorBreakdown.length > 0 ? (
                                 art.colorBreakdown.map((r: any, ci: number) => (
                                   <span key={ci} className="text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200 rounded px-1.5 py-0.5 whitespace-nowrap">
-                                    {r.color || r.colorCode || '?'} ×{Number(r.rolls) || Number(r.quantity) || 0}
+                                    {r.colorCode || r.color || '?'} ×{Number(r.rolls) || Number(r.quantity) || 0}
                                   </span>
                                 ))
                               ) : Array.isArray(art.sizeBreakdown) && art.sizeBreakdown.length > 0 ? (
