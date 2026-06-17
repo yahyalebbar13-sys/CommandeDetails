@@ -12,6 +12,7 @@ import {
   Mail, Settings, RefreshCw, Bell, Check
 } from 'lucide-react';
 import CoutDeRevientModal from './cout-de-revient-modal';
+import CommercialExportModal from './commercial-export-modal';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp, setDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
@@ -535,6 +536,9 @@ export default function SuppliersView({ articles, factures, payments, categories
                 rank={idx + 1}
                 pct={Math.round((stat.orders / maxVal) * 100)}
                 onSelect={() => setSelectedClient(stat.name)}
+                articles={articles}
+                factures={factures}
+                categories={categories || []}
               />
             ))}
           </div>
@@ -1708,11 +1712,21 @@ function ForwarderDetailView({
   );
 }
 
-function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; orders: number; categories: Set<string> }; rank: number; pct: number; onSelect: () => void }) {
+function ClientCard({ stat, rank, pct, onSelect, articles, factures, categories }: {
+  stat: { name: string; orders: number; categories: Set<string> };
+  rank: number; pct: number; onSelect: () => void;
+  articles: any[];
+  factures: any[];
+  categories: any[];
+}) {
   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [isCommercialModalOpen, setIsCommercialModalOpen] = useState(false);
   const { user } = useUser();
   const canCreateAccount = user?.email === ADMIN_EMAIL;
+
+  // Client's articles only
+  const clientArticles = articles.filter(a => (a.clientName || '').trim().toLowerCase() === stat.name.trim().toLowerCase());
 
   return (
     <>
@@ -1794,6 +1808,14 @@ function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; order
                   <Settings className="w-3 h-3" />
                   Gérer
                 </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-emerald-600 border border-emerald-200 rounded-lg px-2.5 py-1.5 hover:bg-emerald-50 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsCommercialModalOpen(true); }}
+                >
+                  <FileText className="w-3 h-3" />
+                  Offre PDF
+                </button>
               </div>
             ) : <div />}
             <div className="flex items-center text-[9px] font-black uppercase tracking-widest text-stone-300 group-hover:text-indigo-600 transition-colors">
@@ -1811,6 +1833,14 @@ function ClientCard({ stat, rank, pct, onSelect }: { stat: { name: string; order
         open={isManageModalOpen}
         onOpenChange={setIsManageModalOpen}
         clientName={stat.name}
+      />
+      <CommercialExportModal
+        open={isCommercialModalOpen}
+        onOpenChange={setIsCommercialModalOpen}
+        clientName={stat.name}
+        articles={clientArticles}
+        factures={factures}
+        categories={categories}
       />
     </>
   );

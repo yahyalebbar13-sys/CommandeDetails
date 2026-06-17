@@ -2504,3 +2504,246 @@ export async function exportBesoinsPDF(
 
   doc.save(`Besoins_LEBTEX_${todayStr}.pdf`);
 }
+
+// ── Export Commercial PDF ─────────────────────────────────────────────────────
+// For sales team: shows articles per color/size with selling prices set by admin.
+// NO cost data (pauTtc, marge, etc.) is included in this PDF.
+export async function exportCommercialPDF(
+  clientName: string,
+  rows: any[] // each row has: categoryId, name, color, size, quantity, unitOfMeasure, _prixVente, _dossierLabel
+): Promise<void> {
+  const { jsPDF } = await import('jspdf');
+  const autoTable = (await import('jspdf-autotable')).default;
+
+  const NAVY = [15, 23, 42] as [number, number, number];
+  const GOLD = [196, 160, 98] as [number, number, number];
+  const WHITE = [255, 255, 255] as [number, number, number];
+  const LIGHT = [248, 247, 244] as [number, number, number];
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const MX = 14;
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const ref = `OFF-${Date.now().toString().slice(-8)}`;
+
+  // ── PAGE FOOTER helper ──────────────────────────────────────────────────────
+  const addPageFooter = () => {
+    const pg = (doc as any).internal.getCurrentPageInfo().pageNumber;
+    doc.setFillColor(...NAVY);
+    doc.rect(0, H - 12, W, 12, 'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0, H - 12, 5, 12, 'F');
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca', MX, H - 5);
+    doc.text(`Page ${pg}  |  Réf : ${ref}`, W - MX, H - 5, { align: 'right' });
+  };
+
+  // ── HEADER ──────────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 38, 'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 0, 5, 38, 'F');
+
+  await addPdfLogoHeader(doc, 10, 5, 50, 25, true);
+
+  doc.setTextColor(...WHITE);
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('OFFRE COMMERCIALE', W - MX, 16, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...GOLD);
+  doc.text('LEBTEX TEXTILE IMPORT', W - MX, 24, { align: 'right' });
+
+  // ── INFO BOX ──────────────────────────────────────────────────────────────
+  let y = 46;
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(MX, y, W - MX * 2, 22, 2, 2, 'F');
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(MX, y, MX, y + 22);
+
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CLIENT :', MX + 4, y + 7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(clientName.toUpperCase(), MX + 24, y + 7);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('DATE :', MX + 4, y + 14);
+  doc.setFont('helvetica', 'normal');
+  doc.text(todayStr, MX + 24, y + 14);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('RÉF. OFFRE :', W / 2 + 4, y + 7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(ref, W / 2 + 28, y + 7);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('VALIDITÉ :', W / 2 + 4, y + 14);
+  doc.setFont('helvetica', 'normal');
+  doc.text('15 jours à compter de la date ci-dessus', W / 2 + 28, y + 14);
+
+  y += 28;
+
+  // ── GROUP ROWS BY DOSSIER ─────────────────────────────────────────────────
+  const grouped: Record<string, any[]> = {};
+  rows.forEach(row => {
+    const key = row._dossierLabel || 'Sans dossier';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(row);
+  });
+
+  let grandTotalQty = 0;
+  let grandTotalTtc = 0;
+
+  for (const [dossierLabel, dossierRows] of Object.entries(grouped)) {
+    // Dossier label
+    if (y > H - 50) { doc.addPage(); addPageFooter(); y = 20; }
+    doc.setFillColor(...NAVY);
+    doc.roundedRect(MX, y, W - MX * 2, 8, 1, 1, 'F');
+    doc.setTextColor(...GOLD);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`📦  DOSSIER : ${dossierLabel.toUpperCase()}`, MX + 4, y + 5.5);
+    y += 11;
+
+    // Table data
+    const tableBody: any[][] = [];
+    let dosQty = 0;
+    let dosTtc = 0;
+
+    dossierRows.forEach((row, idx) => {
+      const qty = Number(row.quantity) || 0;
+      const pu = Number(row._prixVente) || 0;
+      const total = qty * pu;
+      dosQty += qty;
+      dosTtc += total;
+      grandTotalQty += qty;
+      grandTotalTtc += total;
+      tableBody.push([
+        idx + 1,
+        (row.categoryId || row.name || '—').toUpperCase(),
+        row.color || '—',
+        row.size || '—',
+        qty.toLocaleString('fr-MA'),
+        row.unitOfMeasure || 'u',
+        pu > 0 ? pu.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+        total > 0 ? total.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
+      ]);
+    });
+
+    autoTable(doc, {
+      startY: y,
+      head: [['#', 'Désignation', 'Couleur', 'Taille', 'Quantité', 'U.M.', 'P.U. TTC (MAD)', 'Total TTC (MAD)']],
+      body: tableBody,
+      margin: { left: MX, right: MX },
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 3, textColor: [30, 30, 30] },
+      headStyles: {
+        fillColor: [40, 40, 60],
+        textColor: WHITE,
+        fontStyle: 'bold',
+        fontSize: 7.5,
+        halign: 'center',
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 8 },
+        1: { cellWidth: 50 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 20 },
+        4: { halign: 'right', cellWidth: 20 },
+        5: { halign: 'center', cellWidth: 12 },
+        6: { halign: 'right', cellWidth: 28, fontStyle: 'bold' },
+        7: { halign: 'right', cellWidth: 28, fontStyle: 'bold', textColor: NAVY },
+      },
+      alternateRowStyles: { fillColor: LIGHT },
+      didDrawPage: () => addPageFooter(),
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Dossier sub-total
+    doc.setFillColor(240, 245, 255);
+    doc.roundedRect(W - MX - 90, y, 90, 12, 1, 1, 'F');
+    doc.setTextColor(...NAVY);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Sous-total dossier : ${dosTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`, W - MX - 4, y + 8, { align: 'right' });
+    y += 18;
+  }
+
+  // ── GRAND TOTAL ─────────────────────────────────────────────────────────────
+  if (y > H - 60) { doc.addPage(); addPageFooter(); y = 20; }
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MX, y, W - MX * 2, 16, 2, 2, 'F');
+  doc.setTextColor(...GOLD);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL GÉNÉRAL TTC', MX + 6, y + 10);
+  doc.setTextColor(...WHITE);
+  doc.text(
+    `${grandTotalTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`,
+    W - MX - 4, y + 10, { align: 'right' }
+  );
+  y += 22;
+
+  // ── CONDITIONS ─────────────────────────────────────────────────────────────
+  if (y > H - 60) { doc.addPage(); addPageFooter(); y = 20; }
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(MX, y, W - MX * 2, 28, 2, 2, 'F');
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONDITIONS DE VENTE', MX + 4, y + 6);
+  doc.setFont('helvetica', 'normal');
+  const conds = [
+    '• Paiement : acompte à la confirmation + solde avant livraison.',
+    '• Prix valables 15 jours à compter de la date de l\'offre.',
+    '• Toute commande confirmée est ferme et non annulable.',
+    '• Délai de livraison indicatif : selon disponibilité fournisseur.',
+  ];
+  conds.forEach((c, i) => doc.text(c, MX + 4, y + 12 + i * 5));
+  y += 34;
+
+  // ── SIGNATURES ─────────────────────────────────────────────────────────────
+  if (y > H - 50) { doc.addPage(); addPageFooter(); y = 20; }
+  const boxW = (W - MX * 2 - 8) / 2;
+  doc.setFillColor(...LIGHT);
+  doc.roundedRect(MX, y, boxW, 38, 2, 2, 'F');
+  doc.roundedRect(MX + boxW + 8, y, boxW, 38, 2, 2, 'F');
+
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ÉMIS PAR LEBTEX', MX + 4, y + 8);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Service Commercial', MX + 4, y + 14);
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(MX + 4, y + 30, MX + boxW - 4, y + 30);
+
+  doc.setFillColor(...NAVY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...NAVY);
+  doc.text('ACCORD CLIENT', MX + boxW + 12, y + 8);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Lu et approuvé (Cachet + signature)', MX + boxW + 12, y + 14);
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineDashPattern([1, 1], 0);
+  doc.line(MX + boxW + 12, y + 30, W - MX - 4, y + 30);
+  doc.setLineDashPattern([], 0);
+
+  addPageFooter();
+
+  doc.save(`Offre_Commerciale_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
