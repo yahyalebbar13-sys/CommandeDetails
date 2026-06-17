@@ -2690,22 +2690,6 @@ export async function exportCommercialPDF(
     y += 18;
   }
 
-
-  // ── GRAND TOTAL ─────────────────────────────────────────────────────────────
-  if (y > H - 60) { doc.addPage(); addPageFooter(); y = 20; }
-  doc.setFillColor(...NAVY);
-  doc.roundedRect(MX, y, W - MX * 2, 16, 2, 2, 'F');
-  doc.setTextColor(...GOLD);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TOTAL GÉNÉRAL TTC', MX + 6, y + 10);
-  doc.setTextColor(...WHITE);
-  doc.text(
-    `${grandTotalTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`,
-    W - MX - 4, y + 10, { align: 'right' }
-  );
-  y += 22;
-
   // ── PHOTOS SECTION ─────────────────────────────────────────────────────────
   if (photoRows.length > 0) {
     doc.addPage();
@@ -2741,11 +2725,9 @@ export async function exportCommercialPDF(
         doc.addPage();
         addPageFooter();
         py = 18;
-        // Recalculate position after new page
         const newRow = Math.floor(i / COLS) - Math.floor((i > 0 ? i : 0) / COLS);
-        // restart from top of new page
         const newCy = 18 + (i % (COLS * Math.ceil((H - 36) / (CELL_H + 6)))) % Math.ceil((H - 36) / (CELL_H + 6)) * (CELL_H + 6);
-        void newRow; void newCy; // suppress
+        void newRow; void newCy;
       }
 
       const actualCy = py + (Math.floor(i / COLS) % Math.ceil((H - 36) / (CELL_H + 6))) * (CELL_H + 6);
@@ -2776,7 +2758,6 @@ export async function exportCommercialPDF(
         });
 
         if (dataUrl) {
-          // Keep aspect ratio
           const imgObj = new Image();
           imgObj.src = dataUrl;
           const aspect = imgObj.naturalWidth > 0 ? imgObj.naturalHeight / imgObj.naturalWidth : 1;
@@ -2786,7 +2767,6 @@ export async function exportCommercialPDF(
           const imgY = actualCy + 3;
           doc.addImage(dataUrl, 'JPEG', imgX, imgY, displayW, displayH);
         } else {
-          // Placeholder
           doc.setFillColor(235, 235, 230);
           doc.rect(cx + 3, actualCy + 3, CELL_W - 6, IMG_H, 'F');
           doc.setTextColor(180, 180, 175);
@@ -2814,61 +2794,8 @@ export async function exportCommercialPDF(
     }
   }
 
-  // ── CONDITIONS ─────────────────────────────────────────────────────────────
-  doc.addPage();
-  addPageFooter();
-  y = 20;
-
-  doc.setFillColor(...LIGHT);
-  doc.roundedRect(MX, y, W - MX * 2, 28, 2, 2, 'F');
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('CONDITIONS DE VENTE', MX + 4, y + 6);
-  doc.setFont('helvetica', 'normal');
-  const conds = [
-    '• Paiement : acompte à la confirmation + solde avant livraison.',
-    '• Prix valables 15 jours à compter de la date de l\'offre.',
-    '• Toute commande confirmée est ferme et non annulable.',
-    '• Délai de livraison indicatif : selon disponibilité fournisseur.',
-  ];
-  conds.forEach((c, i) => doc.text(c, MX + 4, y + 12 + i * 5));
-  y += 34;
-
-  // ── SIGNATURES ─────────────────────────────────────────────────────────────
-  if (y > H - 50) { doc.addPage(); addPageFooter(); y = 20; }
-  const boxW = (W - MX * 2 - 8) / 2;
-  doc.setFillColor(...LIGHT);
-  doc.roundedRect(MX, y, boxW, 38, 2, 2, 'F');
-  doc.roundedRect(MX + boxW + 8, y, boxW, 38, 2, 2, 'F');
-
-  doc.setTextColor(...NAVY);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ÉMIS PAR LEBTEX', MX + 4, y + 8);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text('Service Commercial', MX + 4, y + 14);
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.5);
-  doc.line(MX + 4, y + 30, MX + boxW - 4, y + 30);
-
-  doc.setFillColor(...NAVY);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...NAVY);
-  doc.text('ACCORD CLIENT', MX + boxW + 12, y + 8);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text('Lu et approuvé (Cachet + signature)', MX + boxW + 12, y + 14);
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(MX + boxW + 12, y + 30, W - MX - 4, y + 30);
-  doc.setLineDashPattern([], 0);
-
   addPageFooter();
 
   doc.save(`Offre_Commerciale_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
+
