@@ -2601,6 +2601,7 @@ export async function exportCommercialPDF(
 
   let grandTotalQty = 0;
   let grandTotalTtc = 0;
+  const photoRows: { label: string; imageUrl: string; color: string; qty: number; pu: number }[] = [];
 
   for (const [dossierLabel, dossierRows] of Object.entries(grouped)) {
     // Dossier label
@@ -2610,7 +2611,7 @@ export async function exportCommercialPDF(
     doc.setTextColor(...GOLD);
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
-    doc.text(`📦  DOSSIER : ${dossierLabel.toUpperCase()}`, MX + 4, y + 5.5);
+    doc.text(`DOSSIER : ${dossierLabel.toUpperCase()}`, MX + 4, y + 5.5);
     y += 11;
 
     // Table data
@@ -2636,6 +2637,18 @@ export async function exportCommercialPDF(
         pu > 0 ? pu.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
         total > 0 ? total.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—',
       ]);
+
+      // Collect photo: one entry per unique image URL
+      const imgUrl = row.imageUrl || row.designImageUrl || '';
+      if (imgUrl && !photoRows.find(p => p.imageUrl === imgUrl && p.label === (row.categoryId || row.name || ''))) {
+        photoRows.push({
+          label: (row.categoryId || row.name || '—').toUpperCase(),
+          imageUrl: imgUrl,
+          color: row.color || '',
+          qty,
+          pu,
+        });
+      }
     });
 
     autoTable(doc, {
@@ -2677,6 +2690,7 @@ export async function exportCommercialPDF(
     y += 18;
   }
 
+
   // ── GRAND TOTAL ─────────────────────────────────────────────────────────────
   if (y > H - 60) { doc.addPage(); addPageFooter(); y = 20; }
   doc.setFillColor(...NAVY);
@@ -2692,8 +2706,119 @@ export async function exportCommercialPDF(
   );
   y += 22;
 
+  // ── PHOTOS SECTION ─────────────────────────────────────────────────────────
+  if (photoRows.length > 0) {
+    doc.addPage();
+    addPageFooter();
+    let py = 16;
+
+    // Section header
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, W, 14, 'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 0, 5, 14, 'F');
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VISUELS PRODUITS', MX + 4, 10);
+
+    py = 20;
+
+    // Grid: 3 photos per row
+    const COLS = 3;
+    const CELL_W = (W - MX * 2 - (COLS - 1) * 6) / COLS;
+    const CELL_H = 60;
+    const IMG_H = 44;
+
+    for (let i = 0; i < photoRows.length; i++) {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cx = MX + col * (CELL_W + 6);
+      const cy = py + row * (CELL_H + 6);
+
+      // Check page overflow
+      if (cy + CELL_H > H - 18) {
+        doc.addPage();
+        addPageFooter();
+        py = 18;
+        // Recalculate position after new page
+        const newRow = Math.floor(i / COLS) - Math.floor((i > 0 ? i : 0) / COLS);
+        // restart from top of new page
+        const newCy = 18 + (i % (COLS * Math.ceil((H - 36) / (CELL_H + 6)))) % Math.ceil((H - 36) / (CELL_H + 6)) * (CELL_H + 6);
+        void newRow; void newCy; // suppress
+      }
+
+      const actualCy = py + (Math.floor(i / COLS) % Math.ceil((H - 36) / (CELL_H + 6))) * (CELL_H + 6);
+
+      // Card background
+      doc.setFillColor(250, 250, 248);
+      doc.roundedRect(cx, actualCy, CELL_W, CELL_H, 2, 2, 'F');
+      doc.setDrawColor(220, 220, 215);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(cx, actualCy, CELL_W, CELL_H, 2, 2, 'S');
+
+      // Try to add image via canvas
+      try {
+        const dataUrl = await new Promise<string | null>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { resolve(null); return; }
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          };
+          img.onerror = () => resolve(null);
+          img.src = photoRows[i].imageUrl;
+        });
+
+        if (dataUrl) {
+          // Keep aspect ratio
+          const imgObj = new Image();
+          imgObj.src = dataUrl;
+          const aspect = imgObj.naturalWidth > 0 ? imgObj.naturalHeight / imgObj.naturalWidth : 1;
+          const displayW = CELL_W - 6;
+          const displayH = Math.min(IMG_H, displayW * aspect);
+          const imgX = cx + (CELL_W - displayW) / 2;
+          const imgY = actualCy + 3;
+          doc.addImage(dataUrl, 'JPEG', imgX, imgY, displayW, displayH);
+        } else {
+          // Placeholder
+          doc.setFillColor(235, 235, 230);
+          doc.rect(cx + 3, actualCy + 3, CELL_W - 6, IMG_H, 'F');
+          doc.setTextColor(180, 180, 175);
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'italic');
+          doc.text('Photo non disponible', cx + CELL_W / 2, actualCy + IMG_H / 2 + 3, { align: 'center' });
+        }
+      } catch (_) {
+        doc.setFillColor(235, 235, 230);
+        doc.rect(cx + 3, actualCy + 3, CELL_W - 6, IMG_H, 'F');
+      }
+
+      // Label
+      doc.setTextColor(...NAVY);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'bold');
+      const labelY = actualCy + IMG_H + 8;
+      doc.text(photoRows[i].label, cx + CELL_W / 2, labelY, { align: 'center', maxWidth: CELL_W - 4 });
+      if (photoRows[i].color) {
+        doc.setTextColor(120, 120, 120);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(photoRows[i].color, cx + CELL_W / 2, labelY + 4.5, { align: 'center', maxWidth: CELL_W - 4 });
+      }
+    }
+  }
+
   // ── CONDITIONS ─────────────────────────────────────────────────────────────
-  if (y > H - 60) { doc.addPage(); addPageFooter(); y = 20; }
+  doc.addPage();
+  addPageFooter();
+  y = 20;
+
   doc.setFillColor(...LIGHT);
   doc.roundedRect(MX, y, W - MX * 2, 28, 2, 2, 'F');
   doc.setTextColor(100, 100, 100);

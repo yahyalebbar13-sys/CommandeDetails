@@ -11,6 +11,7 @@ import {
   ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle
 } from 'lucide-react';
 import { exportFacturePDF } from '@/lib/pdf-export';
+import CommercialExportModal from './commercial-export-modal';
 import { isZipperCategory } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
 import AddFactureModal from './add-facture-modal';
@@ -54,6 +55,7 @@ export default function FacturesView({
   const [factureToDelete, setFactureToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
+  const [isCommercialModalOpen, setIsCommercialModalOpen] = useState(false);;
 
   useEffect(() => {
     if (!firestore || !user) return;
@@ -266,6 +268,13 @@ export default function FacturesView({
           >
             <ChevronLeft className="w-4 h-4" /> Retour au Registre
           </Button>
+          <button
+            onClick={() => setIsCommercialModalOpen(true)}
+            className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-4 h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Offre Commerciale PDF
+          </button>
         </div>
 
         <header className="bg-white rounded-3xl shadow-xl border border-stone-200 overflow-hidden">
@@ -648,6 +657,15 @@ export default function FacturesView({
             </DialogContent>
           </Dialog>
         )}
+        {/* Commercial Export Modal */}
+        <CommercialExportModal
+          open={isCommercialModalOpen}
+          onOpenChange={setIsCommercialModalOpen}
+          clientName={selectedFacture?.supplierId || selectedFacture?.id || ''}
+          articles={selectedFactureArticles}
+          factures={factures}
+          categories={subCategories}
+        />
       </div>
     );
   }
