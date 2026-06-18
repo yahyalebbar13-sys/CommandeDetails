@@ -2903,14 +2903,45 @@ export function ClientDetailView({
                     {[
                       { label: 'Code HS', value: selectedArticle.hsCode || selectedCategory?.hsCode || '—' },
                       { label: 'CBM', value: selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—' },
-                      { label: 'Taille', value: selectedArticle.size || '—' },
-                      { label: 'Couleur', value: selectedArticle.color || '—', upper: true },
                     ].map((spec, i) => (
                       <div key={i} className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
                         <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">{spec.label}</span>
-                        <span className={`text-sm font-black text-stone-900 ${spec.upper ? 'uppercase' : ''}`}>{spec.value}</span>
+                        <span className="text-sm font-black text-stone-900">{spec.value}</span>
                       </div>
                     ))}
+
+                    {/* Taille — compact badges if sizeBreakdown */}
+                    <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Taille</span>
+                      {safeSizeBreakdown.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {safeSizeBreakdown.map((r: any, i: number) => (
+                            <span key={i} className="text-[8px] font-black bg-teal-50 text-teal-700 border border-teal-200 rounded px-1.5 py-0.5">
+                              {r.size} ×{Number(r.quantity) || 0}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
+                      )}
+                    </div>
+
+                    {/* Couleur — compact badges if colorBreakdown */}
+                    <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Couleur</span>
+                      {safeColorBreakdown.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {safeColorBreakdown.map((r: any, i: number) => (
+                            <span key={i} className="text-[8px] font-black bg-violet-50 text-violet-700 border border-violet-200 rounded px-1.5 py-0.5 uppercase">
+                              {r.colorCode || r.color} ×{Number(r.rolls) || 0}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
+                      )}
+                    </div>
+
                     <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 col-span-2 flex flex-col items-center text-center">
                       <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                         <ClipboardList className="w-2.5 h-2.5" /> Spécifications Techniques
