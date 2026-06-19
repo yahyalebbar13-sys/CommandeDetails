@@ -3,6 +3,10 @@
 
 runConfig:
   maxInstances: 1
+  # Désactiver le cache CDN de Firebase pour toujours servir la version la plus récente
+  cpu: 1
+  memoryMiB: 512
+  concurrency: 80
 
 env:
   - variable: GOOGLE_GENAI_API_KEY

@@ -1,12 +1,19 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  // ── Désactiver le cache du routeur Next.js 15 côté client ──────────────────
+  // Empêche l'affichage d'une ancienne version lors de la navigation
+  experimental: {
+    staleTimes: {
+      dynamic: 0,  // pages dynamiques : jamais en cache
+      static: 0,   // pages statiques : jamais en cache non plus
+    },
   },
   images: {
     // Servir WebP / AVIF automatiquement (jusqu'à 90% plus léger que PNG/JPEG)
@@ -43,27 +50,30 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // ── Headers HTTP pour éviter l'affichage de l'ancienne version ──────────────
+  // ── Headers HTTP : forcer Firebase CDN + navigateur à ne JAMAIS servir d'ancienne version ─
   async headers() {
     return [
       {
-        // Pages HTML : toujours vérifier la version serveur en arrière-plan
+        // Toutes les pages HTML
         source: '/(.*)',
         headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=0, must-revalidate',
-          },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Pragma', value: 'no-cache' },
+          { key: 'Expires', value: '0' },
         ],
       },
       {
-        // Assets statiques (JS/CSS) : cache long car leur nom change à chaque build
+        // Assets statiques Next.js : cache permanent (nom unique par build)
         source: '/_next/static/(.*)',
         headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        // Images optimisées Next.js
+        source: '/_next/image(.*)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=2592000' },
         ],
       },
     ];
