@@ -213,16 +213,11 @@
   user-select: none !important;
 }
 
-/* Bloquer le glisser-déposer des images */
+/* Bloquer le glisser-déposer des images uniquement (sans casser l'affichage) */
 img {
   -webkit-user-drag: none !important;
   user-drag: none !important;
-  pointer-events: none !important;
-}
-
-/* Permettre les clics sur les boutons/liens malgré pointer-events: none sur img */
-a, button, input, textarea, select, label, [role="button"] {
-  pointer-events: auto !important;
+  /* NE PAS mettre pointer-events:none ici — ça casse Next.js Image et le lazy-load */
 }
 
 /* Masquer le contenu lors de l'impression */

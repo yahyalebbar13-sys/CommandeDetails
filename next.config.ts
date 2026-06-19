@@ -11,9 +11,9 @@ const nextConfig: NextConfig = {
   images: {
     // Servir WebP / AVIF automatiquement (jusqu'à 90% plus léger que PNG/JPEG)
     formats: ['image/avif', 'image/webp'],
-    // Cache images 30 jours au lieu de 60 secondes par défaut
+    // Cache images 30 jours
     minimumCacheTTL: 60 * 60 * 24 * 30,
-    // Tailles d'appareils courants — évite de générer des variants inutiles
+    // Tailles d'appareils courants
     deviceSizes: [375, 640, 768, 1024, 1280, 1920],
     imageSizes: [16, 32, 64, 96, 128, 256, 384],
     remotePatterns: [
@@ -42,6 +42,31 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  // ── Headers HTTP pour éviter l'affichage de l'ancienne version ──────────────
+  async headers() {
+    return [
+      {
+        // Pages HTML : toujours vérifier la version serveur en arrière-plan
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
+        ],
+      },
+      {
+        // Assets statiques (JS/CSS) : cache long car leur nom change à chaque build
+        source: '/_next/static/(.*)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
   },
   async rewrites() {
     return {

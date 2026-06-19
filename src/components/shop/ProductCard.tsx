@@ -48,6 +48,7 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
   const [wishlisted, setWishlisted] = useState(false);
   const [added, setAdded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const discountPct = product.comparePrice
     ? getDiscountPercent(product.price, product.comparePrice)
@@ -91,8 +92,10 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
       <Link href={`/shop/produit/${product.id}`} className="block" tabIndex={-1}>
         {/* ── Image Section ─────────────────────────────────────── */}
         <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
-          {/* Skeleton de chargement */}
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse" />
+          {/* Skeleton — disparaît quand l'image est chargée */}
+          {!imgLoaded && (
+            <div className="absolute inset-0 z-10 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse" />
+          )}
           <Image
             src={primaryImage}
             alt={product.name}
@@ -102,6 +105,7 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
             placeholder="blur"
             blurDataURL={BLUR_DATA_URL}
             loading="lazy"
+            onLoad={() => setImgLoaded(true)}
           />
 
           {/* Badge Row */}
