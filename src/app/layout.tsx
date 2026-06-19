@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import CopyProtection from '@/components/CopyProtection';
+import AppLoader from '@/components/AppLoader';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://lebtex.ma'),
@@ -45,6 +46,8 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased select-none">
+        {/* Masque le flash de l'ancienne version pendant l'initialisation React */}
+        <AppLoader />
         <CopyProtection />
         <FirebaseClientProvider>
           {children}
