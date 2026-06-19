@@ -36,12 +36,12 @@ export default function AppLoader() {
       }}
     >
       {/* Logo LEBTEX */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 36 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.webp"
           alt="LEBTEX"
-          style={{ height: 56, objectFit: 'contain' }}
+          style={{ height: 120, objectFit: 'contain' }}
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
       </div>
