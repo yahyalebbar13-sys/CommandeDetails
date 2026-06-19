@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Switch } from '@/components/ui/switch';
 import { Check, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
+import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignPicker from './design-picker';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
@@ -65,6 +66,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     setColorBreakdown(rows);
     if (rows && rows.length > 0) {
       setFormData((p: any) => p ? { ...p, quantity: total, color: 'various' } : p);
+    }
+  };
+
+  const handleSizeBreakdownChange = (rows: SizeBreakdownRow[] | null, total: number) => {
+    setSizeBreakdown(rows);
+    if (rows && rows.length > 0) {
+      setFormData((p: any) => p ? { ...p, quantity: total, size: 'various' } : p);
     }
   };
 
@@ -751,10 +759,15 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
 
             <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
-              <div className="md:col-span-2">
+              <div className="md:col-span-2 space-y-4">
                 <ColorBreakdownInput
                   value={colorBreakdown}
                   onChange={handleColorBreakdownChange}
+                  unit={formData.unitOfMeasure}
+                />
+                <SizeBreakdownInput
+                  value={sizeBreakdown}
+                  onChange={handleSizeBreakdownChange}
                   unit={formData.unitOfMeasure}
                 />
               </div>
