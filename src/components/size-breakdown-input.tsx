@@ -22,7 +22,7 @@ function parsePastedSizes(raw: string): SizeBreakdownRow[] {
   const lines = raw.split(/\r?\n/).filter(l => l.trim() !== '');
   const rows: SizeBreakdownRow[] = [];
   for (const line of lines) {
-    const parts = line.trim().split(/\t|;|,|\s{2,}|\s+/);
+    const parts = line.trim().split(/\t|;|\s{2,}|\s+/);
     if (parts.length < 2) continue;
     const size = parts[0].trim();
     let quantity = 0;
@@ -45,6 +45,7 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
   const [rows, setRows] = useState<SizeBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
+  const [rawQuantityInputs, setRawQuantityInputs] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (value && value.length > 0) {
@@ -89,7 +90,12 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
   const handleRowChange = (index: number, field: keyof SizeBreakdownRow, val: string) => {
     const next = rows.map((r, i) => {
       if (i !== index) return r;
-      if (field === 'quantity') return { ...r, [field]: parseFloat(val) || 0 };
+      if (field === 'quantity') {
+        const normalised = val.replace(',', '.');
+        setRawQuantityInputs(prev => ({ ...prev, [index]: val }));
+        const parsed = parseFloat(normalised);
+        return { ...r, [field]: isNaN(parsed) ? 0 : parsed };
+      }
       if (field === 'priceOverride') {
         // Allow comma as decimal separator (French locale)
         const normalised = val.replace(',', '.');
@@ -238,10 +244,17 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
                     </div>
                     <div className="px-2 py-1">
                       <Input
-                        type="number"
-                        min={0}
-                        value={row.quantity === 0 ? '' : row.quantity}
+                        type="text"
+                        inputMode="decimal"
+                        value={rawQuantityInputs[i] !== undefined ? rawQuantityInputs[i] : (row.quantity === 0 ? '' : row.quantity)}
                         onChange={e => handleRowChange(i, 'quantity', e.target.value)}
+                        onBlur={() => {
+                           setRawQuantityInputs(prev => {
+                             const next = { ...prev };
+                             delete next[i];
+                             return next;
+                           });
+                        }}
                         className="h-8 border-0 bg-transparent font-black text-[11px] text-stone-900 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
                         placeholder="0"
                       />
