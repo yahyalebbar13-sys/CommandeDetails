@@ -56,6 +56,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [formData, setFormData] = useState<any>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+  const [sizeBreakdown, setSizeBreakdown] = useState<any[] | null>(null);
   const [colorOpen, setColorOpen] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
@@ -89,9 +90,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       });
       setSelectedGenCatId(article.generalCategoryId || '');
       setColorBreakdown(article.colorBreakdown || null);
+      setSizeBreakdown(Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : null);
     } else {
       setFormData(null);
       setColorBreakdown(null);
+      setSizeBreakdown(null);
     }
   }, [article]);
 
@@ -253,6 +256,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             purchasePricePerUnit: price,
             quantity: groupQty,
             colorBreakdown: rows,
+            sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
           };
           updateDocumentNonBlocking(docRef, finalData);
           isFirst = false;
@@ -270,6 +274,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             purchasePricePerUnit: price,
             quantity: groupQty,
             colorBreakdown: rows,
+            sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
             createdAt: serverTimestamp(),
           };
           setDocumentNonBlocking(newDocRef, finalData, { merge: true });
@@ -283,6 +288,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         factureId: finalFactureId,
         status: statusToSave,
         colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
+        sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
       };
       updateDocumentNonBlocking(docRef, finalData);
     }
