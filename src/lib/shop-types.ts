@@ -11,6 +11,7 @@ export interface ShopCategory {
   productCount?: number;
   color?: string;
   priority?: number;
+  parentSlug?: string;
 }
 
 export interface ProductVariant {

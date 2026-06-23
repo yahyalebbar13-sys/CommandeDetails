@@ -52,8 +52,11 @@ export default function CategoriesPage() {
       {/* ─── Categories Grid ────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-5 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {allCats.map((cat) => {
-            const count = productCount(cat.slug);
+          {allCats.filter(c => !c.parentSlug).map((cat) => {
+            // Count includes products directly in this category + products in subcategories
+            const subCatsSlugs = allCats.filter(c => c.parentSlug === cat.slug).map(c => c.slug);
+            const count = products.filter(p => p.categorySlug === cat.slug || subCatsSlugs.includes(p.categorySlug)).length;
+            const subCatsCount = subCatsSlugs.length;
             const accentColor = cat.color || '#C8102E';
             return (
               <Link
@@ -84,13 +87,20 @@ export default function CategoriesPage() {
                     className="absolute bottom-0 left-0 right-0 h-0.5"
                     style={{ background: accentColor }}
                   />
-                  {/* Product count badge */}
-                  {count > 0 && (
-                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold text-white"
-                      style={{ background: `${accentColor}CC` }}>
-                      {count} produit{count > 1 ? 's' : ''}
-                    </span>
-                  )}
+                  {/* Product & Subcategories count badges */}
+                  <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end">
+                    {subCatsCount > 0 && (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm"
+                        style={{ background: `${accentColor}CC` }}>
+                        {subCatsCount} sous-catégorie{subCatsCount > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {count > 0 && (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold text-[#1A1A1A] bg-white/90 backdrop-blur-sm shadow-sm">
+                        {count} produit{count > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}

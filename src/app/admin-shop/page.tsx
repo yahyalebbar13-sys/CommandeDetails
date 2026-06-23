@@ -1168,10 +1168,12 @@ function CommandesView({ orders: initialOrders }: { orders: ShopOrder[] }) {
 // ─── Modal: Éditer Catégorie ────────────────────────────────────────────────
 function EditCategorieModal({
   category,
+  allCategories,
   onClose,
   onUpdated,
 }: {
-  category: { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean };
+  category: { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean; parentSlug?: string | null };
+  allCategories: any[];
   onClose: () => void;
   onUpdated: (c: any) => void;
 }) {
@@ -1181,6 +1183,7 @@ function EditCategorieModal({
     description: (category.description as string) || '',
     color: category.color || '#C8102E',
     priority: category.priority?.toString() || '0',
+    parentSlug: category.parentSlug || '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1196,6 +1199,7 @@ function EditCategorieModal({
         description: form.description.trim() || null,
         color: form.color,
         priority: parseInt(form.priority) || 0,
+        parentSlug: form.parentSlug || null,
       };
       
       if (category.isCustom) {
@@ -1243,6 +1247,19 @@ function EditCategorieModal({
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
               />
+            </div>
+            <div className="space-y-1.5 sm:col-span-1">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie Parente</label>
+              <select
+                value={form.parentSlug}
+                onChange={e => setForm(p => ({ ...p, parentSlug: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+              >
+                <option value="">Aucune (Catégorie principale)</option>
+                {allCategories.filter(c => !c.parentSlug && c.slug !== category.slug).map(c => (
+                  <option key={c.slug} value={c.slug}>{c.name}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Priorité (Tri)</label>
@@ -1383,6 +1400,11 @@ function CategoriesView() {
               {/* Info */}
               <div className="p-4">
                 <p className="text-white font-semibold text-sm">{cat.name}</p>
+                {cat.parentSlug && (
+                  <p className="text-[10px] text-[#D4A843] font-bold mt-0.5 uppercase tracking-wide flex items-center gap-1">
+                    ↳ Sous-catégorie de {allCats.find((c: any) => c.slug === cat.parentSlug)?.name || cat.parentSlug}
+                  </p>
+                )}
                 <p className="text-gray-500 text-xs mt-1 line-clamp-2">{cat.description || 'Aucune description'}</p>
                 <div className="flex items-center justify-between mt-3">
                   <p className="text-gray-600 text-[10px] font-mono">/{cat.slug} · Prio: {cat.priority || 0}</p>
@@ -1404,6 +1426,7 @@ function CategoriesView() {
 
       {showModal && (
         <NouvelleCategorieModal
+          allCategories={allCats}
           onClose={() => setShowModal(false)}
           onCreated={cat => { setCustomCats(prev => [...prev, { ...cat, isCustom: true } as CatItem]); setShowModal(false); }}
         />
@@ -1412,6 +1435,7 @@ function CategoriesView() {
       {editingCat && (
         <EditCategorieModal
           category={editingCat}
+          allCategories={allCats}
           onClose={() => setEditingCat(null)}
           onUpdated={updated => {
             if (updated.isCustom) {
@@ -2920,13 +2944,15 @@ function NouveauProduitModal({
 
 // ─── Modal: Nouvelle Catégorie ────────────────────────────────────────────────
 function NouvelleCategorieModal({
+  allCategories,
   onClose,
   onCreated,
 }: {
+  allCategories: any[];
   onClose: () => void;
-  onCreated: (c: { id: string; slug: string; name: string; image?: string; description?: string; color?: string; priority?: number }) => void;
+  onCreated: (c: { id: string; slug: string; name: string; image?: string; description?: string; color?: string; priority?: number; parentSlug?: string }) => void;
 }) {
-  const [form, setForm] = useState({ name: '', image: '', description: '', color: '#C8102E', priority: '0' });
+  const [form, setForm] = useState({ name: '', image: '', description: '', color: '#C8102E', priority: '0', parentSlug: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -2937,7 +2963,7 @@ function NouvelleCategorieModal({
     try {
       const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const id = `cat_${slug}_${Date.now()}`;
-      const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color, priority: parseInt(form.priority) || 0 };
+      const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color, priority: parseInt(form.priority) || 0, parentSlug: form.parentSlug || null };
       await setDoc(doc(db, 'shop_custom_categories', id), cat);
       onCreated(cat as any);
     } catch (err: any) {
@@ -2986,6 +3012,20 @@ function NouvelleCategorieModal({
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie Parente (Optionnel)</label>
+            <select
+              value={form.parentSlug}
+              onChange={e => setForm(p => ({ ...p, parentSlug: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60"
+            >
+              <option value="">Aucune (Catégorie principale)</option>
+              {allCategories.filter(c => !c.parentSlug).map(c => (
+                <option key={c.slug} value={c.slug}>{c.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Photo URL */}

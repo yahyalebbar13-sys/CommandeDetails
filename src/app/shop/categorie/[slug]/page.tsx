@@ -119,6 +119,7 @@ export default function CategoryPage({ params }: { params: any }) {
   const [sort, setSort] = useState('pertinence');
 
   const { products: allContextProducts, categories: allContextCategories } = useShopProducts();
+  const subCats = allContextCategories.filter(c => c.parentSlug === slug);
 
   useEffect(() => {
     if (!slug) return;
@@ -202,8 +203,16 @@ export default function CategoryPage({ params }: { params: any }) {
           <nav className="flex items-center gap-2 text-xs text-white/60 mb-4">
             <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
             <span>›</span>
-            <Link href="/shop/boutique" className="hover:text-white transition-colors">Boutique</Link>
+            <Link href="/shop/categories" className="hover:text-white transition-colors">Catégories</Link>
             <span>›</span>
+            {category?.parentSlug && (
+              <>
+                <Link href={`/shop/categorie/${category.parentSlug}`} className="hover:text-white transition-colors">
+                  {allContextCategories.find(c => c.slug === category.parentSlug)?.name || category.parentSlug}
+                </Link>
+                <span>›</span>
+              </>
+            )}
             <span className="text-white">{category?.name}</span>
           </nav>
 
@@ -227,8 +236,14 @@ export default function CategoryPage({ params }: { params: any }) {
               className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold text-white border border-white/30 backdrop-blur-sm self-start sm:self-auto"
               style={{ background: `${accentColor}40` }}
             >
-              <ShoppingBag className="inline w-4 h-4 mr-1.5 mb-0.5" />
-              {sortedProducts.length} produit{sortedProducts.length !== 1 ? 's' : ''}
+              {subCats.length > 0 ? (
+                <span>{subCats.length} sous-catégorie{subCats.length > 1 ? 's' : ''}</span>
+              ) : (
+                <>
+                  <ShoppingBag className="inline w-4 h-4 mr-1.5 mb-0.5" />
+                  {sortedProducts.length} produit{sortedProducts.length !== 1 ? 's' : ''}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -260,9 +275,51 @@ export default function CategoryPage({ params }: { params: any }) {
         </div>
       </div>
 
-      {/* ─── Products ─────────────────────────────────────────────────────── */}
+      {/* ─── Products & Subcategories ───────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-6 py-10">
-        {sortedProducts.length === 0 ? (
+        {subCats.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {subCats.map(cat => {
+              const count = allContextProducts.filter(p => p.categorySlug === cat.slug).length;
+              const catAccentColor = cat.color || '#C8102E';
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/shop/categorie/${cat.slug}`}
+                  className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                >
+                  <div className="relative h-44 overflow-hidden flex-shrink-0">
+                    {cat.image ? (
+                      <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
+                        <span className="text-6xl opacity-50">{cat.icon || '📁'}</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: catAccentColor }} />
+                    {count > 0 && (
+                      <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold text-[#1A1A1A] bg-white/90 backdrop-blur-sm shadow-sm">
+                        {count} produit{count > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-5 flex-1 flex flex-col">
+                    <h2 className="font-bold text-[#1A1A1A] text-lg leading-tight group-hover:text-[#C8102E] transition-colors mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      {cat.name}
+                    </h2>
+                    {cat.description && (
+                      <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1">{cat.description}</p>
+                    )}
+                    <div className="mt-4 pt-3 border-t border-[#F0ECE8]">
+                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: catAccentColor }}>Explorer →</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : sortedProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
               <Package className="w-8 h-8 text-gray-300" />
