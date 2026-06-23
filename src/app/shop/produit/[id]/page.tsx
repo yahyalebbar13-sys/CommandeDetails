@@ -48,6 +48,13 @@ function MultiVariantSelector({
 }) {
   const [qtys, setQtys] = useState<Record<string, number>>({});
 
+  // Size selection logic
+  const uniqueSizes = Array.from(new Set(variants.map(v => v.size || 'Standard')));
+  const hasSizes = uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
+  const [selectedSize, setSelectedSize] = useState<string>(uniqueSizes[0] || 'Standard');
+
+  const visibleVariants = variants.filter(v => (v.size || 'Standard') === selectedSize);
+
   const setQty = (variantId: string, delta: number, max: number) => {
     setQtys(prev => {
       const current = prev[variantId] || 0;
@@ -78,11 +85,34 @@ function MultiVariantSelector({
 
   return (
     <div className="mb-5">
-      <p className="text-sm font-bold text-[#1A1A1A] mb-4">Options disponibles</p>
+      {/* Size Selector */}
+      {hasSizes && (
+        <div className="mb-6">
+          <p className="text-sm font-bold text-[#1A1A1A] mb-3">Choisissez une taille</p>
+          <div className="flex flex-wrap gap-2.5">
+            {uniqueSizes.map(size => (
+              <button
+                key={size}
+                onClick={() => setSelectedSize(size)}
+                className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 border-2 ${
+                  selectedSize === size
+                    ? 'border-[#C8102E] bg-[#C8102E]/5 text-[#C8102E] shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Color swatches */}
+      <p className="text-sm font-bold text-[#1A1A1A] mb-4">
+        {hasSizes ? `Couleurs pour ${selectedSize}` : 'Options disponibles'}
+      </p>
       <div className="flex flex-wrap gap-5">
-        {variants.map(v => {
+        {visibleVariants.map(v => {
           const outOfStock = v.stock === 0;
           const qty = qtys[v.id] || 0;
           const isSelected = qty > 0;
@@ -105,19 +135,10 @@ function MultiVariantSelector({
                         ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-10'
                         : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
                   `}
-                  style={!v.size ? { background: v.colorHex || '#ccc' } : undefined}
                 >
-                  {/* If size exists, show pill content */}
-                  {v.size && (
-                    <div className="flex items-center gap-2">
-                      {v.colorHex && !v.color?.startsWith('Option') && (
-                        <div className="w-3.5 h-3.5 rounded-full border border-gray-200 shadow-inner flex-shrink-0" style={{ background: v.colorHex }} />
-                      )}
-                      <span className={`font-bold text-sm tracking-wide ${isSelected ? 'text-[#C8102E]' : 'text-gray-700'}`}>
-                        {v.size}
-                      </span>
-                    </div>
-                  )}
+                  {/* Color Circle inside button */}
+                  <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
+
                   {/* Out of stock line */}
                   {outOfStock && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-inherit">
@@ -135,7 +156,7 @@ function MultiVariantSelector({
 
               {/* Name Label */}
               <p className="text-[11px] font-semibold text-center text-[#1A1A1A] leading-tight max-w-[80px]">
-                {v.color && !v.color.startsWith('Option') ? v.color : (v.size ? '' : '—')}
+                {v.color && !v.color.startsWith('Option') ? v.color : '—'}
               </p>
 
               {/* Price Diff */}

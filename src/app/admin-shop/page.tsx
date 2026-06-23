@@ -2717,16 +2717,21 @@ function NouveauProduitModal({
             </div>
           </div>
 
-          {/* ── Couleurs ───────────────────────────────────────────────── */}
-          <div className="space-y-2">
+          {/* ── Couleurs par Taille ───────────────────────────────────────────────── */}
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleurs disponibles</label>
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Tailles & Couleurs)</label>
               <button
                 type="button"
-                onClick={addVariant}
+                onClick={() => {
+                  const size = prompt("Nom de la nouvelle taille (laissez vide pour une taille standard) :", "");
+                  if (size !== null) {
+                    setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: size.trim(), stockStatus: 'available', price: '' }]);
+                  }
+                }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
               >
-                <Plus className="w-3.5 h-3.5" /> Ajouter une couleur
+                <Plus className="w-3.5 h-3.5" /> Ajouter une taille
               </button>
             </div>
 
@@ -2736,76 +2741,94 @@ function NouveauProduitModal({
               </p>
             )}
 
-            <div className="space-y-1.5">
-              {variants.map(v => (
-                <div key={v.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                  {/* Main row */}
-                  <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    {/* Color picker */}
-                    <input
-                      type="color"
-                      value={v.colorHex}
-                      onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
-                      title="Choisir couleur"
-                      className="w-8 h-8 rounded-full cursor-pointer border-0 flex-shrink-0 bg-transparent"
-                      style={{ padding: '1px' }}
-                    />
-                    {/* Color name */}
-                    <input
-                      type="text"
-                      value={v.color}
-                      onChange={e => updateVariant(v.id, 'color', e.target.value)}
-                      placeholder="Couleur (opt.)"
-                      className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
-                    />
-                    {/* Size */}
-                    <input
-                      type="text"
-                      value={v.size}
-                      onChange={e => updateVariant(v.id, 'size', e.target.value)}
-                      placeholder="Taille (opt.)"
-                      className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
-                    />
-                    {/* Stock status */}
-                    <select
-                      value={v.stockStatus}
-                      onChange={e => updateVariant(v.id, 'stockStatus', e.target.value as any)}
-                      className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none focus:border-[#C8102E]/50 cursor-pointer"
-                      style={{ color: STOCK_STATUS[v.stockStatus].color }}
+            {Object.entries(
+              variants.reduce((acc, v) => {
+                const s = v.size || '';
+                if (!acc[s]) acc[s] = [];
+                acc[s].push(v);
+                return acc;
+              }, {} as Record<string, typeof variants>)
+            ).map(([size, vars]) => (
+              <div key={size} className="rounded-xl bg-white/5 border border-white/10 p-3">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="font-bold text-[#D4A843] text-xs uppercase tracking-wider">
+                    {size ? `Taille : ${size}` : 'Taille Standard (Par défaut)'}
+                  </span>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size, stockStatus: 'available', price: '' }])}
+                      className="text-xs text-[#C8102E] hover:underline font-semibold flex items-center gap-1"
                     >
-                      <option value="available" style={{ color: '#10B981', background: '#1a1a1a' }}>✓ Disponible</option>
-                      <option value="limited" style={{ color: '#D4A843', background: '#1a1a1a' }}>⚡ Stock limité</option>
-                      <option value="out_of_stock" style={{ color: '#ef4444', background: '#1a1a1a' }}>✗ Rupture</option>
-                    </select>
-                    {/* Prix */}
-                    <input
-                      type="number"
-                      value={v.price}
-                      onChange={e => updateVariant(v.id, 'price', e.target.value)}
-                      placeholder={form.price || 'Prix'}
-                      className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
-                    />
-                    <button onClick={() => removeVariant(v.id)} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
-                      <X className="w-3.5 h-3.5" />
+                      <Plus className="w-3 h-3" /> Ajouter Couleur
+                    </button>
+                    <button
+                      onClick={() => setVariants(v => v.filter(x => (x.size || '') !== size))}
+                      className="text-xs text-gray-500 hover:text-red-400 hover:underline flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" /> Supprimer Taille
                     </button>
                   </div>
-                  {/* Preset color chips */}
-                  <div className="flex flex-wrap gap-1.5 px-3 pb-2">
-                    {PRESET_COLORS.map(c => (
-                      <button
-                        key={c.name}
-                        onClick={() => applyPresetColor(v.id, c.name, c.hex)}
-                        title={c.name}
-                        className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${
-                          v.color === c.name ? 'border-white scale-110' : 'border-transparent'
-                        }`}
-                        style={{ background: c.hex }}
-                      />
-                    ))}
-                  </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="space-y-1.5">
+                  {vars.map(v => (
+                    <div key={v.id} className="rounded-xl bg-[#111] border border-white/5 overflow-hidden">
+                      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                        <input
+                          type="color"
+                          value={v.colorHex}
+                          onChange={e => updateVariant(v.id, 'colorHex', e.target.value)}
+                          title="Choisir couleur"
+                          className="w-8 h-8 rounded-full cursor-pointer border-0 flex-shrink-0 bg-transparent"
+                          style={{ padding: '1px' }}
+                        />
+                        <input
+                          type="text"
+                          value={v.color}
+                          onChange={e => updateVariant(v.id, 'color', e.target.value)}
+                          placeholder="Couleur (opt.)"
+                          className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                        />
+                        <select
+                          value={v.stockStatus}
+                          onChange={e => updateVariant(v.id, 'stockStatus', e.target.value as any)}
+                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none focus:border-[#C8102E]/50 cursor-pointer"
+                          style={{ color: STOCK_STATUS[v.stockStatus].color }}
+                        >
+                          <option value="available" style={{ color: '#10B981', background: '#1a1a1a' }}>✓ Disponible</option>
+                          <option value="limited" style={{ color: '#D4A843', background: '#1a1a1a' }}>⚡ Stock limité</option>
+                          <option value="out_of_stock" style={{ color: '#ef4444', background: '#1a1a1a' }}>✗ Rupture</option>
+                        </select>
+                        <input
+                          type="number"
+                          value={v.price}
+                          onChange={e => updateVariant(v.id, 'price', e.target.value)}
+                          placeholder={form.price || 'Prix'}
+                          className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs text-center outline-none focus:border-[#C8102E]/50"
+                        />
+                        <button onClick={() => removeVariant(v.id)} className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {/* Preset color chips */}
+                      <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+                        {PRESET_COLORS.map(c => (
+                          <button
+                            key={c.name}
+                            onClick={() => applyPresetColor(v.id, c.name, c.hex)}
+                            title={c.name}
+                            className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${
+                              v.color === c.name ? 'border-white scale-110' : 'border-transparent'
+                            }`}
+                            style={{ background: c.hex }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
