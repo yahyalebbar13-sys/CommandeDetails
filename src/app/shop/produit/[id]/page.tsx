@@ -107,94 +107,138 @@ function MultiVariantSelector({
         </div>
       )}
 
-      {/* Color swatches */}
-      <p className="text-sm font-bold text-[#1A1A1A] mb-4">
-        {hasSizes ? `Couleurs pour ${selectedSize}` : 'Options disponibles'}
-      </p>
-      <div className="flex flex-wrap gap-5">
-        {visibleVariants.map(v => {
-          const outOfStock = v.stock === 0;
+      {/* Color swatches or Simple Qty */}
+      {(() => {
+        const isSimpleSize = visibleVariants.length === 1 && (!visibleVariants[0].color || visibleVariants[0].color.startsWith('Option')) && !visibleVariants[0].image;
+        
+        if (isSimpleSize) {
+          const v = visibleVariants[0];
           const qty = qtys[v.id] || 0;
-          const isSelected = qty > 0;
-
           return (
-            <div key={v.id} className="flex flex-col items-center gap-2">
-              {/* Variant Button */}
-              <div className="relative">
-                <button
-                  onClick={() => !outOfStock && setQty(v.id, isSelected ? -qty : 1, v.stock)}
-                  disabled={outOfStock}
-                  title={outOfStock ? 'Épuisé' : (v.size ? `${v.size} - ${v.color}` : v.color)}
-                  className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative
-                    ${v.image 
-                      ? 'w-20 h-20 rounded-xl border-2' 
-                      : 'w-14 h-14 rounded-full border-4'}
-                    ${outOfStock
-                      ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
-                      : isSelected
-                        ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-10'
-                        : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
-                  `}
-                >
-                  {/* Variant Content: Image or Color */}
-                  {v.image ? (
-                    <img src={v.image} alt={v.color || 'Design'} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
-                  )}
-
-                  {/* Out of stock line */}
-                  {outOfStock && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-inherit">
-                      <div className="w-[150%] h-[2px] bg-red-400/50 -rotate-12" />
-                    </div>
-                  )}
-                </button>
-                {/* Selection Checkmark */}
-                {isSelected && (
-                  <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20">
-                    <span className="text-white text-[9px] font-black leading-none">✓</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Name Label */}
-              <p className="text-[11px] font-semibold text-center text-[#1A1A1A] leading-tight max-w-[80px]">
-                {v.color && !v.color.startsWith('Option') ? v.color : '—'}
-              </p>
-
-              {/* Price Diff */}
-              {v.price && v.price !== basePrice && (
-                <p className="text-[11px] font-black text-[#C8102E] -mt-1 bg-red-50 px-2 py-0.5 rounded-md">
-                  {formatPrice(v.price)}
+            <div className="flex items-center justify-between bg-gray-50/50 border border-gray-100 p-4 rounded-2xl">
+              <div>
+                <p className="font-black text-lg text-[#1A1A1A]">
+                  {v.price && v.price !== basePrice ? formatPrice(v.price) : formatPrice(basePrice)}
                 </p>
-              )}
-
-              {/* Qty stepper (only when selected) */}
-              <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-6' : 'opacity-0 h-0 overflow-hidden'}`}>
-                {isSelected && (
-                  <>
-                    <button onClick={() => setQty(v.id, -1, v.stock)}
-                      className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
-                    <button onClick={() => setQty(v.id, 1, v.stock)}
-                      disabled={qty >= v.stock}
-                      className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </>
+                {v.stock <= 10 && v.stock > 0 && (
+                  <p className="text-[11px] text-[#D4A843] font-bold mt-0.5">🔥 Plus que {v.stock} en stock !</p>
+                )}
+                {v.stock === 0 && (
+                  <p className="text-[11px] text-red-500 font-bold mt-0.5">Rupture de stock</p>
                 )}
               </div>
-
-              <p className={`text-[9px] uppercase tracking-wider ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400 font-medium'}`}>
-                {outOfStock ? 'Rupture' : `${v.stock} dispo`}
-              </p>
+              {v.stock > 0 ? (
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-1.5 py-1.5 shadow-sm">
+                  <button onClick={() => setQty(v.id, -1, v.stock)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 transition-all">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="w-6 text-center font-black text-lg text-[#C8102E]">{qty}</span>
+                  <button onClick={() => setQty(v.id, 1, v.stock)}
+                    disabled={qty >= v.stock}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 transition-all disabled:opacity-30">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <span className="px-4 py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm">Épuisé</span>
+              )}
             </div>
           );
-        })}
-      </div>
+        }
+
+        return (
+          <>
+            <p className="text-sm font-bold text-[#1A1A1A] mb-4">
+              {hasSizes ? `Couleurs/Modèles pour ${selectedSize}` : 'Options disponibles'}
+            </p>
+            <div className="flex flex-wrap gap-5">
+              {visibleVariants.map(v => {
+                const outOfStock = v.stock === 0;
+                const qty = qtys[v.id] || 0;
+                const isSelected = qty > 0;
+
+                return (
+                  <div key={v.id} className="flex flex-col items-center gap-2">
+                    {/* Variant Button */}
+                    <div className="relative">
+                      <button
+                        onClick={() => !outOfStock && setQty(v.id, isSelected ? -qty : 1, v.stock)}
+                        disabled={outOfStock}
+                        title={outOfStock ? 'Épuisé' : (v.size ? `${v.size} - ${v.color}` : v.color)}
+                        className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative
+                          ${v.image 
+                            ? 'w-20 h-20 rounded-xl border-2' 
+                            : 'w-14 h-14 rounded-full border-4'}
+                          ${outOfStock
+                            ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
+                            : isSelected
+                              ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-10'
+                              : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
+                        `}
+                      >
+                        {/* Variant Content: Image or Color */}
+                        {v.image ? (
+                          <img src={v.image} alt={v.color || 'Design'} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
+                        )}
+
+                        {/* Out of stock line */}
+                        {outOfStock && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-inherit">
+                            <div className="w-[150%] h-[2px] bg-red-400/50 -rotate-12" />
+                          </div>
+                        )}
+                      </button>
+                      {/* Selection Checkmark */}
+                      {isSelected && (
+                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20">
+                          <span className="text-white text-[9px] font-black leading-none">✓</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Name Label */}
+                    <p className="text-[11px] font-semibold text-center text-[#1A1A1A] leading-tight max-w-[80px]">
+                      {v.color && !v.color.startsWith('Option') ? v.color : '—'}
+                    </p>
+
+                    {/* Price Diff */}
+                    {v.price && v.price !== basePrice && (
+                      <p className="text-[11px] font-black text-[#C8102E] -mt-1 bg-red-50 px-2 py-0.5 rounded-md">
+                        {formatPrice(v.price)}
+                      </p>
+                    )}
+
+                    {/* Qty stepper (only when selected) */}
+                    <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-6' : 'opacity-0 h-0 overflow-hidden'}`}>
+                      {isSelected && (
+                        <>
+                          <button onClick={() => setQty(v.id, -1, v.stock)}
+                            className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
+                          <button onClick={() => setQty(v.id, 1, v.stock)}
+                            disabled={qty >= v.stock}
+                            className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <p className={`text-[9px] uppercase tracking-wider ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400 font-medium'}`}>
+                      {outOfStock ? 'Rupture' : `${v.stock} dispo`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Summary */}
       {totalQty > 0 && (
