@@ -78,7 +78,7 @@ function MultiVariantSelector({
 
   return (
     <div className="mb-5">
-      <p className="text-sm font-bold text-[#1A1A1A] mb-4">Choisissez vos couleurs</p>
+      <p className="text-sm font-bold text-[#1A1A1A] mb-4">Options disponibles</p>
 
       {/* Color swatches */}
       <div className="flex flex-wrap gap-5">
@@ -88,60 +88,83 @@ function MultiVariantSelector({
           const isSelected = qty > 0;
 
           return (
-            <div key={v.id} className="flex flex-col items-center gap-1.5">
-              {/* Circle */}
+            <div key={v.id} className="flex flex-col items-center gap-2">
+              {/* Variant Button */}
               <div className="relative">
                 <button
                   onClick={() => !outOfStock && setQty(v.id, isSelected ? -qty : 1, v.stock)}
                   disabled={outOfStock}
-                  title={outOfStock ? 'Épuisé' : v.color}
-                  className={`w-14 h-14 rounded-full border-4 transition-all duration-200 shadow-sm ${
-                    outOfStock
-                      ? 'opacity-40 cursor-not-allowed border-gray-200'
+                  title={outOfStock ? 'Épuisé' : (v.size ? `${v.size} - ${v.color}` : v.color)}
+                  className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative
+                    ${v.size 
+                      ? 'px-4 py-2.5 rounded-xl min-w-[70px] min-h-[44px] border-2' 
+                      : 'w-14 h-14 rounded-full border-4'}
+                    ${outOfStock
+                      ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
                       : isSelected
-                        ? 'border-[#C8102E] scale-110 shadow-lg shadow-[#C8102E]/20'
-                        : 'border-white hover:border-gray-300 hover:scale-105'
-                  }`}
-                  style={{ background: v.colorHex || '#ccc' }}
-                />
-                {outOfStock && (
-                  <div className="absolute inset-0 rounded-full flex items-center justify-center pointer-events-none">
-                    <div className="w-full h-0.5 bg-gray-400/70 rotate-45" />
-                  </div>
-                )}
+                        ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-10'
+                        : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
+                  `}
+                  style={!v.size ? { background: v.colorHex || '#ccc' } : undefined}
+                >
+                  {/* If size exists, show pill content */}
+                  {v.size && (
+                    <div className="flex items-center gap-2">
+                      {v.colorHex && !v.color?.startsWith('Option') && (
+                        <div className="w-3.5 h-3.5 rounded-full border border-gray-200 shadow-inner flex-shrink-0" style={{ background: v.colorHex }} />
+                      )}
+                      <span className={`font-bold text-sm tracking-wide ${isSelected ? 'text-[#C8102E]' : 'text-gray-700'}`}>
+                        {v.size}
+                      </span>
+                    </div>
+                  )}
+                  {/* Out of stock line */}
+                  {outOfStock && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-inherit">
+                      <div className="w-[150%] h-[2px] bg-red-400/50 -rotate-12" />
+                    </div>
+                  )}
+                </button>
+                {/* Selection Checkmark */}
                 {isSelected && (
-                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#C8102E] flex items-center justify-center shadow">
-                    <span className="text-white text-[10px] font-black">✓</span>
+                  <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20">
+                    <span className="text-white text-[9px] font-black leading-none">✓</span>
                   </div>
                 )}
               </div>
 
-              {/* Name */}
-              <p className="text-xs font-semibold text-center text-[#1A1A1A] leading-tight max-w-[64px]">{v.color || '—'}</p>
+              {/* Name Label */}
+              <p className="text-[11px] font-semibold text-center text-[#1A1A1A] leading-tight max-w-[80px]">
+                {v.color && !v.color.startsWith('Option') ? v.color : (v.size ? '' : '—')}
+              </p>
 
-              {/* Price if variant-specific */}
+              {/* Price Diff */}
               {v.price && v.price !== basePrice && (
-                <p className="text-[10px] font-bold text-[#C8102E]">{formatPrice(v.price)}</p>
+                <p className="text-[11px] font-black text-[#C8102E] -mt-1 bg-red-50 px-2 py-0.5 rounded-md">
+                  {formatPrice(v.price)}
+                </p>
               )}
 
               {/* Qty stepper (only when selected) */}
-              {isSelected && (
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setQty(v.id, -1, v.stock)}
-                    className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] transition-all">
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-black text-[#C8102E]">{qty}</span>
-                  <button onClick={() => setQty(v.id, 1, v.stock)}
-                    disabled={qty >= v.stock}
-                    className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] disabled:opacity-30 transition-all">
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
+              <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-6' : 'opacity-0 h-0 overflow-hidden'}`}>
+                {isSelected && (
+                  <>
+                    <button onClick={() => setQty(v.id, -1, v.stock)}
+                      className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
+                    <button onClick={() => setQty(v.id, 1, v.stock)}
+                      disabled={qty >= v.stock}
+                      className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </>
+                )}
+              </div>
 
-              <p className={`text-[9px] ${outOfStock ? 'text-red-400 font-bold' : 'text-gray-400'}`}>
-                {outOfStock ? 'Épuisé' : `${v.stock} en stock`}
+              <p className={`text-[9px] uppercase tracking-wider ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400 font-medium'}`}>
+                {outOfStock ? 'Rupture' : `${v.stock} dispo`}
               </p>
             </div>
           );

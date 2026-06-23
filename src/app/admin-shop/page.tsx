@@ -1812,7 +1812,7 @@ function ProduitsView() {
   };
   const stockToStatus = (stock: number): EditStockStatus =>
     stock === 0 ? 'out_of_stock' : stock <= 10 ? 'limited' : 'available';
-  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; stockStatus: EditStockStatus; price: string }>>([]);
+  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; size: string; stockStatus: EditStockStatus; price: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1890,6 +1890,7 @@ function ProduitsView() {
       id: v.id,
       color: v.color || '',
       colorHex: v.colorHex || '#C8102E',
+      size: v.size || '',
       stockStatus: stockToStatus(v.stock ?? 999),
       price: v.price?.toString() || '',
     })));
@@ -2245,15 +2246,20 @@ Cette action est irréversible.`)) return;
                     <div className="space-y-1.5">
                       {editVariants.map(v => (
                         <div key={v.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                          <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                             <input type="color" value={v.colorHex}
                               onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
                               className="w-8 h-8 rounded-full cursor-pointer border-0 bg-transparent flex-shrink-0" style={{ padding: '1px' }}
                             />
                             <input type="text" value={v.color}
                               onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
-                              placeholder="Nom de la couleur..."
-                              className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                              placeholder="Couleur (opt.)"
+                              className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                            />
+                            <input type="text" value={v.size}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, size: e.target.value } : x))}
+                              placeholder="Taille (opt.)"
+                              className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
                             />
                             <select
                               value={v.stockStatus}
@@ -2382,7 +2388,7 @@ function NouveauProduitModal({
     packaging: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
-  type VariantForm = { id: string; color: string; colorHex: string; stockStatus: StockStatus; price: string };
+  type VariantForm = { id: string; color: string; colorHex: string; size: string; stockStatus: StockStatus; price: string };
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -2404,7 +2410,7 @@ function NouveauProduitModal({
 
   const addVariant = () => setVariants(v => [
     ...v,
-    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', stockStatus: 'available', price: '' },
+    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', stockStatus: 'available', price: '' },
   ]);
   const removeVariant = (id: string) => setVariants(v => v.filter(x => x.id !== id));
   const updateVariant = <K extends keyof VariantForm>(id: string, field: K, val: VariantForm[K]) =>
@@ -2416,13 +2422,16 @@ function NouveauProduitModal({
   // Clean builder — never sends undefined to Firestore, auto-generates color name if empty
   const buildVariant = (v: VariantForm, index: number) => {
     const s = STOCK_STATUS[v.stockStatus];
-    const colorName = v.color.trim() || `Couleur ${index + 1}`;
+    const colorName = v.color.trim();
+    const sizeName = v.size.trim();
+    const finalColorName = (!colorName && !sizeName) ? `Option ${index + 1}` : colorName;
+
     const obj: Record<string, unknown> = {
       id: v.id,
       stock: s.stock,
       inStock: s.stock > 0,
-      color: colorName,
-      colorHex: v.colorHex || '#C8102E',
+      ...(finalColorName && { color: finalColorName, colorHex: v.colorHex || '#C8102E' }),
+      ...(sizeName && { size: sizeName }),
     };
     if (v.price) obj.price = parseFloat(v.price);
     return obj;
@@ -2701,7 +2710,7 @@ function NouveauProduitModal({
               {variants.map(v => (
                 <div key={v.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
                   {/* Main row */}
-                  <div className="flex items-center gap-2 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2 px-3 py-2">
                     {/* Color picker */}
                     <input
                       type="color"
@@ -2716,8 +2725,16 @@ function NouveauProduitModal({
                       type="text"
                       value={v.color}
                       onChange={e => updateVariant(v.id, 'color', e.target.value)}
-                      placeholder="Nom de la couleur..."
-                      className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                      placeholder="Couleur (opt.)"
+                      className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                    />
+                    {/* Size */}
+                    <input
+                      type="text"
+                      value={v.size}
+                      onChange={e => updateVariant(v.id, 'size', e.target.value)}
+                      placeholder="Taille (opt.)"
+                      className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
                     />
                     {/* Stock status */}
                     <select
