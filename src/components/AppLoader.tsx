@@ -2,18 +2,23 @@
 import { useEffect, useState } from 'react';
 
 /**
- * AppLoader — masque le flash de l'ancienne version (SSR → hydratation).
- * S'affiche pendant que Next.js charge le JS côté client,
- * puis disparaît en fondu dès que React est prêt.
+ * AppLoader — masque TOUT le contenu jusqu'à ce que Firestore ait chargé.
+ * 
+ * Le problème : Next.js affiche les produits hardcodés (anciens) immédiatement, 
+ * puis Firestore charge et les remplace → flash visible de l'ancienne version.
+ * 
+ * Solution : cet overlay couvre tout jusqu'à ce que le DOM soit hydraté + un délai
+ * pour que Firestore ait le temps de charger. Ensuite il disparaît en fondu.
  */
 export default function AppLoader() {
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
-    // Dès que le composant monte, React est hydraté → on peut cacher le loader
-    const fadeTimer = setTimeout(() => setFading(true), 300);
-    const hideTimer = setTimeout(() => setVisible(false), 750);
+    // Attendre que React soit hydraté ET que Firestore ait eu le temps de répondre
+    // 1.5s est suffisant pour Firestore en conditions normales
+    const fadeTimer = setTimeout(() => setFading(true), 1500);
+    const hideTimer = setTimeout(() => setVisible(false), 2000);
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
   }, []);
 
@@ -30,13 +35,13 @@ export default function AppLoader() {
         alignItems: 'center',
         justifyContent: 'center',
         background: '#FBF8F3',
-        transition: 'opacity 0.45s ease',
+        transition: 'opacity 0.5s ease',
         opacity: fading ? 0 : 1,
         pointerEvents: fading ? 'none' : 'all',
       }}
     >
-      {/* Logo LEBTEX */}
-      <div style={{ marginBottom: 36 }}>
+      {/* Logo LEBTEX — grand et centré */}
+      <div style={{ marginBottom: 40 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.webp"
@@ -47,7 +52,7 @@ export default function AppLoader() {
       </div>
 
       {/* Spinner animé */}
-      <div style={{ position: 'relative', width: 40, height: 40 }}>
+      <div style={{ position: 'relative', width: 44, height: 44 }}>
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -63,6 +68,17 @@ export default function AppLoader() {
           animation: 'lebtex-spin 0.8s linear infinite',
         }} />
       </div>
+
+      {/* Texte */}
+      <p style={{
+        marginTop: 24,
+        fontSize: 13,
+        color: '#6B6B6B',
+        fontFamily: 'Inter, sans-serif',
+        letterSpacing: '0.5px',
+      }}>
+        Chargement...
+      </p>
 
       <style>{`
         @keyframes lebtex-spin {
