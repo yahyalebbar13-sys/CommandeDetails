@@ -126,8 +126,8 @@ function MultiVariantSelector({
                   disabled={outOfStock}
                   title={outOfStock ? 'Épuisé' : (v.size ? `${v.size} - ${v.color}` : v.color)}
                   className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative
-                    ${v.size 
-                      ? 'px-4 py-2.5 rounded-xl min-w-[70px] min-h-[44px] border-2' 
+                    ${v.image 
+                      ? 'w-20 h-20 rounded-xl border-2' 
                       : 'w-14 h-14 rounded-full border-4'}
                     ${outOfStock
                       ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
@@ -136,8 +136,12 @@ function MultiVariantSelector({
                         : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
                   `}
                 >
-                  {/* Color Circle inside button */}
-                  <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
+                  {/* Variant Content: Image or Color */}
+                  {v.image ? (
+                    <img src={v.image} alt={v.color || 'Design'} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
+                  )}
 
                   {/* Out of stock line */}
                   {outOfStock && (

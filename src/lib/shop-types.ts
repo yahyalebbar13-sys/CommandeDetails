@@ -17,6 +17,7 @@ export interface ProductVariant {
   id: string;
   color?: string;
   colorHex?: string;
+  image?: string;
   size?: string;
   sku?: string;
   stock: number;

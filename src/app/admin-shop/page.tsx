@@ -247,6 +247,64 @@ function ImageUploader({
   );
 }
 
+function MiniImageUploader({
+  value,
+  onChange,
+  folder = 'shop/variants',
+}: {
+  value?: string;
+  onChange: (url: string) => void;
+  folder?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const uploadFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return alert("Image invalide.");
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const uniqueName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const fileRef = storageRef(storage, uniqueName);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      onChange(url);
+    } catch (err: any) {
+      alert('Erreur: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="relative w-8 h-8 rounded-full border border-white/20 bg-white/5 overflow-hidden flex-shrink-0 cursor-pointer hover:border-[#C8102E]/50 transition-all flex items-center justify-center group"
+      onClick={() => fileInputRef.current?.click()}
+      title="Ajouter une image pour ce modèle"
+    >
+      {value ? (
+        <img src={value} alt="Variant" className="w-full h-full object-cover" />
+      ) : (
+        <ImageIcon className="w-3.5 h-3.5 text-gray-400 group-hover:text-white" />
+      )}
+      {uploading && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+          <Loader2 className="w-3 h-3 text-white animate-spin" />
+        </div>
+      )}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) uploadFile(file);
+        }}
+        accept="image/*"
+        className="hidden"
+      />
+    </div>
+  );
+}
+
 // ─── Multi-Image Uploader ─────────────────────────────────────────────────────
 function MultiImageUploader({
   images,
@@ -1812,7 +1870,7 @@ function ProduitsView() {
   };
   const stockToStatus = (stock: number): EditStockStatus =>
     stock === 0 ? 'out_of_stock' : stock <= 10 ? 'limited' : 'available';
-  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; size: string; stockStatus: EditStockStatus; price: string }>>([]);
+  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; image?: string; size: string; stockStatus: EditStockStatus; price: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1921,6 +1979,7 @@ function ProduitsView() {
             color: colorName,
             colorHex: v.colorHex || '#C8102E',
           };
+          if (v.image) obj.image = v.image;
           if (v.price) obj.price = parseFloat(v.price);
           return obj;
         });
@@ -2277,6 +2336,7 @@ Cette action est irréversible.`)) return;
                       {editVariants.map(v => (
                         <div key={v.id} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
                           <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                            <MiniImageUploader value={v.image} onChange={url => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, image: url } : x))} />
                             <input type="color" value={v.colorHex}
                               onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, colorHex: e.target.value } : x))}
                               className="w-8 h-8 rounded-full cursor-pointer border-0 bg-transparent flex-shrink-0" style={{ padding: '1px' }}
@@ -2418,7 +2478,7 @@ function NouveauProduitModal({
     packaging: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
-  type VariantForm = { id: string; color: string; colorHex: string; size: string; stockStatus: StockStatus; price: string };
+  type VariantForm = { id: string; color: string; colorHex: string; image?: string; size: string; stockStatus: StockStatus; price: string };
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -2463,6 +2523,7 @@ function NouveauProduitModal({
       ...(finalColorName && { color: finalColorName, colorHex: v.colorHex || '#C8102E' }),
       ...(sizeName && { size: sizeName }),
     };
+    if (v.image) obj.image = v.image;
     if (v.price) obj.price = parseFloat(v.price);
     return obj;
   };
@@ -2774,6 +2835,7 @@ function NouveauProduitModal({
                   {vars.map(v => (
                     <div key={v.id} className="rounded-xl bg-[#111] border border-white/5 overflow-hidden">
                       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                        <MiniImageUploader value={v.image} onChange={url => updateVariant(v.id, 'image', url)} />
                         <input
                           type="color"
                           value={v.colorHex}
