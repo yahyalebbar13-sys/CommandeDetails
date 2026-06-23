@@ -4,19 +4,17 @@ import { useEffect, useState } from 'react';
 /**
  * AppLoader — masque TOUT le contenu jusqu'à ce que Firestore ait chargé.
  * 
- * Le problème : Next.js affiche les produits hardcodés (anciens) immédiatement, 
- * puis Firestore charge et les remplace → flash visible de l'ancienne version.
- * 
- * Solution : cet overlay couvre tout jusqu'à ce que le DOM soit hydraté + un délai
- * pour que Firestore ait le temps de charger. Ensuite il disparaît en fondu.
+ * S'affiche pendant 1.5s pour donner le temps à la base de données
+ * de charger les produits à jour et éviter tout flash d'ancienne version.
  */
 export default function AppLoader() {
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     // Attendre que React soit hydraté ET que Firestore ait eu le temps de répondre
-    // 1.5s est suffisant pour Firestore en conditions normales
     const fadeTimer = setTimeout(() => setFading(true), 1500);
     const hideTimer = setTimeout(() => setVisible(false), 2000);
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
@@ -34,55 +32,97 @@ export default function AppLoader() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#FBF8F3',
-        transition: 'opacity 0.5s ease',
+        background: '#FBF8F3', // Crème
+        transition: 'opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
         opacity: fading ? 0 : 1,
         pointerEvents: fading ? 'none' : 'all',
+        overflow: 'hidden',
       }}
     >
-      {/* Logo LEBTEX — grand et centré */}
-      <div style={{ marginBottom: 40 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.webp"
-          alt="LEBTEX"
-          style={{ height: 120, objectFit: 'contain' }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
-      </div>
-
-      {/* Spinner animé */}
-      <div style={{ position: 'relative', width: 44, height: 44 }}>
-        <div style={{
+      {/* Subtle background glow */}
+      <div 
+        style={{
           position: 'absolute',
-          inset: 0,
+          width: '600px',
+          height: '600px',
+          background: 'radial-gradient(circle, rgba(200,16,46,0.04) 0%, rgba(251,248,243,0) 70%)',
           borderRadius: '50%',
-          border: '3px solid #E8E4DF',
-        }} />
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          border: '3px solid transparent',
-          borderTopColor: '#C8102E',
-          animation: 'lebtex-spin 0.8s linear infinite',
-        }} />
-      </div>
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 0,
+        }}
+      />
 
-      {/* Texte */}
-      <p style={{
-        marginTop: 24,
-        fontSize: 13,
-        color: '#6B6B6B',
-        fontFamily: 'Inter, sans-serif',
-        letterSpacing: '0.5px',
-      }}>
-        Chargement...
-      </p>
+      <div 
+        style={{ 
+          position: 'relative', 
+          zIndex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center',
+          transition: 'transform 1s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 1s ease',
+          transform: mounted ? 'translateY(0)' : 'translateY(20px)',
+          opacity: mounted ? 1 : 0,
+        }}
+      >
+        {/* Logo LEBTEX — Très grand */}
+        <div style={{ marginBottom: 48 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.webp"
+            alt="LEBTEX"
+            style={{ 
+              height: 180, // Agrandissement significatif
+              objectFit: 'contain',
+              filter: 'drop-shadow(0px 8px 24px rgba(0,0,0,0.06))',
+              animation: 'lebtex-float 4s ease-in-out infinite'
+            }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        </div>
+
+        {/* Barre de chargement premium */}
+        <div style={{ width: 180, height: 4, background: '#EAE5DE', borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '100%',
+            background: '#C8102E', // Rouge LEBTEX
+            borderRadius: 4,
+            animation: 'lebtex-progress 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+          }} />
+        </div>
+
+        {/* Texte */}
+        <p style={{
+          marginTop: 20,
+          fontSize: 12,
+          fontWeight: 600,
+          color: '#8A847C',
+          fontFamily: 'Inter, sans-serif',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          animation: 'lebtex-pulse-text 2s ease-in-out infinite'
+        }}>
+          Chargement
+        </p>
+      </div>
 
       <style>{`
-        @keyframes lebtex-spin {
-          to { transform: rotate(360deg); }
+        @keyframes lebtex-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes lebtex-progress {
+          0% { width: 0%; opacity: 1; }
+          70% { width: 80%; opacity: 1; }
+          100% { width: 100%; opacity: 0.8; }
+        }
+        @keyframes lebtex-pulse-text {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
         }
       `}</style>
     </div>
