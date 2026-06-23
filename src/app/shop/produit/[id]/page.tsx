@@ -487,26 +487,28 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             ) : (
               <>
                 {/* Quantity */}
-                <div className="mb-4">
-                  <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Quantité</p>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setQty(q => Math.max(product.minOrderQty || 1, q - 1))}
-                      className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="w-16 text-center font-black text-xl">{qty}</span>
-                    <button onClick={() => setQty(q => Math.min(stock, q + 1))}
-                      className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs text-[#6B6B6B]">Total: <strong>{formatPrice(currentPrice * qty)}</strong></span>
+                {inStock && (
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Quantité</p>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setQty(q => Math.max(product.minOrderQty || 1, q - 1))}
+                        className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-16 text-center font-black text-xl">{qty}</span>
+                      <button onClick={() => setQty(q => Math.min(stock, q + 1))}
+                        className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <span className="text-xs text-[#6B6B6B]">Total: <strong>{formatPrice(currentPrice * qty)}</strong></span>
+                    </div>
+                    {product.minOrderQty && product.minOrderQty > 1 && (
+                      <p className="text-xs text-[#D4A843] mt-1.5 flex items-center gap-1">
+                        <Package className="w-3.5 h-3.5" /> Commande minimum: {product.minOrderQty} pcs
+                      </p>
+                    )}
                   </div>
-                  {product.minOrderQty && product.minOrderQty > 1 && (
-                    <p className="text-xs text-[#D4A843] mt-1.5 flex items-center gap-1">
-                      <Package className="w-3.5 h-3.5" /> Commande minimum: {product.minOrderQty} pcs
-                    </p>
-                  )}
-                </div>
+                )}
 
                 {/* Wholesale */}
                 {product.wholesalePrice && (
@@ -639,50 +641,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </div>
           )}
 
-          {/* Avis clients */}
-          <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-[#F3EFE8]"
-              style={{ background: 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' }}>
-              <div className="w-8 h-8 rounded-lg bg-[#10B981] flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-              </div>
-              <h2 className="font-bold text-[#1A1A1A] text-base" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                Avis clients ({product.reviewCount || REVIEWS.length})
-              </h2>
-            </div>
-            <div className="px-6 py-5 space-y-5">
-              {REVIEWS.map((r, i) => (
-                <div key={r.name} className={`${i < REVIEWS.length - 1 ? 'border-b border-[#F3EFE8] pb-5' : ''}`}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C8102E] to-[#a00d25] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                      {r.name[0]}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-[#1A1A1A] text-sm">{r.name}
-                        <span className="text-[#6B6B6B] font-normal text-xs ml-1">— {r.city}</span>
-                      </p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        {Array.from({ length: 5 }, (_, si) => (
-                          <span key={si} className={`text-sm ${si < r.rating ? 'text-[#D4A843]' : 'text-gray-200'}`}>★</span>
-                        ))}
-                        <span className="text-[10px] text-[#6B6B6B] ml-1">{r.date}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-[#4A4A4A] leading-relaxed pl-13 italic ml-13">
-                    <span className="text-[#C8102E] text-lg font-serif mr-1">"</span>
-                    {r.text}
-                    <span className="text-[#C8102E] text-lg font-serif ml-1">"</span>
-                  </p>
-                </div>
-              ))}
-              <button className="w-full py-3 border border-[#C8102E] text-[#C8102E] rounded-xl font-semibold text-sm hover:bg-[#C8102E] hover:text-white transition-all mt-2">
-                ✍️ Rédiger un avis
-              </button>
-            </div>
-          </div>
+
 
         </div>
 

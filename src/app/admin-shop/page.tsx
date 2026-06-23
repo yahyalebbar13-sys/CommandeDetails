@@ -1952,6 +1952,7 @@ function ProduitsView() {
       id: v.id,
       color: v.color || '',
       colorHex: v.colorHex || '#C8102E',
+      image: v.image || '',
       size: v.size || '',
       stockStatus: stockToStatus(v.stock ?? 999),
       price: v.price?.toString() || '',
@@ -1979,6 +1980,7 @@ function ProduitsView() {
             color: colorName,
             colorHex: v.colorHex || '#C8102E',
           };
+          if (v.size) obj.size = v.size;
           if (v.image) obj.image = v.image;
           if (v.price) obj.price = parseFloat(v.price);
           return obj;
