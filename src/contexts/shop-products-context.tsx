@@ -32,6 +32,9 @@ export interface ProductOverride {
   weight?: number;
   width?: string;
   packaging?: string;
+  // Metadata additionnelle
+  categorySlug?: string;
+  categoryName?: string;
 }
 
 interface ShopProductsContextType {
@@ -135,6 +138,8 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.weight !== undefined && { weight: ov.weight }),
         ...(ov.width && { width: ov.width }),
         ...(ov.packaging && { packaging: ov.packaging }),
+        ...(ov.categorySlug && { categorySlug: ov.categorySlug }),
+        ...(ov.categoryName && { categoryName: ov.categoryName }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -166,6 +171,8 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.weight !== undefined && { weight: ov.weight }),
           ...(ov.width && { width: ov.width }),
           ...(ov.packaging && { packaging: ov.packaging }),
+          ...(ov.categorySlug && { categorySlug: ov.categorySlug }),
+          ...(ov.categoryName && { categoryName: ov.categoryName }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];

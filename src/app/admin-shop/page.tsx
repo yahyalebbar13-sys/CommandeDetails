@@ -1876,6 +1876,10 @@ function ProduitsView() {
     const merged = getMergedProduct(product);
     setEditingId(product.id);
     setEditForm({
+      name: merged.name,
+      categorySlug: merged.categorySlug,
+      shortDescription: merged.shortDescription || '',
+      description: merged.description || '',
       price: merged.price,
       comparePrice: merged.comparePrice || undefined,
       images: [...merged.images],
@@ -1923,6 +1927,10 @@ function ProduitsView() {
 
       // Build override without undefined values
       const base: Record<string, unknown> = {};
+      if (editForm.name?.trim()) base.name = editForm.name.trim();
+      if (editForm.categorySlug?.trim()) base.categorySlug = editForm.categorySlug.trim();
+      if (editForm.shortDescription !== undefined) base.shortDescription = editForm.shortDescription;
+      if (editForm.description !== undefined) base.description = editForm.description;
       if (editForm.price !== undefined) base.price = editForm.price;
       if (editForm.comparePrice !== undefined) base.comparePrice = editForm.comparePrice;
       if (editForm.images) base.images = editForm.images;
@@ -2151,6 +2159,28 @@ Cette action est irréversible.`)) return;
               {/* Edit form */}
               {isEditing && (
                 <div className="px-4 pb-4 pt-0 border-t border-white/5 mt-0">
+                  {/* Text fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 mb-4 border-b border-white/5 pb-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nom du produit</label>
+                      <input type="text" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie</label>
+                      <select value={editForm.categorySlug || ''} onChange={e => setEditForm(p => ({ ...p, categorySlug: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-[#111] border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50">
+                        {allCategoriesLocal.map(c => <option key={c.slug} value={c.slug}>{c.icon || ''} {c.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description courte</label>
+                      <input type="text" value={editForm.shortDescription || ''} onChange={e => setEditForm(p => ({ ...p, shortDescription: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description complète</label>
+                      <textarea value={editForm.description || ''} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50 resize-none" />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                     {/* Price */}
                     <div className="space-y-1.5">
