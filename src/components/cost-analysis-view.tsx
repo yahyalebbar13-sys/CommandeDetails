@@ -9,12 +9,12 @@ import {
 import {
   Calculator, ChevronDown, AlertTriangle, CheckCircle2,
   FileText, Truck, Package, DollarSign, TrendingUp, Info, FileDown, Pencil,
-  Lock, LockOpen, ShieldCheck
+  Lock, ShieldCheck
 } from 'lucide-react';
 import { exportCostAnalysisPDF, exportCoutRevientSimplePDF, exportDossierArticlesPDF } from '@/lib/pdf-export';
 import ArticleOverrideModal, { ArticleOverride } from './article-override-modal';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface CostAnalysisViewProps {
   articles: any[];
@@ -34,14 +34,12 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
   // ── État de verrouillage du Coût de Revient ──
   const [lockedRevient, setLockedRevient] = useState<{ value: number; at: string } | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
-  const [confirmUnlock, setConfirmUnlock] = useState(false);
 
   // ── Load overrides + lock state from Firebase when dossier changes ──
   useEffect(() => {
     if (!selectedFactureId || !firestore || !user) return;
     setOverrides({});
     setLockedRevient(null);
-    setConfirmUnlock(false);
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
@@ -186,19 +184,40 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     if (!selectedFactureId || !firestore || !user || liveTotal <= 0) return;
     setLockLoading(true);
     const now = new Date().toISOString();
-    const lockData = {
-      coutRevientLocked: true,
-      coutRevientLockedValue: liveTotal,
-      coutRevientLockedAt: now,
-      coutRevientTtcTotal: liveTotal,
-    };
     try {
+      // 1) Verrouiller le Coût de Revient
       await setDoc(
         doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-        lockData,
+        {
+          coutRevientLocked: true,
+          coutRevientLockedValue: liveTotal,
+          coutRevientLockedAt: now,
+          coutRevientTtcTotal: liveTotal,
+        },
         { merge: true }
       );
       setLockedRevient({ value: liveTotal, at: now });
+
+      // 2) Auto-verrouiller le Coût de Vente (même valeur live du revient comme base)
+      await setDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        {
+          coutVenteLocked: true,
+          coutVenteLockedAt: now,
+        },
+        { merge: true }
+      );
+
+      // 3) Auto-cocher douane_ok + dp_ok dans le checklist du dossier
+      const checklistRef = doc(firestore, 'users', user.uid, 'checklists', selectedFactureId);
+      const checklistSnap = await getDoc(checklistRef);
+      const existingChecks = checklistSnap.exists() ? (checklistSnap.data().checks || {}) : {};
+      await setDoc(checklistRef, {
+        checks: { ...existingChecks, douane_ok: true, dp_ok: true },
+        savedAt: now,
+        factureId: selectedFactureId,
+      }, { merge: true });
+
     } catch (e) {
       console.error('Lock error:', e);
     } finally {
@@ -206,27 +225,6 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
     }
   }, [selectedFactureId, firestore, user, liveTotal]);
 
-  // ── Déverrouiller le Coût de Revient ──
-  const handleUnlock = useCallback(async () => {
-    if (!selectedFactureId || !firestore || !user) return;
-    setLockLoading(true);
-    try {
-      await updateDoc(
-        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-        {
-          coutRevientLocked: deleteField(),
-          coutRevientLockedValue: deleteField(),
-          coutRevientLockedAt: deleteField(),
-        }
-      );
-      setLockedRevient(null);
-      setConfirmUnlock(false);
-    } catch (e) {
-      console.error('Unlock error:', e);
-    } finally {
-      setLockLoading(false);
-    }
-  }, [selectedFactureId, firestore, user]);
 
   const missingCount = analysis?.rows.filter(r => r.missingData).length || 0;
   const overrideCount = analysis?.rows.filter(r => r.hasOverride).length || 0;
@@ -319,20 +317,17 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
         }`}>
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-xl ${lockedRevient ? 'bg-emerald-500/20' : 'bg-white/5'}`}>
-              {lockedRevient
-                ? <Lock className="w-5 h-5 text-emerald-400" />
-                : <LockOpen className="w-5 h-5 text-stone-400" />
-              }
+              <Lock className={`w-5 h-5 ${lockedRevient ? 'text-emerald-400' : 'text-stone-500'}`} />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 {lockedRevient ? (
                   <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-emerald-500/30">
-                    <ShieldCheck className="w-3 h-3" /> Verrouillé
+                    <ShieldCheck className="w-3 h-3" /> Déclaration définitive
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 bg-white/5 text-stone-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/10">
-                    <LockOpen className="w-3 h-3" /> Non verrouillé
+                    <Lock className="w-3 h-3" /> Non confirmé
                   </span>
                 )}
                 {lockedRevient && (
@@ -361,7 +356,7 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
             </div>
           </div>
 
-          {/* Boutons Approuver / Déverrouiller */}
+          {/* Bouton Approuver */}
           <div className="flex items-center gap-2 shrink-0">
             {!lockedRevient ? (
               <button
@@ -370,33 +365,13 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
                 className="flex items-center gap-2 h-10 px-5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-stone-700 disabled:text-stone-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
               >
                 <Lock className="w-3.5 h-3.5" />
-                {lockLoading ? 'Verrouillage...' : 'Approuver & Verrouiller'}
+                {lockLoading ? 'Validation en cours...' : 'Approuver & Verrouiller'}
               </button>
-            ) : confirmUnlock ? (
-              <>
-                <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Confirmer ?</span>
-                <button
-                  onClick={handleUnlock}
-                  disabled={lockLoading}
-                  className="flex items-center gap-1.5 h-10 px-4 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95"
-                >
-                  {lockLoading ? 'Déverrouillage...' : 'Oui, déverrouiller'}
-                </button>
-                <button
-                  onClick={() => setConfirmUnlock(false)}
-                  className="flex items-center gap-1.5 h-10 px-4 bg-white/10 hover:bg-white/20 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
-                >
-                  Annuler
-                </button>
-              </>
             ) : (
-              <button
-                onClick={() => setConfirmUnlock(true)}
-                className="flex items-center gap-2 h-10 px-5 bg-white/10 hover:bg-white/20 text-stone-300 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all border border-white/10 active:scale-95"
-              >
-                <LockOpen className="w-3.5 h-3.5" />
-                Déverrouiller
-              </button>
+              <div className="flex items-center gap-2 h-10 px-5 bg-emerald-500/10 text-emerald-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-500/30">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Déclaration définitive
+              </div>
             )}
           </div>
         </div>

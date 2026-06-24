@@ -5,11 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   ShoppingCart, ChevronDown, AlertTriangle, Info, FileDown, Loader2, TrendingUp, DollarSign, FileText, Package, ShieldCheck, XCircle,
-  Lock, LockOpen
+  Lock
 } from 'lucide-react';
 import { exportCostSalePDF, exportCoutVenteSimplePDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
-import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, setDoc } from 'firebase/firestore';
 import { ArticleOverride } from './article-override-modal';
 
 // The 4 checklist IDs that must all be true to unlock a dossier in Cost Sale
@@ -75,7 +75,6 @@ export default function CostSaleView({ articles, factures, subCategories, genera
   // ── État de verrouillage du Coût de Vente ──
   const [lockedVente, setLockedVente] = useState<{ value: number; at: string } | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
-  const [confirmUnlock, setConfirmUnlock] = useState(false);
 
   const selectedFacture = useMemo(
     () => validatedFactures.find(f => f.id === selectedFactureId) || null,
@@ -89,7 +88,6 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     setPuMap({});
     setOverrides({});
     setLockedVente(null);
-    setConfirmUnlock(false);
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
@@ -284,28 +282,6 @@ export default function CostSaleView({ articles, factures, subCategories, genera
     }
   }, [selectedFactureId, firestore, user, liveVenteTotal]);
 
-  // ── Déverrouiller le Coût de Vente ──
-  const handleUnlockVente = useCallback(async () => {
-    if (!selectedFactureId || !firestore || !user) return;
-    setLockLoading(true);
-    try {
-      await updateDoc(
-        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
-        {
-          coutVenteLocked: deleteField(),
-          coutVenteLockedValue: deleteField(),
-          coutVenteLockedAt: deleteField(),
-        }
-      );
-      setLockedVente(null);
-      setConfirmUnlock(false);
-    } catch (e) {
-      console.error('Unlock vente error:', e);
-    } finally {
-      setLockLoading(false);
-    }
-  }, [selectedFactureId, firestore, user]);
-
   const formatDate = (iso: string) => {
     if (!iso) return '';
     try {
@@ -434,20 +410,17 @@ export default function CostSaleView({ articles, factures, subCategories, genera
         }`}>
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-xl ${lockedVente ? 'bg-emerald-500/20' : 'bg-white/5'}`}>
-              {lockedVente
-                ? <Lock className="w-5 h-5 text-emerald-400" />
-                : <LockOpen className="w-5 h-5 text-stone-400" />
-              }
+              <Lock className={`w-5 h-5 ${lockedVente ? 'text-emerald-400' : 'text-stone-500'}`} />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 {lockedVente ? (
                   <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-emerald-500/30">
-                    <ShieldCheck className="w-3 h-3" /> Verrouillé
+                    <ShieldCheck className="w-3 h-3" /> Coût de Vente définitif
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 bg-white/5 text-stone-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/10">
-                    <LockOpen className="w-3 h-3" /> Non verrouillé
+                    <Lock className="w-3 h-3" /> Non confirmé
                   </span>
                 )}
                 {lockedVente && (
@@ -476,7 +449,7 @@ export default function CostSaleView({ articles, factures, subCategories, genera
             </div>
           </div>
 
-          {/* Boutons Approuver / Déverrouiller */}
+          {/* Bouton Approuver */}
           <div className="flex items-center gap-2 shrink-0">
             {!lockedVente ? (
               <button
@@ -485,33 +458,13 @@ export default function CostSaleView({ articles, factures, subCategories, genera
                 className="flex items-center gap-2 h-10 px-5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-stone-700 disabled:text-stone-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
               >
                 <Lock className="w-3.5 h-3.5" />
-                {lockLoading ? 'Verrouillage...' : 'Approuver & Verrouiller'}
+                {lockLoading ? 'Validation en cours...' : 'Approuver & Verrouiller'}
               </button>
-            ) : confirmUnlock ? (
-              <>
-                <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Confirmer ?</span>
-                <button
-                  onClick={handleUnlockVente}
-                  disabled={lockLoading}
-                  className="flex items-center gap-1.5 h-10 px-4 bg-red-500 hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95"
-                >
-                  {lockLoading ? 'Déverrouillage...' : 'Oui, déverrouiller'}
-                </button>
-                <button
-                  onClick={() => setConfirmUnlock(false)}
-                  className="flex items-center gap-1.5 h-10 px-4 bg-white/10 hover:bg-white/20 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
-                >
-                  Annuler
-                </button>
-              </>
             ) : (
-              <button
-                onClick={() => setConfirmUnlock(true)}
-                className="flex items-center gap-2 h-10 px-5 bg-white/10 hover:bg-white/20 text-stone-300 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all border border-white/10 active:scale-95"
-              >
-                <LockOpen className="w-3.5 h-3.5" />
-                Déverrouiller
-              </button>
+              <div className="flex items-center gap-2 h-10 px-5 bg-emerald-500/10 text-emerald-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-500/30">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Coût de Vente définitif
+              </div>
             )}
           </div>
         </div>
