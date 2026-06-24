@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/table';
 import {
   FileCheck, ChevronDown, Info, FileDown, Eye, EyeOff, Lightbulb, Save, CheckCircle2, Loader2,
-  TrendingUp, TrendingDown, DollarSign, Calculator
+  TrendingUp, TrendingDown, DollarSign, Calculator, Lock, ShieldCheck
 } from 'lucide-react';
 import { exportDPPDF } from '@/lib/pdf-export';
 import { useFirebase } from '@/firebase';
@@ -34,6 +34,8 @@ export default function DPView({ articles, factures, subCategories, generalCateg
   const [loading, setLoading] = useState(false);
   const [tauxChange, setTauxChange] = useState<string>('10.5');
   const [freightInput, setFreightInput] = useState<string>('');
+  const [lockedDP, setLockedDP] = useState<{ at: string } | null>(null);
+  const [lockLoading, setLockLoading] = useState(false);
 
   const selectedFacture = useMemo(
     () => factures.find(f => f.id === selectedFactureId) || null,
@@ -51,6 +53,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     setSavedCoutVente(null);
     setPuMap({});
     setFreightInput('');
+    setLockedDP(null);
     getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId))
       .then(snap => {
         if (snap.exists()) {
@@ -59,6 +62,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
           if (data.coutRevientTtcTotal) setSavedCoutRevient(Number(data.coutRevientTtcTotal));
           if (data.coutVenteTtcTotal)   setSavedCoutVente(Number(data.coutVenteTtcTotal));
           if (data.freightValue != null) setFreightInput(String(data.freightValue));
+          if (data.dpLocked) setLockedDP({ at: data.dpLockedAt || '' });
         }
       })
       .catch(err => console.error('DP load error:', err))
@@ -151,6 +155,54 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     }
   }, [selectedFactureId, firestore, user, puMap, categoryLines, freightInput]);
 
+  // ── Lock to Firebase ──
+  const handleLockDP = useCallback(async () => {
+    if (!selectedFactureId || !firestore || !user) return;
+    setLockLoading(true);
+    const now = new Date().toISOString();
+    try {
+      // Compute totalMT from current puMap + categoryLines at save time
+      const computedTotalMT = categoryLines.reduce((sum, line) => {
+        const pu = parseFloat(puMap[line.categoryId] ?? '') || 0;
+        return sum + pu * line.totalQty;
+      }, 0);
+
+      // 1. Save declaration PU map + lock state
+      const freightNum = parseFloat(freightInput) || 0;
+      await setDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        { puMap, freightValue: freightNum, savedAt: now, factureId: selectedFactureId, dpLocked: true, dpLockedAt: now },
+        { merge: true }
+      );
+
+      // 2. Update declaredValue on the facture
+      if (computedTotalMT > 0) {
+        await setDoc(
+          doc(firestore, 'users', user.uid, 'factures', selectedFactureId),
+          { declaredValue: computedTotalMT },
+          { merge: true }
+        );
+      }
+
+      setLockedDP({ at: now });
+
+      // 3. Auto-cocher dp_ok dans la checklist
+      const checklistRef = doc(firestore, 'users', user.uid, 'checklists', selectedFactureId);
+      const checklistSnap = await getDoc(checklistRef);
+      const existingChecks = checklistSnap.exists() ? (checklistSnap.data().checks || {}) : {};
+      await setDoc(checklistRef, {
+        checks: { ...existingChecks, dp_ok: true },
+        savedAt: now,
+        factureId: selectedFactureId,
+      }, { merge: true });
+
+    } catch (e) {
+      console.error('Lock error:', e);
+    } finally {
+      setLockLoading(false);
+    }
+  }, [selectedFactureId, firestore, user, puMap, categoryLines, freightInput]);
+
 
   const lines = categoryLines.map(line => ({
     ...line,
@@ -220,21 +272,38 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
               </div>
-              {/* Save button */}
-              <button
-                onClick={handleSave}
-                disabled={saving || !selectedFacture}
-                className={`h-12 px-4 font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shrink-0 ${
-                  saveError
-                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
-                    : savedOk
-                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                    : 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                } disabled:opacity-50`}
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedOk ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {saveError ? 'Erreur!' : savedOk ? 'Sauvegardé' : 'Sauvegarder'}
-              </button>
+              {/* Save/Lock buttons */}
+              {!lockedDP ? (
+                <>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || !selectedFacture}
+                    className={`h-12 px-4 font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shrink-0 ${
+                      saveError
+                        ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
+                        : savedOk
+                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                        : 'bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                    } disabled:opacity-50`}
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedOk ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                    {saveError ? 'Erreur!' : savedOk ? 'Sauvegardé' : 'Sauvegarder Brouillon'}
+                  </button>
+                  <button
+                    onClick={handleLockDP}
+                    disabled={lockLoading || !selectedFacture}
+                    className="h-12 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-stone-700 disabled:text-stone-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/20 shrink-0 active:scale-95"
+                  >
+                    <Lock className="w-4 h-4" />
+                    {lockLoading ? 'Validation...' : 'Approuver & Verrouiller'}
+                  </button>
+                </>
+              ) : (
+                <div className="h-12 px-5 flex items-center gap-2 bg-emerald-500/10 text-emerald-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-500/30 shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                  Déclaration définitive
+                </div>
+              )}
               {/* PDF export */}
               {selectedFacture && lines.length > 0 && (
                 <button
@@ -295,9 +364,8 @@ export default function DPView({ articles, factures, subCategories, generalCateg
               placeholder="0.00"
               value={freightInput}
               onChange={e => setFreightInput(e.target.value)}
-              step="0.01"
-              min="0"
-              className="w-36 bg-white border border-emerald-300 text-emerald-900 text-sm font-black rounded-xl px-3 h-10 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all text-right"
+              disabled={lockedDP !== null}
+              className="w-40 bg-stone-50 border border-stone-200 text-stone-900 text-lg font-black rounded-xl px-4 h-12 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all text-right disabled:opacity-50"
             />
             <span className="text-[10px] font-black text-emerald-600 uppercase">USD</span>
           </div>
@@ -383,10 +451,11 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                           <div className="flex flex-col gap-1">
                             <input
                               type="number"
-                              className={inputCls}
+                              className={inputCls + (lockedDP ? ' opacity-50 cursor-not-allowed' : '')}
                               placeholder="0.00"
                               value={puMap[line.categoryId] ?? ''}
                               onChange={e => setPU(line.categoryId, e.target.value)}
+                              disabled={lockedDP !== null}
                               step="0.0001"
                             />
                           </div>

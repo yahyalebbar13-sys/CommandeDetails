@@ -208,12 +208,12 @@ export default function CostAnalysisView({ articles, factures, subCategories }: 
         { merge: true }
       );
 
-      // 3) Auto-cocher douane_ok + dp_ok dans le checklist du dossier
+      // 3) Auto-cocher douane_ok dans le checklist du dossier
       const checklistRef = doc(firestore, 'users', user.uid, 'checklists', selectedFactureId);
       const checklistSnap = await getDoc(checklistRef);
       const existingChecks = checklistSnap.exists() ? (checklistSnap.data().checks || {}) : {};
       await setDoc(checklistRef, {
-        checks: { ...existingChecks, douane_ok: true, dp_ok: true },
+        checks: { ...existingChecks, douane_ok: true },
         savedAt: now,
         factureId: selectedFactureId,
       }, { merge: true });
