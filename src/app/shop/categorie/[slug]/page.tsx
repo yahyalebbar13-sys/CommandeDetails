@@ -264,84 +264,46 @@ export default function CategoryPage({ params }: { params: any }) {
       {/* ─── Products & Subcategories ───────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-6 py-10">
         {subCats.length > 0 ? (
-          <div>
-            {/* Section label */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="h-px flex-1 bg-[#E8E4DF]" />
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest px-2">
-                Sous-catégories
-              </span>
-              <div className="h-px flex-1 bg-[#E8E4DF]" />
-            </div>
-
-            {/* Compact horizontal sub-category list */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {subCats.map(cat => {
-                const count = allContextProducts.filter(p => p.categorySlug === cat.slug).length;
-                const catAccentColor = cat.color || accentColor;
-                return (
-                  <Link
-                    key={cat.id}
-                    href={`/shop/categorie/${cat.slug}`}
-                    className="group flex items-center gap-4 bg-white border border-[#E8E4DF] hover:border-[#C8102E]/30 hover:shadow-md rounded-2xl p-3.5 transition-all duration-200"
-                  >
-                    {/* Thumbnail */}
-                    <div
-                      className="w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden"
-                      style={{ background: `linear-gradient(135deg, ${catAccentColor}25 0%, ${catAccentColor}10 100%)` }}
-                    >
-                      {cat.image ? (
-                        <img
-                          src={cat.image as string}
-                          alt={cat.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-2xl">{cat.icon || '📁'}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h3
-                          className="font-bold text-[#1A1A1A] text-sm group-hover:text-[#C8102E] transition-colors truncate"
-                          style={{ fontFamily: 'Outfit, sans-serif' }}
-                        >
-                          {cat.name}
-                        </h3>
-                        {count > 0 && (
-                          <span
-                            className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
-                            style={{ background: catAccentColor }}
-                          >
-                            {count}
-                          </span>
-                        )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {subCats.map(cat => {
+              const count = allContextProducts.filter(p => p.categorySlug === cat.slug).length;
+              const catAccentColor = cat.color || '#C8102E';
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/shop/categorie/${cat.slug}`}
+                  className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                >
+                  <div className="relative h-44 overflow-hidden flex-shrink-0">
+                    {cat.image ? (
+                      <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
+                        <span className="text-6xl opacity-50">{cat.icon || '📁'}</span>
                       </div>
-                      {cat.description && (
-                        <p className="text-gray-400 text-xs line-clamp-1 leading-relaxed">{cat.description}</p>
-                      )}
-                      <p className="text-[10px] font-semibold mt-1" style={{ color: catAccentColor }}>
-                        Voir les produits →
-                      </p>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: catAccentColor }} />
+                    {count > 0 && (
+                      <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold text-[#1A1A1A] bg-white/90 backdrop-blur-sm shadow-sm">
+                        {count} produit{count > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-5 flex-1 flex flex-col">
+                    <h2 className="font-bold text-[#1A1A1A] text-lg leading-tight group-hover:text-[#C8102E] transition-colors mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      {cat.name}
+                    </h2>
+                    {cat.description && (
+                      <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1">{cat.description}</p>
+                    )}
+                    <div className="mt-4 pt-3 border-t border-[#F0ECE8]">
+                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: catAccentColor }}>Explorer →</span>
                     </div>
-
-                    {/* Arrow */}
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 group-hover:translate-x-0.5"
-                      style={{ background: `${catAccentColor}15`, color: catAccentColor }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 18l6-6-6-6"/>
-                      </svg>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         ) : sortedProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
