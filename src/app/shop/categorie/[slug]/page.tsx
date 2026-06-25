@@ -1,10 +1,10 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useShopCart } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-import { ShoppingBag, ArrowLeft, Package } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Package, Loader2 } from 'lucide-react';
 
 // ─── Inline ProductCard ────────────────────────────────────────────────────────
 function ProductCard({ product }: { product: ShopProduct }) {
@@ -111,29 +111,15 @@ function ProductCard({ product }: { product: ShopProduct }) {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function CategoryPage({ params }: { params: any }) {
   const slug: string = React.use(params).slug as string;
-
-  const [category, setCategory] = useState<ShopCategory | null>(null);
-  const [products, setProducts] = useState<ShopProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   const [sort, setSort] = useState('pertinence');
 
-  const { products: allContextProducts, categories: allContextCategories } = useShopProducts();
+  const { products: allContextProducts, categories: allContextCategories, isLoading } = useShopProducts();
+
+  // Compute derived values directly (no useState for them — avoids stale state bugs)
+  const category = allContextCategories.find(c => c.slug === slug) ?? null;
   const subCats = allContextCategories.filter(c => c.parentSlug === slug);
-
-  useEffect(() => {
-    if (!slug) return;
-
-    const foundCat = allContextCategories.find(c => c.slug === slug);
-    if (!foundCat) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    setCategory(foundCat);
-    setProducts(allContextProducts.filter(p => p.categorySlug === slug));
-    setLoading(false);
-  }, [slug, allContextProducts, allContextCategories]);
+  const products = allContextProducts.filter(p => p.categorySlug === slug);
+  const notFound = !isLoading && !category;
 
   // Sort products
   const sortedProducts = [...products].sort((a, b) => {
@@ -143,10 +129,10 @@ export default function CategoryPage({ params }: { params: any }) {
     return 0;
   });
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#FBF8F3] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-[#C8102E] border-t-transparent rounded-full animate-spin" />
+        <Loader2 className="w-10 h-10 animate-spin text-[#C8102E]" />
       </div>
     );
   }
