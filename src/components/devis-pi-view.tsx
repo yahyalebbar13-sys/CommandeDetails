@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Check, Lock, AlertTriangle, X, Percent, Tag } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Lock, AlertTriangle, X, Percent, Tag, History, Clock } from 'lucide-react';
 import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, collection, getDocs } from 'firebase/firestore';
+import { doc, collection, getDocs, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,6 +37,8 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [remiseGlobale, setRemiseGlobale] = useState('0');
   const [remiseParArticle, setRemiseParArticle] = useState<Record<string, string>>({});
   const [allOverrides, setAllOverrides] = useState<Record<string, any>>({});
+  // Map of originalArticleId -> existing confirmed devis data (for history/warning)
+  const [confirmedArticlesMap, setConfirmedArticlesMap] = useState<Record<string, any>>({});
 
   // Load all dp_declarations overrides so we perfectly match cost-analysis-view
   useEffect(() => {
@@ -54,6 +56,27 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       })
       .catch(err => console.error('Error loading overrides', err));
   }, [user, firestore]);
+
+  // Load existing confirmed devis data for selected articles (to detect re-confirmation)
+  useEffect(() => {
+    if (!user || !firestore || selectedArticleIds.size === 0) return;
+    const ids = Array.from(selectedArticleIds);
+    Promise.all(
+      ids.map(id => {
+        const originalId = articles.find((a: any) => a.id === id)?.id || id;
+        return getDoc(doc(firestore, 'users', user.uid, 'articles', originalId))
+          .then(snap => snap.exists() ? { id: originalId, data: snap.data() } : null);
+      })
+    ).then(results => {
+      const map: Record<string, any> = {};
+      results.forEach((r: any) => {
+        if (r && r.data.devisConfirmed && r.data.devisPrixVenteUniteMad) {
+          map[r.id] = r.data;
+        }
+      });
+      setConfirmedArticlesMap(map);
+    }).catch(() => {});
+  }, [user, firestore, selectedArticleIds, articles]);
 
   // All articles with a clientName assigned — all statuses (PI, SHIPPED, DELIVERED, STOCK, TRANSIT, etc.)
   const piArticles = useMemo(() =>
@@ -118,7 +141,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
       if (cb.length > 0) {
         const groups = new Map<number, any[]>();
-        cb.forEach(r => {
+        cb.forEach((r: any) => {
           const p = (r.priceOverride !== '' && r.priceOverride != null) ? Number(r.priceOverride) : Number(parentArticle.purchasePricePerUnit || 0);
           if (!groups.has(p)) groups.set(p, []);
           groups.get(p)!.push(r);
@@ -140,7 +163,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         });
       } else if (sb.length > 0) {
         const groups = new Map<number, any[]>();
-        sb.forEach(r => {
+        sb.forEach((r: any) => {
           const p = (r.priceOverride !== '' && r.priceOverride != null) ? Number(r.priceOverride) : Number(parentArticle.purchasePricePerUnit || 0);
           if (!groups.has(p)) groups.set(p, []);
           groups.get(p)!.push(r);
@@ -326,6 +349,33 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       if (!current.devisRemise) current.devisRemise = c.computed.remise;
     });
 
+    // For each article, read existing history + append old confirmed price before overwriting
+    const now = new Date().toISOString();
+    const historyReads = await Promise.all(
+      Array.from(updates.keys()).map(async articleId => {
+        const snap = await getDoc(doc(firestore, 'users', user.uid, 'articles', articleId));
+        const existing = snap.exists() ? snap.data() : {};
+        // Build history entry from the EXISTING confirmed price (before overwriting)
+        const historyEntry = existing.devisConfirmed && existing.devisPrixVenteUniteMad ? {
+          prix: existing.devisPrixVenteUniteMad,
+          total: existing.devisPrixVenteTotalMad || null,
+          margePercent: existing.devisMargePercent || null,
+          remisePercent: existing.devisRemisePercent || null,
+          tauxChange: existing.devisTauxChange || null,
+          confirmedAt: existing.devisConfirmedAt || null,
+          archivedAt: now,
+        } : null;
+        const previousHistory: any[] = Array.isArray(existing.devisHistory) ? existing.devisHistory : [];
+        const newHistory = historyEntry ? [...previousHistory, historyEntry] : previousHistory;
+        return { articleId, devisHistory: newHistory };
+      })
+    );
+
+    historyReads.forEach(({ articleId, devisHistory }) => {
+      const update = updates.get(articleId);
+      if (update) update.devisHistory = devisHistory;
+    });
+
     updates.forEach((data, articleId) => {
       const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
       updateDocumentNonBlocking(docRef, data);
@@ -333,6 +383,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
     setIsConfirming(false);
     setShowConfirmDialog(false);
+    setConfirmedArticlesMap({});
     toast({ 
       title: "✅ Prix de Vente Fixé", 
       description: `${updates.size} article(s) confirmé(s). Le prix est maintenant visible dans l'espace client et ne peut plus être modifié.` 
@@ -670,6 +721,32 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
               {/* Summary */}
               <div className="bg-stone-50 border border-stone-100 rounded-2xl p-4 space-y-2">
                 <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">Résumé des prix à confirmer</p>
+
+                {/* Re-confirmation warnings */}
+                {computedArray.some(c => c && confirmedArticlesMap[c.article.originalId || c.article.id]) && (
+                  <div className="mb-3 space-y-2">
+                    {computedArray.filter(c => c && confirmedArticlesMap[c.article.originalId || c.article.id]).map((c, i) => {
+                      if (!c) return null;
+                      const prev = confirmedArticlesMap[c.article.originalId || c.article.id];
+                      return (
+                        <div key={i} className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                          <History className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-black text-amber-700 uppercase truncate">{c.article.clientName} · {c.article.categoryId}</p>
+                            <p className="text-[8px] font-bold text-amber-600 mt-0.5">
+                              Prix précédent : <span className="font-black">{fmtMAD(prev.devisPrixVenteUniteMad)} MAD/u</span>
+                              {prev.devisConfirmedAt && (
+                                <span className="ml-1 text-amber-500">· le {new Date(prev.devisConfirmedAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                              )}
+                            </p>
+                            <p className="text-[8px] text-amber-500 mt-0.5">→ Sera archivé dans l&apos;historique</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {computedArray.slice(0, 4).map((c, i) => c && (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <div className="min-w-0">

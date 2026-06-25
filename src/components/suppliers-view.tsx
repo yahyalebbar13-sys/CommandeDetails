@@ -3151,6 +3151,46 @@ export function ClientDetailView({
                     </div>
                   )}
 
+                  {/* ── HISTORIQUE DES DEVIS (admin only) ── */}
+                  {!isPortal && Array.isArray(selectedArticle.devisHistory) && selectedArticle.devisHistory.length > 0 && (
+                    <div className="rounded-2xl overflow-hidden border border-amber-200">
+                      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #92400e, #b45309)' }}>
+                        <span className="text-sm">📋</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-100">Historique des Devis</span>
+                        <span className="ml-auto text-[8px] font-black text-amber-300 bg-amber-900/40 px-2 py-0.5 rounded-full">{selectedArticle.devisHistory.length} révision{selectedArticle.devisHistory.length > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="bg-amber-50 divide-y divide-amber-100">
+                        {[...selectedArticle.devisHistory].reverse().map((entry: any, i: number) => (
+                          <div key={i} className="px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-0.5">
+                                {entry.confirmedAt ? new Date(entry.confirmedAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+                              </p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {entry.margePercent != null && (
+                                  <span className="text-[7px] font-black text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded">Marge {entry.margePercent}%</span>
+                                )}
+                                {entry.remisePercent != null && entry.remisePercent > 0 && (
+                                  <span className="text-[7px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Remise -{entry.remisePercent}%</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-[10px] font-black text-amber-700 line-through">
+                                {Number(entry.prix).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD/u
+                              </p>
+                              {entry.total && (
+                                <p className="text-[8px] font-bold text-amber-500">{Number(entry.total).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} total</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+
+
                   {/* Dates */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white rounded-xl border border-stone-200 p-4 text-center">
