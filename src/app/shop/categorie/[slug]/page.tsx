@@ -110,7 +110,8 @@ function ProductCard({ product }: { product: ShopProduct }) {
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function CategoryPage({ params }: { params: any }) {
-  const slug: string = React.use(params).slug as string;
+  const rawSlug: string = React.use(params).slug as string;
+  const slug = decodeURIComponent(rawSlug);
   const [sort, setSort] = useState('pertinence');
 
   const { products: allContextProducts, categories: allContextCategories, isLoading } = useShopProducts();
