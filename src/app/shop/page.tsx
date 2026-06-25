@@ -120,7 +120,8 @@ const TESTIMONIALS = [
 // ─── Page Component ───────────────────────────────────────────────────────────
 export default function ShopPage() {
   const { t } = useLanguage();
-  const { categories: SHOP_CATEGORIES, getFeaturedProducts, getNewProducts } = useShopProducts();
+  const { categories: allContextCategories, getFeaturedProducts, getNewProducts } = useShopProducts();
+  const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
   const FEATURED_PRODUCTS = getFeaturedProducts(8);
   const NEW_PRODUCTS = getNewProducts(6);
 

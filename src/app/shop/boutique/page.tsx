@@ -170,7 +170,8 @@ function BoutiqueContent() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [mobileFilters, setMobileFilters] = useState(false);
-  const { products: allProducts, categories: SHOP_CATEGORIES } = useShopProducts();
+  const { products: allProducts, categories: allContextCategories } = useShopProducts();
+  const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
 
   // Filter & sort
   let products = [...allProducts];

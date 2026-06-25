@@ -44,7 +44,8 @@ const PROMO_TEXT_AR =
 export default function ShopHeader() {
   const { itemCount, openCart } = useShopCart();
   const { t, language, setLanguage } = useLanguage();
-  const { categories: SHOP_CATEGORIES } = useShopProducts();
+  const { categories: allContextCategories } = useShopProducts();
+  const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
   const pathname = usePathname();
 
   const [isScrolled, setIsScrolled] = useState(false);
