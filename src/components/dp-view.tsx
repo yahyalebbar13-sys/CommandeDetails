@@ -353,8 +353,8 @@ export default function DPView({ articles, factures, subCategories, generalCateg
             </button>
           </div>
 
-          {/* Freight include (saisie manuelle) */}
-          <div className="flex items-center gap-4 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3">
+          {/* Freight include (saisie manuelle) + valeur fret dossier */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3">
             <div className="flex-1">
               <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-0.5">Freight Included (USD)</p>
               <p className="text-[8px] font-bold text-emerald-500">Valeur du fret à inclure dans la déclaration PDF — saisie manuelle</p>
@@ -368,6 +368,19 @@ export default function DPView({ articles, factures, subCategories, generalCateg
               className="w-40 bg-stone-50 border border-stone-200 text-stone-900 text-lg font-black rounded-xl px-4 h-12 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all text-right disabled:opacity-50"
             />
             <span className="text-[10px] font-black text-emerald-600 uppercase">USD</span>
+            {/* Valeur fret réelle du dossier — informatif uniquement, jamais dans le PDF */}
+            {(Number(selectedFacture?.freightCost) > 0 || Number(selectedFacture?.freight) > 0) && (
+              <div className="flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5">
+                <div className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                <div>
+                  <p className="text-[8px] font-black text-sky-500 uppercase tracking-widest">Fret réel dossier</p>
+                  <p className="text-[13px] font-black text-sky-700">
+                    {(Number(selectedFacture?.freightCost) || Number(selectedFacture?.freight) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="text-[9px] font-bold text-sky-500 ml-1">USD</span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Tableau */}
@@ -398,12 +411,20 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                       <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 text-right">QTÉ Totale</TableHead>
                       <TableHead className="text-[9px] font-black uppercase text-stone-400 py-4 text-right">NW Total (kg)</TableHead>
                       {showSuggested && (
-                        <TableHead className="text-[9px] font-black uppercase text-amber-500 py-4 text-right bg-amber-50/40">
-                          <span className="flex items-center gap-1 justify-end">
-                            <Lightbulb className="w-3 h-3" /> Val. Suggérée (MAD/U)
-                          </span>
-                          <div className="text-[7px] font-bold text-amber-400 normal-case mt-0.5">(NW × val.douane/kg) ÷ QTÉ — référence interne</div>
-                        </TableHead>
+                        <>
+                          <TableHead className="text-[9px] font-black uppercase text-amber-500 py-4 text-right bg-amber-50/40">
+                            <span className="flex items-center gap-1 justify-end">
+                              <Lightbulb className="w-3 h-3" /> Val. Suggérée (MAD/U)
+                            </span>
+                            <div className="text-[7px] font-bold text-amber-400 normal-case mt-0.5">(NW × val.douane/kg) ÷ QTÉ — référence interne</div>
+                          </TableHead>
+                          <TableHead className="text-[9px] font-black uppercase text-sky-500 py-4 text-right bg-sky-50/40">
+                            <span className="flex items-center gap-1 justify-end">
+                              <span className="text-[10px]">📂</span> Val. Dossier (USD/U)
+                            </span>
+                            <div className="text-[7px] font-bold text-sky-400 normal-case mt-0.5">Valeur déclarée réelle ÷ QTÉ — info uniquement</div>
+                          </TableHead>
+                        </>
                       )}
                       <TableHead className="text-[9px] font-black uppercase text-blue-500 py-4 text-right bg-blue-50/30 min-w-[160px]">PU Déclaré (USD)</TableHead>
                       <TableHead className="text-[9px] font-black uppercase text-emerald-600 py-4 text-right bg-emerald-50/40 pr-6">MT (USD)</TableHead>
@@ -412,7 +433,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                   <TableBody>
                     {lines.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={showSuggested ? 6 : 5} className="text-center py-16 text-stone-300 font-black uppercase text-[10px] tracking-widest">
+                        <TableCell colSpan={showSuggested ? 7 : 5} className="text-center py-16 text-stone-300 font-black uppercase text-[10px] tracking-widest">
                           Aucun article lié à ce dossier
                         </TableCell>
                       </TableRow>
@@ -436,16 +457,40 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                           <div className="text-[8px] text-stone-400 font-bold">kg</div>
                         </TableCell>
                         {showSuggested && (
-                          <TableCell className="text-right py-4 bg-amber-50/30">
-                            {line.suggestedPU != null ? (
-                              <div>
-                                <div className="font-black text-[13px] text-amber-600">
-                                  {line.suggestedPU.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                          <>
+                            <TableCell className="text-right py-4 bg-amber-50/30">
+                              {line.suggestedPU != null ? (
+                                <div>
+                                  <div className="font-black text-[13px] text-amber-600">
+                                    {line.suggestedPU.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                  </div>
+                                  <div className="text-[8px] text-amber-400 font-bold">MAD/unité</div>
                                 </div>
-                                <div className="text-[8px] text-amber-400 font-bold">MAD/unité</div>
-                              </div>
-                            ) : <span className="text-stone-300 text-[9px]">—</span>}
-                          </TableCell>
+                              ) : <span className="text-stone-300 text-[9px]">—</span>}
+                            </TableCell>
+                            {/* Valeur réelle du dossier par unité (USD) — informatif, jamais dans le PDF */}
+                            <TableCell className="text-right py-4 bg-sky-50/30">
+                              {(() => {
+                                const dossierDeclared = Number(selectedFacture?.declaredValue) || 0;
+                                const dossierTotalQty = lines.reduce((s, l) => s + l.totalQty, 0);
+                                const lineShare = dossierTotalQty > 0 && line.totalQty > 0
+                                  ? (line.totalQty / dossierTotalQty) * dossierDeclared
+                                  : 0;
+                                const perUnit = line.totalQty > 0 ? lineShare / line.totalQty : 0;
+                                return dossierDeclared > 0 && perUnit > 0 ? (
+                                  <div>
+                                    <div className="font-black text-[13px] text-sky-600">
+                                      {perUnit.toLocaleString('fr-MA', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                                    </div>
+                                    <div className="text-[8px] text-sky-400 font-bold">USD/unité (dossier)</div>
+                                    <div className="text-[7px] text-sky-300 font-bold">
+                                      Total cat.: {lineShare.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                                    </div>
+                                  </div>
+                                ) : <span className="text-stone-300 text-[9px]">—</span>;
+                              })()}
+                            </TableCell>
+                          </>
                         )}
                         <TableCell className="py-3 px-4 bg-blue-50/20">
                           <div className="flex flex-col gap-1">
