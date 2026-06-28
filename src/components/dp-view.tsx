@@ -355,7 +355,63 @@ export default function DPView({ articles, factures, subCategories, generalCateg
             </button>
           </div>
 
-          {/* Freight include (saisie manuelle) + valeur fret dossier */}
+          {/* ── Référence dossier — valeurs clés (informatif, jamais dans le PDF) ── */}
+          {(() => {
+            const totalFobDossier = lines.reduce((s, l) => s + (l.fobValue || 0), 0);
+            const declaredUSD     = Number(selectedFacture?.declaredValue) || 0;
+            const freightUSD      = Number(selectedFacture?.freightCost) || Number(selectedFacture?.freight) || 0;
+            const invoiceDhs      = Number(selectedFacture?.invoicePaidDhs) || 0;
+            return (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Valeur facture réelle (FOB) */}
+                <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
+                  <p className="text-[8px] font-black text-violet-500 uppercase tracking-widest">💰 Valeur Facture (FOB)</p>
+                  <p className="text-[8px] font-bold text-violet-400">Calculé depuis les articles du dossier</p>
+                  <p className="text-[15px] font-black text-violet-700 mt-1">
+                    {totalFobDossier > 0
+                      ? totalFobDossier.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '—'}
+                    {totalFobDossier > 0 && <span className="text-[9px] font-bold text-violet-500 ml-1">USD</span>}
+                  </p>
+                </div>
+                {/* Valeur déclarée en douane */}
+                <div className="bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
+                  <p className="text-[8px] font-black text-sky-500 uppercase tracking-widest">📂 Val. Déclarée Dossier</p>
+                  <p className="text-[8px] font-bold text-sky-400">declaredValue enregistré sur le dossier</p>
+                  <p className="text-[15px] font-black text-sky-700 mt-1">
+                    {declaredUSD > 0
+                      ? declaredUSD.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '—'}
+                    {declaredUSD > 0 && <span className="text-[9px] font-bold text-sky-500 ml-1">USD</span>}
+                  </p>
+                </div>
+                {/* Fret réel dossier */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
+                  <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">🚢 Fret Dossier</p>
+                  <p className="text-[8px] font-bold text-emerald-400">freightCost du dossier</p>
+                  <p className="text-[15px] font-black text-emerald-700 mt-1">
+                    {freightUSD > 0
+                      ? freightUSD.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '—'}
+                    {freightUSD > 0 && <span className="text-[9px] font-bold text-emerald-500 ml-1">USD</span>}
+                  </p>
+                </div>
+                {/* Montant payé en DHS */}
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex flex-col gap-0.5">
+                  <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">🏦 Montant Payé</p>
+                  <p className="text-[8px] font-bold text-amber-400">invoicePaidDhs (bureau de change)</p>
+                  <p className="text-[15px] font-black text-amber-700 mt-1">
+                    {invoiceDhs > 0
+                      ? invoiceDhs.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '—'}
+                    {invoiceDhs > 0 && <span className="text-[9px] font-bold text-amber-500 ml-1">MAD</span>}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Freight include (saisie manuelle) */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-3">
             <div className="flex-1">
               <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-0.5">Freight Included (USD)</p>
@@ -370,19 +426,6 @@ export default function DPView({ articles, factures, subCategories, generalCateg
               className="w-40 bg-stone-50 border border-stone-200 text-stone-900 text-lg font-black rounded-xl px-4 h-12 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all text-right disabled:opacity-50"
             />
             <span className="text-[10px] font-black text-emerald-600 uppercase">USD</span>
-            {/* Valeur fret réelle du dossier — informatif uniquement, jamais dans le PDF */}
-            {(Number(selectedFacture?.freightCost) > 0 || Number(selectedFacture?.freight) > 0) && (
-              <div className="flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5">
-                <div className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
-                <div>
-                  <p className="text-[8px] font-black text-sky-500 uppercase tracking-widest">Fret réel dossier</p>
-                  <p className="text-[13px] font-black text-sky-700">
-                    {(Number(selectedFacture?.freightCost) || Number(selectedFacture?.freight) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    <span className="text-[9px] font-bold text-sky-500 ml-1">USD</span>
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Tableau */}
