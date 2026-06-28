@@ -111,15 +111,19 @@ function ProductCard({ product }: { product: ShopProduct }) {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function CategoryPage({ params }: { params: any }) {
   const rawSlug: string = React.use(params).slug as string;
+  // Decode URL encoding (e.g. %20 → space) AND normalize to match stored slugs
   const slug = decodeURIComponent(rawSlug);
   const [sort, setSort] = useState('pertinence');
 
   const { products: allContextProducts, categories: allContextCategories, isLoading } = useShopProducts();
 
-  // Compute derived values directly (no useState for them — avoids stale state bugs)
-  const category = allContextCategories.find(c => c.slug === slug) ?? null;
-  const subCats = allContextCategories.filter(c => c.parentSlug === slug);
-  const products = allContextProducts.filter(p => p.categorySlug === slug);
+  // Find the category by slug OR by id (to handle old/broken slugs stored in Firestore)
+  const category = allContextCategories.find(c => c.slug === slug || c.id === slug) ?? null;
+  // Use the canonical slug from the found category (not from the URL) for lookups
+  const canonicalSlug = category?.slug ?? slug;
+
+  const subCats = allContextCategories.filter(c => c.parentSlug === canonicalSlug);
+  const products = allContextProducts.filter(p => p.categorySlug === canonicalSlug);
   const notFound = !isLoading && !category;
 
   // Sort products

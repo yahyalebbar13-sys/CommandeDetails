@@ -2563,7 +2563,9 @@ function NouveauProduitModal({
     try {
       const cat = allCategories.find(c => c.slug === form.categorySlug);
       const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const slug = form.name.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const builtVariants = variants
         .map((v, i) => buildVariant(v, i));
 
@@ -2961,7 +2963,9 @@ function NouvelleCategorieModal({
     setSaving(true);
     setError('');
     try {
-      const slug = form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const slug = form.name.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const id = `cat_${slug}_${Date.now()}`;
       const cat = { id, slug, name: form.name.trim(), image: form.image.trim() || null, description: form.description.trim() || null, color: form.color, priority: parseInt(form.priority) || 0, parentSlug: form.parentSlug || null };
       await setDoc(doc(db, 'shop_custom_categories', id), cat);
