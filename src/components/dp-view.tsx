@@ -470,27 +470,22 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                                 </div>
                               ) : <span className="text-stone-300 text-[9px]">—</span>}
                             </TableCell>
-                            {/* Valeur réelle du dossier par unité (USD) — règle de 3 par valeur FOB, jamais dans le PDF */}
+                            {/* Prix unitaire réel du dossier (USD) — jamais dans le PDF */}
                             <TableCell className="text-right py-4 bg-sky-50/30">
                               {(() => {
-                                const dossierDeclared = Number(selectedFacture?.declaredValue) || 0;
-                                // Règle de trois : proportion par valeur FOB (QTÉ × prix achat)
-                                const totalFob = lines.reduce((s, l) => s + (l.fobValue || 0), 0);
-                                const lineFob = line.fobValue || 0;
-                                const lineShare = totalFob > 0 && dossierDeclared > 0
-                                  ? (lineFob / totalFob) * dossierDeclared
+                                // Prix unitaire = FOB / QTÉ
+                                // Si plusieurs prix dans la même catégorie → moyenne pondérée automatique
+                                const pu = line.fobValue > 0 && line.totalQty > 0
+                                  ? line.fobValue / line.totalQty
                                   : 0;
-                                const perUnit = line.totalQty > 0 && lineShare > 0
-                                  ? lineShare / line.totalQty
-                                  : 0;
-                                return dossierDeclared > 0 && perUnit > 0 ? (
+                                return pu > 0 ? (
                                   <div>
                                     <div className="font-black text-[13px] text-sky-600">
-                                      {perUnit.toLocaleString('fr-MA', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                                      {pu.toLocaleString('fr-MA', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
                                     </div>
                                     <div className="text-[8px] text-sky-400 font-bold">USD/unité (dossier)</div>
                                     <div className="text-[7px] text-sky-300 font-bold">
-                                      Total cat.: {lineShare.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                                      FOB total: {line.fobValue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                                     </div>
                                   </div>
                                 ) : <span className="text-stone-300 text-[9px]">—</span>;
