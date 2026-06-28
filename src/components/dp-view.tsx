@@ -80,7 +80,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     if (!selectedFactureId) return [];
     const dossierArticles = articles.filter(a => a.factureId === selectedFactureId);
 
-    type MapEntry = { qty: number; nw: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean };
+    type MapEntry = { qty: number; nw: number; fob: number; unit: string; firstCatName: string; genCatId: string | null; isGrouped: boolean };
     const map: Record<string, MapEntry> = {};
 
     for (const a of dossierArticles) {
@@ -92,9 +92,11 @@ export default function DPView({ articles, factures, subCategories, generalCateg
       const shouldGroup = !!genCatId && isPoleCategory(rawCat, genCatName);
       const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
       const isGrouped = shouldGroup;
-      if (!map[key]) map[key] = { qty: 0, nw: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped };
+      if (!map[key]) map[key] = { qty: 0, nw: 0, fob: 0, unit: isGrouped ? 'KG' : (a.unitOfMeasure || 'U'), firstCatName: rawCat, genCatId: isGrouped ? genCatId : null, isGrouped };
       map[key].qty += Number(a.quantity) || 0;
-      map[key].nw += Number(a.netWeight) || 0;
+      map[key].nw  += Number(a.netWeight) || 0;
+      // FOB value (USD) = qty × purchasePricePerUnit — used for proportional rule-of-three
+      map[key].fob += (Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0);
     }
 
     return Object.entries(map)
@@ -103,7 +105,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
         const bName = b.genCatId ? (generalCategories.find((g: any) => g.id === b.genCatId)?.name || b.firstCatName) : b.firstCatName;
         return aName.localeCompare(bName);
       })
-      .map(([, { qty, nw, unit, firstCatName, genCatId, isGrouped }]) => {
+      .map(([, { qty, nw, fob, unit, firstCatName, genCatId, isGrouped }]) => {
         const effectiveQty = isGrouped ? nw : qty;
         const displayId = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId) : firstCatName;
         const cat = subCategories.find((c: any) => c.name === firstCatName);
@@ -111,7 +113,7 @@ export default function DPView({ articles, factures, subCategories, generalCateg
         const suggestedPU = (customsValuePerKg !== null && effectiveQty > 0)
           ? isGrouped ? customsValuePerKg : (nw * customsValuePerKg) / effectiveQty
           : null;
-        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, unit, customsValuePerKg, suggestedPU, isPole: isGrouped };
+        return { categoryId: displayId, totalQty: effectiveQty, totalNW: nw, fobValue: fob, unit, customsValuePerKg, suggestedPU, isPole: isGrouped };
       });
   }, [articles, selectedFactureId, subCategories, generalCategories]);
 
@@ -468,15 +470,19 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                                 </div>
                               ) : <span className="text-stone-300 text-[9px]">—</span>}
                             </TableCell>
-                            {/* Valeur réelle du dossier par unité (USD) — informatif, jamais dans le PDF */}
+                            {/* Valeur réelle du dossier par unité (USD) — règle de 3 par valeur FOB, jamais dans le PDF */}
                             <TableCell className="text-right py-4 bg-sky-50/30">
                               {(() => {
                                 const dossierDeclared = Number(selectedFacture?.declaredValue) || 0;
-                                const dossierTotalQty = lines.reduce((s, l) => s + l.totalQty, 0);
-                                const lineShare = dossierTotalQty > 0 && line.totalQty > 0
-                                  ? (line.totalQty / dossierTotalQty) * dossierDeclared
+                                // Règle de trois : proportion par valeur FOB (QTÉ × prix achat)
+                                const totalFob = lines.reduce((s, l) => s + (l.fobValue || 0), 0);
+                                const lineFob = line.fobValue || 0;
+                                const lineShare = totalFob > 0 && dossierDeclared > 0
+                                  ? (lineFob / totalFob) * dossierDeclared
                                   : 0;
-                                const perUnit = line.totalQty > 0 ? lineShare / line.totalQty : 0;
+                                const perUnit = line.totalQty > 0 && lineShare > 0
+                                  ? lineShare / line.totalQty
+                                  : 0;
                                 return dossierDeclared > 0 && perUnit > 0 ? (
                                   <div>
                                     <div className="font-black text-[13px] text-sky-600">
