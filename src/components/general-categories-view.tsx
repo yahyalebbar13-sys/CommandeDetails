@@ -113,6 +113,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
   const organizedCategories = useMemo(() => {
     const result = GROUPS_ORDER.map(g => ({ ...g, items: [] as { gc: GeneralCategory; stats: any }[] }));
+    const customGroupsMap = new Map<string, any>();
 
     const lowerSearch = searchTerm.toLowerCase();
 
@@ -125,7 +126,16 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
       if (explicitLine) {
         const group = result.find(g => g.title === explicitLine);
-        if (group) { group.items.push({ gc, stats: groupStats[gc.id] }); matched = true; }
+        if (group) { 
+          group.items.push({ gc, stats: groupStats[gc.id] }); 
+          matched = true; 
+        } else {
+          if (!customGroupsMap.has(explicitLine)) {
+            customGroupsMap.set(explicitLine, { title: explicitLine, keywords: [], items: [] });
+          }
+          customGroupsMap.get(explicitLine).items.push({ gc, stats: groupStats[gc.id] });
+          matched = true;
+        }
       }
 
       if (!matched) {
@@ -143,8 +153,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       }
     });
 
-    return result.filter(g => g.items.length > 0);
+    const allGroups = [...result, ...Array.from(customGroupsMap.values())];
+    return allGroups.filter(g => g.items.length > 0);
   }, [generalCategories, groupStats, searchTerm]);
+
+  // Dynamically compute all available lines for the modal
+  const availableLines = useMemo(() => {
+    const lines = new Set(Object.keys(LINE_COLORS));
+    generalCategories.forEach(gc => {
+      if ((gc as any).line) lines.add((gc as any).line);
+    });
+    return Array.from(lines);
+  }, [generalCategories]);
 
   // Max value for relative bar width
   const maxValue = useMemo(() => {
@@ -262,7 +282,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </div>
         ) : (
           organizedCategories.map((group, groupIdx) => {
-            const lineColor = LINE_COLORS[group.title] || '#6B7280';
+            const lineColor = LINE_COLORS[group.title] || UI_COLORS[group.title.length % UI_COLORS.length];
             const groupTotal = group.items.reduce((s, { stats }) => s + (stats?.totalValue || 0), 0);
 
             return (
@@ -411,17 +431,29 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Ligne logistique</label>
               <div className="grid grid-cols-1 gap-2">
-                {Object.entries(LINE_COLORS).map(([line, color]) => (
-                  <button
-                    key={line}
-                    onClick={() => setNewCatLine(line)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${newCatLine === line ? 'border-stone-900 bg-stone-50' : 'border-stone-100 hover:border-stone-200'}`}
-                  >
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-[10px] font-black uppercase text-stone-700">{line}</span>
-                    {newCatLine === line && <ChevronRight className="w-3 h-3 text-stone-900 ml-auto" />}
-                  </button>
-                ))}
+                {availableLines.map((line) => {
+                  const color = LINE_COLORS[line] || UI_COLORS[line.length % UI_COLORS.length];
+                  return (
+                    <button
+                      key={line}
+                      onClick={() => setNewCatLine(line)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${newCatLine === line ? 'border-stone-900 bg-stone-50' : 'border-stone-100 hover:border-stone-200'}`}
+                    >
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-[10px] font-black uppercase text-stone-700">{line}</span>
+                      {newCatLine === line && <ChevronRight className="w-3 h-3 text-stone-900 ml-auto" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="pt-2">
+                <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1 block">Créer une ligne personnalisée</label>
+                <Input 
+                  placeholder="EX: TEXTILES, ACCESSOIRES..."
+                  value={!availableLines.includes(newCatLine) ? newCatLine : ''}
+                  onChange={e => setNewCatLine(e.target.value)}
+                  className="h-10 uppercase font-bold border-stone-200 rounded-xl focus:ring-stone-900 text-xs"
+                />
               </div>
             </div>
           </div>
