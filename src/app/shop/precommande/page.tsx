@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Globe, Truck, Smartphone, Percent, MapPin, 
-  MessageCircle, ArrowRight, ShieldCheck, Clock
+  MessageCircle, ArrowRight, ShieldCheck, Clock, Phone
 } from "lucide-react";
 import { getWhatsAppContact } from "@/lib/shop-utils";
 
