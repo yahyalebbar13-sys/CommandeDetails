@@ -32,10 +32,10 @@ export default function CopyProtection() {
         if (key === 'u') { e.preventDefault(); return false; }
         // Ctrl+S — Enregistrer la page
         if (key === 's') { e.preventDefault(); return false; }
-        // Ctrl+A — Sélectionner tout
-        if (key === 'a') { e.preventDefault(); return false; }
-        // Ctrl+C — Copier (bloque la copie directe)
-        if (key === 'c') { e.preventDefault(); return false; }
+        // Ctrl+A — Sélectionner tout (Autorisé)
+        // if (key === 'a') { e.preventDefault(); return false; }
+        // Ctrl+C — Copier (Autorisé)
+        // if (key === 'c') { e.preventDefault(); return false; }
         // Ctrl+P — Imprimer
         if (key === 'p') { e.preventDefault(); return false; }
 
@@ -56,23 +56,23 @@ export default function CopyProtection() {
       return false;
     };
 
-    /* ── 4. Bloquer la sélection de texte via souris ── */
-    const blockSelectStart = (e: Event) => {
-      e.preventDefault();
-      return false;
-    };
+    /* ── 4. Bloquer la sélection de texte via souris (Désactivé pour permettre la copie) ── */
+    // const blockSelectStart = (e: Event) => {
+    //   e.preventDefault();
+    //   return false;
+    // };
 
     // Enregistrement des listeners
     document.addEventListener('contextmenu', blockContextMenu);
     document.addEventListener('keydown', blockShortcuts);
     document.addEventListener('dragstart', blockDrag);
-    document.addEventListener('selectstart', blockSelectStart);
+    // document.addEventListener('selectstart', blockSelectStart);
 
     return () => {
       document.removeEventListener('contextmenu', blockContextMenu);
       document.removeEventListener('keydown', blockShortcuts);
       document.removeEventListener('dragstart', blockDrag);
-      document.removeEventListener('selectstart', blockSelectStart);
+      // document.removeEventListener('selectstart', blockSelectStart);
     };
   }, []);
 
