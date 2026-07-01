@@ -599,7 +599,7 @@ function AdminApp() {
               <DPView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'reconciliation' ? 'block animate-in fade-in' : 'hidden'}>
-              <ReconciliationView factures={factures} />
+              <ReconciliationView factures={factures} articles={articles} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'devis-pi' ? 'block animate-in fade-in' : 'hidden'}>
               <DevisPIView articles={articles} factures={factures} categories={subCategories} />
