@@ -44,6 +44,7 @@ const SERVICE_LINKS = [
   { label: "Livraison & Retours", href: "/shop/livraison" },
   { label: "Suivi de commande", href: "/shop/suivi" },
   { label: "À propos de LEBTEX", href: "/shop/a-propos" },
+  { label: "Service Import", href: "/shop/precommande" },
   { label: "Promotions en cours", href: "/shop/promotions" },
 ];
 

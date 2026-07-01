@@ -11,6 +11,7 @@ export const translations: Translations = {
   nav_tracking:     { fr: 'Suivi commande', ar: 'تتبع الطلب' },
   nav_contact:      { fr: 'Contact',        ar: 'اتصل بنا' },
   nav_boutiques:    { fr: 'À Propos & Magasins',  ar: 'عن المتجر' },
+  nav_precommande:  { fr: 'Service Import', ar: 'خدمة الاستيراد' },
   nav_all_cats:     { fr: 'Toutes les catégories', ar: 'كل التصنيفات' },
 
   // ── Hero section ──────────────────────────────────────────────────────────
