@@ -121,9 +121,19 @@ export default function CategoryPage({ params }: { params: any }) {
   const category = allContextCategories.find(c => c.slug === slug || c.id === slug) ?? null;
   // Use the canonical slug from the found category (not from the URL) for lookups
   const canonicalSlug = category?.slug ?? slug;
+  const categoryId = category?.id ?? slug;
 
-  const subCats = allContextCategories.filter(c => c.parentSlug === canonicalSlug);
-  const products = allContextProducts.filter(p => p.categorySlug === canonicalSlug);
+  const subCats = allContextCategories.filter(c => c.parentSlug === canonicalSlug || c.parentSlug === categoryId);
+  // Collect all slugs/ids that belong to this category's products
+  const subCatIdentifiers = new Set([
+    ...subCats.map(c => c.slug),
+    ...subCats.map(c => c.id),
+  ]);
+  const products = allContextProducts.filter(p =>
+    p.categorySlug === canonicalSlug ||
+    p.categorySlug === categoryId ||
+    subCatIdentifiers.has(p.categorySlug)
+  );
   const notFound = !isLoading && !category;
 
   // Sort products
@@ -271,7 +281,7 @@ export default function CategoryPage({ params }: { params: any }) {
         {subCats.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {subCats.map(cat => {
-              const count = allContextProducts.filter(p => p.categorySlug === cat.slug).length;
+              const count = allContextProducts.filter(p => p.categorySlug === cat.slug || p.categorySlug === cat.id).length;
               const catAccentColor = cat.color || '#C8102E';
               return (
                 <Link
