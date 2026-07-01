@@ -240,7 +240,7 @@ export default function PrecommandePage() {
             {/* Map */}
             <div className="w-full md:w-1/2 h-80 md:h-auto relative">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d830.1456023!2d-7.607993!3d33.591740!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xda7d282d2dad555%3A0x0!2zMzPCsDM1JzMwLjMiTiA3wrAzNicyOC44Ilc!5e0!3m2!1sfr!2sma!4v1750000000000!5m2!1sfr!2sma"
+                src="https://maps.google.com/maps?q=33.528759,-7.606666&t=&z=15&ie=UTF8&iwloc=&output=embed"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
@@ -257,10 +257,10 @@ export default function PrecommandePage() {
                 Bureau Commercial
               </div>
               <h3 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                LEBTEX — Derb Omar
+                LEBTEX — Hay Chrifa
               </h3>
               <p className="text-gray-500 mb-8">
-                Centre névralgique du commerce de gros textile à Casablanca. Notre bureau y est situé pour faciliter vos échanges B2B.
+                Venez découvrir notre espace de vente à Hay Chrifa. Notre bureau vous accueille pour faciliter vos échanges B2B.
               </p>
               
               <div className="space-y-4 mb-10">
@@ -268,7 +268,7 @@ export default function PrecommandePage() {
                   <MapPin className="w-5 h-5 text-[#C8102E] mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">Adresse</p>
-                    <p className="text-gray-500 text-sm">Quartier Derb Omar, Casablanca (H9RR+MRR)</p>
+                    <p className="text-gray-500 text-sm">Hay Chrifa, Casablanca</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
