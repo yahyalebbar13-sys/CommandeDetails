@@ -484,6 +484,34 @@ export default function ShopHeader() {
                   </div>
                 )}
               </div>
+            ) : link.isMoreDropdown ? (
+              <div key={link.labelKey}>
+                <button
+                  onClick={() => setIsMoreOpen((v) => !v)}
+                  className="flex items-center justify-between w-full px-5 py-3.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
+                >
+                  <span>{t(link.labelKey)}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                      isMoreOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {isMoreOpen && (
+                  <div className="bg-gray-50 border-y border-gray-100 py-1">
+                    {MORE_LINKS.map((ml) => (
+                      <Link
+                        key={ml.labelKey}
+                        href={ml.href}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center gap-3 px-7 py-2.5 text-sm text-gray-700 hover:text-[#C8102E] hover:bg-white transition-colors"
+                      >
+                        <span>{t(ml.labelKey)}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <Link
                 key={link.labelKey}
