@@ -2259,7 +2259,19 @@ Cette action est irréversible.`)) return;
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie</label>
                       <select value={editForm.categorySlug || ''} onChange={e => setEditForm(p => ({ ...p, categorySlug: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-[#111] border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50">
-                        {allCategoriesLocal.map(c => <option key={c.slug} value={c.slug}>{c.icon || ''} {c.name}</option>)}
+                        {(() => {
+                          const parents = (allCategoriesLocal as any[]).filter((c: any) => !c.parentSlug);
+                          const subs = (allCategoriesLocal as any[]).filter((c: any) => !!c.parentSlug);
+                          return parents.map((p: any) => {
+                            const children = subs.filter((s: any) => s.parentSlug === p.slug);
+                            return children.length > 0 ? (
+                              <optgroup key={p.slug} label={`${p.icon || '📁'} ${p.name}`}>
+                                <option value={p.slug}>— {p.name} (toute la catégorie)</option>
+                                {children.map((s: any) => <option key={s.slug} value={s.slug}>↳ {s.name}</option>)}
+                              </optgroup>
+                            ) : <option key={p.slug} value={p.slug}>{p.icon || ''} {p.name}</option>;
+                          });
+                        })()}
                       </select>
                     </div>
                     <div className="space-y-1.5">
@@ -2660,9 +2672,19 @@ function NouveauProduitModal({
                 onChange={e => setForm(p => ({ ...p, categorySlug: e.target.value }))}
                 className="w-full px-3 py-2.5 rounded-xl bg-[#111] border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 appearance-none"
               >
-                {allCategories.map(c => (
-                  <option key={c.slug} value={c.slug}>{c.icon || ''} {c.name}</option>
-                ))}
+                {(() => {
+                  const parents = (allCategories as any[]).filter((c: any) => !c.parentSlug);
+                  const subs = (allCategories as any[]).filter((c: any) => !!c.parentSlug);
+                  return parents.map((p: any) => {
+                    const children = subs.filter((s: any) => s.parentSlug === p.slug);
+                    return children.length > 0 ? (
+                      <optgroup key={p.slug} label={`${p.icon || '📁'} ${p.name}`}>
+                        <option value={p.slug}>— {p.name} (toute la catégorie)</option>
+                        {children.map((s: any) => <option key={s.slug} value={s.slug}>↳ {s.name}</option>)}
+                      </optgroup>
+                    ) : <option key={p.slug} value={p.slug}>{p.icon || ''} {p.name}</option>;
+                  });
+                })()}
               </select>
             </div>
           </div>
