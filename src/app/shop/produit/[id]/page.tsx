@@ -760,19 +760,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               )}
             </div>
 
-            {/* Mots-clés SEO */}
-            {(product.motsCles || (product.tags && product.tags.length > 0)) && (
-              <div className="flex flex-wrap items-center gap-2 pt-4 px-2">
-                <span className="text-xs font-bold text-gray-400 uppercase mr-2">Tags:</span>
-                {[...(product.tags || []), ...(product.motsCles ? product.motsCles.split(',').map(k => k.trim()) : [])]
-                  .filter((v, i, a) => a.indexOf(v) === i && v) // unique
-                  .map(tag => (
-                    <Link href={`/shop/boutique?q=${encodeURIComponent(tag)}`} key={tag} className="px-3 py-1 rounded-full bg-[#F3EFE8] text-[#4A4A4A] text-[10px] font-bold uppercase tracking-wider hover:bg-[#E8E4DF] hover:text-[#C8102E] transition-colors cursor-pointer">
-                      #{tag}
-                    </Link>
-                ))}
-              </div>
-            )}
+
 
 
 
