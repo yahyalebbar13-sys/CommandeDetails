@@ -2303,6 +2303,7 @@ Cette action est irréversible.`)) return;
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie</label>
+                      <select value={editForm.categorySlug || ''} onChange={e => setEditForm(p => ({ ...p, categorySlug: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-[#111] border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50">
                         {(() => {
                           const parents = (allCategoriesLocal as any[]).filter((c: any) => !c.parentSlug);
                           const subs = (allCategoriesLocal as any[]).filter((c: any) => !!c.parentSlug);
