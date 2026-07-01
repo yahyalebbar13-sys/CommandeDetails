@@ -161,8 +161,9 @@ function FilterSidebar({
 function BoutiqueContent() {
   const searchParams = useSearchParams();
   const initCat = searchParams.get('categorie');
+  const initSearch = searchParams.get('q');
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initSearch || '');
   const [sort, setSort] = useState('pertinence');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(initCat ? [initCat] : []);
   const [priceMin, setPriceMin] = useState('');

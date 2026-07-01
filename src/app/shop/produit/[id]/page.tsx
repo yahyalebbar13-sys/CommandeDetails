@@ -767,9 +767,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 {[...(product.tags || []), ...(product.motsCles ? product.motsCles.split(',').map(k => k.trim()) : [])]
                   .filter((v, i, a) => a.indexOf(v) === i && v) // unique
                   .map(tag => (
-                    <span key={tag} className="px-3 py-1 rounded-full bg-[#F3EFE8] text-[#4A4A4A] text-[10px] font-bold uppercase tracking-wider hover:bg-[#E8E4DF] transition-colors cursor-pointer">
+                    <Link href={`/shop/boutique?q=${encodeURIComponent(tag)}`} key={tag} className="px-3 py-1 rounded-full bg-[#F3EFE8] text-[#4A4A4A] text-[10px] font-bold uppercase tracking-wider hover:bg-[#E8E4DF] hover:text-[#C8102E] transition-colors cursor-pointer">
                       #{tag}
-                    </span>
+                    </Link>
                 ))}
               </div>
             )}
