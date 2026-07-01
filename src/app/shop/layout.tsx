@@ -5,7 +5,7 @@ import { LanguageProvider } from '@/contexts/language-context';
 import ShopHeader from '@/components/shop/ShopHeader';
 import ShopFooter from '@/components/shop/ShopFooter';
 import CartDrawer from '@/components/shop/CartDrawer';
-import WhatsAppFloat from '@/components/shop/WhatsAppFloat';
+import ConsultantChat from '@/components/shop/ConsultantChat';
 import LocalBusinessSchema from '@/components/shop/LocalBusinessSchema';
 import AppInstallBanner from '@/components/shop/AppInstallBanner';
 
@@ -85,7 +85,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
           >
             <ShopHeader />
             <CartDrawer />
-            <WhatsAppFloat />
+            <ConsultantChat />
             <AppInstallBanner />
             <main className="flex-grow">{children}</main>
             <ShopFooter />

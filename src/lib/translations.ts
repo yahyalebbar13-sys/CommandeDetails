@@ -13,6 +13,7 @@ export const translations: Translations = {
   nav_boutiques:    { fr: 'À Propos & Magasins',  ar: 'عن المتجر' },
   nav_precommande:  { fr: 'Service Import', ar: 'خدمة الاستيراد' },
   nav_all_cats:     { fr: 'Toutes les catégories', ar: 'كل التصنيفات' },
+  nav_more:         { fr: 'Plus...', ar: 'المزيد...' },
 
   // ── Hero section ──────────────────────────────────────────────────────────
   hero_badge:    { fr: 'Mercerie Professionnelle', ar: 'خردوات خياطة احترافية' },

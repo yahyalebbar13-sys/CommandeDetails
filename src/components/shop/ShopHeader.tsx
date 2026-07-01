@@ -23,14 +23,19 @@ interface NavLink {
   labelKey: string;
   href: string;
   hasDropdown?: boolean;
+  isMoreDropdown?: boolean;
 }
 
 const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
-  { labelKey: "nav_boutiques", href: "/shop/a-propos" },
   { labelKey: "nav_precommande", href: "/shop/precommande" },
+  { labelKey: "nav_more", href: "#", isMoreDropdown: true },
+];
+
+const MORE_LINKS = [
+  { labelKey: "nav_boutiques", href: "/shop/a-propos" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
@@ -52,6 +57,7 @@ export default function ShopHeader() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isMobileCategoriesOpen, setIsMobileCategoriesOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,6 +78,7 @@ export default function ShopHeader() {
     setIsMobileMenuOpen(false);
     setIsSearchOpen(false);
     setIsCategoriesOpen(false);
+    setIsMoreOpen(false);
   }, [pathname]);
 
   // ── Focus search input when opened ───────────────────────────────────────
@@ -234,6 +241,33 @@ export default function ShopHeader() {
                             <ChevronRight className="w-4 h-4" />
                           </Link>
                         </div>
+                      </div>
+                    )}
+                  </div>
+                ) : link.isMoreDropdown ? (
+                  <div key={link.labelKey} className="relative">
+                    <button
+                      onClick={() => setIsMoreOpen((v) => !v)}
+                      onMouseEnter={() => setIsMoreOpen(true)}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 transition-all duration-200`}
+                    >
+                      {t(link.labelKey)}
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isMoreOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {isMoreOpen && (
+                      <div
+                        onMouseLeave={() => setIsMoreOpen(false)}
+                        className="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-gray-100 p-2 z-50 flex flex-col gap-1"
+                      >
+                        {MORE_LINKS.map(ml => (
+                           <Link key={ml.labelKey} href={ml.href} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
+                             {t(ml.labelKey)}
+                           </Link>
+                        ))}
                       </div>
                     )}
                   </div>

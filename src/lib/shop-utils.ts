@@ -79,8 +79,12 @@ export function buildWhatsAppLink(orderNumber: string, total: number, customerNa
 }
 
 // WhatsApp contact link
-export function getWhatsAppContact(): string {
-  return 'https://wa.me/212760998347';
+export function getWhatsAppContact(message?: string): string {
+  const phone = '212760998347';
+  if (message) {
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  }
+  return `https://wa.me/${phone}`;
 }
 
 // Star rating display
