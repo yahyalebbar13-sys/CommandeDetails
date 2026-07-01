@@ -310,13 +310,14 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState(false);
 
   // Redirect if cart empty
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !orderSuccess) {
       router.replace("/shop/panier");
     }
-  }, [items.length, router]);
+  }, [items.length, router, orderSuccess]);
 
   const setField = useCallback(
     <K extends keyof FormData>(key: K, value: FormData[K]) => {
@@ -394,8 +395,9 @@ export default function CheckoutPage() {
 
         // IMPORTANT: redirect FIRST, then clear cart
         // If we clearCart first, items.length === 0 causes the component to unmount before navigation
-        router.push(`/shop/confirmation/${docRef.id}`);
+        setOrderSuccess(true);
         clearCart();
+        router.push(`/shop/confirmation/${docRef.id}`);
       } catch (err) {
         console.error("Order submission error:", err);
         setSubmitError(
@@ -407,7 +409,7 @@ export default function CheckoutPage() {
     [form, items, subtotal, clearCart, router]
   );
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && !orderSuccess) return null;
 
   return (
     <div className="min-h-screen bg-[#FBF8F3]">
