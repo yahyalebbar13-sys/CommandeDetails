@@ -372,11 +372,24 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   }
 
   const hasVariants = product.variants && product.variants.length > 0;
-  // Fetch products from other categories for cross-selling
-  const similar = products
-    .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
+  // Fetch products for cross-selling
+  let similar = products
+    .filter(p => p.categorySlug === product.categorySlug && p.id !== product.id)
     .sort(() => 0.5 - Math.random()) // Randomize
     .slice(0, 4);
+    
+  let similarTitle = "Vous aimerez aussi";
+  let similarLink = `/shop/categorie/${product.categorySlug}`;
+
+  // Fallback to other categories if no products in the same category
+  if (similar.length === 0) {
+    similar = products
+      .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 4);
+    similarTitle = "Découvrez d'autres catégories";
+    similarLink = "/shop";
+  }
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
   const currentPrice = selectedVariant?.price || product.price;
   const stock = selectedVariant?.stock ?? product.stockQty;
@@ -771,8 +784,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         {similar.length > 0 && (
           <div className="mt-12">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>Découvrez d'autres catégories</h2>
-              <Link href={`/shop`}
+              <h2 className="text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>{similarTitle}</h2>
+              <Link href={similarLink}
                 className="text-sm text-[#C8102E] font-semibold hover:underline">Voir tout →</Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
