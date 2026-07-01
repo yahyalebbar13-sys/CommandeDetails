@@ -7,6 +7,7 @@ import ShopFooter from '@/components/shop/ShopFooter';
 import CartDrawer from '@/components/shop/CartDrawer';
 import WhatsAppFloat from '@/components/shop/WhatsAppFloat';
 import LocalBusinessSchema from '@/components/shop/LocalBusinessSchema';
+import AppInstallBanner from '@/components/shop/AppInstallBanner';
 
 export const metadata: Metadata = {
   title: 'LEBTEX — Mercerie & Fermetures Éclair au Maroc | سحاب، مطاط، أزرار',
@@ -85,6 +86,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             <ShopHeader />
             <CartDrawer />
             <WhatsAppFloat />
+            <AppInstallBanner />
             <main className="flex-grow">{children}</main>
             <ShopFooter />
           </div>
