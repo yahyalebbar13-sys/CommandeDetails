@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, Minus, Plus, Package } from 'lucide-react';
+import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package } from 'lucide-react';
 import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
@@ -9,6 +9,34 @@ import { useShopProducts } from '@/contexts/shop-products-context';
 import { db } from '@/lib/firebase-db';
 import { doc, getDoc } from 'firebase/firestore';
 import type { CartItem, ProductVariant } from '@/lib/shop-types';
+
+function Accordion({ title, icon, defaultOpen = false, children }: { title: string, icon: React.ReactNode, defaultOpen?: boolean, children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm mb-4">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-6 py-4 transition-colors hover:bg-[#FBF8F3] text-left"
+        style={{ background: isOpen ? 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' : 'white' }}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-inner ${isOpen ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-500'}`}>
+            {icon}
+          </div>
+          <h2 className="font-bold text-[#1A1A1A] text-base md:text-lg" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {title}
+          </h2>
+        </div>
+        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="border-t border-[#F3EFE8]">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SimilarProductCard({ product }: { product: any }) {
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
@@ -568,170 +596,165 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         </div>
 
           {/* ═══ FICHE PRODUIT — Description & Détails Hyper Pro ══════ */}
-          <div className="mt-12 space-y-6">
+          <div className="mt-10 mb-12">
 
-            {/* Description Courte & Avantages */}
-            {((product.shortDescription || product.description) || product.avantages) && (
-              <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm">
-                <div className="flex items-center gap-3 px-6 py-4 border-b border-[#F3EFE8]"
-                  style={{ background: 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' }}>
-                  <div className="w-8 h-8 rounded-lg bg-[#C8102E] flex items-center justify-center flex-shrink-0 shadow-inner">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <h2 className="font-bold text-[#1A1A1A] text-lg" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    À propos de ce produit
-                  </h2>
-                </div>
-                <div className="px-6 py-6 space-y-6">
-                  {product.shortDescription && (
-                    <div className="text-xl font-bold text-[#1A1A1A] leading-snug border-l-4 border-[#C8102E] pl-4">
-                      {product.shortDescription}
-                    </div>
-                  )}
-                  {product.description && (
-                    <div className="text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
-                      {product.description.split('\n').filter(Boolean).map((para, i) => (
-                        <p key={i}>{para}</p>
-                      ))}
-                    </div>
-                  )}
-                  {product.avantages && (
-                    <div className="bg-[#FBF8F3] rounded-xl p-5 border border-[#F3EFE8]">
-                      <h3 className="text-[#D4A843] font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <span>✨</span> Avantages Principaux
-                      </h3>
-                      <div className="text-[#4A4A4A] text-[15px] space-y-2">
-                        {product.avantages.split('\n').filter(Boolean).map((para, i) => (
-                          <p key={i} className="flex gap-2">
-                            <span className="text-[#25D366] mt-1 flex-shrink-0">✓</span> {para}
-                          </p>
+            {/* Description Courte (Mise en évidence) */}
+            {product.shortDescription && (
+              <div className="mb-8 p-6 bg-gradient-to-br from-[#FBF8F3] to-white border border-[#E8E4DF] rounded-2xl shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-[#C8102E]"></div>
+                <h3 className="text-xl md:text-2xl font-bold text-[#1A1A1A] leading-snug" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                  {product.shortDescription}
+                </h3>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Accordion 1: Description détaillée & Avantages */}
+              {(product.description || product.avantages) && (
+                <Accordion 
+                  title="Description & Avantages" 
+                  icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>}
+                  defaultOpen={true}
+                >
+                  <div className="px-6 py-6 space-y-6">
+                    {product.description && (
+                      <div className="text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
+                        {product.description.split('\n').filter(Boolean).map((para, i) => (
+                          <p key={i}>{para}</p>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+                    )}
+                    {product.avantages && (
+                      <div className="bg-[#FBF8F3] rounded-xl p-5 border border-[#F3EFE8]">
+                        <h3 className="text-[#D4A843] font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span>✨</span> Avantages Principaux
+                        </h3>
+                        <div className="text-[#4A4A4A] text-[15px] space-y-2">
+                          {product.avantages.split('\n').filter(Boolean).map((para, i) => (
+                            <p key={i} className="flex gap-2">
+                              <span className="text-[#25D366] mt-1 flex-shrink-0">✓</span> {para}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Accordion>
+              )}
 
-            {/* Caractéristiques Techniques Complètes */}
-            <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm">
-              <div className="flex items-center gap-3 px-6 py-4 border-b border-[#F3EFE8]"
-                style={{ background: 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' }}>
-                <div className="w-8 h-8 rounded-lg bg-[#D4A843] flex items-center justify-center flex-shrink-0 shadow-inner">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <h2 className="font-bold text-[#1A1A1A] text-lg" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                  Caractéristiques Techniques
-                </h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#F3EFE8]">
-                {/* Colonne 1 */}
-                <div className="divide-y divide-[#F3EFE8]">
-                  {[
-                    { label: 'Type de Produit', icon: '🏷️', value: product.typeProduit },
-                    { label: 'Matériau / Mailles', icon: '🧵', value: product.matiereMailles || product.material },
-                    { label: 'Composition Ruban', icon: '🎗️', value: product.compositionRuban },
-                    { label: 'Largeur', icon: '↔️', value: product.largeurMaille || product.width },
-                    { label: 'Longueur', icon: '📏', value: product.longueur },
-                    { label: 'Couleur', icon: '🎨', value: product.couleur },
-                  ].filter(row => row.value).map((row, i) => (
-                    <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-white' : 'bg-[#FDFBF8]'}`}>
-                      <div className="flex items-center gap-3 sm:w-1/2">
-                        <span className="text-base">{row.icon}</span>
-                        <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
+              {/* Accordion 2: Caractéristiques Techniques */}
+              <Accordion 
+                title="Caractéristiques Techniques" 
+                icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                defaultOpen={false}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#F3EFE8]">
+                  <div className="divide-y divide-[#F3EFE8]">
+                    {[
+                      { label: 'Type de Produit', icon: '🏷️', value: product.typeProduit },
+                      { label: 'Matériau / Mailles', icon: '🧵', value: product.matiereMailles || product.material },
+                      { label: 'Composition Ruban', icon: '🎗️', value: product.compositionRuban },
+                      { label: 'Largeur', icon: '↔️', value: product.largeurMaille || product.width },
+                      { label: 'Longueur', icon: '📏', value: product.longueur },
+                      { label: 'Couleur', icon: '🎨', value: product.couleur },
+                    ].filter(row => row.value).map((row, i) => (
+                      <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-white' : 'bg-[#FDFBF8]'}`}>
+                        <div className="flex items-center gap-3 sm:w-1/2">
+                          <span className="text-base">{row.icon}</span>
+                          <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
                       </div>
-                      <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Colonne 2 */}
-                <div className="divide-y divide-[#F3EFE8]">
-                  {[
-                    { label: 'Spécification / Type', icon: '📐', value: product.type || product.specification },
-                    { label: 'Design', icon: '✨', value: product.design },
-                    { label: 'Sécurité', icon: '🔒', value: product.securite },
-                    { label: 'Résistance', icon: '💪', value: product.resistance },
-                    { label: 'Pays de fabrication', icon: '🌍', value: product.paysFabrication },
-                    { label: 'Poids', icon: '⚖️', value: product.weight ? `${product.weight} g` : undefined },
-                  ].filter(row => row.value).map((row, i) => (
-                    <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-[#FDFBF8]' : 'bg-white'}`}>
-                      <div className="flex items-center gap-3 sm:w-1/2">
-                        <span className="text-base">{row.icon}</span>
-                        <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
+                    ))}
+                  </div>
+                  
+                  <div className="divide-y divide-[#F3EFE8]">
+                    {[
+                      { label: 'Spécification / Type', icon: '📐', value: product.type || product.specification },
+                      { label: 'Design', icon: '✨', value: product.design },
+                      { label: 'Sécurité', icon: '🔒', value: product.securite },
+                      { label: 'Résistance', icon: '💪', value: product.resistance },
+                      { label: 'Pays de fabrication', icon: '🌍', value: product.paysFabrication },
+                      { label: 'Poids', icon: '⚖️', value: product.weight ? `${product.weight} g` : undefined },
+                    ].filter(row => row.value).map((row, i) => (
+                      <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-[#FDFBF8]' : 'bg-white'}`}>
+                        <div className="flex items-center gap-3 sm:w-1/2">
+                          <span className="text-base">{row.icon}</span>
+                          <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
                       </div>
-                      <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </Accordion>
+
+              {/* Accordion 3: Informations Pratiques */}
+              {(product.applications || product.conseilsEntretien || product.informationCommerciale || product.compatibleAvec) && (
+                <Accordion 
+                  title="Informations Pratiques & Applications" 
+                  icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  defaultOpen={false}
+                >
+                  <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 bg-[#FDFBF8]">
+                    {product.applications && (
+                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-[#1A1A1A] flex items-center justify-center mb-3">
+                          <span className="text-white text-sm">🎯</span>
+                        </div>
+                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Applications & Usages</h3>
+                        <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.applications}</p>
+                        {product.compatibleAvec && (
+                          <div className="mt-3 pt-3 border-t border-[#F3EFE8]">
+                            <p className="text-[10px] font-bold text-[#6B6B6B] uppercase mb-1">Compatible avec :</p>
+                            <p className="text-[#1A1A1A] text-xs font-medium">{product.compatibleAvec}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {product.conseilsEntretien && (
+                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-[#10B981] flex items-center justify-center mb-3">
+                          <span className="text-white text-sm">💧</span>
+                        </div>
+                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Conseils d'Entretien</h3>
+                        <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.conseilsEntretien}</p>
+                      </div>
+                    )}
+
+                    {(product.informationCommerciale || product.packaging || product.minOrderQty) && (
+                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center mb-3">
+                          <span className="text-white text-sm">📦</span>
+                        </div>
+                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Infos Commerciales</h3>
+                        {product.informationCommerciale && (
+                          <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap mb-3">{product.informationCommerciale}</p>
+                        )}
+                        <ul className="space-y-1.5 text-xs">
+                          {product.packaging && (
+                            <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Conditionnement</span> <span className="font-bold text-[#1A1A1A]">{product.packaging}</span></li>
+                          )}
+                          {product.minOrderQty && (
+                            <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Quantité min. (MOQ)</span> <span className="font-bold text-[#1A1A1A]">{product.minOrderQty} unités</span></li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </Accordion>
+              )}
             </div>
 
-            {/* Informations Pratiques (Applications, Entretien, Commercial) */}
-            {(product.applications || product.conseilsEntretien || product.informationCommerciale || product.compatibleAvec) && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {product.applications && (
-                  <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-10 h-10 rounded-full bg-[#1A1A1A] flex items-center justify-center mb-4">
-                      <span className="text-white text-lg">🎯</span>
-                    </div>
-                    <h3 className="font-bold text-[#1A1A1A] mb-3 font-outfit">Applications & Usages</h3>
-                    <p className="text-[#4A4A4A] text-sm leading-relaxed whitespace-pre-wrap">{product.applications}</p>
-                    {product.compatibleAvec && (
-                      <div className="mt-4 pt-4 border-t border-[#F3EFE8]">
-                        <p className="text-xs font-bold text-[#6B6B6B] uppercase mb-1">Compatible avec :</p>
-                        <p className="text-[#1A1A1A] text-sm font-medium">{product.compatibleAvec}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {product.conseilsEntretien && (
-                  <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-10 h-10 rounded-full bg-[#10B981] flex items-center justify-center mb-4">
-                      <span className="text-white text-lg">💧</span>
-                    </div>
-                    <h3 className="font-bold text-[#1A1A1A] mb-3 font-outfit">Conseils d'Entretien</h3>
-                    <p className="text-[#4A4A4A] text-sm leading-relaxed whitespace-pre-wrap">{product.conseilsEntretien}</p>
-                  </div>
-                )}
-
-                {(product.informationCommerciale || product.packaging || product.minOrderQty) && (
-                  <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center mb-4">
-                      <span className="text-white text-lg">📦</span>
-                    </div>
-                    <h3 className="font-bold text-[#1A1A1A] mb-3 font-outfit">Infos Commerciales</h3>
-                    {product.informationCommerciale && (
-                      <p className="text-[#4A4A4A] text-sm leading-relaxed whitespace-pre-wrap mb-3">{product.informationCommerciale}</p>
-                    )}
-                    <ul className="space-y-2 text-sm">
-                      {product.packaging && (
-                        <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Conditionnement</span> <span className="font-bold text-[#1A1A1A]">{product.packaging}</span></li>
-                      )}
-                      {product.minOrderQty && (
-                        <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Quantité min. (MOQ)</span> <span className="font-bold text-[#1A1A1A]">{product.minOrderQty} unités</span></li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            
             {/* Mots-clés SEO */}
             {(product.motsCles || (product.tags && product.tags.length > 0)) && (
-              <div className="flex flex-wrap items-center gap-2 pt-4">
+              <div className="flex flex-wrap items-center gap-2 pt-4 px-2">
                 <span className="text-xs font-bold text-gray-400 uppercase mr-2">Tags:</span>
                 {[...(product.tags || []), ...(product.motsCles ? product.motsCles.split(',').map(k => k.trim()) : [])]
                   .filter((v, i, a) => a.indexOf(v) === i && v) // unique
                   .map(tag => (
-                    <span key={tag} className="px-3 py-1 rounded-full bg-[#F3EFE8] text-[#4A4A4A] text-xs font-medium hover:bg-[#E8E4DF] transition-colors cursor-pointer">
+                    <span key={tag} className="px-3 py-1 rounded-full bg-[#F3EFE8] text-[#4A4A4A] text-[10px] font-bold uppercase tracking-wider hover:bg-[#E8E4DF] transition-colors cursor-pointer">
                       #{tag}
                     </span>
                 ))}
