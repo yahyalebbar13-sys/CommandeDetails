@@ -1329,6 +1329,27 @@ function CategoriesView() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCat, setEditingCat] = useState<CatItem | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteCat = async (cat: CatItem) => {
+    setDeleting(true);
+    try {
+      if (cat.isCustom) {
+        await deleteDoc(doc(db, 'shop_custom_categories', cat.id));
+        setCustomCats(prev => prev.filter(c => c.id !== cat.id));
+      } else {
+        // Hide built-in category via override
+        await setDoc(doc(db, 'shop_category_overrides', cat.slug), { hidden: true }, { merge: true });
+        setOverrides(prev => ({ ...prev, [cat.slug]: { ...prev[cat.slug], hidden: true } as any }));
+      }
+    } catch (err) {
+      console.error('Delete category error:', err);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -1342,13 +1363,13 @@ function CategoriesView() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // Merge hardcoded + custom
+  // Merge hardcoded + custom, filter hidden
   const allCats: CatItem[] = [
     ...SHOP_CATEGORIES.map(c => ({
       ...c,
       isCustom: false,
       ...(overrides[c.slug] || {}),
-    })),
+    })).filter((c: any) => !c.hidden),
     ...customCats,
   ].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
@@ -1416,6 +1437,30 @@ function CategoriesView() {
                     >
                       <Pencil className="w-3 h-3" /> Modifier
                     </button>
+                    {deleteConfirmId === cat.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDeleteCat(cat)}
+                          disabled={deleting}
+                          className="flex items-center gap-1 text-[10px] text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded-lg transition-all disabled:opacity-50"
+                        >
+                          {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />} Confirmer
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="text-[10px] text-gray-500 hover:text-white px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeleteConfirmId(cat.id)}
+                        className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-1 rounded-lg transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" /> Supprimer
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
