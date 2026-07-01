@@ -55,6 +55,28 @@ export interface ShopProduct {
   packaging?: string;      // Emballage
   minOrderQty?: number;
   wholesalePrice?: number;
+  
+  // ── Détails Hyper Pro (Informations Complémentaires) ──
+  applications?: string;
+  avantages?: string;
+  conseilsEntretien?: string;
+  informationCommerciale?: string;
+  motsCles?: string;
+  
+  // ── Détails Hyper Pro (Caractéristiques Techniques) ──
+  typeProduit?: string;
+  matiereMailles?: string;
+  compositionRuban?: string;
+  couleur?: string;
+  largeurMaille?: string;
+  longueur?: string;
+  type?: string;
+  design?: string;
+  securite?: string;
+  resistance?: string;
+  compatibleAvec?: string;
+  paysFabrication?: string;
+
   createdAt?: any;
   updatedAt?: any;
 }

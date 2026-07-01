@@ -2015,6 +2015,24 @@ function ProduitsView() {
       isPromo: merged.isPromo || false,
       inStock: merged.inStock,
       stockQty: merged.stockQty,
+      // Hyper Pro
+      applications: merged.applications || '',
+      avantages: merged.avantages || '',
+      conseilsEntretien: merged.conseilsEntretien || '',
+      informationCommerciale: merged.informationCommerciale || '',
+      motsCles: merged.motsCles || '',
+      typeProduit: merged.typeProduit || '',
+      matiereMailles: merged.matiereMailles || '',
+      compositionRuban: merged.compositionRuban || '',
+      couleur: merged.couleur || '',
+      largeurMaille: merged.largeurMaille || '',
+      longueur: merged.longueur || '',
+      type: merged.type || '',
+      design: merged.design || '',
+      securite: merged.securite || '',
+      resistance: merged.resistance || '',
+      compatibleAvec: merged.compatibleAvec || '',
+      paysFabrication: merged.paysFabrication || '',
     });
     // Initialize variant editor from current product variants
     setEditVariants((merged.variants || []).map(v => ({
@@ -2087,6 +2105,10 @@ function ProduitsView() {
       if ((editForm as any).weight) base.weight = parseFloat((editForm as any).weight) || undefined;
       if ((editForm as any).width) base.width = (editForm as any).width;
       if ((editForm as any).packaging) base.packaging = (editForm as any).packaging;
+
+      ['applications', 'avantages', 'conseilsEntretien', 'informationCommerciale', 'motsCles', 'typeProduit', 'matiereMailles', 'compositionRuban', 'couleur', 'largeurMaille', 'longueur', 'type', 'design', 'securite', 'resistance', 'compatibleAvec', 'paysFabrication'].forEach(k => {
+        if ((editForm as any)[k] !== undefined) base[k] = (editForm as any)[k];
+      });
 
       await setDoc(doc(db, 'shop_product_overrides', productId), base, { merge: true });
       setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...base } as any }));
@@ -2525,6 +2547,60 @@ Cette action est irréversible.`)) return;
                     </div>
                   </div>
 
+                  {/* ─── Détails Hyper Pro (Édition) ─── */}
+                  <div className="mt-5 pt-4 border-t border-white/10">
+                    <p className="text-[10px] font-bold text-[#25D366] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <span>✨</span> Détails Hyper Pro (Fiche Produit)
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                      {[
+                        { key: 'applications', label: 'Applications (Secteurs/Usages)' },
+                        { key: 'avantages', label: 'Avantages' },
+                        { key: 'conseilsEntretien', label: 'Conseils d\'entretien' },
+                        { key: 'informationCommerciale', label: 'Infos Commerciales (Conditionnement, MOQ...)' },
+                        { key: 'motsCles', label: 'Mots-clés SEO additionnels' },
+                      ].map(({ key, label }) => (
+                        <div key={key} className="space-y-1.5 col-span-1 sm:col-span-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+                          <textarea
+                            value={(editForm as any)[key] || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, [key]: e.target.value }))}
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#25D366]/50 resize-y"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Caractéristiques Détaillées</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { key: 'typeProduit', label: 'Type de produit' },
+                        { key: 'matiereMailles', label: 'Matière mailles' },
+                        { key: 'compositionRuban', label: 'Comp. ruban' },
+                        { key: 'couleur', label: 'Couleur' },
+                        { key: 'largeurMaille', label: 'Largeur maille' },
+                        { key: 'longueur', label: 'Longueur' },
+                        { key: 'type', label: 'Type' },
+                        { key: 'design', label: 'Design' },
+                        { key: 'securite', label: 'Sécurité' },
+                        { key: 'resistance', label: 'Résistance' },
+                        { key: 'compatibleAvec', label: 'Compatible avec' },
+                        { key: 'paysFabrication', label: 'Pays fabrication' },
+                      ].map(({ key, label }) => (
+                        <div key={key} className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider truncate block" title={label}>{label}</label>
+                          <input
+                            type="text"
+                            value={(editForm as any)[key] || ''}
+                            onChange={e => setEditForm(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#25D366]/50"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               )}
             </div>
@@ -2578,6 +2654,24 @@ function NouveauProduitModal({
     weight: '',
     width: '',
     packaging: '',
+    // Hyper pro
+    applications: '',
+    avantages: '',
+    conseilsEntretien: '',
+    informationCommerciale: '',
+    motsCles: '',
+    typeProduit: '',
+    matiereMailles: '',
+    compositionRuban: '',
+    couleur: '',
+    largeurMaille: '',
+    longueur: '',
+    type: '',
+    design: '',
+    securite: '',
+    resistance: '',
+    compatibleAvec: '',
+    paysFabrication: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
   type VariantForm = { id: string; color: string; colorHex: string; image?: string; size: string; stockStatus: StockStatus; price: string };
@@ -2677,6 +2771,24 @@ function NouveauProduitModal({
         ...(form.weight ? { weight: parseFloat(form.weight) } : {}),
         ...(form.width.trim() ? { width: form.width.trim() } : {}),
         ...(form.packaging.trim() ? { packaging: form.packaging.trim() } : {}),
+        // Hyper Pro
+        ...(form.applications.trim() ? { applications: form.applications.trim() } : {}),
+        ...(form.avantages.trim() ? { avantages: form.avantages.trim() } : {}),
+        ...(form.conseilsEntretien.trim() ? { conseilsEntretien: form.conseilsEntretien.trim() } : {}),
+        ...(form.informationCommerciale.trim() ? { informationCommerciale: form.informationCommerciale.trim() } : {}),
+        ...(form.motsCles.trim() ? { motsCles: form.motsCles.trim() } : {}),
+        ...(form.typeProduit.trim() ? { typeProduit: form.typeProduit.trim() } : {}),
+        ...(form.matiereMailles.trim() ? { matiereMailles: form.matiereMailles.trim() } : {}),
+        ...(form.compositionRuban.trim() ? { compositionRuban: form.compositionRuban.trim() } : {}),
+        ...(form.couleur.trim() ? { couleur: form.couleur.trim() } : {}),
+        ...(form.largeurMaille.trim() ? { largeurMaille: form.largeurMaille.trim() } : {}),
+        ...(form.longueur.trim() ? { longueur: form.longueur.trim() } : {}),
+        ...(form.type.trim() ? { type: form.type.trim() } : {}),
+        ...(form.design.trim() ? { design: form.design.trim() } : {}),
+        ...(form.securite.trim() ? { securite: form.securite.trim() } : {}),
+        ...(form.resistance.trim() ? { resistance: form.resistance.trim() } : {}),
+        ...(form.compatibleAvec.trim() ? { compatibleAvec: form.compatibleAvec.trim() } : {}),
+        ...(form.paysFabrication.trim() ? { paysFabrication: form.paysFabrication.trim() } : {}),
       };
       await setDoc(doc(db, 'shop_custom_products', id), product);
       const imgCount = (product.images as string[]).length;
@@ -2817,6 +2929,60 @@ function NouveauProduitModal({
                   className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* ─── Détails Hyper Pro (Création) ─── */}
+          <div className="mt-5 pt-4 border-t border-white/10">
+            <p className="text-[10px] font-bold text-[#25D366] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <span>✨</span> Détails Hyper Pro (Fiche Produit)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {[
+                { key: 'applications', label: 'Applications (Secteurs/Usages)' },
+                { key: 'avantages', label: 'Avantages' },
+                { key: 'conseilsEntretien', label: 'Conseils d\'entretien' },
+                { key: 'informationCommerciale', label: 'Infos Commerciales (Conditionnement, MOQ...)' },
+                { key: 'motsCles', label: 'Mots-clés SEO additionnels' },
+              ].map(({ key, label }) => (
+                <div key={key} className="space-y-1.5 col-span-1 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>
+                  <textarea
+                    value={(form as any)[key] || ''}
+                    onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#25D366]/50 resize-y"
+                  />
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Caractéristiques Détaillées</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { key: 'typeProduit', label: 'Type de produit' },
+                { key: 'matiereMailles', label: 'Matière mailles' },
+                { key: 'compositionRuban', label: 'Comp. ruban' },
+                { key: 'couleur', label: 'Couleur' },
+                { key: 'largeurMaille', label: 'Largeur maille' },
+                { key: 'longueur', label: 'Longueur' },
+                { key: 'type', label: 'Type' },
+                { key: 'design', label: 'Design' },
+                { key: 'securite', label: 'Sécurité' },
+                { key: 'resistance', label: 'Résistance' },
+                { key: 'compatibleAvec', label: 'Compatible avec' },
+                { key: 'paysFabrication', label: 'Pays fabrication' },
+              ].map(({ key, label }) => (
+                <div key={key} className="space-y-1.5">
+                  <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider truncate block" title={label}>{label}</label>
+                  <input
+                    type="text"
+                    value={(form as any)[key] || ''}
+                    onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                    className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#25D366]/50"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
