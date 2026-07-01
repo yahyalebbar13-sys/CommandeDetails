@@ -2013,7 +2013,13 @@ function ProduitsView() {
       // Build override without undefined values
       const base: Record<string, unknown> = {};
       if (editForm.name?.trim()) base.name = editForm.name.trim();
-      if (editForm.categorySlug?.trim()) base.categorySlug = editForm.categorySlug.trim();
+      if (editForm.categorySlug?.trim()) {
+        base.categorySlug = editForm.categorySlug.trim();
+        const cat = allCategoriesLocal.find(c => c.slug === base.categorySlug);
+        if (cat) {
+          base.categoryName = cat.name;
+        }
+      }
       if (editForm.shortDescription !== undefined) base.shortDescription = editForm.shortDescription;
       if (editForm.description !== undefined) base.description = editForm.description;
       if (editForm.price !== undefined) base.price = editForm.price;
