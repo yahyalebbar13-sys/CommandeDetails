@@ -27,7 +27,6 @@ interface FacturesViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
-  generalCategories: any[];
   selectedFactureId: string | null;
   setSelectedFactureId: (id: string | null) => void;
   onNavigateToCategory: (categoryName: string) => void;
@@ -39,7 +38,6 @@ export default function FacturesView({
   articles, 
   factures,
   subCategories,
-  generalCategories,
   selectedFactureId, 
   setSelectedFactureId,
   onNavigateToCategory,
@@ -81,25 +79,7 @@ export default function FacturesView({
       if (fArticles.length === 0) { result[facture.id] = { revient: 0, vente: 0, hasDp }; return; }
 
       const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
-      // ── Live declared value from DP puMap × real quantities ──
-      const isPole = (c: string, g: string) => { const u = (c + ' ' + g).toUpperCase(); return u.includes('ZIPPER') || u.includes('SLIDER'); };
-      let liveDV = 0;
-      if (Object.keys(puMap).length > 0) {
-        const grp: Record<string, { qty: number; nw: number; displayId: string; isGrouped: boolean }> = {};
-        for (const a of fArticles) {
-          const rawCat = a.categoryId || '—';
-          const sc = subCategories.find((c: any) => c.name === rawCat);
-          const gcId: string | null = sc?.generalCategoryId || a.generalCategoryId || null;
-          const gcName = gcId ? (generalCategories.find((g: any) => g.id === gcId)?.name || '') : '';
-          const sg = !!gcId && isPole(rawCat, gcName);
-          const key = sg ? `GEN:${gcId}` : rawCat;
-          if (!grp[key]) { const dId = sg ? (generalCategories.find((g: any) => g.id === gcId)?.name || gcId!) : rawCat; grp[key] = { qty: 0, nw: 0, displayId: dId, isGrouped: sg }; }
-          grp[key].qty += Number(a.quantity) || 0;
-          grp[key].nw += Number(a.netWeight) || 0;
-        }
-        for (const g of Object.values(grp)) { const pu = parseFloat(puMap[g.displayId] ?? '') || 0; liveDV += pu * (g.isGrouped ? g.nw : g.qty); }
-      }
-      const declaredValue = liveDV > 0 ? liveDV : (Number(facture.declaredValue) || 0);
+      const declaredValue = Number(facture.declaredValue) || 0;
       const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
       const exchange = Number(facture.exchangeInvoiceAmount) || 0;
       const transitaire = Number(facture.supplierInvoiceAmount) || 0;
@@ -165,18 +145,12 @@ export default function FacturesView({
       result[facture.id] = { revient: dosRevient, vente: dosVente, hasDp };
     });
     return result;
-  }, [factures, articles, subCategories, generalCategories, dpDeclarations]);
+  }, [factures, articles, subCategories, dpDeclarations]);
 
   const { declaredFactures, orphanedFactureIds } = useMemo(() => {
     const declaredIds = new Set((factures || []).map(f => f.id));
     const allIdsFromArticles = new Set(articles.map(a => a.factureId).filter(Boolean));
     const orphaned = Array.from(allIdsFromArticles).filter(id => !declaredIds.has(id));
-
-    // Helper: same pole-grouping logic as dp-view
-    const isPoleCategory = (catName: string, genCatName: string): boolean => {
-      const upper = (catName + ' ' + genCatName).toUpperCase();
-      return upper.includes('ZIPPER') || upper.includes('SLIDER');
-    };
 
     const aggregated = (factures || []).map(f => {
       const fArticles = articles.filter(o => o.factureId === f.id);
@@ -188,42 +162,11 @@ export default function FacturesView({
       const efficiency = cbm > 0 ? (freight / cbm) : 0;
       const realFactureValue = itemsVal + freight;
       const isIncomplete = fArticles.some(o => !Number(o.netWeight) || !Number(o.cubicMeasurement));
-
-      // ── Calcul live de la valeur douane depuis puMap + quantités réelles ──
-      const puMap = dpDeclarations[f.id] || {};
-      let liveDeclaredValue = 0;
-      if (Object.keys(puMap).length > 0 && fArticles.length > 0) {
-        // Group articles the same way dp-view does (pole grouping for Zipper/Slider)
-        const groups: Record<string, { qty: number; nw: number; displayId: string; isGrouped: boolean }> = {};
-        for (const a of fArticles) {
-          const rawCat = a.categoryId || '—';
-          const subCat = subCategories.find((c: any) => c.name === rawCat);
-          const genCatId: string | null = subCat?.generalCategoryId || a.generalCategoryId || null;
-          const genCatName = genCatId ? (generalCategories.find((g: any) => g.id === genCatId)?.name || '') : '';
-          const shouldGroup = !!genCatId && isPoleCategory(rawCat, genCatName);
-          const key = shouldGroup ? `GEN:${genCatId}` : rawCat;
-          if (!groups[key]) {
-            const displayId = shouldGroup ? (generalCategories.find((g: any) => g.id === genCatId)?.name || genCatId!) : rawCat;
-            groups[key] = { qty: 0, nw: 0, displayId, isGrouped: shouldGroup };
-          }
-          groups[key].qty += Number(a.quantity) || 0;
-          groups[key].nw += Number(a.netWeight) || 0;
-        }
-        // Sum puMap[categoryId] × effectiveQty
-        for (const g of Object.values(groups)) {
-          const pu = parseFloat(puMap[g.displayId] ?? '') || 0;
-          const effectiveQty = g.isGrouped ? g.nw : g.qty;
-          liveDeclaredValue += pu * effectiveQty;
-        }
-      }
-      // Use live value if available, otherwise fallback to stored declaredValue
-      const effectiveDeclaredValue = liveDeclaredValue > 0 ? liveDeclaredValue : (Number(f.declaredValue) || 0);
-
-      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete, liveDeclaredValue, effectiveDeclaredValue };
+      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete };
     }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
-  }, [articles, factures, dpDeclarations, subCategories, generalCategories]);
+  }, [articles, factures]);
 
   const selectedFacture = useMemo(() => {
     if (!selectedFactureId) return null;
@@ -244,7 +187,7 @@ export default function FacturesView({
     const facture = declaredFactures.find(f => f.id === selectedFactureId);
     if (!facture) return 0;
     const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
-    const declaredValue = Number(facture.effectiveDeclaredValue) || Number(facture.declaredValue) || 0;
+    const declaredValue = Number(facture.declaredValue) || 0;
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
     return factureArticles.reduce((total, a) => {
       const nw = Number(a.netWeight) || 0;
@@ -393,10 +336,7 @@ export default function FacturesView({
               </div>
               <div className="bg-amber-600 p-5 rounded-2xl text-white shadow-lg shadow-amber-600/20">
                 <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mb-1">Valeur Douane</p>
-                <div className="text-xl font-black">{Number(selectedFacture.effectiveDeclaredValue || selectedFacture.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
-                {selectedFacture.liveDeclaredValue > 0 && selectedFacture.liveDeclaredValue !== Number(selectedFacture.declaredValue) && (
-                  <p className="text-[7px] font-bold text-amber-300/70 mt-0.5">LIVE (DP × QTÉ réelles)</p>
-                )}
+                <div className="text-xl font-black">{Number(selectedFacture.declaredValue || selectedFacture.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</div>
               </div>
               <div className="bg-red-600 p-5 rounded-2xl text-white shadow-lg shadow-red-600/20">
                 <p className="text-[8px] font-black text-red-100 uppercase tracking-widest mb-1">Droits Payés</p>
@@ -464,11 +404,11 @@ export default function FacturesView({
                   <p className="text-[12px] font-black text-stone-300">{selectedFacture.additionalCostsAmount.toLocaleString()} <span className="text-[8px] font-bold opacity-60 ml-0.5">MAD</span></p>
                 </div>
               )}
-              {selectedFacture.invoicePaidDhs > 0 && selectedFacture.effectiveDeclaredValue > 0 && (
+              {selectedFacture.invoicePaidDhs > 0 && selectedFacture.declaredValue > 0 && (
                 <div className="border-l border-white/10 pl-8">
                   <p className="text-[7px] font-bold text-blue-400 uppercase tracking-widest mb-0.5">Taux de Change</p>
                   <p className="text-[12px] font-black text-blue-300">
-                    {(selectedFacture.invoicePaidDhs / selectedFacture.effectiveDeclaredValue).toFixed(4)}
+                    {(selectedFacture.invoicePaidDhs / selectedFacture.declaredValue).toFixed(4)}
                     <span className="text-[8px] font-bold opacity-60 ml-1">MAD/$</span>
                   </p>
                   <p className="text-[7px] text-blue-500/60 uppercase tracking-widest">FACTURE PAYÉE ÷ VALEUR DOUANE</p>
@@ -856,7 +796,7 @@ export default function FacturesView({
               <div className="pt-6 border-t border-stone-100 flex justify-between items-end">
                 <div>
                   <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Valeur Déclarée (Douane)</p>
-                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Number(f.effectiveDeclaredValue || f.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
+                  <p className="text-2xl font-black text-amber-600 tracking-tighter">{Number(f.declaredValue || f.realFactureValue).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</p>
                 </div>
                 <div className="p-3 bg-stone-50 rounded-xl group-hover:bg-stone-900 group-hover:text-white transition-all">
                   <ArrowUpRight className="w-4 h-4" />

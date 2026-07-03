@@ -214,6 +214,21 @@ export default function DPView({ articles, factures, subCategories, generalCateg
 
   const totalQty = lines.reduce((s, l) => s + l.totalQty, 0);
   const totalMT = lines.reduce((s, l) => s + l.mt, 0);
+
+  // ── Auto-sync declaredValue sur la facture quand le total change ──
+  useEffect(() => {
+    if (!selectedFactureId || !firestore || !user) return;
+    if (totalMT <= 0) return;
+    // Seulement si on a un puMap (donc une DP existe)
+    const hasPu = Object.values(puMap).some(v => parseFloat(v) > 0);
+    if (!hasPu) return;
+    setDoc(
+      doc(firestore, 'users', user.uid, 'factures', selectedFactureId),
+      { declaredValue: totalMT },
+      { merge: true }
+    ).catch(() => {});
+  }, [totalMT, selectedFactureId, firestore, user, puMap]);
+
   // Valeur déclarée en douane (USD) depuis le dossier
   const declaredValueDollar = Number(selectedFacture?.declaredValue) || 0;
 

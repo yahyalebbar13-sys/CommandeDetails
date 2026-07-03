@@ -581,7 +581,7 @@ function AdminApp() {
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />
             </div>
             <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
-              <FacturesView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} />
+              <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} />
             </div>
             <div className={activeTab === 'general-categories' ? 'block animate-in fade-in' : 'hidden'}>
               <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
