@@ -31,11 +31,11 @@ const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
   { labelKey: "nav_promos", href: "/shop/promotions" },
   { labelKey: "nav_precommande", href: "/shop/precommande" },
+  { labelKey: "nav_boutiques", href: "/shop/a-propos" },
   { labelKey: "nav_more", href: "#", isMoreDropdown: true },
 ];
 
 const MORE_LINKS = [
-  { labelKey: "nav_boutiques", href: "/shop/a-propos" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];
