@@ -10,27 +10,31 @@ import { db } from '@/lib/firebase-db';
 import { doc, getDoc } from 'firebase/firestore';
 import type { CartItem, ProductVariant } from '@/lib/shop-types';
 
-function SidePanel({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode }) {
+function Accordion({ title, icon, defaultOpen = false, children }: { title: string, icon: React.ReactNode, defaultOpen?: boolean, children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   return (
-    <>
-      <div 
-        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
-        onClick={onClose} 
-      />
-      <div 
-        className={`fixed top-0 right-0 h-full w-full max-w-md bg-white z-[101] shadow-2xl flex flex-col transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+    <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm mb-4">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-6 py-4 transition-colors hover:bg-[#FBF8F3] text-left"
+        style={{ background: isOpen ? 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' : 'white' }}
       >
-        <div className="flex items-center justify-between p-6 border-b border-[#F3EFE8] bg-[#FBF8F3]">
-          <h2 className="text-xl font-bold text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>{title}</h2>
-          <button onClick={onClose} className="p-2 bg-white hover:bg-gray-100 rounded-full transition-colors shadow-sm">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 shadow-inner ${isOpen ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-500'}`}>
+            {icon}
+          </div>
+          <h2 className="font-bold text-[#1A1A1A] text-base md:text-lg" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {title}
+          </h2>
         </div>
-        <div className="p-6 overflow-y-auto flex-1">
+        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="border-t border-[#F3EFE8]">
           {children}
         </div>
-      </div>
-    </>
+      )}
+    </div>
   );
 }
 
@@ -332,7 +336,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [mainImg, setMainImg] = React.useState(0);
   const [wished, setWished] = React.useState(false);
   const [added, setAdded] = React.useState(false);
-  const [openPanel, setOpenPanel] = React.useState<'description' | 'specs' | 'infos' | null>(null);
 
   React.useEffect(() => {
     if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
@@ -618,38 +621,141 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             )}
 
             <div className="space-y-4">
+              {/* Accordion 1: Description détaillée & Avantages */}
               {(product.description || product.avantages) && (
-                <button onClick={() => setOpenPanel('description')} className="w-full flex items-center justify-between p-5 bg-white border border-[#E8E4DF] rounded-xl hover:border-[#C8102E] hover:shadow-md transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#FBF8F3] text-[#C8102E] flex items-center justify-center group-hover:bg-[#C8102E] group-hover:text-white transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
-                    </div>
-                    <span className="font-bold text-[#1A1A1A] text-base">Description & Avantages</span>
+                <Accordion 
+                  title="Description & Avantages" 
+                  icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>}
+                  defaultOpen={true}
+                >
+                  <div className="px-6 py-6 space-y-6">
+                    {product.description && (
+                      <div className="text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
+                        {product.description.split('\n').filter(Boolean).map((para, i) => (
+                          <p key={i}>{para}</p>
+                        ))}
+                      </div>
+                    )}
+                    {product.avantages && (
+                      <div className="bg-[#FBF8F3] rounded-xl p-5 border border-[#F3EFE8]">
+                        <h3 className="text-[#D4A843] font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span>✨</span> Avantages Principaux
+                        </h3>
+                        <div className="text-[#4A4A4A] text-[15px] space-y-2">
+                          {product.avantages.split('\n').filter(Boolean).map((para, i) => (
+                            <p key={i} className="flex gap-2">
+                              <span className="text-[#25D366] mt-1 flex-shrink-0">✓</span> {para}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#C8102E] transition-colors" />
-                </button>
+                </Accordion>
               )}
 
-              <button onClick={() => setOpenPanel('specs')} className="w-full flex items-center justify-between p-5 bg-white border border-[#E8E4DF] rounded-xl hover:border-[#C8102E] hover:shadow-md transition-all group">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#FBF8F3] text-[#C8102E] flex items-center justify-center group-hover:bg-[#C8102E] group-hover:text-white transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              {/* Accordion 2: Caractéristiques Techniques */}
+              <Accordion 
+                title="Caractéristiques Techniques" 
+                icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                defaultOpen={false}
+              >
+                <div className="grid grid-cols-1 divide-y divide-[#F3EFE8]">
+                  <div className="divide-y divide-[#F3EFE8]">
+                    {[
+                      { label: 'Type de Produit', icon: '🏷️', value: product.typeProduit },
+                      { label: 'Matériau / Mailles', icon: '🧵', value: product.matiereMailles || product.material },
+                      { label: 'Composition Ruban', icon: '🎗️', value: product.compositionRuban },
+                      { label: 'Largeur', icon: '↔️', value: product.largeurMaille || product.width },
+                      { label: 'Longueur', icon: '📏', value: product.longueur },
+                      { label: 'Couleur', icon: '🎨', value: product.couleur },
+                    ].filter(row => row.value).map((row, i) => (
+                      <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-white' : 'bg-[#FDFBF8]'}`}>
+                        <div className="flex items-center gap-3 sm:w-1/2">
+                          <span className="text-base">{row.icon}</span>
+                          <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
+                      </div>
+                    ))}
                   </div>
-                  <span className="font-bold text-[#1A1A1A] text-base">Caractéristiques Techniques</span>
+                  
+                  <div className="divide-y divide-[#F3EFE8]">
+                    {[
+                      { label: 'Spécification / Type', icon: '📐', value: product.type || product.specification },
+                      { label: 'Design', icon: '✨', value: product.design },
+                      { label: 'Sécurité', icon: '🔒', value: product.securite },
+                      { label: 'Résistance', icon: '💪', value: product.resistance },
+                      { label: 'Pays de fabrication', icon: '🌍', value: product.paysFabrication },
+                      { label: 'Poids', icon: '⚖️', value: product.weight ? `${product.weight} g` : undefined },
+                    ].filter(row => row.value).map((row, i) => (
+                      <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-[#FDFBF8]' : 'bg-white'}`}>
+                        <div className="flex items-center gap-3 sm:w-1/2">
+                          <span className="text-base">{row.icon}</span>
+                          <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
+                        </div>
+                        <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#C8102E] transition-colors" />
-              </button>
+              </Accordion>
 
+              {/* Accordion 3: Informations Pratiques */}
               {(product.applications || product.conseilsEntretien || product.informationCommerciale || product.compatibleAvec) && (
-                <button onClick={() => setOpenPanel('infos')} className="w-full flex items-center justify-between p-5 bg-white border border-[#E8E4DF] rounded-xl hover:border-[#C8102E] hover:shadow-md transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#FBF8F3] text-[#C8102E] flex items-center justify-center group-hover:bg-[#C8102E] group-hover:text-white transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <span className="font-bold text-[#1A1A1A] text-base">Informations Pratiques</span>
+                <Accordion 
+                  title="Informations Pratiques & Applications" 
+                  icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  defaultOpen={false}
+                >
+                  <div className="p-5 grid grid-cols-1 gap-5 bg-[#FDFBF8]">
+                    {product.applications && (
+                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-[#1A1A1A] flex items-center justify-center mb-3">
+                          <span className="text-white text-sm">🎯</span>
+                        </div>
+                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Applications & Usages</h3>
+                        <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.applications}</p>
+                        {product.compatibleAvec && (
+                          <div className="mt-3 pt-3 border-t border-[#F3EFE8]">
+                            <p className="text-[10px] font-bold text-[#6B6B6B] uppercase mb-1">Compatible avec :</p>
+                            <p className="text-[#1A1A1A] text-xs font-medium">{product.compatibleAvec}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {product.conseilsEntretien && (
+                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-[#10B981] flex items-center justify-center mb-3">
+                          <span className="text-white text-sm">💧</span>
+                        </div>
+                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Conseils d'Entretien</h3>
+                        <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.conseilsEntretien}</p>
+                      </div>
+                    )}
+
+                    {(product.informationCommerciale || product.packaging || product.minOrderQty) && (
+                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center mb-3">
+                          <span className="text-white text-sm">📦</span>
+                        </div>
+                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Infos Commerciales</h3>
+                        {product.informationCommerciale && (
+                          <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap mb-3">{product.informationCommerciale}</p>
+                        )}
+                        <ul className="space-y-1.5 text-xs">
+                          {product.packaging && (
+                            <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Conditionnement</span> <span className="font-bold text-[#1A1A1A]">{product.packaging}</span></li>
+                          )}
+                          {product.minOrderQty && (
+                            <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Quantité min. (MOQ)</span> <span className="font-bold text-[#1A1A1A]">{product.minOrderQty} unités</span></li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#C8102E] transition-colors" />
-                </button>
+                </Accordion>
               )}
             </div>
 
@@ -675,110 +781,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </div>
         )}
       </div>
-
-      {/* --- Side Panels Rendering --- */}
-      <SidePanel isOpen={openPanel === 'description'} onClose={() => setOpenPanel(null)} title="Description & Avantages">
-        <div className="space-y-6">
-          {product.description && (
-            <div className="text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
-              {product.description.split('\n').filter(Boolean).map((para, i) => (
-                <p key={i}>{para}</p>
-              ))}
-            </div>
-          )}
-          {product.avantages && (
-            <div className="bg-[#FBF8F3] rounded-xl p-5 border border-[#F3EFE8]">
-              <h3 className="text-[#D4A843] font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span>✨</span> Avantages Principaux
-              </h3>
-              <div className="text-[#4A4A4A] text-[15px] space-y-2">
-                {product.avantages.split('\n').filter(Boolean).map((para, i) => (
-                  <p key={i} className="flex gap-2">
-                    <span className="text-[#25D366] mt-1 flex-shrink-0">✓</span> {para}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </SidePanel>
-
-      <SidePanel isOpen={openPanel === 'specs'} onClose={() => setOpenPanel(null)} title="Caractéristiques Techniques">
-        <div className="grid grid-cols-1 divide-y divide-[#F3EFE8]">
-          {[
-            { label: 'Type de Produit', icon: '🏷️', value: product.typeProduit },
-            { label: 'Matériau / Mailles', icon: '🧵', value: product.matiereMailles || product.material },
-            { label: 'Composition Ruban', icon: '🎗️', value: product.compositionRuban },
-            { label: 'Largeur', icon: '↔️', value: product.largeurMaille || product.width },
-            { label: 'Longueur', icon: '📏', value: product.longueur },
-            { label: 'Couleur', icon: '🎨', value: product.couleur },
-            { label: 'Spécification / Type', icon: '📐', value: product.type || product.specification },
-            { label: 'Design', icon: '✨', value: product.design },
-            { label: 'Sécurité', icon: '🔒', value: product.securite },
-            { label: 'Résistance', icon: '💪', value: product.resistance },
-            { label: 'Pays de fabrication', icon: '🌍', value: product.paysFabrication },
-            { label: 'Poids', icon: '⚖️', value: product.weight ? `${product.weight} g` : undefined },
-          ].filter(row => row.value).map((row, i) => (
-            <div key={row.label} className={`flex items-center justify-between py-4 group`}>
-              <div className="flex items-center gap-3">
-                <span className="text-base">{row.icon}</span>
-                <span className="text-sm font-semibold text-[#6B6B6B]">{row.label}</span>
-              </div>
-              <span className="text-sm font-bold text-[#1A1A1A] text-right">{row.value}</span>
-            </div>
-          ))}
-        </div>
-      </SidePanel>
-
-      <SidePanel isOpen={openPanel === 'infos'} onClose={() => setOpenPanel(null)} title="Informations Pratiques">
-        <div className="grid grid-cols-1 gap-6">
-          {product.applications && (
-            <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
-              <div className="w-8 h-8 rounded-full bg-[#1A1A1A] flex items-center justify-center mb-3">
-                <span className="text-white text-sm">🎯</span>
-              </div>
-              <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Applications & Usages</h3>
-              <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.applications}</p>
-              {product.compatibleAvec && (
-                <div className="mt-3 pt-3 border-t border-[#F3EFE8]">
-                  <p className="text-[10px] font-bold text-[#6B6B6B] uppercase mb-1">Compatible avec :</p>
-                  <p className="text-[#1A1A1A] text-xs font-medium">{product.compatibleAvec}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {product.conseilsEntretien && (
-            <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
-              <div className="w-8 h-8 rounded-full bg-[#10B981] flex items-center justify-center mb-3">
-                <span className="text-white text-sm">💧</span>
-              </div>
-              <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Conseils d'Entretien</h3>
-              <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.conseilsEntretien}</p>
-            </div>
-          )}
-
-          {(product.informationCommerciale || product.packaging || product.minOrderQty) && (
-            <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
-              <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center mb-3">
-                <span className="text-white text-sm">📦</span>
-              </div>
-              <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Infos Commerciales</h3>
-              {product.informationCommerciale && (
-                <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap mb-3">{product.informationCommerciale}</p>
-              )}
-              <ul className="space-y-1.5 text-xs">
-                {product.packaging && (
-                  <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Conditionnement</span> <span className="font-bold text-[#1A1A1A]">{product.packaging}</span></li>
-                )}
-                {product.minOrderQty && (
-                  <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Quantité min. (MOQ)</span> <span className="font-bold text-[#1A1A1A]">{product.minOrderQty} unités</span></li>
-                )}
-              </ul>
-            </div>
-          )}
-        </div>
-      </SidePanel>
     </div>
   );
 }
