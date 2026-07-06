@@ -505,7 +505,6 @@ export default function StockApp() {
     { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
     { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices },
     { id: 'inventory', label: 'Inventaire',    icon: Boxes },
-    { id: 'analytics', label: 'Analytique',    icon: TrendingUp, adminOnly: true },
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
     { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ];
@@ -637,7 +636,7 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard userRole={userRole} activeStore={activeStore} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} onNavigate={(v) => setActiveView(v as any)} />
+              <StockDashboard userRole={userRole} activeStore={activeStore} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
@@ -687,9 +686,6 @@ export default function StockApp() {
             )}
             {activeView === 'inventory' && (
               <StockInventory userRole={userRole} activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
-            )}
-            {activeView === 'analytics' && (
-              <StockSales sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={setActiveView} />
             )}
             {activeView === 'movements' && (
               <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />

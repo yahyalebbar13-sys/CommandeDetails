@@ -521,7 +521,6 @@ function ProductsTable({
           )}
         </DialogContent>
       </Dialog>
-      </div>
     </div>
   );
 }
