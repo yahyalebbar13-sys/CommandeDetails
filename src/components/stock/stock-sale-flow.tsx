@@ -35,6 +35,7 @@ interface StockSaleFlowProps {
   onCreateOrder: (order: Omit<SaleOrder, 'id' | 'createdAt'>) => Promise<string>;
   onCreateInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>, movementsOut: any[]) => Promise<void>;
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<Client>;
+  userRole?: 'ADMIN' | 'COMMERCIAL';
   onNavigate: (v: any) => void;
 }
 
@@ -46,7 +47,7 @@ const STEPS = [
 ];
 
 export default function StockSaleFlow({
-  stockItems, categories, generalCategories, clients,
+  stockItems, categories, generalCategories, clients, userRole = 'ADMIN',
   onCreateOrder, onCreateInvoice, onCreateClient, onNavigate,
 }: StockSaleFlowProps) {
   const [step, setStep] = useState(0);
@@ -830,20 +831,22 @@ export default function StockSaleFlow({
 
           {/* Choix type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button onClick={() => setFinalType('order')}
-              className={`p-6 rounded-2xl border-2 text-left transition-all ${
-                finalType === 'order' ? 'border-stone-700 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-400'
-              }`}>
-              <ClipboardList className="w-8 h-8 mb-3 opacity-70" />
-              <p className="font-black text-lg uppercase tracking-tighter">Bon de Commande</p>
-              <p className={`text-[10px] font-bold mt-1 ${finalType === 'order' ? 'text-stone-400' : 'text-stone-400'}`}>
-                Enregistre la commande. Le stock N'EST PAS décompté.
-              </p>
-            </button>
+            {userRole !== 'ADMIN' && (
+              <button onClick={() => setFinalType('order')}
+                className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                  finalType === 'order' ? 'border-stone-700 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-400'
+                }`}>
+                <ClipboardList className="w-8 h-8 mb-3 opacity-70" />
+                <p className="font-black text-lg uppercase tracking-tighter">Bon de Commande</p>
+                <p className={`text-[10px] font-bold mt-1 ${finalType === 'order' ? 'text-stone-400' : 'text-stone-400'}`}>
+                  Enregistre la commande. Le stock N'EST PAS décompté.
+                </p>
+              </button>
+            )}
             <button onClick={() => setFinalType('invoice')}
               className={`p-6 rounded-2xl border-2 text-left transition-all ${
                 finalType === 'invoice' ? 'border-violet-600 bg-violet-600 text-white' : 'border-stone-200 bg-white hover:border-violet-300'
-              }`}>
+              } ${userRole === 'ADMIN' ? 'sm:col-span-2' : ''}`}>
               <CheckCircle2 className="w-8 h-8 mb-3 opacity-70" />
               <p className="font-black text-lg uppercase tracking-tighter">Facture + Sortie Stock</p>
               <p className={`text-[10px] font-bold mt-1 ${finalType === 'invoice' ? 'text-violet-200' : 'text-stone-400'}`}>

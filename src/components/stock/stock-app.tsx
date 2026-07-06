@@ -249,17 +249,20 @@ export default function StockApp() {
       if (user.email === 'yahya.lebbar13@gmail.com') {
         setUserRole('ADMIN');
         setActiveStore('ALL');
+        if (activeView === 'dashboard' && userRole !== 'ADMIN') setActiveView('dashboard');
       } else if (user.email === 'ahmed@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('DERB_OMAR');
+        if (activeView === 'dashboard') setActiveView('sale');
       } else if (user.email === 'hafid@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('CHRIFA');
+        if (activeView === 'dashboard') setActiveView('sale');
       } else {
         setUserRole('UNAUTHORIZED');
       }
     }
-  }, [user]);
+  }, [user, activeView, userRole]);
 
   // ── Collections Firestore ──────────────────────────────────────────────────
   const articlesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'),         [firestore, user]);
@@ -494,7 +497,7 @@ export default function StockApp() {
   }
 
   const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean }[] = [
-    { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard, adminOnly: true },
     { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet' },
     { id: 'stock',     label: 'En Stock',      icon: Package,         color: 'emerald' },
     { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
@@ -634,6 +637,7 @@ export default function StockApp() {
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
+                userRole={userRole}
                 stockItems={stockItems}
                 categories={categories}
                 generalCategories={generalCategories}
