@@ -1,6 +1,13 @@
 export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
 
-export type StoreLocation = 'ENTREPOT' | 'DERB_OMAR' | 'CHRIFA';
+export type StoreLocation = string;
+
+export type Store = {
+  id: string;
+  name: string;
+  type: 'WAREHOUSE' | 'STORE';
+  isMain?: boolean;
+};
 
 export type GeneralCategory = {
   id: string;
@@ -41,6 +48,7 @@ export type Order = {
   netWeight?: number;
   priority?: 'urgent' | 'important' | 'todo';
   status: OrderStatus;
+  initialQtyByStore?: Partial<Record<StoreLocation, number>>;
   createdAt?: any;
 };
 
@@ -108,10 +116,11 @@ export type StockItem = {
   hasTTCCost?: boolean;           // true si coût de revient TTC calculé, false si FOB estimé
   sellingPrice?: number;          // prix de vente configuré par l'admin
   initialQty: number;
+  initialQtyByStore?: Partial<Record<StoreLocation, number>>; // Stock initial par magasin
   mouvementsIn: number;
   mouvementsOut: number;
   currentQty: number;
-  qtyByStore?: Partial<Record<StoreLocation, number>>; // Ventilation du stock par magasin
+  qtyByStore?: Partial<Record<StoreLocation, number>>; // Ventilation du stock actuel par magasin
   totalValue: number;             // currentQty * purchasePricePerUnit
   totalSellingValue?: number;     // currentQty * sellingPrice
   minThreshold?: number;
@@ -151,6 +160,32 @@ export type Sale = {
   storeId?: StoreLocation;
   clientId?: string;
   clientName?: string;
+  notes?: string;
+  createdAt?: any;
+};
+
+// ── Bons de Transfert ──────────────────────────────────────────────────────────
+export type TransferOrderStatus = 'PENDING' | 'VALIDATED' | 'CANCELLED';
+
+export type TransferOrderItem = {
+  articleId: string;
+  categoryId: string;
+  productName: string;
+  color?: string;
+  size?: string;
+  unitOfMeasure: string;
+  sentQty: number;
+  receivedQty?: number;
+};
+
+export type TransferOrder = {
+  id: string;
+  fromStore: StoreLocation;
+  toStore: StoreLocation;
+  status: TransferOrderStatus;
+  items: TransferOrderItem[];
+  date: string;
+  receivedDate?: string;
   notes?: string;
   createdAt?: any;
 };
@@ -219,7 +254,7 @@ export type Invoice = {
   createdAt?: any;
 };
 
-export type PaymentMethod = 'CASH' | 'VIREMENT' | 'CHEQUE' | 'AUTRE';
+export type PaymentMethod = 'CASH' | 'VIREMENT' | 'CHEQUE' | 'EFFET' | 'AUTRE';
 
 export type ClientPayment = {
   id: string;
@@ -229,5 +264,11 @@ export type ClientPayment = {
   date: string;
   method: PaymentMethod;
   notes?: string;
+  // Champs pour Chèque / Effet bancaire
+  bankName?: string;
+  checkNumber?: string;
+  dueDate?: string; // Date d'échéance de l'effet
+  status?: 'PENDING' | 'CLEARED' | 'REJECTED'; // PENDING par défaut pour les effets non encaissés
+  scannedImageUrl?: string; // URL ou base64 du scan
   createdAt?: any;
 };

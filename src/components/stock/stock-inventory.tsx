@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import type { StockMovement, StockItem, StoreLocation } from '@/lib/types';
@@ -21,7 +21,9 @@ interface StockInventoryProps {
   categories: any[];
   generalCategories: any[];
   activeStore: StoreLocation | 'ALL';
+  stores: Store[];
   userRole?: 'ADMIN' | 'COMMERCIAL';
+  adminUid?: string | null;
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
@@ -43,7 +45,7 @@ const LEVEL_BADGE: Record<string, { label: string; className: string }> = {
   unknown: { label: '—',       className: 'bg-stone-100 text-stone-400 border-stone-200' },
 };
 
-export default function StockInventory({ stockItems, articles, categories, generalCategories, activeStore, userRole = 'ADMIN', onAddMovement }: StockInventoryProps) {
+export default function StockInventory({ stockItems, articles, categories, generalCategories, stores, activeStore, userRole = 'ADMIN', adminUid, onAddMovement }: StockInventoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -61,6 +63,10 @@ export default function StockInventory({ stockItems, articles, categories, gener
   const [threshModal, setThreshModal] = useState<{ open: boolean; item?: StockItem }>({ open: false });
   const [threshValue, setThreshValue] = useState('');
 
+  // Modal stock initial
+  const [initialStockModal, setInitialStockModal] = useState<{ open: boolean; item?: StockItem }>({ open: false });
+  const [initialStockValues, setInitialStockValues] = useState<Record<string, string>>({});
+
   // Edition prix de vente inline
   const [editPriceId, setEditPriceId] = useState<string | null>(null);
   const [editPriceVal, setEditPriceVal] = useState('');
@@ -68,6 +74,10 @@ export default function StockInventory({ stockItems, articles, categories, gener
   // Vue groupée ou tableau
   const [viewMode, setViewMode] = useState<'grouped' | 'table'>('grouped');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Mode Campagne d'Inventaire
+  const [inventoryMode, setInventoryMode] = useState(false);
+  const [countedQuantities, setCountedQuantities] = useState<Record<string, string>>({});
 
   const toggleGroup = (key: string) => setExpandedGroups(prev => {
     const s = new Set(prev);
@@ -123,9 +133,10 @@ export default function StockInventory({ stockItems, articles, categories, gener
 
   const handleSaveThreshold = () => {
     if (!user || !firestore || !threshModal.item) return;
+    const effectiveUid = adminUid || user.uid;
     const val = parseFloat(threshValue);
     if (isNaN(val) || val < 0) return;
-    const docRef = doc(firestore, 'users', user.uid, 'articles', threshModal.item.articleId);
+    const docRef = doc(firestore, 'users', effectiveUid, 'articles', threshModal.item.articleId);
     updateDocumentNonBlocking(docRef, { minStockThreshold: val });
     toast({ title: 'Seuil enregistré', description: `Seuil : ${val} ${threshModal.item.unitOfMeasure}` });
     setThreshModal({ open: false });
@@ -133,12 +144,99 @@ export default function StockInventory({ stockItems, articles, categories, gener
 
   const handleSaveSellingPrice = (articleId: string, unitOfMeasure: string) => {
     if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
     const val = parseFloat(editPriceVal);
     if (isNaN(val) || val < 0) return;
-    const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
+    const docRef = doc(firestore, 'users', effectiveUid, 'articles', articleId);
     updateDocumentNonBlocking(docRef, { sellingPrice: val });
     toast({ title: 'Prix de vente enregistré', description: `${fmt$(val)} / ${unitOfMeasure}` });
     setEditPriceId(null);
+  };
+
+  const handleValidateInventory = async () => {
+    if (!user || !firestore) return;
+    if (activeStore === 'ALL') {
+      toast({ title: 'Erreur', description: 'Veuillez sélectionner un magasin spécifique pour l\'inventaire', variant: 'destructive' });
+      return;
+    }
+
+    let diffCount = 0;
+    for (const item of filtered) {
+      const countedStr = countedQuantities[item.articleId];
+      if (!countedStr) continue;
+      const counted = parseFloat(countedStr);
+      if (isNaN(counted)) continue;
+
+      const diff = counted - item.currentQty;
+      if (diff !== 0) {
+        diffCount++;
+        const type = diff > 0 ? 'IN' : 'OUT';
+        const absDiff = Math.abs(diff);
+
+        await onAddMovement({
+          articleId: item.articleId,
+          type,
+          quantity: absDiff,
+          reason: 'INVENTAIRE',
+          date: new Date().toISOString().split('T')[0],
+          storeId: activeStore,
+          productName: item.productName,
+          categoryId: item.categoryId,
+          color: item.color,
+          size: item.size,
+          unitOfMeasure: item.unitOfMeasure,
+          purchasePriceMAD: item.purchasePricePerUnit,
+        });
+      }
+    }
+
+    toast({ title: 'Inventaire validé', description: `${diffCount} mouvement(s) de régularisation généré(s).` });
+    setInventoryMode(false);
+    setCountedQuantities({});
+  };
+
+  const handleSaveInitialStock = async () => {
+    if (!user || !firestore || !initialStockModal.item) return;
+    const effectiveUid = adminUid || user.uid;
+    const item = initialStockModal.item;
+    
+    const newQtyByStore: Record<string, number> = {};
+    stores.forEach(s => {
+      const v = parseFloat(initialStockValues[s.id]);
+      if (!isNaN(v) && v >= 0) newQtyByStore[s.id] = v;
+    });
+
+    const isVirtual = !!item._realArticleId;
+    const docId = isVirtual ? item._realArticleId! : item.articleId;
+    const docRef = doc(firestore, 'users', effectiveUid, 'articles', docId);
+
+    if (isVirtual) {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        let updated = false;
+        if (item._colorKey && Array.isArray(data.colorBreakdown)) {
+           data.colorBreakdown = data.colorBreakdown.map((r: any) => {
+             const lbl = (r.colorCode || r.description || r.color || '').trim();
+             if (lbl === item._colorKey) { updated = true; return { ...r, initialQtyByStore: newQtyByStore }; }
+             return r;
+           });
+           if (updated) await updateDocumentNonBlocking(docRef, { colorBreakdown: data.colorBreakdown });
+        } else if (item._sizeKey && Array.isArray(data.sizeBreakdown)) {
+           data.sizeBreakdown = data.sizeBreakdown.map((r: any) => {
+             const lbl = (r.size || '').trim();
+             if (lbl === item._sizeKey) { updated = true; return { ...r, initialQtyByStore: newQtyByStore }; }
+             return r;
+           });
+           if (updated) await updateDocumentNonBlocking(docRef, { sizeBreakdown: data.sizeBreakdown });
+        }
+      }
+    } else {
+       await updateDocumentNonBlocking(docRef, { initialQtyByStore: newQtyByStore });
+    }
+
+    toast({ title: 'Stock initial mis à jour', description: 'Les quantités de base ont été enregistrées.' });
+    setInitialStockModal({ open: false });
   };
 
   return (
@@ -166,26 +264,51 @@ export default function StockInventory({ stockItems, articles, categories, gener
           </div>
           <div className="flex items-center gap-3">
             {/* Toggle vue */}
-            <div className="flex bg-white/10 rounded-xl p-1 gap-1">
-              <button onClick={() => setViewMode('grouped')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                  viewMode === 'grouped' ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-200 hover:text-white'
-                }`}>
-                <LayoutGrid className="w-3 h-3" /> Groupé
-              </button>
-              <button onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                  viewMode === 'table' ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-200 hover:text-white'
-                }`}>
-                <LayoutList className="w-3 h-3" /> Tableau
-              </button>
-            </div>
-            <Button
-              onClick={() => setMovModal({ open: true })}
-              className="bg-white hover:bg-stone-50 text-emerald-800 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg gap-2 shrink-0"
-            >
-              <Plus className="w-4 h-4" /> Mouvement
-            </Button>
+            {!inventoryMode && (
+              <div className="flex bg-white/10 rounded-xl p-1 gap-1 shrink-0">
+                <button onClick={() => setViewMode('grouped')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                    viewMode === 'grouped' ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-200 hover:text-white'
+                  }`}>
+                  <LayoutGrid className="w-3 h-3" /> Groupé
+                </button>
+                <button onClick={() => setViewMode('table')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                    viewMode === 'table' ? 'bg-white text-emerald-800 shadow-sm' : 'text-emerald-200 hover:text-white'
+                  }`}>
+                  <LayoutList className="w-3 h-3" /> Tableau
+                </button>
+              </div>
+            )}
+            
+            {inventoryMode ? (
+              <>
+                <Button onClick={() => setInventoryMode(false)}
+                  className="bg-red-500 hover:bg-red-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg shrink-0"
+                >
+                  Annuler
+                </Button>
+                <Button onClick={handleValidateInventory}
+                  className="bg-white hover:bg-stone-50 text-emerald-800 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg shrink-0"
+                >
+                  ✓ Valider l'inventaire
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={() => { setInventoryMode(true); setViewMode('table'); setCountedQuantities({}); }}
+                  className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg shrink-0"
+                >
+                  Démarrer Inventaire
+                </Button>
+                <Button
+                  onClick={() => setMovModal({ open: true })}
+                  className="bg-white hover:bg-stone-50 text-emerald-800 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg gap-2 shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> Mouvement
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -371,7 +494,10 @@ export default function StockInventory({ stockItems, articles, categories, gener
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Produit', 'Catégorie', 'Couleur', 'Taille', 'Qté dispo', 'UdM', ...(userRole === 'ADMIN' ? ['Prix achat'] : []), 'Prix vente 🏷️', ...(userRole === 'ADMIN' ? ['Marge', 'Valeur stock'] : []), 'Statut', 'Actions'].map(h => (
+                  {(inventoryMode
+                    ? ['Produit', 'Catégorie', 'Couleur', 'Taille', 'Stock Théorique', 'Stock Compté', 'Écart']
+                    : ['Produit', 'Catégorie', 'Couleur', 'Taille', 'Qté dispo', 'UdM', ...(userRole === 'ADMIN' ? ['Prix achat'] : []), 'Prix vente 🏷️', ...(userRole === 'ADMIN' ? ['Marge', 'Valeur stock'] : []), 'Statut', 'Actions']
+                  ).map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -395,9 +521,9 @@ export default function StockInventory({ stockItems, articles, categories, gener
                       <td className="px-4 py-3">
                         <div className="space-y-1">
                           <span className={`text-sm font-black ${item.currentQty === 0 ? 'text-red-600' : item.currentQty <= (item.minThreshold || Infinity) ? 'text-orange-600' : 'text-stone-900'}`}>
-                            {fmtN(item.currentQty)}
+                            {fmtN(item.currentQty)} <span className="text-[9px] font-bold text-stone-400 uppercase">{item.unitOfMeasure}</span>
                           </span>
-                          {pct !== null && (
+                          {!inventoryMode && pct !== null && (
                             <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full ${pct === 0 ? 'bg-red-500' : pct < 50 ? 'bg-orange-400' : 'bg-emerald-500'}`}
@@ -407,101 +533,147 @@ export default function StockInventory({ stockItems, articles, categories, gener
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[9px] font-black text-stone-400 uppercase">{item.unitOfMeasure}</td>
-                      {userRole === 'ADMIN' && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex flex-col items-start gap-0.5">
-                            <span className="text-[10px] font-black text-stone-800">
-                              {fmtMAD(item.purchasePricePerUnit)} DH
+                      {inventoryMode ? (() => {
+                        const countedStr = countedQuantities[item.articleId];
+                        const countedNum = parseFloat(countedStr || '');
+                        const diff = !isNaN(countedNum) ? countedNum - item.currentQty : 0;
+                        return (
+                          <>
+                            <td className="px-4 py-3">
+                              <Input
+                                type="number" min={0} step="any"
+                                value={countedStr || ''}
+                                onChange={e => setCountedQuantities(p => ({ ...p, [item.articleId]: e.target.value }))}
+                                className="h-9 w-24 text-sm font-black border-amber-300 focus:border-amber-500 focus:ring-amber-500/20"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              {!isNaN(countedNum) && diff !== 0 ? (
+                                <span className={`text-sm font-black ${diff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                  {diff > 0 ? '+' : ''}{fmtN(diff)}
+                                </span>
+                              ) : !isNaN(countedNum) && diff === 0 ? (
+                                <span className="text-stone-300 text-sm font-black">OK</span>
+                              ) : <span className="text-stone-200">—</span>}
+                            </td>
+                          </>
+                        );
+                      })() : (
+                        <>
+                          <td className="px-4 py-3 text-[9px] font-black text-stone-400 uppercase">{item.unitOfMeasure}</td>
+                          {userRole === 'ADMIN' && (
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex flex-col items-start gap-0.5">
+                                <span className="text-[10px] font-black text-stone-800">
+                                  {fmtMAD(item.purchasePricePerUnit)} DH
+                                </span>
+                                <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                  (item as any).hasTTCCost
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-orange-100 text-orange-600'
+                                }`}>
+                                  {(item as any).hasTTCCost ? 'Revient TTC' : 'FOB estimé'}
+                                </span>
+                              </div>
+                            </td>
+                          )}
+                          {/* Prix de vente — éditable inline */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {editPriceId === item.articleId ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number" min={0} step="any" autoFocus
+                                  value={editPriceVal}
+                                  onChange={e => setEditPriceVal(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') handleSaveSellingPrice(item.articleId, item.unitOfMeasure);
+                                    if (e.key === 'Escape') setEditPriceId(null);
+                                  }}
+                                  className="h-7 w-24 text-xs font-black rounded-lg border-emerald-300 focus:border-emerald-500"
+                                />
+                                <button onClick={() => handleSaveSellingPrice(item.articleId, item.unitOfMeasure)}
+                                  className="text-emerald-600 hover:text-emerald-800 font-black text-[10px] px-1.5 py-1 bg-emerald-50 rounded-lg">
+                                  ✓
+                                </button>
+                                <button onClick={() => setEditPriceId(null)} className="text-stone-400 hover:text-red-500 font-black text-[10px] px-1.5 py-1">
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditPriceId(item.articleId); setEditPriceVal(String(item.sellingPrice ?? '')); }}
+                                className={`text-[10px] font-black px-2 py-1 rounded-lg transition-colors ${item.sellingPrice ? 'text-violet-700 bg-violet-50 hover:bg-violet-100' : 'text-stone-300 bg-stone-50 hover:bg-stone-100 hover:text-stone-600'}`}
+                              >
+                                {item.sellingPrice ? fmt$(item.sellingPrice) : '+ Définir'}
+                              </button>
+                            )}
+                          </td>
+                          {/* Marge */}
+                          {userRole === 'ADMIN' && (
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {item.sellingPrice ? (
+                                <div>
+                                  <span className={`text-[10px] font-black ${item.sellingPrice > item.purchasePricePerUnit ? 'text-emerald-600' : 'text-red-500'}`}>
+                                    {fmt$(item.sellingPrice - item.purchasePricePerUnit)}
+                                  </span>
+                                  <span className="text-[8px] text-stone-400 font-bold block">
+                                    {((item.sellingPrice - item.purchasePricePerUnit) / item.sellingPrice * 100).toFixed(1)}%
+                                  </span>
+                                </div>
+                              ) : <span className="text-stone-200 text-[10px]">—</span>}
+                            </td>
+                          )}
+                          {userRole === 'ADMIN' && (
+                            <td className="px-4 py-3 text-[10px] font-black text-emerald-700 whitespace-nowrap">{fmt$(item.totalValue)}</td>
+                          )}
+                          <td className="px-4 py-3">
+                            <span className={`inline-block text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.className}`}>
+                              {badge.label}
                             </span>
-                            <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
-                              (item as any).hasTTCCost
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-orange-100 text-orange-600'
-                            }`}>
-                              {(item as any).hasTTCCost ? 'Revient TTC' : 'FOB estimé'}
-                            </span>
-                          </div>
-                        </td>
-                      )}
-                      {/* Prix de vente — éditable inline */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {editPriceId === item.articleId ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number" min={0} step="any" autoFocus
-                              value={editPriceVal}
-                              onChange={e => setEditPriceVal(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') handleSaveSellingPrice(item.articleId, item.unitOfMeasure);
-                                if (e.key === 'Escape') setEditPriceId(null);
-                              }}
-                              className="h-7 w-24 text-xs font-black rounded-lg border-emerald-300 focus:border-emerald-500"
-                            />
-                            <button onClick={() => handleSaveSellingPrice(item.articleId, item.unitOfMeasure)}
-                              className="text-emerald-600 hover:text-emerald-800 font-black text-[10px] px-1.5 py-1 bg-emerald-50 rounded-lg">
-                              ✓
-                            </button>
-                            <button onClick={() => setEditPriceId(null)} className="text-stone-400 hover:text-red-500 font-black text-[10px] px-1.5 py-1">
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => { setEditPriceId(item.articleId); setEditPriceVal(String(item.sellingPrice ?? '')); }}
-                            className={`text-[10px] font-black px-2 py-1 rounded-lg transition-colors ${item.sellingPrice ? 'text-violet-700 bg-violet-50 hover:bg-violet-100' : 'text-stone-300 bg-stone-50 hover:bg-stone-100 hover:text-stone-600'}`}
-                          >
-                            {item.sellingPrice ? fmt$(item.sellingPrice) : '+ Définir'}
-                          </button>
-                        )}
-                      </td>
-                      {/* Marge */}
-                      {userRole === 'ADMIN' && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {item.sellingPrice ? (
-                            <div>
-                              <span className={`text-[10px] font-black ${item.sellingPrice > item.purchasePricePerUnit ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {fmt$(item.sellingPrice - item.purchasePricePerUnit)}
-                              </span>
-                              <span className="text-[8px] text-stone-400 font-bold block">
-                                {((item.sellingPrice - item.purchasePricePerUnit) / item.sellingPrice * 100).toFixed(1)}%
-                              </span>
+                            {item.minThreshold != null && (
+                              <p className="text-[7px] text-stone-400 font-bold mt-0.5">Seuil: {fmtN(item.minThreshold)}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => setMovModal({ open: true, articleId: item.articleId, type: 'IN' })}
+                                className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center font-black text-sm transition-colors"
+                                title="Entrée"
+                              >+</button>
+                              <button
+                                onClick={() => setMovModal({ open: true, articleId: item.articleId, type: 'OUT' })}
+                                className="w-7 h-7 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center font-black text-sm transition-colors"
+                                title="Sortie"
+                              >-</button>
+                              <button
+                                onClick={() => { setThreshModal({ open: true, item }); setThreshValue(String(item.minThreshold ?? '')); }}
+                                className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition-colors"
+                                title="Configurer seuil"
+                              >
+                                <Settings className="w-3 h-3" />
+                              </button>
+                              {userRole === 'ADMIN' && (
+                                <button
+                                  onClick={() => { 
+                                    setInitialStockModal({ open: true, item }); 
+                                    const newValues: Record<string, string> = {};
+                                    stores.forEach(s => {
+                                      newValues[s.id] = String(item.initialQtyByStore?.[s.id] || '');
+                                    });
+                                    setInitialStockValues(newValues);
+                                  }}
+                                  className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-emerald-600 flex items-center justify-center transition-colors"
+                                  title="Stock Initial par Magasin"
+                                >
+                                  <Boxes className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
-                          ) : <span className="text-stone-200 text-[10px]">—</span>}
-                        </td>
+                          </td>
+                        </>
                       )}
-                      {userRole === 'ADMIN' && (
-                        <td className="px-4 py-3 text-[10px] font-black text-emerald-700 whitespace-nowrap">{fmt$(item.totalValue)}</td>
-                      )}
-                      <td className="px-4 py-3">
-                        <span className={`inline-block text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.className}`}>
-                          {badge.label}
-                        </span>
-                        {item.minThreshold != null && (
-                          <p className="text-[7px] text-stone-400 font-bold mt-0.5">Seuil: {fmtN(item.minThreshold)}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => setMovModal({ open: true, articleId: item.articleId, type: 'IN' })}
-                            className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center font-black text-sm transition-colors"
-                            title="Entrée"
-                          >+</button>
-                          <button
-                            onClick={() => setMovModal({ open: true, articleId: item.articleId, type: 'OUT' })}
-                            className="w-7 h-7 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center font-black text-sm transition-colors"
-                            title="Sortie"
-                          >-</button>
-                          <button
-                            onClick={() => { setThreshModal({ open: true, item }); setThreshValue(String(item.minThreshold ?? '')); }}
-                            className="w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition-colors"
-                            title="Configurer seuil"
-                          >
-                            <Settings className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
                     </tr>
                   );
                 })}
@@ -568,6 +740,40 @@ export default function StockInventory({ stockItems, articles, categories, gener
             <Button variant="ghost" onClick={() => setThreshModal({ open: false })} className="rounded-xl font-black uppercase text-[10px]">Annuler</Button>
             <Button onClick={handleSaveThreshold} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 rounded-xl">
               Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={initialStockModal.open} onOpenChange={open => !open && setInitialStockModal({ open: false })}>
+        <DialogContent className="sm:max-w-md rounded-3xl border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-[11px] font-black uppercase tracking-widest text-stone-500">Stock Initial par Magasin</DialogTitle>
+            <p className="text-base font-black text-stone-900 uppercase tracking-tight">{initialStockModal.item?.productName}</p>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-[10px] text-stone-500 font-bold uppercase">
+              Définissez l'inventaire de départ pour chaque point de stockage.
+            </p>
+            
+            <div className="space-y-3">
+              <div className="space-y-3">
+                {stores.map(s => (
+                  <div key={s.id} className="flex items-center gap-4">
+                    <Label className="w-24 text-xs font-bold text-stone-700 uppercase" title={s.id}>{s.name}</Label>
+                    <Input type="number" min={0} step="any"
+                      value={initialStockValues[s.id] || ''} onChange={e => setInitialStockValues(prev => ({ ...prev, [s.id]: e.target.value }))}
+                      className="flex-1 rounded-xl" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setInitialStockModal({ open: false })} className="rounded-xl font-black uppercase text-[10px]">Annuler</Button>
+            <Button onClick={handleSaveInitialStock} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 rounded-xl">
+              Sauvegarder
             </Button>
           </DialogFooter>
         </DialogContent>

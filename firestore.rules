@@ -11,6 +11,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isCommercial() {
+      return isSignedIn() && (request.auth.token.email == 'ahmed@lebtex.ma' || request.auth.token.email == 'hafid@lebtex.ma');
+    }
+
+    function hasAccess(userId) {
+      return isOwner(userId) || isCommercial();
+    }
+
+    // ── Global Config ──────────────────────────────────────────────────────────
+    match /publicConfig/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
     // ── Admin user document ────────────────────────────────────────────────────
     match /users/{userId} {
       // Only the owner can read/write their own user doc
@@ -20,95 +34,107 @@ service cloud.firestore {
 
       // generalCategories: owner only (internal admin data)
       match /generalCategories/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // categories: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /categories/{id} {
-        allow read: if isOwner(userId)
+        allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if isOwner(userId);
+        allow write: if hasAccess(userId);
       }
 
       // designs: sub-collection of categories — same access as parent category
       // (owner writes; valid client can read for portal display)
       match /categories/{catId}/designs/{designId} {
-        allow read: if isOwner(userId)
+        allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if isOwner(userId);
+        allow write: if hasAccess(userId);
       }
 
       // suppliers: owner only (financially sensitive)
       match /suppliers/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // articles: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /articles/{id} {
-        allow read: if isOwner(userId)
+        allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if isOwner(userId);
+        allow write: if hasAccess(userId);
       }
 
       // factures: owner can write; a valid client whose clientAccess.adminUid == userId can read
       match /factures/{id} {
-        allow read: if isOwner(userId)
+        allow read: if hasAccess(userId)
           || (isSignedIn() && exists(/databases/$(database)/documents/clientAccess/$(request.auth.uid))
               && get(/databases/$(database)/documents/clientAccess/$(request.auth.uid)).data.adminUid == userId);
-        allow write: if isOwner(userId);
+        allow write: if hasAccess(userId);
       }
 
       // supplierPayments: strictly owner only (financial data)
       match /supplierPayments/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // dp_declarations: customs declarations, owner only
       match /dp_declarations/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // supplierProfiles: fournisseur contact info (adresse, email, tél...), owner only
       match /supplierProfiles/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // checklists: dossier verification checklist, owner only
       match /checklists/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // stockMovements: journal des entrées/sorties physiques, owner only
       match /stockMovements/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // sales: transactions de vente rapide, owner only
       match /sales/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
+      }
+
+      // transferOrders: owner can write; a valid client whose clientAccess.adminUid == userId can read
+      match /transferOrders/{id} {
+        allow read: if hasAccess(userId);
+        allow write: if hasAccess(userId);
+      }
+
+      // stores: owner can write; a valid client whose clientAccess.adminUid == userId can read
+      match /stores/{id} {
+        allow read: if hasAccess(userId);
+        allow write: if hasAccess(userId);
       }
 
       // clients: dossier clients, owner only
       match /clients/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // saleOrders: bons de commande, owner only
       match /saleOrders/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // invoices: factures de vente, owner only
       match /invoices/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
 
       // clientPayments: paiements clients, owner only
       match /clientPayments/{id} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if hasAccess(userId);
       }
     }
 

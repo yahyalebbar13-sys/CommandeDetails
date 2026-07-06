@@ -34,7 +34,16 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
   const [viewInvoice,   setViewInvoice]   = useState<Invoice | null>(null);
   const [payInvoice,    setPayInvoice]    = useState<Invoice | null>(null);
-  const [paymentForm,   setPaymentForm]   = useState({ amount: '', method: 'CASH' as PaymentMethod, date: new Date().toISOString().split('T')[0], notes: '' });
+  const [paymentForm,   setPaymentForm]   = useState({ 
+    amount: '', 
+    method: 'CASH' as PaymentMethod, 
+    date: new Date().toISOString().split('T')[0], 
+    notes: '',
+    bankName: '',
+    checkNumber: '',
+    dueDate: '',
+    scannedImageUrl: ''
+  });
   const [saving, setSaving] = useState(false);
 
   const months = useMemo(() => {
@@ -75,9 +84,16 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         date: paymentForm.date,
         method: paymentForm.method,
         notes: paymentForm.notes || undefined,
+        ...((paymentForm.method === 'CHEQUE' || paymentForm.method === 'EFFET') ? {
+           bankName: paymentForm.bankName || undefined,
+           checkNumber: paymentForm.checkNumber || undefined,
+           dueDate: paymentForm.dueDate || undefined,
+           scannedImageUrl: paymentForm.scannedImageUrl || undefined,
+           status: 'PENDING'
+        } : {})
       });
       setPayInvoice(null);
-      setPaymentForm({ amount: '', method: 'CASH', date: new Date().toISOString().split('T')[0], notes: '' });
+      setPaymentForm({ amount: '', method: 'CASH', date: new Date().toISOString().split('T')[0], notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' });
     } finally { setSaving(false); }
   };
 
@@ -100,6 +116,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     </style></head><body>
     <div class="header">
       <div>
+        <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
         <div class="label" style="color:#6d28d9;font-size:10px">FACTURE</div>
         <h1>${num}</h1>
         <span class="badge ${inv.status === 'PAID' ? 'paid' : inv.status === 'PARTIAL' ? 'partial' : 'unpaid'}">
@@ -254,7 +271,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
       {/* Modal paiement */}
       <Dialog open={!!payInvoice} onOpenChange={o => !o && setPayInvoice(null)}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 text-white">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Enregistrer un paiement</DialogTitle>
             <p className="text-[10px] font-bold text-emerald-200 mt-1">
@@ -262,37 +279,100 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             </p>
             <p className="text-lg font-black text-white mt-2">Solde : {fmt$(payInvoice?.remainingBalance || 0)}</p>
           </div>
-          <div className="p-5 space-y-3 bg-white">
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant *</Label>
-              <Input type="number" min={0} step="any" value={paymentForm.amount}
-                onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
-                className="h-12 text-xl font-black rounded-xl border-stone-200" autoFocus />
+          <div className="p-5 space-y-3 bg-white max-h-[70vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant *</Label>
+                <Input type="number" min={0} step="any" value={paymentForm.amount}
+                  onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                  className="h-11 text-lg font-black rounded-xl border-stone-200" autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Méthode *</Label>
+                <Select value={paymentForm.method} onValueChange={v => setPaymentForm(f => ({ ...f, method: v as PaymentMethod }))}>
+                  <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">💵 Espèces</SelectItem>
+                    <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
+                    <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
+                    <SelectItem value="EFFET">📜 Effet Bancaire</SelectItem>
+                    <SelectItem value="AUTRE">📋 Autre</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Méthode *</Label>
-              <Select value={paymentForm.method} onValueChange={v => setPaymentForm(f => ({ ...f, method: v as PaymentMethod }))}>
-                <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CASH">💵 Espèces</SelectItem>
-                  <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
-                  <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
-                  <SelectItem value="AUTRE">📋 Autre</SelectItem>
-                </SelectContent>
-              </Select>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date *</Label>
+                <Input type="date" value={paymentForm.date}
+                  onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))}
+                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
+                <Input placeholder="Infos supplémentaires..." value={paymentForm.notes}
+                  onChange={e => setPaymentForm(f => ({ ...f, notes: e.target.value }))}
+                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date *</Label>
-              <Input type="date" value={paymentForm.date}
-                onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))}
-                className="h-11 rounded-xl border-stone-200 font-bold" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes</Label>
-              <Input placeholder="Réf. virement, N° chèque..." value={paymentForm.notes}
-                onChange={e => setPaymentForm(f => ({ ...f, notes: e.target.value }))}
-                className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
-            </div>
+
+            {(paymentForm.method === 'CHEQUE' || paymentForm.method === 'EFFET') && (
+              <div className="pt-4 border-t border-stone-100 mt-4 space-y-4">
+                <h4 className="text-[10px] font-black text-stone-800 uppercase tracking-widest flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-600" /> Détails Bancaires
+                </h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Nom de la Banque</Label>
+                    <Input placeholder="Ex: Attijariwafa Bank" value={paymentForm.bankName}
+                      onChange={e => setPaymentForm(f => ({ ...f, bankName: e.target.value }))}
+                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Chèque / Effet</Label>
+                    <Input placeholder="Ex: 0123456" value={paymentForm.checkNumber}
+                      onChange={e => setPaymentForm(f => ({ ...f, checkNumber: e.target.value }))}
+                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance prévue</Label>
+                  <Input type="date" value={paymentForm.dueDate}
+                    onChange={e => setPaymentForm(f => ({ ...f, dueDate: e.target.value }))}
+                    className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Scan du document (Photo)</Label>
+                  <div className="relative border-2 border-dashed border-stone-200 rounded-xl p-4 hover:bg-stone-50 transition-colors flex flex-col items-center justify-center text-center">
+                    {paymentForm.scannedImageUrl ? (
+                      <div className="relative w-full">
+                        <img src={paymentForm.scannedImageUrl} alt="Scan" className="w-full rounded-lg max-h-40 object-contain" />
+                        <button type="button" onClick={() => setPaymentForm(f => ({ ...f, scannedImageUrl: '' }))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <CreditCard className="w-6 h-6 text-stone-300 mb-2" />
+                        <span className="text-[10px] font-bold text-stone-500">Cliquez ou prenez une photo</span>
+                        <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setPaymentForm(f => ({ ...f, scannedImageUrl: reader.result as string }));
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter className="p-4 bg-stone-50 gap-2">
             <Button variant="ghost" onClick={() => setPayInvoice(null)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>

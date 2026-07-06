@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
-  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download,
+  Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
@@ -26,10 +26,35 @@ import PassToStockModal from '@/components/pass-to-stock-modal';
 import StockFiches      from './stock-fiches';
 import AuthView         from '@/components/auth-view';
 import { Button }       from '@/components/ui/button';
+import ArrivalsView     from './arrivals-view';
+import SaleOrdersView   from './sale-orders-view';
+import InvoiceView      from './invoice-view';
+import SalesPos         from './sales-pos';
+import TransferOrdersView from './transfer-orders-view';
+import StoresView       from './stores-view';
+import TreasuryDashboard from './treasury-dashboard';
+import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'treasury';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
+
+function getInitialQtyForStore(item: any, activeStore: string): number {
+  const byStore = item.initialQtyByStore;
+  const legacyQty = Number(item.rolls || item.quantity || 0);
+
+  if (!byStore) {
+    if (activeStore === 'ALL' || activeStore === 'ENTREPOT') return legacyQty;
+    return 0;
+  }
+
+  if (activeStore === 'ALL') {
+    return (byStore.ENTREPOT || 0) + (byStore.DERB_OMAR || 0) + (byStore.CHRIFA || 0);
+  }
+
+  return byStore[activeStore] || 0;
+}
+
 export function computeStockItems(
   articles: any[],
   movements: StockMovement[],
@@ -68,7 +93,7 @@ export function computeStockItems(
         const colorLabel = (row.colorCode || row.description || row.color || '').trim();
         if (!colorLabel) continue;
 
-        const initialQty = Number(row.rolls || row.quantity || 0);
+        const initialQty = getInitialQtyForStore(row, activeStore);
 
         // Mouvements filtrés : ceux qui mentionnent cette couleur spécifiquement
         // ou bien les mouvements globaux de l'article proportionnellement
@@ -129,7 +154,7 @@ export function computeStockItems(
         const sizeLabel = (row.size || '').trim();
         if (!sizeLabel) continue;
 
-        const initialQty = Number(row.quantity || row.rolls || 0);
+        const initialQty = getInitialQtyForStore(row, activeStore);
         const sizeMov = artMovements.filter(m =>
           m.size?.toLowerCase() === sizeLabel.toLowerCase()
         );
@@ -194,7 +219,7 @@ export function computeStockItems(
         }
       }
     }
-    const initialQty = Number(a.quantity) || 0;
+    const initialQty = getInitialQtyForStore(a, activeStore);
     const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
@@ -243,38 +268,55 @@ export default function StockApp() {
 
   const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL'>('ALL');
   const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED'>('UNAUTHORIZED');
+  const [adminUid, setAdminUid] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.email) {
       if (user.email === 'yahya.lebbar13@gmail.com') {
         setUserRole('ADMIN');
         setActiveStore('ALL');
+        setAdminUid(user.uid);
+        if (firestore) {
+          setDoc(doc(firestore, 'publicConfig', 'adminConfig'), { adminUid: user.uid }, { merge: true }).catch(() => {});
+        }
         if (activeView === 'dashboard' && userRole !== 'ADMIN') setActiveView('dashboard');
       } else if (user.email === 'ahmed@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('DERB_OMAR');
         if (activeView === 'dashboard') setActiveView('sale');
+        if (firestore && !adminUid) {
+          getDoc(doc(firestore, 'publicConfig', 'adminConfig')).then(snap => {
+            if (snap.exists()) setAdminUid(snap.data().adminUid);
+          });
+        }
       } else if (user.email === 'hafid@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('CHRIFA');
         if (activeView === 'dashboard') setActiveView('sale');
+        if (firestore && !adminUid) {
+          getDoc(doc(firestore, 'publicConfig', 'adminConfig')).then(snap => {
+            if (snap.exists()) setAdminUid(snap.data().adminUid);
+          });
+        }
       } else {
         setUserRole('UNAUTHORIZED');
       }
     }
-  }, [user, activeView, userRole]);
+  }, [user, activeView, userRole, firestore, adminUid]);
 
   // ── Collections Firestore ──────────────────────────────────────────────────
-  const articlesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'),         [firestore, user]);
-  const categoriesRef    = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'),        [firestore, user]);
-  const genCatsRef       = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'generalCategories'), [firestore, user]);
-  const movementsRef     = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'stockMovements'),    [firestore, user]);
-  const salesRef         = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'sales'),             [firestore, user]);
-  const clientsRef       = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'clients'),           [firestore, user]);
-  const ordersRef        = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'saleOrders'),        [firestore, user]);
-  const invoicesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'invoices'),          [firestore, user]);
-  const paymentsRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'clientPayments'),    [firestore, user]);
-  const facturesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'factures'),          [firestore, user]);
+  const articlesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'articles'),         [firestore, adminUid, user]);
+  const categoriesRef    = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'categories'),        [firestore, adminUid, user]);
+  const genCatsRef       = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'generalCategories'), [firestore, adminUid, user]);
+  const movementsRef     = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'stockMovements'),    [firestore, adminUid, user]);
+  const salesRef         = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'sales'),             [firestore, adminUid, user]);
+  const clientsRef       = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'clients'),           [firestore, adminUid, user]);
+  const ordersRef        = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'saleOrders'),        [firestore, adminUid, user]);
+  const invoicesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'invoices'),          [firestore, adminUid, user]);
+  const paymentsRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'clientPayments'),    [firestore, adminUid, user]);
+  const facturesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'factures'),          [firestore, adminUid, user]);
+  const transfersRef     = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'transferOrders'),    [firestore, adminUid, user]);
+  const storesRef        = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'stores'),            [firestore, adminUid, user]);
 
   const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
   const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
@@ -286,17 +328,44 @@ export default function StockApp() {
   const { data: rawInvoices,    isLoading: loadingInv  } = useCollection(invoicesRef);
   const { data: rawPayments,    isLoading: loadingPay  } = useCollection(paymentsRef);
   const { data: rawFactures } = useCollection(facturesRef);
+  const { data: rawTransfers,   isLoading: loadingTrans } = useCollection(transfersRef);
+  const { data: rawStores,      isLoading: loadingStores } = useCollection(storesRef);
 
   const articles        = rawArticles    || [];
   const categories      = rawCategories  || [];
   const generalCategories = rawGenCats   || [];
-  const movements       = (rawMovements  || []) as StockMovement[];
+  const allMovements    = (rawMovements  || []) as StockMovement[];
   const sales           = (rawSales      || []) as Sale[];
   const clients         = (rawClients    || []) as Client[];
   const orders          = (rawOrders     || []) as SaleOrder[];
   const invoices        = (rawInvoices   || []) as Invoice[];
   const payments        = (rawPayments   || []) as ClientPayment[];
   const factures        = rawFactures    || [];
+  const transferOrders  = (rawTransfers  || []) as TransferOrder[];
+  const stores          = rawStores      || [];
+
+  // Initialize default stores if empty
+  useEffect(() => {
+    if (userRole !== 'ADMIN' || !firestore || !adminUid || loadingStores || stores.length > 0) return;
+    const initStores = async () => {
+      const defaults = [
+        { id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE', isMain: true },
+        { id: 'DERB_OMAR', name: 'Magasin Derb Omar', type: 'STORE' },
+        { id: 'CHRIFA', name: 'Magasin Chrifa', type: 'STORE' },
+      ];
+      for (const s of defaults) {
+        await setDoc(doc(firestore, 'users', adminUid, 'stores', s.id), s, { merge: true });
+      }
+    };
+    initStores();
+  }, [userRole, firestore, adminUid, loadingStores, stores.length]);
+
+  // Filtrer les anciens arrivages (avant la date de réinitialisation)
+  const RESET_DATE = '2026-07-06';
+  const movements = useMemo(() => allMovements.filter(m => {
+    if (m.reason === 'ARRIVAGE' && m.date < RESET_DATE) return false;
+    return true;
+  }), [allMovements]);
 
   const stockItems = useMemo(() =>
     computeStockItems(articles, movements, categories, activeStore),
@@ -309,6 +378,7 @@ export default function StockApp() {
   const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || o.storeId === activeStore || (!o.storeId && activeStore === 'ENTREPOT')), [orders, activeStore]);
   const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || i.storeId === activeStore || (!i.storeId && activeStore === 'ENTREPOT')), [invoices, activeStore]);
   const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')), [movements, activeStore]);
+  const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore]);
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
@@ -365,11 +435,12 @@ export default function StockApp() {
 
   // POS rapide (ancienne vente)
   const handleValidateSale = useCallback(async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
-    if (!user || !firestore) return;
+    if (!user || !firestore || (!adminUid && userRole !== 'ADMIN')) return;
+    const effectiveUid = adminUid || user.uid;
     const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
-    await addDoc(collection(firestore, 'users', user.uid, 'sales'), { ...sale, storeId, createdAt: serverTimestamp() });
+    await addDoc(collection(firestore, 'users', effectiveUid, 'sales'), { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
-      await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
+      await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
         articleId: item.articleId, categoryId: item.categoryId,
         productName: item.productName, color: item.color || null, size: item.size || null,
         unitOfMeasure: item.unitOfMeasure, type: 'OUT', reason: 'VENTE',
@@ -380,41 +451,46 @@ export default function StockApp() {
       });
     }
     toast({ title: '✅ Vente enregistrée !', description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
-  }, [user, firestore, toast, activeStore]);
+  }, [user, firestore, toast, activeStore, adminUid, userRole]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
   const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
     if (!user || !firestore) throw new Error('Not authenticated');
+    const effectiveUid = adminUid || user.uid;
     const storeId = activeStore === 'ALL' ? undefined : activeStore;
     const clientData = storeId ? { ...data, storeId } : data;
-    const ref = await addDoc(collection(firestore, 'users', user.uid, 'clients'), { ...clientData, createdAt: serverTimestamp() });
+    const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'clients'), { ...clientData, createdAt: serverTimestamp() });
     toast({ title: '✅ Client créé', description: data.name });
     return { id: ref.id, ...clientData };
-  }, [user, firestore, toast, activeStore]);
+  }, [user, firestore, toast, activeStore, adminUid]);
 
   const handleUpdateClient = useCallback(async (id: string, data: Partial<Client>) => {
     if (!user || !firestore) return;
-    await updateDoc(doc(firestore, 'users', user.uid, 'clients', id), data);
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'clients', id), data);
     toast({ title: 'Client mis à jour' });
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, adminUid]);
 
   // ── Bons de commande ──────────────────────────────────────────────────────
   const handleCreateOrder = useCallback(async (order: Omit<SaleOrder, 'id' | 'createdAt'>): Promise<string> => {
     if (!user || !firestore) throw new Error('Not authenticated');
+    const effectiveUid = adminUid || user.uid;
     const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
-    const ref = await addDoc(collection(firestore, 'users', user.uid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
+    const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
     toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${order.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
     return ref.id;
-  }, [user, firestore, toast, activeStore]);
+  }, [user, firestore, toast, activeStore, adminUid]);
 
   const handleUpdateOrderStatus = useCallback(async (id: string, status: SaleOrderStatus) => {
     if (!user || !firestore) return;
-    await updateDoc(doc(firestore, 'users', user.uid, 'saleOrders', id), { status });
-  }, [user, firestore]);
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', id), { status });
+  }, [user, firestore, adminUid]);
 
   const handleConvertToInvoice = useCallback(async (order: SaleOrder) => {
     if (!user || !firestore) return;
-    const invRef = await addDoc(collection(firestore, 'users', user.uid, 'invoices'), {
+    const effectiveUid = adminUid || user.uid;
+    const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
       clientId: order.clientId,
       clientName: order.clientName,
       orderId: order.id,
@@ -430,10 +506,10 @@ export default function StockApp() {
       storeId: order.storeId || (activeStore === 'ALL' ? 'ENTREPOT' : activeStore),
       createdAt: serverTimestamp(),
     });
-    await updateDoc(doc(firestore, 'users', user.uid, 'saleOrders', order.id), { status: 'INVOICED' });
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', order.id), { status: 'INVOICED' });
     toast({ title: '✅ Facture créée', description: `BC converti en facture` });
     setActiveView('invoices');
-  }, [user, firestore, toast, activeStore]);
+  }, [user, firestore, toast, activeStore, adminUid]);
 
   // ── Factures ──────────────────────────────────────────────────────────────
   const handleCreateInvoice = useCallback(async (
@@ -441,23 +517,26 @@ export default function StockApp() {
     movementsOut: any[]
   ) => {
     if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
     const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
-    await addDoc(collection(firestore, 'users', user.uid, 'invoices'), { ...invoice, storeId, createdAt: serverTimestamp() });
+    await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), { ...invoice, storeId, createdAt: serverTimestamp() });
     for (const m of movementsOut) {
-      await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), { ...m, storeId, createdAt: serverTimestamp() });
+      await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), { ...m, storeId, createdAt: serverTimestamp() });
     }
     toast({ title: '✅ Facture créée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
-  }, [user, firestore, toast, activeStore]);
+  }, [user, firestore, toast, activeStore, adminUid]);
 
   const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
     if (!user || !firestore) return;
-    await updateDoc(doc(firestore, 'users', user.uid, 'invoices', id), { status });
-  }, [user, firestore]);
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', id), { status });
+  }, [user, firestore, adminUid]);
 
   // ── Paiements clients ─────────────────────────────────────────────────────
   const handleRecordPayment = useCallback(async (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
-    await addDoc(collection(firestore, 'users', user.uid, 'clientPayments'), { ...payment, createdAt: serverTimestamp() });
+    const effectiveUid = adminUid || user.uid;
+    await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), { ...payment, createdAt: serverTimestamp() });
 
     // Mettre à jour paidAmount + remainingBalance + status sur la facture
     if (payment.invoiceId) {
@@ -466,7 +545,7 @@ export default function StockApp() {
         const newPaid = inv.paidAmount + payment.amount;
         const newBalance = Math.max(0, inv.totalAfterDiscount - newPaid);
         const newStatus: InvoiceStatus = newBalance === 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
-        await updateDoc(doc(firestore, 'users', user.uid, 'invoices', payment.invoiceId), {
+        await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
           paidAmount: newPaid,
           remainingBalance: newBalance,
           status: newStatus,
@@ -474,7 +553,14 @@ export default function StockApp() {
       }
     }
     toast({ title: '✅ Paiement enregistré', description: `${payment.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} · ${payment.method}` });
-  }, [user, firestore, invoices, toast]);
+  }, [user, firestore, invoices, toast, adminUid]);
+
+  const handleUpdatePaymentStatus = useCallback(async (paymentId: string, status: 'PENDING' | 'CLEARED' | 'REJECTED') => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', paymentId), { status });
+    toast({ title: '✅ Statut mis à jour', description: `Effet marqué comme ${status}` });
+  }, [user, firestore, adminUid, toast]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   if (isUserLoading) return (
@@ -505,7 +591,10 @@ export default function StockApp() {
     { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
     { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices },
     { id: 'inventory', label: 'Inventaire',    icon: Boxes },
+    { id: 'treasury',  label: 'Trésorerie',    icon: Landmark,        color: 'emerald', adminOnly: true },
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
+    { id: 'transfers', label: 'Transferts',    icon: Truck,           color: 'blue' },
+    { id: 'stores',    label: 'Magasins',      icon: StoreIcon,       color: 'emerald', adminOnly: true },
     { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ];
 
@@ -543,9 +632,11 @@ export default function StockApp() {
                 className="bg-stone-100 border border-stone-200 text-stone-700 text-xs font-black uppercase rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="ALL">🌐 Vue Globale (Total)</option>
-                <option value="ENTREPOT">🏭 Entrepôt Principal</option>
-                <option value="DERB_OMAR">🏪 Magasin Derb Omar</option>
-                <option value="CHRIFA">🏪 Magasin Chrifa</option>
+                {stores.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.type === 'WAREHOUSE' ? '🏭' : '🏪'} {s.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -659,6 +750,7 @@ export default function StockApp() {
                 payments={payments}
                 onCreateClient={async (c) => { await handleCreateClient(c); }}
                 onUpdateClient={handleUpdateClient}
+                onRecordPayment={handleRecordPayment}
                 onNavigate={setActiveView}
               />
             )}
@@ -685,13 +777,29 @@ export default function StockApp() {
               <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
             )}
             {activeView === 'inventory' && (
-              <StockInventory userRole={userRole} activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+              <StockInventory userRole={userRole} adminUid={adminUid} activeStore={activeStore} stores={stores} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+            )}
+            {activeView === 'treasury' && (
+              <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
             )}
             {activeView === 'movements' && (
               <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} onNavigate={setActiveView} onAddMovement={handleAddMovement} />
+              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
+            )}
+            {activeView === 'transfers' && (
+              <TransferOrdersView
+                transferOrders={filteredTransfers}
+                stockItems={stockItems}
+                stores={stores}
+                userRole={userRole}
+                activeStore={activeStore}
+                adminUid={adminUid}
+              />
+            )}
+            {activeView === 'stores' && (
+              <StoresView stores={stores} adminUid={adminUid} />
             )}
             {activeView === 'arrivals' && (
               <div className="space-y-6 animate-in fade-in duration-300">
@@ -713,7 +821,7 @@ export default function StockApp() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {[...factures].sort((a: any, b: any) => (b.arrivalDate || '').localeCompare(a.arrivalDate || '')).map((f: any) => {
+                    {[...factures].filter(f => !f.arrivalDate || f.arrivalDate >= RESET_DATE).sort((a: any, b: any) => (b.arrivalDate || '').localeCompare(a.arrivalDate || '')).map((f: any) => {
                       const factureArts = articles.filter((a: any) => a.factureId === f.id);
                       const artCount = factureArts.length;
                       // Un arrivage est "en stock" UNIQUEMENT si des mouvements IN ont été créés (validation manuelle)

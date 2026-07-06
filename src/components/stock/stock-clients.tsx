@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown } from 'lucide-react';
+import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import type { Client, SaleOrder, Invoice, ClientPayment } from '@/lib/types';
+import type { Client, SaleOrder, Invoice, ClientPayment, PaymentMethod } from '@/lib/types';
 
 interface StockClientsProps {
   clients: Client[];
@@ -15,12 +16,13 @@ interface StockClientsProps {
   payments: ClientPayment[];
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateClient: (id: string, c: Partial<Client>) => Promise<void>;
+  onRecordPayment?: (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => Promise<void>;
   onNavigate: (v: any) => void;
 }
 
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onNavigate }: StockClientsProps) {
+export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onNavigate }: StockClientsProps) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
   const [activeTab, setActiveTab] = useState<'orders' | 'invoices' | 'payments'>('invoices');
@@ -29,6 +31,12 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
+  
+  const [globalPaymentOpen, setGlobalPaymentOpen] = useState(false);
+  const [globalPaymentForm, setGlobalPaymentForm] = useState({ 
+    amount: '', method: 'CASH' as PaymentMethod, date: new Date().toISOString().split('T')[0], notes: '',
+    bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: ''
+  });
 
   const filtered = useMemo(() =>
     clients.filter(c =>
@@ -74,6 +82,96 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
   const statusLabels: Record<string, string> = {
     DRAFT: 'Brouillon', CONFIRMED: 'Confirmé', INVOICED: 'Facturé', CANCELLED: 'Annulé',
     UNPAID: 'Non payé', PARTIAL: 'Partiel', PAID: 'Payé',
+  };
+
+  const handleGlobalPayment = async () => {
+    if (!selected || !globalPaymentForm.amount || !onRecordPayment) return;
+    const amountReceived = parseFloat(globalPaymentForm.amount);
+    if (amountReceived <= 0) return;
+    setSaving(true);
+    try {
+      // Trier les factures impayées de la plus ancienne à la plus récente
+      const unpaidInvoices = selInvoices
+        .filter(i => i.status !== 'CANCELLED' && i.remainingBalance > 0)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      let remainingToAllocate = amountReceived;
+      
+      for (const inv of unpaidInvoices) {
+        if (remainingToAllocate <= 0) break;
+        const allocated = Math.min(remainingToAllocate, inv.remainingBalance);
+        
+        await onRecordPayment({
+          clientId: selected.id,
+          invoiceId: inv.id,
+          amount: allocated,
+          date: globalPaymentForm.date,
+          method: globalPaymentForm.method,
+          notes: globalPaymentForm.notes || 'Paiement global de solde',
+          ...((globalPaymentForm.method === 'CHEQUE' || globalPaymentForm.method === 'EFFET') ? {
+             bankName: globalPaymentForm.bankName || undefined,
+             checkNumber: globalPaymentForm.checkNumber || undefined,
+             dueDate: globalPaymentForm.dueDate || undefined,
+             scannedImageUrl: globalPaymentForm.scannedImageUrl || undefined,
+             status: 'PENDING'
+          } : {})
+        });
+        remainingToAllocate -= allocated;
+      }
+      setGlobalPaymentOpen(false);
+      setGlobalPaymentForm({ amount: '', method: 'CASH', date: new Date().toISOString().split('T')[0], notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const printClientStatement = () => {
+    if (!selected) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relevé - ${selected.name}</title>
+    <style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1c1917}
+    h1{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.05em;color:#4c1d95}
+    .header{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #6d28d9;padding-bottom:20px;margin-bottom:20px}
+    .label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#78716c}
+    table{width:100%;border-collapse:collapse;margin:20px 0}
+    th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:#78716c;padding:8px;border-bottom:2px solid #e7e5e4}
+    td{padding:10px 8px;border-bottom:1px solid #f5f5f4;font-size:12px}
+    .total-box{background:#f5f3ff;border:2px solid #ddd6fe;padding:20px;border-radius:12px;text-align:right;margin-top:30px}
+    .footer{margin-top:40px;text-align:center;font-size:10px;color:#a8a29e}
+    </style></head><body>
+    <div class="header">
+      <div>
+        <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
+        <div class="label" style="color:#6d28d9;font-size:10px">RELEVÉ DE COMPTE</div>
+        <h1>${selected.name}</h1>
+      </div>
+      <div style="text-align:right;font-size:12px">
+        <div class="label">Date du relevé</div><strong>${new Date().toLocaleDateString('fr-FR')}</strong><br><br>
+        ${selected.phone ? `Tél: ${selected.phone}<br>` : ''}
+        ${selected.address ? `${selected.address}<br>` : ''}
+      </div>
+    </div>
+    
+    <h3 style="font-size:14px;color:#57534e;text-transform:uppercase;border-bottom:1px solid #e7e5e4;padding-bottom:5px">Historique des factures</h3>
+    <table><thead><tr><th>Date</th><th>Facture N°</th><th>Statut</th><th style="text-align:right">Total</th><th style="text-align:right">Payé</th><th style="text-align:right">Reste dû</th></tr></thead>
+    <tbody>${selInvoices.sort((a,b)=>a.date.localeCompare(b.date)).map(i => `<tr>
+      <td>${i.date}</td><td><strong>${i.invoiceNumber || 'FAC-...'}</strong></td>
+      <td>${statusLabels[i.status] || i.status}</td>
+      <td style="text-align:right">${fmt$(i.totalAfterDiscount)}</td>
+      <td style="text-align:right;color:#059669">${fmt$(i.paidAmount)}</td>
+      <td style="text-align:right;font-weight:bold;color:${i.remainingBalance>0?'#dc2626':'#1c1917'}">${fmt$(i.remainingBalance)}</td>
+    </tr>`).join('')}</tbody></table>
+    
+    <div class="total-box">
+      <div class="label">Solde Total Dû</div>
+      <div style="font-size:28px;font-weight:900;color:#6d28d9;margin-top:5px">${fmt$(selBalance)} MAD</div>
+    </div>
+    
+    <div class="footer">Document généré automatiquement le ${new Date().toLocaleString('fr-FR')}</div>
+    </body></html>`);
+    w.document.close();
+    w.print();
   };
 
   if (selected) return (
@@ -137,6 +235,16 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             </div>
           ))}
         </div>
+        
+        {/* Actions Rapides */}
+        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/10">
+          <Button onClick={() => { setGlobalPaymentForm(f => ({ ...f, amount: String(selBalance) })); setGlobalPaymentOpen(true); }} disabled={selBalance <= 0 || !onRecordPayment} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] rounded-xl h-9">
+            <CreditCard className="w-4 h-4 mr-2" /> Régler le solde
+          </Button>
+          <Button onClick={printClientStatement} className="bg-white/10 hover:bg-white/20 text-white font-black uppercase text-[10px] rounded-xl h-9">
+            <Printer className="w-4 h-4 mr-2" /> Exporter Relevé (PDF)
+          </Button>
+        </div>
       </div>
 
       {editMode && (
@@ -181,7 +289,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
               ))}
             </tr></thead>
             <tbody className="divide-y divide-stone-50">
-              {selInvoices.map(inv => (
+              {selInvoices.sort((a,b) => b.date.localeCompare(a.date)).map(inv => (
                 <tr key={inv.id} className="hover:bg-stone-50/50">
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{inv.date}</td>
                   <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(inv.totalAfterDiscount)}</td>
@@ -202,7 +310,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
               ))}
             </tr></thead>
             <tbody className="divide-y divide-stone-50">
-              {selOrders.map(ord => (
+              {selOrders.sort((a,b) => b.date.localeCompare(a.date)).map(ord => (
                 <tr key={ord.id} className="hover:bg-stone-50/50">
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{ord.date}</td>
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{ord.items.length} article{ord.items.length > 1 ? 's' : ''}</td>
@@ -222,7 +330,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
               ))}
             </tr></thead>
             <tbody className="divide-y divide-stone-50">
-              {selPayments.map(p => (
+              {selPayments.sort((a,b) => b.date.localeCompare(a.date)).map(p => (
                 <tr key={p.id} className="hover:bg-stone-50/50">
                   <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{p.date}</td>
                   <td className="px-4 py-3 text-[10px] font-black text-emerald-700">{fmt$(p.amount)}</td>
@@ -359,6 +467,123 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             <Button onClick={handleCreate} disabled={!form.name.trim() || saving}
               className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-11 rounded-xl">
               {saving ? 'Création...' : 'Créer le client'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Modal Paiement Global */}
+      <Dialog open={globalPaymentOpen} onOpenChange={setGlobalPaymentOpen}>
+        <DialogContent className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 text-white">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Paiement Global (Solde)</DialogTitle>
+            <p className="text-[10px] font-bold text-emerald-200 mt-1">Client : {selected?.name}</p>
+            <p className="text-lg font-black text-white mt-2">Solde Total Dû : {fmt$(selBalance)}</p>
+          </div>
+          <div className="p-5 space-y-3 bg-white max-h-[70vh] overflow-y-auto">
+            <div className="bg-emerald-50 text-emerald-800 text-[10px] p-3 rounded-xl font-bold mb-4">
+              Ce paiement sera automatiquement réparti sur les factures impayées du client, en commençant par les plus anciennes.
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant Reçu *</Label>
+                <Input type="number" min={0} max={selBalance} step="any" value={globalPaymentForm.amount}
+                  onChange={e => setGlobalPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                  className="h-11 text-lg font-black rounded-xl border-stone-200" autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Méthode *</Label>
+                <Select value={globalPaymentForm.method} onValueChange={v => setGlobalPaymentForm(f => ({ ...f, method: v as PaymentMethod }))}>
+                  <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">💵 Espèces</SelectItem>
+                    <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
+                    <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
+                    <SelectItem value="EFFET">📜 Effet Bancaire</SelectItem>
+                    <SelectItem value="AUTRE">📋 Autre</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date *</Label>
+                <Input type="date" value={globalPaymentForm.date}
+                  onChange={e => setGlobalPaymentForm(f => ({ ...f, date: e.target.value }))}
+                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
+                <Input placeholder="Infos supplémentaires..." value={globalPaymentForm.notes}
+                  onChange={e => setGlobalPaymentForm(f => ({ ...f, notes: e.target.value }))}
+                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
+              </div>
+            </div>
+
+            {(globalPaymentForm.method === 'CHEQUE' || globalPaymentForm.method === 'EFFET') && (
+              <div className="pt-4 border-t border-stone-100 mt-4 space-y-4">
+                <h4 className="text-[10px] font-black text-stone-800 uppercase tracking-widest flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-600" /> Détails Bancaires
+                </h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Nom de la Banque</Label>
+                    <Input placeholder="Ex: Attijariwafa Bank" value={globalPaymentForm.bankName}
+                      onChange={e => setGlobalPaymentForm(f => ({ ...f, bankName: e.target.value }))}
+                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Chèque / Effet</Label>
+                    <Input placeholder="Ex: 0123456" value={globalPaymentForm.checkNumber}
+                      onChange={e => setGlobalPaymentForm(f => ({ ...f, checkNumber: e.target.value }))}
+                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance prévue</Label>
+                  <Input type="date" value={globalPaymentForm.dueDate}
+                    onChange={e => setGlobalPaymentForm(f => ({ ...f, dueDate: e.target.value }))}
+                    className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Scan du document (Photo)</Label>
+                  <div className="relative border-2 border-dashed border-stone-200 rounded-xl p-4 hover:bg-stone-50 transition-colors flex flex-col items-center justify-center text-center">
+                    {globalPaymentForm.scannedImageUrl ? (
+                      <div className="relative w-full">
+                        <img src={globalPaymentForm.scannedImageUrl} alt="Scan" className="w-full rounded-lg max-h-40 object-contain" />
+                        <button type="button" onClick={() => setGlobalPaymentForm(f => ({ ...f, scannedImageUrl: '' }))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <CreditCard className="w-6 h-6 text-stone-300 mb-2" />
+                        <span className="text-[10px] font-bold text-stone-500">Cliquez ou prenez une photo</span>
+                        <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setGlobalPaymentForm(f => ({ ...f, scannedImageUrl: reader.result as string }));
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-4 bg-stone-50 gap-2">
+            <Button variant="ghost" onClick={() => setGlobalPaymentOpen(false)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>
+            <Button onClick={handleGlobalPayment} disabled={!globalPaymentForm.amount || saving}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl">
+              {saving ? 'Validation...' : 'Valider le paiement'}
             </Button>
           </DialogFooter>
         </DialogContent>

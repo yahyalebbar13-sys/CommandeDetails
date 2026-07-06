@@ -32,6 +32,8 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
     additionalCostsAmount: 0
   });
 
+  const [storeSelections, setStoreSelections] = useState<Record<string, string>>({});
+
   useEffect(() => {
     if (facture && open) {
       setFormData({
@@ -41,8 +43,16 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
         supplierInvoiceAmount: Number(facture.supplierInvoiceAmount) || 0,
         additionalCostsAmount: Number(facture.additionalCostsAmount) || 0
       });
+      
+      if (associatedArticles && associatedArticles.length > 0) {
+        const initialSelections: Record<string, string> = {};
+        associatedArticles.forEach(a => {
+          initialSelections[a.id] = 'ENTREPOT';
+        });
+        setStoreSelections(initialSelections);
+      }
     }
-  }, [facture, open]);
+  }, [facture, open, associatedArticles]);
 
   // Calcul automatique du total droits payés (DI+TPI+TVA) depuis les articles liés
   const calculatedDroitsPayes = React.useMemo(() => {
@@ -185,6 +195,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
           unitOfMeasure:    article.unitOfMeasure || 'unité',
           type:             'IN',
           reason:           'ARRIVAGE',
+          storeId:          storeSelections[article.id] || 'ENTREPOT',
           quantity:         Number(article.quantity) || 0,
           date:             formData.stockEntryDate,
           factureId:        facture.id,
@@ -308,11 +319,47 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
           </div>
           
           {associatedArticles && associatedArticles.length > 0 && (
-            <div className="flex gap-3 items-center pt-2">
-              <AlertTriangle className="w-4 h-4 text-emerald-500 shrink-0" />
-              <p className="text-[9px] font-bold text-emerald-700 uppercase leading-tight">
-                La date d'entrée en stock sera appliquée aux {associatedArticles.length} articles de cet arrivage ("Inventaire Réceptionné").
-              </p>
+            <div className="pt-4 border-t border-stone-100">
+              <h4 className="text-[11px] font-black text-stone-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Archive className="w-4 h-4 text-emerald-500" /> Affectation des Entrepôts
+              </h4>
+              <div className="space-y-3">
+                {associatedArticles.map((article: any) => {
+                  const parts: string[] = [];
+                  if (article.zipperType) parts.push(article.zipperType);
+                  if (article.slider)     parts.push(article.slider);
+                  const productName = parts.length > 0 ? parts.join(' ') : (article.name || article.specs || article.categoryId || 'Produit');
+                  
+                  return (
+                    <div key={article.id} className="flex items-center justify-between p-3 rounded-xl border border-stone-100 bg-stone-50">
+                      <div>
+                        <p className="text-[11px] font-black text-stone-900 uppercase">{productName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {article.color && article.color !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.color}</span>}
+                          {article.size && article.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 uppercase bg-white px-2 py-0.5 rounded border border-stone-200">{article.size}</span>}
+                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{article.quantity} {article.unitOfMeasure}</span>
+                        </div>
+                      </div>
+                      <select
+                        className="text-[10px] font-black uppercase rounded-lg border-stone-200 h-9 bg-white focus:ring-emerald-500 focus:border-emerald-500"
+                        value={storeSelections[article.id] || 'ENTREPOT'}
+                        onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
+                      >
+                        <option value="ENTREPOT">Entrepôt Principal</option>
+                        <option value="DERB_OMAR">Magasin Derb Omar</option>
+                        <option value="CHRIFA">Magasin Chrifa</option>
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-3 items-center mt-5 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                <AlertTriangle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <p className="text-[9px] font-bold text-emerald-700 uppercase leading-tight">
+                  La date d'entrée en stock sera appliquée aux {associatedArticles.length} articles de cet arrivage ("Inventaire Réceptionné").
+                </p>
+              </div>
             </div>
           )}
         </form>

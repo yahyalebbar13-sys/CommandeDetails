@@ -23,6 +23,7 @@ interface StockMovementModalProps {
   categories: any[];
   generalCategories?: any[];
   stockItems: StockItem[];
+  stores: Store[];
   preselectedArticleId?: string;
   preselectedType?: StockMovementType;
   activeStore?: StoreLocation | 'ALL';
@@ -38,7 +39,6 @@ const REASONS_BY_TYPE: Record<StockMovementType, { value: StockMovementReason; l
   OUT: [
     { value: 'VENTE',      label: '🛒 Vente / Livraison' },
     { value: 'PERTE',      label: '❌ Perte / Casse' },
-    { value: 'TRANSFERT',  label: '🔀 Transfert' },
     { value: 'INVENTAIRE', label: '🔄 Ajustement inventaire' },
   ],
   ADJUSTMENT: [
@@ -362,7 +362,7 @@ function ProductPicker({
 
 // ── Modal principal ───────────────────────────────────────────────────────────
 export default function StockMovementModal({
-  open, onOpenChange, articles, categories, generalCategories = [], stockItems,
+  open, onOpenChange, articles, categories, generalCategories = [], stockItems, stores = [],
   preselectedArticleId, preselectedType, activeStore, onSubmit,
 }: StockMovementModalProps) {
 
@@ -606,30 +606,14 @@ export default function StockMovementModal({
                       <SelectValue placeholder="Choisir le magasin..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ENTREPOT">Entrepôt Principal</SelectItem>
-                      <SelectItem value="DERB_OMAR">Derb Omar</SelectItem>
-                      <SelectItem value="CHRIFA">Chrifa</SelectItem>
+                      {stores.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
 
-              {/* Destination (si transfert) */}
-              {form.reason === 'TRANSFERT' && (
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Magasin de destination *</Label>
-                  <Select value={form.toStoreId} onValueChange={v => setForm(f => ({ ...f, toStoreId: v as StoreLocation }))}>
-                    <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
-                      <SelectValue placeholder="Choisir la destination..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ENTREPOT">Entrepôt Principal</SelectItem>
-                      <SelectItem value="DERB_OMAR">Derb Omar</SelectItem>
-                      <SelectItem value="CHRIFA">Chrifa</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
 
               {/* Quantité + Date */}
               <div className="grid grid-cols-2 gap-3">

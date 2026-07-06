@@ -7,7 +7,7 @@ import {
   Boxes, TrendingUp, Hash, Calendar, Tag, Info
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -109,30 +109,32 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, movements, factures, onBack, color, inline = false
+  article, variants, movements, factures, onBack, color, inline = false
 }: {
-  article: any; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
+  article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
 }) {
   const cost = article.purchasePricePerUnit || 0;
 
   const artMovs = useMemo(() =>
-    movements.filter(m => m.articleId === article.articleId)
+    movements.filter(m => variants.some(v => m.articleId === v.articleId))
       .sort((a, b) => (a.date || '').localeCompare(b.date || '')),
-    [movements, article.articleId]
+    [movements, variants]
   );
 
   const entriesIN  = artMovs.filter(m => m.type === 'IN');
   const entriesOUT = artMovs.filter(m => m.type === 'OUT');
   const fifoBatches = useMemo(() => computeFIFO(entriesIN, entriesOUT, cost), [entriesIN, entriesOUT, cost]);
 
-  const totalIn  = article.initialQty + article.mouvementsIn;
-  const totalOut = article.mouvementsOut;
+  const totalIn  = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
+  const totalOut = variants.reduce((s, v) => s + v.mouvementsOut, 0);
+  const currentQty = variants.reduce((s, v) => s + v.currentQty, 0);
+  const initialQty = variants.reduce((s, v) => s + v.initialQty, 0);
   const fifoValue = fifoBatches.reduce((s, b) => s + b.batchValue, 0);
-  const isAlert   = article.minThreshold != null && article.currentQty <= article.minThreshold;
-  const pct       = totalIn > 0 ? Math.min(100, Math.round((article.currentQty / totalIn) * 100)) : 100;
+  const isAlert   = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
+  const pct       = totalIn > 0 ? Math.min(100, Math.round((currentQty / totalIn) * 100)) : 100;
 
   // Stock cumulatif pour le tableau mouvements
-  let running = article.initialQty;
+  let running = initialQty;
 
   return (
     <div className="space-y-5">
@@ -167,7 +169,7 @@ function ProductFiche({
             {[
               { label: 'Entrées', value: `+${fmt(totalIn)}`, sub: article.unitOfMeasure, cls: 'text-emerald-600' },
               { label: 'Sorties', value: totalOut > 0 ? `-${fmt(totalOut)}` : '—', sub: totalOut > 0 ? article.unitOfMeasure : '', cls: totalOut > 0 ? 'text-rose-600' : 'text-stone-300' },
-              { label: 'Stock Réel', value: fmt(article.currentQty), sub: isAlert ? '⚠ Alerte' : 'OK', cls: isAlert ? 'text-amber-600' : 'text-stone-900' },
+              { label: 'Stock Réel', value: fmt(currentQty), sub: isAlert ? '⚠ Alerte' : 'OK', cls: isAlert ? 'text-amber-600' : 'text-stone-900' },
               { label: 'Valeur FIFO', value: fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—', sub: cost > 0 ? `${fmtDec(cost)} MAD/u` : '', cls: 'text-violet-700' },
             ].map(({ label, value, sub, cls }) => (
               <div key={label} className="bg-stone-50 rounded-2xl px-4 py-3 text-center">
@@ -197,6 +199,83 @@ function ProductFiche({
           </div>
         </div>
       </div>
+
+      {/* ── Détail des variantes (si plusieurs) ── */}
+      {(() => {
+        const groupedVariantsDetails = Array.from(
+          variants.reduce((map, v) => {
+            const key = `${v.color || ''}|${v.size || ''}`.toLowerCase();
+            if (!map.has(key)) {
+              map.set(key, { ...v, currentQty: 0 });
+            }
+            map.get(key).currentQty += v.currentQty;
+            return map;
+          }, new Map<string, any>()).values()
+        ).sort((a: any, b: any) => b.currentQty - a.currentQty);
+
+        if (groupedVariantsDetails.length <= 1) return null;
+
+        const totalVarQty = groupedVariantsDetails.reduce((s: number, v: any) => s + v.currentQty, 0);
+
+        return (
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-stone-50 to-white flex items-center gap-2">
+              <div className="w-5 h-5 rounded-lg bg-stone-100 flex items-center justify-center">
+                <Package className="w-3 h-3 text-stone-600" />
+              </div>
+              <h4 className="text-[9px] font-black text-stone-700 uppercase tracking-widest">Détail des Variantes</h4>
+              <span className="ml-auto text-[8px] font-black text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full uppercase">{groupedVariantsDetails.length} variantes</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-stone-50 border-b border-stone-100">
+                    <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Couleur</th>
+                    <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Taille</th>
+                    <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Stock Réel</th>
+                    <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Statut</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-50">
+                  {groupedVariantsDetails.map((v: any, i: number) => {
+                    const isRupt = v.currentQty === 0;
+                    const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
+                    return (
+                      <tr key={i} className="hover:bg-stone-50/50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          {v.color ? <span className="text-[9px] font-black bg-stone-100 text-stone-600 px-2 py-1 rounded uppercase">{v.color}</span> : <span className="text-stone-300">—</span>}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {v.size ? <span className="text-[9px] font-black bg-stone-100 text-stone-600 px-2 py-1 rounded uppercase">{v.size}</span> : <span className="text-stone-300">—</span>}
+                        </td>
+                        <td className="px-5 py-3.5 text-right font-black text-[13px] text-stone-700">
+                          {fmt(v.currentQty)} <span className="text-[8px] text-stone-400">{v.unitOfMeasure}</span>
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          {isRupt ? (
+                            <span className="text-[8px] font-black text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">Rupture</span>
+                          ) : isAlerte ? (
+                            <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-full uppercase">Alerte</span>
+                          ) : (
+                            <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">OK</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
+                    <td colSpan={2} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Total Variantes</td>
+                    <td className="px-5 py-3 text-right font-black text-emerald-400 text-[14px]">{fmt(totalVarQty)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Lots FIFO ── */}
       {fifoBatches.length > 0 && (
@@ -394,6 +473,17 @@ function ProductsTable({
   onBack: () => void;
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
+
+  const groupedVariants = useMemo(() => {
+    const grouped = new Map<string, any[]>();
+    items.forEach(i => {
+      const pid = (i.productName || '').trim().toLowerCase();
+      if (!grouped.has(pid)) grouped.set(pid, []);
+      grouped.get(pid)!.push(i);
+    });
+    return Array.from(grouped.values());
+  }, [items]);
+
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
   const totalVal = items.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
@@ -434,60 +524,73 @@ function ProductsTable({
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
-          {items.length === 0 ? (
+          {groupedVariants.length === 0 ? (
             <div className="col-span-full py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
               Aucun article validé dans cette sous-catégorie
             </div>
-          ) : items.map((a, idx) => {
-            const color  = UI_COLORS[idx % UI_COLORS.length];
-            const cost   = a.purchasePricePerUnit || 0;
-            const totalIn = a.initialQty + a.mouvementsIn;
-            const pct    = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
-            const artIN  = movements.filter(m => m.articleId === a.articleId && m.type === 'IN');
-            const artOUT = movements.filter(m => m.articleId === a.articleId && m.type === 'OUT');
-            const batches = computeFIFO(artIN, artOUT, cost);
-            const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
-            const isAlert = a.minThreshold != null && a.currentQty <= a.minThreshold;
-            const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
+          ) : (
+            groupedVariants.map((variants, idx) => {
+              const a = variants[0];
+              const isMulti = variants.length > 1;
+              const color  = UI_COLORS[idx % UI_COLORS.length];
+              const cost   = a.purchasePricePerUnit || 0;
+              const totalIn = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
+              const totalCurrent = variants.reduce((s, v) => s + v.currentQty, 0);
+              const pct    = totalIn > 0 ? Math.min(100, Math.round((totalCurrent / totalIn) * 100)) : 100;
+              const artIN  = movements.filter(m => variants.some(v => m.articleId === v.articleId) && m.type === 'IN');
+              const artOUT = movements.filter(m => variants.some(v => m.articleId === v.articleId) && m.type === 'OUT');
+              const batches = computeFIFO(artIN, artOUT, cost);
+              const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
+              const isAlert = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
+              const isRupture = totalCurrent === 0;
+              const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
 
-            return (
-              <div key={a.articleId} 
-                onClick={() => setSelectedArticle(a)}
-                className="group flex flex-col bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-stone-100 overflow-hidden cursor-pointer relative"
-              >
-                <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
-                <div className="p-5 flex-1 flex flex-col">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
-                      <Package className="w-5 h-5" style={{ color }} />
+              return (
+                <div key={a._realArticleId || a.articleId} 
+                  onClick={() => setSelectedArticle({ ...a, _variants: variants })}
+                  className="group flex flex-col bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-stone-100 overflow-hidden cursor-pointer relative"
+                >
+                  <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
+                  <div className="p-5 flex-1 flex flex-col">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+                        <Package className="w-5 h-5" style={{ color }} />
+                      </div>
+                      {isAlert ? (
+                        <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Alerte
+                        </div>
+                      ) : isRupture ? (
+                        <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                          Rupture
+                        </div>
+                      ) : (
+                        <div className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                          OK
+                        </div>
+                      )}
                     </div>
-                    {isAlert ? (
-                      <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Alerte
-                      </div>
-                    ) : a.currentQty === 0 ? (
-                      <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
-                        Rupture
-                      </div>
-                    ) : (
-                      <div className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
-                        OK
-                      </div>
-                    )}
-                  </div>
-                  
-                  <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">{a.productName}</h3>
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
-                    {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
-                    {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
-                  </div>
+                    
+                    <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">{a.productName}</h3>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
+                      {isMulti ? (
+                        <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">
+                          {variants.length} variantes
+                        </span>
+                      ) : (
+                        <>
+                          {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
+                          {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
+                        </>
+                      )}
+                    </div>
 
                   <div className="mt-auto pt-4 border-t border-stone-100">
                     <div className="flex justify-between items-end mb-3">
                       <div>
                         <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
-                        <p className={`text-2xl font-black leading-none ${a.currentQty === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
-                          {fmt(a.currentQty)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
+                        <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
+                          {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
                         </p>
                       </div>
                       <div className="text-right">
@@ -502,16 +605,19 @@ function ProductsTable({
                   </div>
                 </div>
               </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
       <Dialog open={!!selectedArticle} onOpenChange={(o) => !o && setSelectedArticle(null)}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-stone-50 rounded-3xl">
+          <DialogTitle className="sr-only">Fiche Produit</DialogTitle>
           {selectedArticle && (
             <ProductFiche
               article={selectedArticle}
+              variants={selectedArticle._variants || [selectedArticle]}
               movements={movements}
               factures={factures}
               color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length]}

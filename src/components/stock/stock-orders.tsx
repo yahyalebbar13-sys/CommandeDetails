@@ -76,7 +76,11 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
     .footer{margin-top:40px;text-align:center;font-size:10px;color:#a8a29e}
     </style></head><body>
     <div class="header">
-      <div><div class="label">Bon de Commande</div><h1>${num}</h1></div>
+      <div>
+        <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
+        <div class="label">Bon de Commande</div>
+        <h1>${num}</h1>
+      </div>
       <div style="text-align:right"><div class="label">Date</div><strong>${order.date}</strong><br>
       <div class="label" style="margin-top:8px">Client</div><strong>${order.clientName || 'Anonyme'}</strong></div>
     </div>

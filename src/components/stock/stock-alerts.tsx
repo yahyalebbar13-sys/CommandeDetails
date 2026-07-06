@@ -24,10 +24,11 @@ interface StockAlertsProps {
   movements: StockMovement[];
   activeStore: StoreLocation | 'ALL';
   onNavigate: (v: StockView) => void;
+  adminUid?: string | null;
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
-export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, onAddMovement }: StockAlertsProps) {
+export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, adminUid, onAddMovement }: StockAlertsProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -70,9 +71,10 @@ export default function StockAlerts({ stockItems, articles, categories, movement
 
   const handleSaveThreshold = () => {
     if (!user || !firestore || !thresholdItem) return;
+    const effectiveUid = adminUid || user.uid;
     const val = parseFloat(thresholdValue);
     if (isNaN(val) || val < 0) return;
-    const docRef = doc(firestore, 'users', user.uid, 'articles', thresholdItem.articleId);
+    const docRef = doc(firestore, 'users', effectiveUid, 'articles', thresholdItem.articleId);
     updateDocumentNonBlocking(docRef, { minStockThreshold: val });
     toast({ title: 'Seuil enregistré', description: `${thresholdItem.productName} → seuil : ${val} ${thresholdItem.unitOfMeasure}` });
     setThresholdItem(null);

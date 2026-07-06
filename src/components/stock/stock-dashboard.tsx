@@ -316,7 +316,7 @@ export default function StockDashboard({ stockItems, movements, categories, sale
               </div>
               <div className="space-y-2">
                 {topProducts.slice(0,5).length === 0 ? <p className="text-center text-stone-300 text-[10px] font-black uppercase py-8">Aucune vente</p> : topProducts.slice(0,5).map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors">
+                  <div key={`${item.name}-${i}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors">
                     <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-[9px] font-black text-emerald-700 shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0"><p className="text-[10px] font-black text-stone-800 uppercase truncate">{item.name}</p><p className="text-[8px] font-bold text-stone-400">{item.qty} vendus</p></div>
                     {userRole === 'ADMIN' && <span className="text-[10px] font-black text-emerald-700 shrink-0">{fmt$(item.ca)}</span>}
@@ -421,7 +421,7 @@ export default function StockDashboard({ stockItems, movements, categories, sale
               {topProducts.length === 0 ? <p className="text-center text-stone-300 text-[10px] font-black uppercase py-8">Aucune vente enregistrée</p> : (
                 <div className="space-y-2">
                   {topProducts.map((p, i) => (
-                    <div key={p.name} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors">
+                    <div key={`${p.name}-${i}`} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors">
                       <span className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center text-[9px] font-black text-violet-700 shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-black text-stone-800 uppercase truncate">{p.name}</p>
