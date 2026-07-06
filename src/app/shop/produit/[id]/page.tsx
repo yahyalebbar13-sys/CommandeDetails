@@ -1,7 +1,8 @@
 "use client";
+export const dynamic = 'force-dynamic';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package, X } from 'lucide-react';
+import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package } from 'lucide-react';
 import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
@@ -336,11 +337,36 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [mainImg, setMainImg] = React.useState(0);
   const [wished, setWished] = React.useState(false);
   const [added, setAdded] = React.useState(false);
+  // Similar products — computed client-side to avoid hydration mismatch with Math.random()
+  const [similar, setSimilar] = React.useState<typeof products>([]);
+  const [similarTitle, setSimilarTitle] = React.useState("Vous aimerez aussi");
+  const [similarLink, setSimilarLink] = React.useState("/shop");
 
   React.useEffect(() => {
     if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
     if (product?.minOrderQty) setQty(product.minOrderQty);
   }, [product?.id]);
+
+  // Compute similar products client-side (Math.random causes hydration mismatch if done during render)
+  React.useEffect(() => {
+    if (!product || products.length === 0) return;
+    let sim = products
+      .filter(p => p.categorySlug === product.categorySlug && p.id !== product.id)
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 4);
+    if (sim.length === 0) {
+      sim = products
+        .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 4);
+      setSimilarTitle("Découvrez d'autres catégories");
+      setSimilarLink("/shop");
+    } else {
+      setSimilarTitle("Vous aimerez aussi");
+      setSimilarLink(`/shop/categorie/${product.categorySlug}`);
+    }
+    setSimilar(sim);
+  }, [product?.id, products]);
 
   // Still loading
   if (isLoading || directLoading) {
@@ -371,24 +397,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   }
 
   const hasVariants = product.variants && product.variants.length > 0;
-  // Fetch products for cross-selling
-  let similar = products
-    .filter(p => p.categorySlug === product.categorySlug && p.id !== product.id)
-    .sort(() => 0.5 - Math.random()) // Randomize
-    .slice(0, 4);
-    
-  let similarTitle = "Vous aimerez aussi";
-  let similarLink = `/shop/categorie/${product.categorySlug}`;
-
-  // Fallback to other categories if no products in the same category
-  if (similar.length === 0) {
-    similar = products
-      .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 4);
-    similarTitle = "Découvrez d'autres catégories";
-    similarLink = "/shop";
-  }
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
   const currentPrice = selectedVariant?.price || product.price;
   const stock = selectedVariant?.stock ?? product.stockQty;
