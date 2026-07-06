@@ -80,7 +80,6 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return {
-      // beforeFiles: runs BEFORE filesystem check — overrides src/app/page.tsx
       beforeFiles: [
         {
           source: '/',
@@ -90,6 +89,55 @@ const nextConfig: NextConfig = {
       afterFiles: [],
       fallback: [],
     };
+  },
+  async redirects() {
+    return [
+      {
+        source: '/produit/:path*',
+        destination: '/shop/produit/:path*',
+        permanent: true,
+      },
+      {
+        source: '/categorie/:path*',
+        destination: '/shop/categorie/:path*',
+        permanent: true,
+      },
+      {
+        source: '/categories/:path*',
+        destination: '/shop/categories/:path*',
+        permanent: true,
+      },
+      {
+        source: '/boutique/:path*',
+        destination: '/shop/boutique/:path*',
+        permanent: true,
+      },
+      {
+        source: '/promotions/:path*',
+        destination: '/shop/promotions/:path*',
+        permanent: true,
+      },
+      {
+        source: '/a-propos',
+        destination: '/shop/a-propos',
+        permanent: true,
+      },
+      {
+        source: '/contact',
+        destination: '/shop/contact',
+        permanent: true,
+      },
+      {
+        source: '/faq',
+        destination: '/shop/faq',
+        permanent: true,
+      },
+      {
+        source: '/livraison',
+        destination: '/shop/livraison',
+        permanent: true,
+      }
+    ];
   },
 };
 
