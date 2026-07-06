@@ -496,9 +496,9 @@ export default function StockApp() {
     );
   }
 
-  const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean }[] = [
+  const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean; commercialOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard, adminOnly: true },
-    { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet' },
+    { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet', commercialOnly: true },
     { id: 'stock',     label: 'En Stock',      icon: Package,         color: 'emerald' },
     { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
     { id: 'clients',   label: 'Clients',       icon: Users },
@@ -510,7 +510,11 @@ export default function StockApp() {
     { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ];
 
-  const navItems = navItemsRaw.filter(item => !(item.adminOnly && userRole === 'COMMERCIAL'));
+  const navItems = navItemsRaw.filter(item => {
+    if (item.adminOnly && userRole === 'COMMERCIAL') return false;
+    if (item.commercialOnly && userRole === 'ADMIN') return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f0faf4] font-sans">
