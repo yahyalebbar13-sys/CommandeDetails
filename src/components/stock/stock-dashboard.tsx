@@ -14,6 +14,8 @@ interface StockDashboardProps {
   movements: StockMovement[];
   categories: any[];
   sales: Sale[];
+  userRole?: 'ADMIN' | 'COMMERCIAL';
+  activeStore: StoreLocation | 'ALL';
   onNavigate: (v: StockView) => void;
 }
 
@@ -22,7 +24,7 @@ const EMERALD_SHADES = ['#059669','#10b981','#34d399','#6ee7b7','#a7f3d0','#d1fa
 const fmt$ = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const fmtN = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 
-export default function StockDashboard({ stockItems, movements, categories, sales, onNavigate }: StockDashboardProps) {
+export default function StockDashboard({ stockItems, movements, categories, sales, userRole = 'ADMIN', activeStore, onNavigate }: StockDashboardProps) {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -51,11 +53,38 @@ export default function StockDashboard({ stockItems, movements, categories, sale
       .map(([name, value]) => ({ name: name.length > 18 ? name.substring(0, 18) + '…' : name, value: Math.round(value) }));
   }, [stockItems]);
 
-  // Top 5 articles par valeur
-  const top5 = useMemo(() =>
+  // Top 5 articles par valeur (Admin seulement)
+  const top5Valeur = useMemo(() =>
     [...stockItems].sort((a, b) => b.totalValue - a.totalValue).slice(0, 5),
     [stockItems]
   );
+
+  // Top 5 articles vendus
+  const top5Vendus = useMemo(() => {
+    const map: Record<string, { name: string; qty: number; revenue: number }> = {};
+    sales.forEach(s => {
+      s.items.forEach(i => {
+        if (!map[i.articleId]) map[i.articleId] = { name: i.productName, qty: 0, revenue: 0 };
+        map[i.articleId].qty += i.qty;
+        map[i.articleId].revenue += i.qty * i.price;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  }, [sales]);
+
+  // Ventes par magasin (ce mois)
+  const storeSalesData = useMemo(() => {
+    const map = { ENTREPOT: 0, DERB_OMAR: 0, CHRIFA: 0 };
+    sales.filter(s => s.date?.startsWith(currentMonth)).forEach(s => {
+      const store = s.storeId || 'ENTREPOT';
+      if (store in map) map[store as keyof typeof map] += s.totalAmount;
+    });
+    return [
+      { name: 'Entrepôt', value: map.ENTREPOT, fill: '#059669' },
+      { name: 'Derb Omar', value: map.DERB_OMAR, fill: '#8b5cf6' },
+      { name: 'Chrifa', value: map.CHRIFA, fill: '#f59e0b' },
+    ].filter(d => d.value > 0);
+  }, [sales, currentMonth]);
 
   // Derniers 5 mouvements
   const lastMovements = useMemo(() =>
@@ -72,7 +101,10 @@ export default function StockDashboard({ stockItems, movements, categories, sale
   ].filter(d => d.value > 0);
   const PIE_COLORS = ['#059669', '#ef4444', '#3b82f6'];
 
-  const kpis = [
+  const nbSalesMonth = useMemo(() => sales.filter(s => s.date?.startsWith(currentMonth)).length, [sales, currentMonth]);
+  const panierMoyen = nbSalesMonth > 0 ? caMonth / nbSalesMonth : 0;
+
+  const kpisAdmin = [
     {
       label: 'Valeur Totale Stock', value: fmt$(totalValue),
       icon: DollarSign, color: 'emerald',
@@ -99,6 +131,35 @@ export default function StockDashboard({ stockItems, movements, categories, sale
       onClick: () => onNavigate('alerts'),
     },
   ];
+
+  const kpisCommercial = [
+    {
+      label: "CA aujourd'hui", value: fmt$(caToday),
+      icon: TrendingUp, color: 'violet',
+      sub: `${nbSalesToday} vente${nbSalesToday > 1 ? 's' : ''} · ${today.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`,
+      onClick: () => onNavigate('sales'),
+    },
+    {
+      label: 'CA ce mois', value: fmt$(caMonth),
+      icon: DollarSign, color: 'blue',
+      sub: `${nbSalesMonth} ventes ce mois-ci`,
+      onClick: () => onNavigate('sales'),
+    },
+    {
+      label: 'Panier Moyen', value: fmt$(panierMoyen),
+      icon: Package, color: 'emerald',
+      sub: 'Sur ce mois-ci',
+    },
+    {
+      label: 'Alertes actives', value: fmtN(alertCount),
+      icon: Bell, color: alertCount > 0 ? 'red' : 'emerald',
+      sub: alertCount > 0 ? 'Stock bas ou rupture' : 'Tout est OK',
+      urgent: alertCount > 0,
+      onClick: () => onNavigate('alerts'),
+    },
+  ];
+
+  const kpis = userRole === 'ADMIN' ? kpisAdmin : kpisCommercial;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -172,55 +233,77 @@ export default function StockDashboard({ stockItems, movements, categories, sale
           )}
         </div>
 
-        {/* Pie mouvements du mois */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-stone-100">
-          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Ce mois</p>
-          <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter mb-4">Types de Mouvements</h3>
-          {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={3}>
-                  {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Pie>
-                <Legend iconSize={8} iconType="circle" formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{v}</span>} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-[200px] space-y-2">
-              <ArrowLeftRight className="w-8 h-8 text-stone-200" />
-              <p className="text-stone-300 font-black uppercase text-[9px]">Aucun mouvement ce mois</p>
-            </div>
-          )}
-        </div>
+        {userRole === 'ADMIN' ? (
+          <div className="bg-white rounded-2xl shadow-xl p-6 border border-stone-100">
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Ce mois</p>
+            <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter mb-4">CA par Magasin</h3>
+            {storeSalesData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={storeSalesData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={3}>
+                    {storeSalesData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Pie>
+                  <Legend iconSize={8} iconType="circle" formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{v}</span>} />
+                  <Tooltip formatter={(v: any) => [fmt$(v), 'CA']} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[200px] space-y-2">
+                <DollarSign className="w-8 h-8 text-stone-200" />
+                <p className="text-stone-300 font-black uppercase text-[9px]">Aucune vente ce mois</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-xl p-6 border border-stone-100">
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Ce mois</p>
+            <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter mb-4">Types de Mouvements</h3>
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={3}>
+                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Legend iconSize={8} iconType="circle" formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{v}</span>} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[200px] space-y-2">
+                <ArrowLeftRight className="w-8 h-8 text-stone-200" />
+                <p className="text-stone-300 font-black uppercase text-[9px]">Aucun mouvement</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Top 5 + Derniers mouvements ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Top 5 articles */}
+        {/* Top 5 articles vendus */}
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-stone-100">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Valeur</p>
-              <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter">Top 5 Produits</h3>
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Global</p>
+              <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter">Top Produits Vendus</h3>
             </div>
-            <Button onClick={() => onNavigate('inventory')} variant="ghost" size="sm"
+            <Button onClick={() => onNavigate('sales')} variant="ghost" size="sm"
               className="text-[9px] font-black uppercase tracking-wider text-stone-400 hover:text-emerald-700 gap-1">
               Tout voir <ArrowRight className="w-3 h-3" />
             </Button>
           </div>
           <div className="space-y-2">
-            {top5.length === 0 ? (
-              <p className="text-center text-stone-300 text-[10px] font-black uppercase py-8">Aucune donnée</p>
-            ) : top5.map((item, i) => (
-              <div key={item.articleId} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors">
-                <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-[9px] font-black text-emerald-700 shrink-0">{i + 1}</span>
+            {top5Vendus.length === 0 ? (
+              <p className="text-center text-stone-300 text-[10px] font-black uppercase py-8">Aucune vente</p>
+            ) : top5Vendus.map((item, i) => (
+              <div key={item.name} className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-50 transition-colors">
+                <span className="w-6 h-6 rounded-lg bg-violet-100 flex items-center justify-center text-[9px] font-black text-violet-700 shrink-0">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-stone-800 uppercase truncate">{item.productName}</p>
-                  <p className="text-[8px] font-bold text-stone-400">{item.categoryId} · {fmtN(item.currentQty)} {item.unitOfMeasure}</p>
+                  <p className="text-[10px] font-black text-stone-800 uppercase truncate">{item.name}</p>
+                  <p className="text-[8px] font-bold text-stone-400">{item.qty} vendus</p>
                 </div>
-                <span className="text-[10px] font-black text-emerald-700 shrink-0">{fmt$(item.totalValue)}</span>
+                <span className="text-[10px] font-black text-violet-700 shrink-0">{fmt$(item.revenue)}</span>
               </div>
             ))}
           </div>

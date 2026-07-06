@@ -478,19 +478,21 @@ export default function StockApp() {
   );
   if (!user) return <AuthView />;
 
-  const navItems: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string }[] = [
+  const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard },
     { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet' },
     { id: 'stock',     label: 'En Stock',      icon: Package,         color: 'emerald' },
-    { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber' },
+    { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
     { id: 'clients',   label: 'Clients',       icon: Users },
     { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
     { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices },
     { id: 'inventory', label: 'Inventaire',    icon: Boxes },
-    { id: 'analytics', label: 'Analytique',    icon: TrendingUp },
+    { id: 'analytics', label: 'Analytique',    icon: TrendingUp, adminOnly: true },
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
     { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ];
+
+  const navItems = navItemsRaw.filter(item => !(item.adminOnly && userRole === 'COMMERCIAL'));
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f0faf4] font-sans">
@@ -613,7 +615,7 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} onNavigate={(v) => setActiveView(v as any)} />
+              <StockDashboard userRole={userRole} activeStore={activeStore} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} onNavigate={(v) => setActiveView(v as any)} />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
@@ -661,7 +663,7 @@ export default function StockApp() {
               <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
             )}
             {activeView === 'inventory' && (
-              <StockInventory activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+              <StockInventory userRole={userRole} activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'analytics' && (
               <StockSales sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={setActiveView} />

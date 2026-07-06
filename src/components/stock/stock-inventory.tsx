@@ -21,6 +21,7 @@ interface StockInventoryProps {
   categories: any[];
   generalCategories: any[];
   activeStore: StoreLocation | 'ALL';
+  userRole?: 'ADMIN' | 'COMMERCIAL';
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
@@ -42,7 +43,7 @@ const LEVEL_BADGE: Record<string, { label: string; className: string }> = {
   unknown: { label: '—',       className: 'bg-stone-100 text-stone-400 border-stone-200' },
 };
 
-export default function StockInventory({ stockItems, articles, categories, generalCategories, activeStore, onAddMovement }: StockInventoryProps) {
+export default function StockInventory({ stockItems, articles, categories, generalCategories, activeStore, userRole = 'ADMIN', onAddMovement }: StockInventoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -316,7 +317,7 @@ export default function StockInventory({ stockItems, articles, categories, gener
                       <div className="text-right shrink-0 w-28">
                         <p className="text-[16px] font-black text-stone-900 leading-none">{fmtN(totalQty)}</p>
                         <p className="text-[7px] font-bold text-stone-400">{udm} total</p>
-                        <p className="text-[9px] font-black text-emerald-700 mt-0.5">{fmt$(totalValue)}</p>
+                        {userRole === 'ADMIN' && <p className="text-[9px] font-black text-emerald-700 mt-0.5">{fmt$(totalValue)}</p>}
                       </div>
                       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         {variants.length === 1 ? (
@@ -387,7 +388,7 @@ export default function StockInventory({ stockItems, articles, categories, gener
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Produit', 'Catégorie', 'Couleur', 'Taille', 'Qté dispo', 'UdM', 'Prix achat', 'Prix vente 🏷️', 'Marge', 'Valeur stock', 'Statut', 'Actions'].map(h => (
+                  {['Produit', 'Catégorie', 'Couleur', 'Taille', 'Qté dispo', 'UdM', ...(userRole === 'ADMIN' ? ['Prix achat'] : []), 'Prix vente 🏷️', ...(userRole === 'ADMIN' ? ['Marge', 'Valeur stock'] : []), 'Statut', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -424,20 +425,22 @@ export default function StockInventory({ stockItems, articles, categories, gener
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[9px] font-black text-stone-400 uppercase">{item.unitOfMeasure}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex flex-col items-start gap-0.5">
-                          <span className="text-[10px] font-black text-stone-800">
-                            {fmtMAD(item.purchasePricePerUnit)} DH
-                          </span>
-                          <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
-                            (item as any).hasTTCCost
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-orange-100 text-orange-600'
-                          }`}>
-                            {(item as any).hasTTCCost ? 'Revient TTC' : 'FOB estimé'}
-                          </span>
-                        </div>
-                      </td>
+                      {userRole === 'ADMIN' && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="text-[10px] font-black text-stone-800">
+                              {fmtMAD(item.purchasePricePerUnit)} DH
+                            </span>
+                            <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${
+                              (item as any).hasTTCCost
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-orange-100 text-orange-600'
+                            }`}>
+                              {(item as any).hasTTCCost ? 'Revient TTC' : 'FOB estimé'}
+                            </span>
+                          </div>
+                        </td>
+                      )}
                       {/* Prix de vente — éditable inline */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {editPriceId === item.articleId ? (
@@ -470,19 +473,23 @@ export default function StockInventory({ stockItems, articles, categories, gener
                         )}
                       </td>
                       {/* Marge */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {item.sellingPrice ? (
-                          <div>
-                            <span className={`text-[10px] font-black ${item.sellingPrice > item.purchasePricePerUnit ? 'text-emerald-600' : 'text-red-500'}`}>
-                              {fmt$(item.sellingPrice - item.purchasePricePerUnit)}
-                            </span>
-                            <span className="text-[8px] text-stone-400 font-bold block">
-                              {((item.sellingPrice - item.purchasePricePerUnit) / item.sellingPrice * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                        ) : <span className="text-stone-200 text-[10px]">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-[10px] font-black text-emerald-700 whitespace-nowrap">{fmt$(item.totalValue)}</td>
+                      {userRole === 'ADMIN' && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {item.sellingPrice ? (
+                            <div>
+                              <span className={`text-[10px] font-black ${item.sellingPrice > item.purchasePricePerUnit ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {fmt$(item.sellingPrice - item.purchasePricePerUnit)}
+                              </span>
+                              <span className="text-[8px] text-stone-400 font-bold block">
+                                {((item.sellingPrice - item.purchasePricePerUnit) / item.sellingPrice * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          ) : <span className="text-stone-200 text-[10px]">—</span>}
+                        </td>
+                      )}
+                      {userRole === 'ADMIN' && (
+                        <td className="px-4 py-3 text-[10px] font-black text-emerald-700 whitespace-nowrap">{fmt$(item.totalValue)}</td>
+                      )}
                       <td className="px-4 py-3">
                         <span className={`inline-block text-[8px] font-black uppercase px-2 py-0.5 rounded-lg border ${badge.className}`}>
                           {badge.label}
