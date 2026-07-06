@@ -20,6 +20,7 @@ export default function CopyProtection() {
 
     /* ── 2. Bloquer les raccourcis clavier sensibles ── */
     const blockShortcuts = (e: KeyboardEvent) => {
+      if (!e.key) return;
       const key = e.key.toLowerCase();
       const ctrl = e.ctrlKey || e.metaKey;
       const shift = e.shiftKey;
