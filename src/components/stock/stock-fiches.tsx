@@ -7,6 +7,7 @@ import {
   Boxes, TrendingUp, Hash, Calendar, Tag, Info
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -392,7 +393,7 @@ function ProductsTable({
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void;
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
   const totalVal = items.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
@@ -432,145 +433,94 @@ function ProductsTable({
             <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-stone-100 bg-stone-50">
-                <th className="px-5 py-3 text-center text-[7px] font-black text-stone-400 uppercase tracking-widest w-10">#</th>
-                <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Produit</th>
-                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Entrées</th>
-                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Sorties</th>
-                <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest min-w-[160px]">Stock Réel</th>
-                <th className="px-5 py-3 text-center text-[7px] font-black text-stone-400 uppercase tracking-widest">Seuil Mini</th>
-                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Coût Rev. MAD/u</th>
-                <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Valeur FIFO (MAD)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-50">
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
-                    Aucun article validé dans cette sous-catégorie
-                  </td>
-                </tr>
-              ) : items.map((a, idx) => {
-                const color  = UI_COLORS[idx % UI_COLORS.length];
-                const cost   = a.purchasePricePerUnit || 0;
-                const totalIn = a.initialQty + a.mouvementsIn;
-                const pct    = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
-                const artIN  = movements.filter(m => m.articleId === a.articleId && m.type === 'IN');
-                const artOUT = movements.filter(m => m.articleId === a.articleId && m.type === 'OUT');
-                const batches = computeFIFO(artIN, artOUT, cost);
-                const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
-                const isAlert = a.minThreshold != null && a.currentQty <= a.minThreshold;
-                const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
+          {items.length === 0 ? (
+            <div className="col-span-full py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
+              Aucun article validé dans cette sous-catégorie
+            </div>
+          ) : items.map((a, idx) => {
+            const color  = UI_COLORS[idx % UI_COLORS.length];
+            const cost   = a.purchasePricePerUnit || 0;
+            const totalIn = a.initialQty + a.mouvementsIn;
+            const pct    = totalIn > 0 ? Math.min(100, Math.round((a.currentQty / totalIn) * 100)) : 100;
+            const artIN  = movements.filter(m => m.articleId === a.articleId && m.type === 'IN');
+            const artOUT = movements.filter(m => m.articleId === a.articleId && m.type === 'OUT');
+            const batches = computeFIFO(artIN, artOUT, cost);
+            const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
+            const isAlert = a.minThreshold != null && a.currentQty <= a.minThreshold;
+            const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
 
-                const isExpanded = expandedId === a.articleId;
-                return (
-                  <React.Fragment key={a.articleId}>
-                    <tr
-                      onClick={() => setExpandedId(isExpanded ? null : a.articleId)}
-                      className={`cursor-pointer transition-colors group ${isExpanded ? 'bg-stone-50' : 'hover:bg-stone-50/60'}`}
-                      style={{ borderLeftWidth: 3, borderLeftColor: color, borderLeftStyle: 'solid' }}
-                    >
-                      <td className="px-5 py-4 text-center text-[8px] font-black text-stone-300">{idx + 1}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}20` }}>
-                            <Package className="w-3.5 h-3.5" style={{ color }} />
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight">{a.productName}</p>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {a.size  && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.size}</span>}
-                              {a.color && <span className="text-[7px] font-bold bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">{a.color}</span>}
-                              <span className="text-[7px] text-stone-300">{a.unitOfMeasure}</span>
-                            </div>
-                          </div>
-                          <div className={`ml-auto w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
-                            isExpanded ? 'bg-stone-900 border-stone-900 rotate-90' : 'border-stone-200'
-                          }`}>
-                            <ArrowRight className={`w-2.5 h-2.5 transition-colors ${isExpanded ? 'text-white' : 'text-stone-300'}`} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 text-right font-black text-emerald-600">+{fmt(totalIn)}</td>
-                      <td className="px-5 py-4 text-right">
-                        <span className={`font-black ${a.mouvementsOut > 0 ? 'text-rose-600' : 'text-stone-200'}`}>
-                          {a.mouvementsOut > 0 ? `-${fmt(a.mouvementsOut)}` : '—'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 min-w-[160px]">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[14px] font-black text-stone-900">{fmt(a.currentQty)}</span>
-                            {a.currentQty === 0 ? (
-                              <span className="text-[7px] font-black bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full uppercase">Rupture</span>
-                            ) : isAlert ? (
-                              <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                                <AlertTriangle className="w-2 h-2" />Alerte
-                              </span>
-                            ) : (
-                              <span className="text-[7px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                                <CheckCircle2 className="w-2 h-2" />OK
-                              </span>
-                            )}
-                          </div>
-                          <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        {a.minThreshold != null
-                          ? <span className={`text-[11px] font-black ${isAlert ? 'text-red-600' : 'text-stone-500'}`}>{fmt(a.minThreshold)}</span>
-                          : <span className="text-stone-200">—</span>}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        {cost > 0 ? <span className="font-black text-violet-700">{fmtDec(cost)} MAD</span> : <span className="text-stone-200">—</span>}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        {fifoVal > 0 ? <span className="font-black text-stone-800">{fmt(fifoVal)} MAD</span> : <span className="text-stone-200">—</span>}
-                      </td>
-                    </tr>
-                    {/* ── Fiche inline ── */}
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={8} className="p-0 border-l-4" style={{ borderLeftColor: color }}>
-                          <div className="bg-stone-50 border-t border-b border-stone-100 px-6 py-6">
-                            <ProductFiche
-                              article={a}
-                              movements={movements}
-                              factures={factures}
-                              color={color}
-                              onBack={() => setExpandedId(null)}
-                              inline
-                            />
-                          </div>
-                        </td>
-                      </tr>
+            return (
+              <div key={a.articleId} 
+                onClick={() => setSelectedArticle(a)}
+                className="group flex flex-col bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-stone-100 overflow-hidden cursor-pointer relative"
+              >
+                <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+                      <Package className="w-5 h-5" style={{ color }} />
+                    </div>
+                    {isAlert ? (
+                      <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Alerte
+                      </div>
+                    ) : a.currentQty === 0 ? (
+                      <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                        Rupture
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                        OK
+                      </div>
                     )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
-                <td colSpan={2} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">
-                  TOTAL · {items.length} références
-                </td>
-                <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
-                <td className="px-5 py-3 text-right font-black text-rose-400">
-                  {items.reduce((s,i)=>s+i.mouvementsOut,0) > 0 ? `-${fmt(items.reduce((s,i)=>s+i.mouvementsOut,0))}` : '—'}
-                </td>
-                <td className="px-5 py-3 text-left text-[14px] font-black text-white">{fmt(totalQty)}</td>
-                <td className="px-5 py-3"></td>
-                <td className="px-5 py-3"></td>
-                <td className="px-5 py-3 text-right font-black text-emerald-400">{fmt(totalVal)} MAD</td>
-              </tr>
-            </tfoot>
-          </table>
+                  </div>
+                  
+                  <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">{a.productName}</h3>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
+                    {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
+                    {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
+                  </div>
+
+                  <div className="mt-auto pt-4 border-t border-stone-100">
+                    <div className="flex justify-between items-end mb-3">
+                      <div>
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
+                        <p className={`text-2xl font-black leading-none ${a.currentQty === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
+                          {fmt(a.currentQty)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
+                        <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
+                      </div>
+                    </div>
+
+                    <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      </div>
+
+      <Dialog open={!!selectedArticle} onOpenChange={(o) => !o && setSelectedArticle(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-stone-50 rounded-3xl">
+          {selectedArticle && (
+            <ProductFiche
+              article={selectedArticle}
+              movements={movements}
+              factures={factures}
+              color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length]}
+              onBack={() => setSelectedArticle(null)}
+              inline
+            />
+          )}
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
