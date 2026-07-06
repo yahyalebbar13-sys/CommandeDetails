@@ -10,7 +10,7 @@ import { signOut } from 'firebase/auth';
 import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type {
-  StockMovement, StockItem, Sale,
+  StockMovement, StockItem, Sale, StoreLocation,
   Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment,
 } from '@/lib/types';
 import StockDashboard   from './stock-dashboard';
@@ -33,7 +33,8 @@ type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'c
 export function computeStockItems(
   articles: any[],
   movements: StockMovement[],
-  categories: any[]
+  categories: any[],
+  activeStore: StoreLocation | 'ALL'
 ): StockItem[] {
   // Un article entre en stock UNIQUEMENT s'il a été validé via PassToStockModal
   // = il a une stockEntryDate ET au moins un mouvement IN enregistré
@@ -75,13 +76,22 @@ export function computeStockItems(
           m.color?.toLowerCase() === colorLabel.toLowerCase()
         );
         // Fallback : si aucun mouvement avec couleur, prendre les mouvements globaux / nb de couleurs
-        const mouvIN  = colorMov.length > 0
-          ? colorMov.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0)
-          : artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0) / colorBreakdown.length;
-        const mouvOUT = colorMov.length > 0
-          ? colorMov.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0)
-          : artMovements.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0) / colorBreakdown.length;
-        const mouvADJ = colorMov.filter(m => m.type === 'ADJUSTMENT').reduce((s, m) => s + m.quantity, 0);
+        let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
+        const targetMovs = colorMov.length > 0 ? colorMov : artMovements.map(m => ({ ...m, quantity: m.quantity / (colorBreakdown.length || 1) }));
+
+        for (const m of targetMovs) {
+          if (m.reason === 'TRANSFERT') {
+            if (activeStore === 'ALL') continue; // Transfert interne = 0 impact global
+            if (m.storeId === activeStore) mouvOUT += m.quantity; // Sortie
+            if (m.toStoreId === activeStore) mouvIN += m.quantity; // Entrée
+          } else {
+            if (activeStore === 'ALL' || m.storeId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')) {
+              if (m.type === 'IN') mouvIN += m.quantity;
+              if (m.type === 'OUT') mouvOUT += m.quantity;
+              if (m.type === 'ADJUSTMENT') mouvADJ += m.quantity;
+            }
+          }
+        }
 
         const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
         const lastMov = [...colorMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
@@ -123,13 +133,22 @@ export function computeStockItems(
         const sizeMov = artMovements.filter(m =>
           m.size?.toLowerCase() === sizeLabel.toLowerCase()
         );
-        const mouvIN  = sizeMov.length > 0
-          ? sizeMov.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0)
-          : artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0) / sizeBreakdown.length;
-        const mouvOUT = sizeMov.length > 0
-          ? sizeMov.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0)
-          : artMovements.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0) / sizeBreakdown.length;
-        const mouvADJ = sizeMov.filter(m => m.type === 'ADJUSTMENT').reduce((s, m) => s + m.quantity, 0);
+        let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
+        const targetMovs = sizeMov.length > 0 ? sizeMov : artMovements.map(m => ({ ...m, quantity: m.quantity / (sizeBreakdown.length || 1) }));
+
+        for (const m of targetMovs) {
+          if (m.reason === 'TRANSFERT') {
+            if (activeStore === 'ALL') continue;
+            if (m.storeId === activeStore) mouvOUT += m.quantity;
+            if (m.toStoreId === activeStore) mouvIN += m.quantity;
+          } else {
+            if (activeStore === 'ALL' || m.storeId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')) {
+              if (m.type === 'IN') mouvIN += m.quantity;
+              if (m.type === 'OUT') mouvOUT += m.quantity;
+              if (m.type === 'ADJUSTMENT') mouvADJ += m.quantity;
+            }
+          }
+        }
 
         const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
         const lastMov = [...sizeMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
@@ -161,9 +180,20 @@ export function computeStockItems(
     }
 
     // ── CAS 3 : article normal (1 couleur / 1 taille ou sans variante) ────────
-    const mouvIN  = artMovements.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0);
-    const mouvOUT = artMovements.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0);
-    const mouvADJ = artMovements.filter(m => m.type === 'ADJUSTMENT').reduce((s, m) => s + m.quantity, 0);
+    let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
+    for (const m of artMovements) {
+      if (m.reason === 'TRANSFERT') {
+        if (activeStore === 'ALL') continue;
+        if (m.storeId === activeStore) mouvOUT += m.quantity;
+        if (m.toStoreId === activeStore) mouvIN += m.quantity;
+      } else {
+        if (activeStore === 'ALL' || m.storeId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')) {
+          if (m.type === 'IN') mouvIN += m.quantity;
+          if (m.type === 'OUT') mouvOUT += m.quantity;
+          if (m.type === 'ADJUSTMENT') mouvADJ += m.quantity;
+        }
+      }
+    }
     const initialQty = Number(a.quantity) || 0;
     const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
@@ -211,6 +241,23 @@ export default function StockApp() {
   const { toast } = useToast();
   const [activeView, setActiveView] = useState<StockView>('dashboard');
 
+  const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL'>('ALL');
+  const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL'>('ADMIN');
+
+  useEffect(() => {
+    if (user?.email) {
+      if (user.email === 'derbomar@lebtex.ma') {
+        setUserRole('COMMERCIAL');
+        setActiveStore('DERB_OMAR');
+      } else if (user.email === 'chrifa@lebtex.ma') {
+        setUserRole('COMMERCIAL');
+        setActiveStore('CHRIFA');
+      } else {
+        setUserRole('ADMIN');
+      }
+    }
+  }, [user]);
+
   // ── Collections Firestore ──────────────────────────────────────────────────
   const articlesRef      = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'),         [firestore, user]);
   const categoriesRef    = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'),        [firestore, user]);
@@ -246,9 +293,16 @@ export default function StockApp() {
   const factures        = rawFactures    || [];
 
   const stockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories),
-    [articles, movements, categories]
+    computeStockItems(articles, movements, categories, activeStore),
+    [articles, movements, categories, activeStore]
   );
+
+  // Filtrer les données selon le magasin actif pour les vues (sauf Admin "ALL")
+  const filteredSales = useMemo(() => sales.filter(s => activeStore === 'ALL' || s.storeId === activeStore || (!s.storeId && activeStore === 'ENTREPOT')), [sales, activeStore]);
+  const filteredClients = useMemo(() => clients.filter(c => activeStore === 'ALL' || c.storeId === activeStore || (!c.storeId && activeStore === 'ENTREPOT')), [clients, activeStore]);
+  const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || o.storeId === activeStore || (!o.storeId && activeStore === 'ENTREPOT')), [orders, activeStore]);
+  const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || i.storeId === activeStore || (!i.storeId && activeStore === 'ENTREPOT')), [invoices, activeStore]);
+  const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')), [movements, activeStore]);
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
@@ -284,13 +338,13 @@ export default function StockApp() {
         articles,
         categories,
         generalCategories,
-        stockMovements: movements,
+        stockMovements: filteredMovements,
         factures,
-        clients,
-        saleOrders: orders,
-        invoices,
+        clients: filteredClients,
+        saleOrders: filteredOrders,
+        invoices: filteredInvoices,
         clientPayments: payments,
-        sales,
+        sales: filteredSales,
       },
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -306,27 +360,31 @@ export default function StockApp() {
   // POS rapide (ancienne vente)
   const handleValidateSale = useCallback(async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
-    await addDoc(collection(firestore, 'users', user.uid, 'sales'), { ...sale, createdAt: serverTimestamp() });
+    const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
+    await addDoc(collection(firestore, 'users', user.uid, 'sales'), { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
       await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
         articleId: item.articleId, categoryId: item.categoryId,
         productName: item.productName, color: item.color || null, size: item.size || null,
         unitOfMeasure: item.unitOfMeasure, type: 'OUT', reason: 'VENTE',
+        storeId,
         quantity: item.qty, date: sale.date,
         notes: sale.clientName ? `Vente à ${sale.clientName}` : 'Vente directe',
         createdAt: serverTimestamp(),
       });
     }
     toast({ title: '✅ Vente enregistrée !', description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, activeStore]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
   const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
     if (!user || !firestore) throw new Error('Not authenticated');
-    const ref = await addDoc(collection(firestore, 'users', user.uid, 'clients'), { ...data, createdAt: serverTimestamp() });
+    const storeId = activeStore === 'ALL' ? undefined : activeStore;
+    const clientData = storeId ? { ...data, storeId } : data;
+    const ref = await addDoc(collection(firestore, 'users', user.uid, 'clients'), { ...clientData, createdAt: serverTimestamp() });
     toast({ title: '✅ Client créé', description: data.name });
-    return { id: ref.id, ...data };
-  }, [user, firestore, toast]);
+    return { id: ref.id, ...clientData };
+  }, [user, firestore, toast, activeStore]);
 
   const handleUpdateClient = useCallback(async (id: string, data: Partial<Client>) => {
     if (!user || !firestore) return;
@@ -337,10 +395,11 @@ export default function StockApp() {
   // ── Bons de commande ──────────────────────────────────────────────────────
   const handleCreateOrder = useCallback(async (order: Omit<SaleOrder, 'id' | 'createdAt'>): Promise<string> => {
     if (!user || !firestore) throw new Error('Not authenticated');
-    const ref = await addDoc(collection(firestore, 'users', user.uid, 'saleOrders'), { ...order, createdAt: serverTimestamp() });
+    const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
+    const ref = await addDoc(collection(firestore, 'users', user.uid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
     toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${order.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
     return ref.id;
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, activeStore]);
 
   const handleUpdateOrderStatus = useCallback(async (id: string, status: SaleOrderStatus) => {
     if (!user || !firestore) return;
@@ -362,12 +421,13 @@ export default function StockApp() {
       status: 'UNPAID',
       date: new Date().toISOString().split('T')[0],
       notes: order.notes,
+      storeId: order.storeId || (activeStore === 'ALL' ? 'ENTREPOT' : activeStore),
       createdAt: serverTimestamp(),
     });
     await updateDoc(doc(firestore, 'users', user.uid, 'saleOrders', order.id), { status: 'INVOICED' });
     toast({ title: '✅ Facture créée', description: `BC converti en facture` });
     setActiveView('invoices');
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, activeStore]);
 
   // ── Factures ──────────────────────────────────────────────────────────────
   const handleCreateInvoice = useCallback(async (
@@ -375,12 +435,13 @@ export default function StockApp() {
     movementsOut: any[]
   ) => {
     if (!user || !firestore) return;
-    await addDoc(collection(firestore, 'users', user.uid, 'invoices'), { ...invoice, createdAt: serverTimestamp() });
+    const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
+    await addDoc(collection(firestore, 'users', user.uid, 'invoices'), { ...invoice, storeId, createdAt: serverTimestamp() });
     for (const m of movementsOut) {
-      await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), { ...m, createdAt: serverTimestamp() });
+      await addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), { ...m, storeId, createdAt: serverTimestamp() });
     }
     toast({ title: '✅ Facture créée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, activeStore]);
 
   const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
     if (!user || !firestore) return;
@@ -449,6 +510,29 @@ export default function StockApp() {
               <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Live</span>
             </div>
           </div>
+
+          {/* Store Selector (Admin Only) */}
+          {userRole === 'ADMIN' && (
+            <div className="hidden md:flex items-center gap-2 ml-4">
+              <select
+                value={activeStore}
+                onChange={e => setActiveStore(e.target.value as any)}
+                className="bg-stone-100 border border-stone-200 text-stone-700 text-xs font-black uppercase rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="ALL">🌐 Vue Globale (Total)</option>
+                <option value="ENTREPOT">🏭 Entrepôt Principal</option>
+                <option value="DERB_OMAR">🏪 Magasin Derb Omar</option>
+                <option value="CHRIFA">🏪 Magasin Chrifa</option>
+              </select>
+            </div>
+          )}
+          {userRole === 'COMMERCIAL' && (
+            <div className="hidden md:flex items-center gap-2 ml-4">
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-emerald-200">
+                📍 {activeStore.replace('_', ' ')}
+              </span>
+            </div>
+          )}
 
           {/* Nav desktop */}
           <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center px-4">
@@ -529,14 +613,14 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard stockItems={stockItems} movements={movements} categories={categories} sales={sales} onNavigate={(v) => setActiveView(v as any)} />
+              <StockDashboard stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} onNavigate={(v) => setActiveView(v as any)} />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
                 stockItems={stockItems}
                 categories={categories}
                 generalCategories={generalCategories}
-                clients={clients}
+                clients={filteredClients}
                 onCreateOrder={handleCreateOrder}
                 onCreateInvoice={handleCreateInvoice}
                 onCreateClient={handleCreateClient}
@@ -545,9 +629,9 @@ export default function StockApp() {
             )}
             {activeView === 'clients' && (
               <StockClients
-                clients={clients}
-                orders={orders}
-                invoices={invoices}
+                clients={filteredClients}
+                orders={filteredOrders}
+                invoices={filteredInvoices}
                 payments={payments}
                 onCreateClient={async (c) => { await handleCreateClient(c); }}
                 onUpdateClient={handleUpdateClient}
@@ -556,8 +640,8 @@ export default function StockApp() {
             )}
             {activeView === 'orders' && (
               <StockOrders
-                orders={orders}
-                clients={clients}
+                orders={filteredOrders}
+                clients={filteredClients}
                 onUpdateStatus={handleUpdateOrderStatus}
                 onConvertToInvoice={handleConvertToInvoice}
                 onNavigate={setActiveView}
@@ -565,8 +649,8 @@ export default function StockApp() {
             )}
             {activeView === 'invoices' && (
               <StockInvoices
-                invoices={invoices}
-                clients={clients}
+                invoices={filteredInvoices}
+                clients={filteredClients}
                 payments={payments}
                 onRecordPayment={handleRecordPayment}
                 onUpdateStatus={handleUpdateInvoiceStatus}
@@ -577,16 +661,16 @@ export default function StockApp() {
               <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
             )}
             {activeView === 'inventory' && (
-              <StockInventory stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+              <StockInventory activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'analytics' && (
-              <StockSales sales={sales} invoices={invoices} clients={clients} onNavigate={setActiveView} />
+              <StockSales sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={setActiveView} />
             )}
             {activeView === 'movements' && (
-              <StockMovements movements={movements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={movements} onNavigate={setActiveView} onAddMovement={handleAddMovement} />
+              <StockAlerts activeStore={activeStore} stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} onNavigate={setActiveView} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'arrivals' && (
               <div className="space-y-6 animate-in fade-in duration-300">

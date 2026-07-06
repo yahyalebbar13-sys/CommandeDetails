@@ -1,5 +1,7 @@
 export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
 
+export type StoreLocation = 'ENTREPOT' | 'DERB_OMAR' | 'CHRIFA';
+
 export type GeneralCategory = {
   id: string;
   name: string;
@@ -85,6 +87,8 @@ export type StockMovement = {
   unitOfMeasure: string;
   type: StockMovementType;
   reason: StockMovementReason;
+  storeId?: StoreLocation;
+  toStoreId?: StoreLocation; // Utilisé si reason === 'TRANSFERT'
   quantity: number;      // toujours positif — direction donnée par type
   date: string;          // YYYY-MM-DD
   notes?: string;
@@ -107,6 +111,7 @@ export type StockItem = {
   mouvementsIn: number;
   mouvementsOut: number;
   currentQty: number;
+  qtyByStore?: Partial<Record<StoreLocation, number>>; // Ventilation du stock par magasin
   totalValue: number;             // currentQty * purchasePricePerUnit
   totalSellingValue?: number;     // currentQty * sellingPrice
   minThreshold?: number;
@@ -143,6 +148,7 @@ export type Sale = {
   totalCost: number;
   totalMargin: number;
   date: string;
+  storeId?: StoreLocation;
   clientId?: string;
   clientName?: string;
   notes?: string;
@@ -152,6 +158,7 @@ export type Sale = {
 // ── Module Commercial ──────────────────────────────────────────────────────────
 export type Client = {
   id: string;
+  storeId?: StoreLocation;
   name: string;
   phone?: string;
   email?: string;
@@ -185,6 +192,7 @@ export type SaleOrder = {
   totalAfterDiscount: number;
   status: SaleOrderStatus;
   date: string;
+  storeId?: StoreLocation;
   notes?: string;
   createdAt?: any;
 };
@@ -205,6 +213,7 @@ export type Invoice = {
   remainingBalance: number;
   status: InvoiceStatus;
   date: string;
+  storeId?: StoreLocation;
   dueDate?: string;
   notes?: string;
   createdAt?: any;

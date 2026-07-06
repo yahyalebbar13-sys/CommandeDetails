@@ -12,6 +12,7 @@ import { doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
+import type { StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
 
 type StockView = 'dashboard' | 'inventory' | 'movements' | 'alerts';
@@ -21,11 +22,12 @@ interface StockAlertsProps {
   articles: any[];
   categories: any[];
   movements: StockMovement[];
+  activeStore: StoreLocation | 'ALL';
   onNavigate: (v: StockView) => void;
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
-export default function StockAlerts({ stockItems, articles, categories, movements, onNavigate, onAddMovement }: StockAlertsProps) {
+export default function StockAlerts({ stockItems, articles, categories, movements, activeStore, onNavigate, onAddMovement }: StockAlertsProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -269,6 +271,7 @@ export default function StockAlerts({ stockItems, articles, categories, movement
         stockItems={stockItems}
         preselectedArticleId={movementItem?.articleId}
         preselectedType="IN"
+        activeStore={activeStore}
         onSubmit={onAddMovement}
       />
     </div>

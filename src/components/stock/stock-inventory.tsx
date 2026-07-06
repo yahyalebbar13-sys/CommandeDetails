@@ -12,7 +12,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
-import type { StockMovement, StockItem } from '@/lib/types';
+import type { StockMovement, StockItem, StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
 
 interface StockInventoryProps {
@@ -20,6 +20,7 @@ interface StockInventoryProps {
   articles: any[];
   categories: any[];
   generalCategories: any[];
+  activeStore: StoreLocation | 'ALL';
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
@@ -41,7 +42,7 @@ const LEVEL_BADGE: Record<string, { label: string; className: string }> = {
   unknown: { label: '—',       className: 'bg-stone-100 text-stone-400 border-stone-200' },
 };
 
-export default function StockInventory({ stockItems, articles, categories, generalCategories, onAddMovement }: StockInventoryProps) {
+export default function StockInventory({ stockItems, articles, categories, generalCategories, activeStore, onAddMovement }: StockInventoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -543,6 +544,7 @@ export default function StockInventory({ stockItems, articles, categories, gener
         stockItems={stockItems}
         preselectedArticleId={movModal.articleId}
         preselectedType={movModal.type}
+        activeStore={activeStore}
         onSubmit={onAddMovement}
       />
 

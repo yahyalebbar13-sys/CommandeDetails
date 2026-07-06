@@ -14,6 +14,7 @@ interface StockMovementsProps {
   stockItems: StockItem[];
   categories: any[];
   articles: any[];
+  activeStore: StoreLocation | 'ALL';
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
@@ -28,7 +29,7 @@ const REASON_LABELS: Record<string, string> = {
   RETOUR: 'Retour', INVENTAIRE: 'Inventaire', TRANSFERT: 'Transfert',
 };
 
-export default function StockMovements({ movements, stockItems, categories, articles, onAddMovement }: StockMovementsProps) {
+export default function StockMovements({ movements, stockItems, categories, articles, activeStore, onAddMovement }: StockMovementsProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'IN' | 'OUT' | 'ADJUSTMENT'>('all');
   const [filterCat, setFilterCat] = useState('all');
@@ -165,7 +166,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Date', 'Type', 'Produit', 'Catégorie', 'Raison', 'Quantité', 'Notes'].map(h => (
+                  {['Date', 'Type', 'Produit', 'Magasin', 'Raison', 'Quantité', 'Notes'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -196,7 +197,16 @@ export default function StockMovements({ movements, stockItems, categories, arti
                           </p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[10px] font-bold text-stone-500 whitespace-nowrap">{m.categoryId}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[9px] font-black text-stone-600 uppercase">
+                            {m.storeId ? m.storeId.replace('_', ' ') : 'ENTREPOT'}
+                          </span>
+                          {m.reason === 'TRANSFERT' && m.toStoreId && (
+                            <span className="text-[8px] font-bold text-stone-400 uppercase">→ {m.toStoreId.replace('_', ' ')}</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <span className="text-[9px] font-black text-stone-600 uppercase bg-stone-100 px-2 py-0.5 rounded-lg">
                           {REASON_LABELS[m.reason] || m.reason}
@@ -235,6 +245,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
         articles={articles}
         categories={categories}
         stockItems={stockItems}
+        activeStore={activeStore}
         onSubmit={onAddMovement}
       />
     </div>

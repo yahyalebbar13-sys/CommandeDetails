@@ -25,6 +25,7 @@ interface StockMovementModalProps {
   stockItems: StockItem[];
   preselectedArticleId?: string;
   preselectedType?: StockMovementType;
+  activeStore?: StoreLocation | 'ALL';
   onSubmit: (movement: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
 
@@ -362,7 +363,7 @@ function ProductPicker({
 // ── Modal principal ───────────────────────────────────────────────────────────
 export default function StockMovementModal({
   open, onOpenChange, articles, categories, generalCategories = [], stockItems,
-  preselectedArticleId, preselectedType, onSubmit,
+  preselectedArticleId, preselectedType, activeStore, onSubmit,
 }: StockMovementModalProps) {
 
   const today = new Date().toISOString().split('T')[0];
@@ -372,6 +373,8 @@ export default function StockMovementModal({
     articleId: preselectedArticleId ?? '',
     reason:    '' as StockMovementReason | '',
     quantity:  '' as string | number,
+    storeId:   (activeStore && activeStore !== 'ALL' ? activeStore : '') as StoreLocation | '',
+    toStoreId: '' as StoreLocation | '',
     date:      today,
     notes:     '',
   });
@@ -384,6 +387,8 @@ export default function StockMovementModal({
         articleId: preselectedArticleId ?? '',
         reason:    '',
         quantity:  '',
+        storeId:   (activeStore && activeStore !== 'ALL' ? activeStore : '') as StoreLocation | '',
+        toStoreId: '',
         date:      today,
         notes:     '',
       });
@@ -403,6 +408,8 @@ export default function StockMovementModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.articleId || !form.reason || !form.quantity || !form.date) return;
+    if (!form.storeId) return;
+    if (form.reason === 'TRANSFERT' && !form.toStoreId) return;
     if (!selectedStock) return;
 
     setSaving(true);
@@ -425,6 +432,8 @@ export default function StockMovementModal({
       unitOfMeasure: selectedStock.unitOfMeasure || 'unité',
       type:          form.type,
       reason:        form.reason as StockMovementReason,
+      storeId:       form.storeId as StoreLocation,
+      toStoreId:     form.reason === 'TRANSFERT' ? (form.toStoreId as StoreLocation) : undefined,
       quantity:      Number(form.quantity),
       date:          form.date,
       notes:         form.notes || undefined,
@@ -588,6 +597,40 @@ export default function StockMovementModal({
                 </Select>
               </div>
 
+              {/* Sélection du Magasin (si non forcé) */}
+              {activeStore === 'ALL' && (
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Magasin d'origine *</Label>
+                  <Select value={form.storeId} onValueChange={v => setForm(f => ({ ...f, storeId: v as StoreLocation }))}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
+                      <SelectValue placeholder="Choisir le magasin..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ENTREPOT">Entrepôt Principal</SelectItem>
+                      <SelectItem value="DERB_OMAR">Derb Omar</SelectItem>
+                      <SelectItem value="CHRIFA">Chrifa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Destination (si transfert) */}
+              {form.reason === 'TRANSFERT' && (
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Magasin de destination *</Label>
+                  <Select value={form.toStoreId} onValueChange={v => setForm(f => ({ ...f, toStoreId: v as StoreLocation }))}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
+                      <SelectValue placeholder="Choisir la destination..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ENTREPOT">Entrepôt Principal</SelectItem>
+                      <SelectItem value="DERB_OMAR">Derb Omar</SelectItem>
+                      <SelectItem value="CHRIFA">Chrifa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Quantité + Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -642,7 +685,7 @@ export default function StockMovementModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl font-black uppercase text-[10px] tracking-widest">Annuler</Button>
           <Button
             onClick={handleSubmit}
-            disabled={saving || !form.articleId || !form.reason || !form.quantity}
+            disabled={saving || !form.articleId || !form.reason || !form.quantity || !form.storeId || (form.reason === 'TRANSFERT' && !form.toStoreId)}
             className={`flex-1 h-11 rounded-xl font-black uppercase text-[10px] tracking-widest text-white shadow-lg ${
               form.type === 'IN'  ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20' :
               form.type === 'OUT' ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' :
