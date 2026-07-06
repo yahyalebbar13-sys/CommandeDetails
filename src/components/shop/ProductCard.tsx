@@ -85,17 +85,19 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
 
   return (
     <div
-      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm"
+      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/shop/produit/${product.id}`} className="block" tabIndex={-1}>
-        {/* ── Image Section ─────────────────────────────────────── */}
-        <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
-          {/* Skeleton — disparaît quand l'image est chargée */}
-          {!imgLoaded && (
-            <div className="absolute inset-0 z-10 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse" />
-          )}
+      {/* ── Image Section ─────────────────────────────────────── */}
+      <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
+        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
+        
+        {/* Skeleton — disparaît quand l'image est chargée */}
+        {!imgLoaded && (
+          <div className="absolute inset-0 z-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
+        )}
+        <div className="absolute inset-0 z-0 pointer-events-none">
           <Image
             src={primaryImage}
             alt={product.name}
@@ -107,150 +109,150 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
             loading="lazy"
             onLoad={() => setImgLoaded(true)}
           />
-
-          {/* Badge Row */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-            {product.isNew && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-emerald-500 text-white shadow-md uppercase">
-                NEW
-              </span>
-            )}
-            {product.isPromo && (
-              <span className="shop-badge-pulse inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-[#C8102E] text-white shadow-md uppercase">
-                PROMO
-              </span>
-            )}
-            {discountPct > 0 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D4A843] text-white shadow-md">
-                -{discountPct}%
-              </span>
-            )}
-          </div>
-
-          {/* Wishlist Button */}
-          <button
-            onClick={handleWishlist}
-            aria-label={wishlisted ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-            className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
-          >
-            <Heart
-              className={`w-4 h-4 transition-colors duration-200 ${
-                wishlisted ? 'fill-[#C8102E] text-[#C8102E]' : 'text-gray-400 hover:text-[#C8102E]'
-              }`}
-            />
-          </button>
-
-          {/* Quick-Add Overlay */}
-          {showAddToCart && (
-            <div
-              className={`absolute inset-0 flex items-end justify-center pb-4 z-10 transition-all duration-300 ${
-                isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)' }}
-            >
-              <button
-                onClick={handleAddToCart}
-                disabled={!product.inStock || added}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg transition-all duration-200 shop-btn-press ${
-                  added
-                    ? 'bg-emerald-500 text-white'
-                    : product.inStock
-                    ? 'bg-white text-[#0F0F0F] hover:bg-[#C8102E] hover:text-white'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {added ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Ajouté !
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-4 h-4" />
-                    Ajouter au panier
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* Out of stock overlay */}
-          {!product.inStock && (
-            <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
-              <span className="bg-white/95 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-                Rupture de stock
-              </span>
-            </div>
-          )}
         </div>
 
-        {/* ── Content Section ───────────────────────────────────── */}
-        <div className="p-4 flex flex-col gap-2">
-          {/* Category */}
-          <span
-            className="text-[11px] font-semibold uppercase tracking-widest"
-            style={{ color: '#D4A843' }}
-          >
-            {product.categoryName}
-          </span>
-
-          {/* Product Name */}
-          <h3
-            className="text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 font-display group-hover:text-[#C8102E] transition-colors duration-200"
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-          >
-            {product.name}
-          </h3>
-
-          {/* Star Rating */}
-          {product.rating !== undefined && (
-            <StarRating rating={product.rating} reviewCount={product.reviewCount} />
-          )}
-
-          {/* Price Row */}
-          <div className="flex items-center gap-2 flex-wrap mt-0.5">
-            <span
-              className="text-lg font-bold"
-              style={{ color: '#0F0F0F', fontFamily: 'Outfit, sans-serif' }}
-            >
-              {formatPrice(product.price)}
+        {/* Badge Row */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+          {product.isNew && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-emerald-500 text-white shadow-md uppercase">
+              NEW
             </span>
-            {product.comparePrice && (
-              <span className="text-sm text-gray-400 line-through">
-                {formatPrice(product.comparePrice)}
-              </span>
-            )}
-            {discountPct > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 text-[#C8102E] border border-red-100">
-                -{discountPct}%
-              </span>
-            )}
-          </div>
-
-          {/* Stock Indicator */}
-          <div className="flex items-center gap-1.5">
-            {product.inStock ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                <span className="text-xs text-emerald-600 font-medium">En stock</span>
-              </>
-            ) : (
-              <>
-                <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-                <span className="text-xs text-red-500 font-medium">Rupture de stock</span>
-              </>
-            )}
-          </div>
-
-          {/* Min Order Note */}
-          {product.minOrderQty && product.minOrderQty > 1 && (
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
-              <Package className="w-3 h-3" />
-              <span>Min. commande : {product.minOrderQty} pcs</span>
-            </div>
+          )}
+          {product.isPromo && (
+            <span className="shop-badge-pulse inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-[#C8102E] text-white shadow-md uppercase">
+              PROMO
+            </span>
+          )}
+          {discountPct > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D4A843] text-white shadow-md">
+              -{discountPct}%
+            </span>
           )}
         </div>
+
+        {/* Wishlist Button */}
+        <button
+          onClick={handleWishlist}
+          aria-label={wishlisted ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+          className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+        >
+          <Heart
+            className={`w-4 h-4 transition-colors duration-200 ${
+              wishlisted ? 'fill-[#C8102E] text-[#C8102E]' : 'text-gray-400 hover:text-[#C8102E]'
+            }`}
+          />
+        </button>
+
+        {/* Quick-Add Overlay */}
+        {showAddToCart && (
+          <div
+            className={`absolute inset-0 flex items-end justify-center pb-4 z-20 pointer-events-none transition-all duration-300 ${
+              isHovered ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)' }}
+          >
+            <button
+              onClick={handleAddToCart}
+              disabled={!product.inStock || added}
+              className={`pointer-events-auto flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg transition-all duration-200 shop-btn-press ${
+                added
+                  ? 'bg-emerald-500 text-white'
+                  : product.inStock
+                  ? 'bg-white text-[#0F0F0F] hover:bg-[#C8102E] hover:text-white'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              {added ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Ajouté !
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="w-4 h-4" />
+                  Ajouter au panier
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Out of stock overlay */}
+        {!product.inStock && (
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 pointer-events-none">
+            <span className="bg-white/95 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+              Rupture de stock
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Content Section ───────────────────────────────────── */}
+      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col gap-2 flex-grow">
+        {/* Category */}
+        <span
+          className="text-[11px] font-semibold uppercase tracking-widest"
+          style={{ color: '#D4A843' }}
+        >
+          {product.categoryName}
+        </span>
+
+        {/* Product Name */}
+        <h3
+          className="text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 font-display group-hover:text-[#C8102E] transition-colors duration-200"
+          style={{ fontFamily: 'Outfit, sans-serif' }}
+        >
+          {product.name}
+        </h3>
+
+        {/* Star Rating */}
+        {product.rating !== undefined && (
+          <StarRating rating={product.rating} reviewCount={product.reviewCount} />
+        )}
+
+        {/* Price Row */}
+        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+          <span
+            className="text-lg font-bold"
+            style={{ color: '#0F0F0F', fontFamily: 'Outfit, sans-serif' }}
+          >
+            {formatPrice(product.price)}
+          </span>
+          {product.comparePrice && (
+            <span className="text-sm text-gray-400 line-through">
+              {formatPrice(product.comparePrice)}
+            </span>
+          )}
+          {discountPct > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 text-[#C8102E] border border-red-100">
+              -{discountPct}%
+            </span>
+          )}
+        </div>
+
+        {/* Stock Indicator */}
+        <div className="flex items-center gap-1.5">
+          {product.inStock ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              <span className="text-xs text-emerald-600 font-medium">En stock</span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+              <span className="text-xs text-red-500 font-medium">Rupture de stock</span>
+            </>
+          )}
+        </div>
+
+        {/* Min Order Note */}
+        {product.minOrderQty && product.minOrderQty > 1 && (
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+            <Package className="w-3 h-3" />
+            <span>Min. commande : {product.minOrderQty} pcs</span>
+          </div>
+        )}
       </Link>
 
       {/* ── Add to Cart Button ─────────────────────────────────── */}

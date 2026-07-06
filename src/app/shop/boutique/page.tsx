@@ -32,53 +32,54 @@ function ProductCardInline({ product }: { product: ShopProduct }) {
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
 
   return (
-    <Link href={`/shop/produit/${product.id}`} className="block group">
-      <div className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden shop-product-card">
-        {/* Image */}
-        <div className="relative aspect-square shop-img-zoom bg-gray-50">
+    <div className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden shop-product-card relative group flex flex-col h-full">
+      {/* Image */}
+      <div className="relative aspect-square shop-img-zoom bg-gray-50">
+        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
+        <div className="absolute inset-0 z-0 pointer-events-none">
           <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-          {/* Badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-            {product.isNew && <span className="bg-[#10B981] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">Nouveau</span>}
-            {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">-{discount}%</span>}
-          </div>
-          {/* Wishlist */}
-          <button onClick={(e) => { e.preventDefault(); setWished(!wished); }}
-            className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110">
-            <span className={`text-base ${wished ? 'text-red-500' : 'text-gray-400'}`}>{wished ? '♥' : '♡'}</span>
-          </button>
-          {/* Quick add overlay */}
-          <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={handleAdd}
-              className={`w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
-              {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
-            </button>
-          </div>
         </div>
-        {/* Content */}
-        <div className="p-4">
-          <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wide mb-1">{product.categoryName}</p>
-          <h3 className="font-semibold text-[#1A1A1A] text-sm leading-tight mb-2 line-clamp-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
-          {/* Rating */}
-          {product.rating && (
-            <div className="flex items-center gap-1 mb-2">
-              <span className="text-[#D4A843] text-xs">{'★'.repeat(Math.floor(product.rating))}{'☆'.repeat(5 - Math.floor(product.rating))}</span>
-              <span className="text-xs text-[#6B6B6B]">({product.reviewCount})</span>
-            </div>
-          )}
-          {/* Price */}
-          <div className="flex items-center gap-2">
-            <span className="font-black text-[#1A1A1A]">{formatPrice(product.price)}</span>
-            {product.comparePrice && <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>}
-          </div>
-          {/* Stock */}
-          <div className="mt-2 flex items-center gap-1">
-            <span className={`w-1.5 h-1.5 rounded-full ${product.inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
-            <span className="text-xs text-[#6B6B6B]">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
-          </div>
+        {/* Badges */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+          {product.isNew && <span className="bg-[#10B981] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">Nouveau</span>}
+          {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">-{discount}%</span>}
+        </div>
+        {/* Wishlist */}
+        <button onClick={(e) => { e.preventDefault(); setWished(!wished); }}
+          className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-20">
+          <span className={`text-base ${wished ? 'text-red-500' : 'text-gray-400'}`}>{wished ? '♥' : '♡'}</span>
+        </button>
+        {/* Quick add overlay */}
+        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+          <button onClick={handleAdd}
+            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
+            {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
+          </button>
         </div>
       </div>
-    </Link>
+      {/* Content */}
+      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col flex-grow">
+        <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wide mb-1">{product.categoryName}</p>
+        <h3 className="font-semibold text-[#1A1A1A] text-sm leading-tight mb-2 line-clamp-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
+        {/* Rating */}
+        {product.rating && (
+          <div className="flex items-center gap-1 mb-2">
+            <span className="text-[#D4A843] text-xs">{'★'.repeat(Math.floor(product.rating))}{'☆'.repeat(5 - Math.floor(product.rating))}</span>
+            <span className="text-xs text-[#6B6B6B]">({product.reviewCount})</span>
+          </div>
+        )}
+        {/* Price */}
+        <div className="flex items-center gap-2">
+          <span className="font-black text-[#1A1A1A]">{formatPrice(product.price)}</span>
+          {product.comparePrice && <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>}
+        </div>
+        {/* Stock */}
+        <div className="mt-2 flex items-center gap-1">
+          <span className={`w-1.5 h-1.5 rounded-full ${product.inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
+          <span className="text-xs text-[#6B6B6B]">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
+        </div>
+      </Link>
+    </div>
   );
 }
 

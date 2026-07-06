@@ -21,43 +21,44 @@ function PromoCard({ product }: { product: ShopProduct }) {
   };
 
   return (
-    <Link href={`/shop/produit/${product.id}`} className="block group">
-      <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card">
-        <div className="relative aspect-square bg-gray-50 shop-img-zoom">
+    <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full">
+      <div className="relative aspect-square bg-gray-50 shop-img-zoom">
+        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
+        <div className="absolute inset-0 z-0 pointer-events-none">
           <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-          {/* Promo badge */}
-          {discount > 0 && (
-            <div className="absolute top-3 left-3">
-              <span className="bg-[#C8102E] text-white font-black text-sm px-3 py-1 rounded-full shadow-lg">-{discount}%</span>
-            </div>
-          )}
-          {product.isNew && (
-            <div className="absolute top-3 right-3">
-              <span className="bg-[#10B981] text-white font-black text-xs px-2 py-1 rounded-full">NOUVEAU</span>
-            </div>
-          )}
-          <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={handleAdd}
-              className={`w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
-              {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
-            </button>
-          </div>
         </div>
-        <div className="p-4">
-          <p className="text-xs font-semibold text-[#D4A843] uppercase mb-1">{product.categoryName}</p>
-          <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
-          <div className="flex items-center gap-2">
-            <span className="font-black text-[#C8102E] text-lg">{formatPrice(product.price)}</span>
-            {product.comparePrice && (
-              <div className="flex flex-col">
-                <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>
-                <span className="text-xs text-[#10B981] font-bold">Économisez {formatPrice(product.comparePrice - product.price)}</span>
-              </div>
-            )}
+        {/* Promo badge */}
+        {discount > 0 && (
+          <div className="absolute top-3 left-3 z-10 pointer-events-none">
+            <span className="bg-[#C8102E] text-white font-black text-sm px-3 py-1 rounded-full shadow-lg">-{discount}%</span>
           </div>
+        )}
+        {product.isNew && (
+          <div className="absolute top-3 right-3 z-10 pointer-events-none">
+            <span className="bg-[#10B981] text-white font-black text-xs px-2 py-1 rounded-full">NOUVEAU</span>
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+          <button onClick={handleAdd}
+            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
+            {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
+          </button>
         </div>
       </div>
-    </Link>
+      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col flex-grow">
+        <p className="text-xs font-semibold text-[#D4A843] uppercase mb-1">{product.categoryName}</p>
+        <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
+        <div className="flex items-center gap-2">
+          <span className="font-black text-[#C8102E] text-lg">{formatPrice(product.price)}</span>
+          {product.comparePrice && (
+            <div className="flex flex-col">
+              <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>
+              <span className="text-xs text-[#10B981] font-bold">Économisez {formatPrice(product.comparePrice - product.price)}</span>
+            </div>
+          )}
+        </div>
+      </Link>
+    </div>
   );
 }
 
