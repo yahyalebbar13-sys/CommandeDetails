@@ -242,18 +242,21 @@ export default function StockApp() {
   const [activeView, setActiveView] = useState<StockView>('dashboard');
 
   const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL'>('ALL');
-  const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL'>('ADMIN');
+  const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED'>('UNAUTHORIZED');
 
   useEffect(() => {
     if (user?.email) {
-      if (user.email === 'ahmed@lebtex.ma') {
+      if (user.email === 'yahya.lebbar13@gmail.com') {
+        setUserRole('ADMIN');
+        setActiveStore('ALL');
+      } else if (user.email === 'ahmed@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('DERB_OMAR');
       } else if (user.email === 'hafid@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('CHRIFA');
       } else {
-        setUserRole('ADMIN');
+        setUserRole('UNAUTHORIZED');
       }
     }
   }, [user]);
@@ -477,6 +480,18 @@ export default function StockApp() {
     </div>
   );
   if (!user) return <AuthView />;
+
+  if (userRole === 'UNAUTHORIZED') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f0faf4] gap-4">
+        <h2 className="text-2xl font-black text-red-600 uppercase">Accès Refusé</h2>
+        <p className="text-stone-500 font-bold">Cette adresse email n'est pas autorisée.</p>
+        <Button onClick={() => auth.signOut()} variant="outline" className="mt-4 border-stone-300 text-stone-600">
+          Se déconnecter
+        </Button>
+      </div>
+    );
+  }
 
   const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard },
