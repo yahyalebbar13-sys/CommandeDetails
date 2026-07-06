@@ -246,10 +246,10 @@ export default function StockApp() {
 
   useEffect(() => {
     if (user?.email) {
-      if (user.email === 'derbomar@lebtex.ma') {
+      if (user.email === 'ahmed@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('DERB_OMAR');
-      } else if (user.email === 'chrifa@lebtex.ma') {
+      } else if (user.email === 'hafid@lebtex.ma') {
         setUserRole('COMMERCIAL');
         setActiveStore('CHRIFA');
       } else {
