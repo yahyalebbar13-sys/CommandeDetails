@@ -100,7 +100,7 @@ function FilterSidebar({
         <h3 className="font-bold text-[#1A1A1A] mb-3 text-sm uppercase tracking-wide" style={{ fontFamily: 'Outfit, sans-serif' }}>Catégories</h3>
         <div className="space-y-2">
           {categories?.map((cat: any) => (
-            <label key={cat.slug} className="flex items-center gap-2 cursor-pointer group">
+            <label key={cat.id} className="flex items-center gap-2 cursor-pointer group">
               <input type="checkbox" checked={selectedCategories.includes(cat.slug)}
                 onChange={e => {
                   if (e.target.checked) setSelectedCategories((prev: string[]) => [...prev, cat.slug]);

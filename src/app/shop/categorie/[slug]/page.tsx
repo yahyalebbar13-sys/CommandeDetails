@@ -359,7 +359,7 @@ export default function CategoryPage({ params }: { params: any }) {
           <div className="flex flex-wrap gap-3">
             {allContextCategories.filter(c => c.slug !== slug).map(cat => (
               <Link
-                key={cat.slug}
+                key={cat.id}
                 href={`/shop/categorie/${cat.slug}`}
                 className="px-4 py-2 rounded-xl border border-[#E8E4DF] text-sm font-medium text-gray-600 hover:border-[#C8102E] hover:text-[#C8102E] transition-all bg-white"
               >
