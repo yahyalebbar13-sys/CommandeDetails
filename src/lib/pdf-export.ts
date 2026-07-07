@@ -2800,8 +2800,8 @@ export async function exportCommercialPDF(
 }
 
 export async function exportBaseOrderPDF(order: any) {
-  const { default: jsPDF } = await import('jspdf');
-  const { default: autoTable } = await import('jspdf-autotable');
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
 
   const NAVY: [number, number, number]   = [15, 23, 42];
   const GOLD: [number, number, number]   = [196, 160, 98];
@@ -2811,7 +2811,15 @@ export async function exportBaseOrderPDF(order: any) {
   const BG: [number, number, number]     = [248, 250, 252];
   const GOLD_LIGHT: [number, number, number] = [254, 249, 240];
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  function fmtNum(n: number) {
+    if (n == null || isNaN(n)) return "0";
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  function fmtQty(qty: number, unit: string) {
+    return `${fmtNum(Number(qty))} ${unit || ""}`.trim();
+  }
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const MX = 15;
@@ -2828,16 +2836,13 @@ export async function exportBaseOrderPDF(order: any) {
   doc.setFillColor(...NAVY);
   doc.rect(0, 0, W, 38, "F");
 
-  // Gold left accent
   doc.setFillColor(...GOLD);
   doc.rect(0, 0, 5, 38, "F");
 
-  // Logo
   try {
     await addPdfLogoHeader(doc, 10, 5, 50, 25, true);
   } catch (e) {}
 
-  // Document title
   doc.setTextColor(...WHITE);
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
@@ -2914,110 +2919,222 @@ export async function exportBaseOrderPDF(order: any) {
   doc.text(supplierMail, toX + 4, y + 30);
 
   y += 40;
-
-  // ════════════════════════════════════════════════════════════════════════
-  // ORDER NAME BANNER
-  // ════════════════════════════════════════════════════════════════════════
-  doc.setFillColor(...NAVY);
-  doc.roundedRect(MX, y, CW, 14, 1.5, 1.5, "F");
-  doc.setFillColor(...GOLD);
-  doc.rect(MX, y, 5, 14, "F");
-  doc.roundedRect(MX, y, 5, 14, 1.5, 1.5, "F");
-
-  doc.setTextColor(...WHITE);
-  doc.setFontSize(13);
-  doc.setFont("helvetica", "bold");
-  doc.text((order.name || "BASE ORDER").toUpperCase(), MX + 10, y + 9.5);
-
-  const totalQty = (order.items || []).reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...GOLD);
-  doc.text(`TOTAL QTY: ${totalQty.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")} U`, W - MX - 2, y + 9, { align: "right" });
-
-  y += 20;
-
-  if (order.description) {
+  
+  if (order.name || order.description) {
     doc.setTextColor(...NAVY);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "italic");
-    doc.text(`Notes: ${order.description}`, MX, y);
-    y += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    if (order.name) {
+      doc.text(`Dossier: ${order.name.toUpperCase()}`, MX, y);
+      y += 5;
+    }
+    if (order.description) {
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "italic");
+      doc.text(`Notes: ${order.description}`, MX, y);
+      y += 5;
+    }
+    y += 5;
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  // ITEMS TABLE
-  // ════════════════════════════════════════════════════════════════════════
-  const articles: any[] = [];
-  (order.items || []).forEach((item: any) => {
-    if (item.colorBreakdown && item.colorBreakdown.length > 0) {
-      item.colorBreakdown.forEach((row: any) => {
-        articles.push({
-          ...item,
-          color: row.color,
-          quantity: Number(row.rolls) || 0,
-          purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0)
-        });
-      });
-    } else if (item.sizeBreakdown && item.sizeBreakdown.length > 0) {
-      item.sizeBreakdown.forEach((row: any) => {
-        articles.push({
-          ...item,
-          size: row.size,
-          quantity: Number(row.quantity) || 0,
-          purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0)
-        });
-      });
-    } else {
-      articles.push({ ...item, quantity: Number(item.quantity) || 0, purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0 });
-    }
-  });
-
-  const head = [["Category", "Specs (Size / Color)", "Qty", "Unit", "Unit Price", "Total"]];
-  let grandTotal = 0;
+  // Loop through all items
+  const items = order.items || [];
   
-  const body = articles.map(a => {
-    const qty = Number(a.quantity || 0);
-    const price = Number(a.purchasePricePerUnit || 0);
-    const total = qty * price;
-    grandTotal += total;
-
-    const specParts: string[] = [];
-    if (a.size && a.size !== 'various') specParts.push(`Size: ${a.size}`);
-    if (a.color && a.color !== 'various') specParts.push(`Color: ${a.color}`);
-    if (a.zipperType) specParts.push(`${a.zipperType}`);
+  for (let idx = 0; idx < items.length; idx++) {
+    const article = items[idx];
     
-    return [
-      (a.categoryId || "—").toUpperCase(),
-      specParts.length > 0 ? specParts.join(" | ") : "—",
-      qty.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","),
-      (a.unitOfMeasure || "U").toUpperCase(),
-      price > 0 ? `$${price.toFixed(4)}` : "—",
-      price > 0 ? `$${total.toFixed(2)}` : "—"
+    // Check if we need a new page for the article banner
+    if (y + 60 > H) {
+      doc.addPage();
+      y = MX;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ARTICLE BANNER
+    // ════════════════════════════════════════════════════════════════════════
+    doc.setFillColor(...NAVY);
+    doc.roundedRect(MX, y, CW, 14, 1.5, 1.5, "F");
+    doc.setFillColor(...GOLD);
+    doc.rect(MX, y, 5, 14, "F");
+    doc.roundedRect(MX, y, 5, 14, 1.5, 1.5, "F");
+
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text((article.categoryId || "ARTICLE").toUpperCase(), MX + 10, y + 9.5);
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...GOLD);
+    doc.text(`TOTAL QTY: ${fmtQty(article.quantity, article.unitOfMeasure)}`, W - MX - 2, y + 5.5, { align: "right" });
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(7);
+    doc.text(`Unit: ${article.unitOfMeasure || "—"}`, W - MX - 2, y + 10.5, { align: "right" });
+
+    y += 20;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ORDER SPECIFICATIONS GRID
+    // ════════════════════════════════════════════════════════════════════════
+    doc.setFontSize(8.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...NAVY);
+    doc.text("ORDER SPECIFICATIONS", MX, y);
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.5);
+    doc.line(MX + 44, y - 1, W - MX, y - 1);
+    y += 4;
+
+    const colorLabel = (() => {
+      const cb: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
+      if (cb.length > 0) return `${cb.length} COLOR(S)`;
+      return (article.color && article.color !== "various") ? article.color.toUpperCase() : "—";
+    })();
+
+    const specs: [string,string][] = [
+      ["Category / Product",  (article.categoryId || "—").toUpperCase()],
+      ["Size",                article.size && article.size !== "various" ? article.size.toUpperCase() : "VARIOUS"],
+      ["Color",               colorLabel],
+      ["Quantity Ordered",    fmtQty(article.quantity, article.unitOfMeasure)],
+      ["Base Unit Price",     article.purchasePricePerUnit ? `$${Number(article.purchasePricePerUnit).toFixed(4)}` : "—"],
+      ["Total Value",         article.purchasePricePerUnit && article.quantity ? `$${(Number(article.purchasePricePerUnit) * Number(article.quantity)).toFixed(2)}` : "—"],
     ];
-  });
 
-  const totalRow = [
-    { content: "GRAND TOTAL", colSpan: 5, styles: { halign: "right", fontStyle: "bold", textColor: NAVY } as any },
-    { content: grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : "—", styles: { fontStyle: "bold", textColor: NAVY } as any }
-  ];
-  
-  body.push(totalRow as any);
+    const specCols = 2;
+    const cellW = CW / specCols;
+    const cellH = 10;
+    specs.forEach((s, i) => {
+      const col = i % specCols;
+      const row = Math.floor(i / specCols);
+      const cx = MX + col * cellW;
+      const cy = y + row * cellH;
 
-  autoTable(doc, {
-    startY: y,
-    head: head,
-    body: body,
-    theme: "plain",
-    styles: { fontSize: 7.5, cellPadding: 3, textColor: NAVY },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "bold", fontSize: 8 },
-    alternateRowStyles: { fillColor: BG },
-    margin: { left: MX, right: MX },
-    tableLineColor: BORDER,
-    tableLineWidth: 0.1,
-  });
+      if (col % 2 === 0) doc.setFillColor(...BG); else doc.setFillColor(...WHITE);
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.2);
+      doc.rect(cx, cy, cellW, cellH, "FD");
 
-  y = (doc as any).lastAutoTable.finalY + 15;
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...MUTED);
+      doc.text(s[0].toUpperCase(), cx + 3, cy + 3.5);
+
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...NAVY);
+      const lines = doc.splitTextToSize(s[1], cellW - 6);
+      doc.text(lines[0], cx + 3, cy + 8);
+    });
+
+    const specRows = Math.ceil(specs.length / specCols);
+    y += specRows * cellH + 10;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // BREAKDOWN TABLES
+    // ════════════════════════════════════════════════════════════════════════
+    const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
+    const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
+
+    const drawTable = (title: string, head: string[][], body: any[][], totalRow: any[]) => {
+      if (y + 30 > H) {
+        doc.addPage();
+        y = MX;
+      }
+
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...NAVY);
+      doc.text(title, MX, y);
+      doc.setDrawColor(...GOLD);
+      doc.setLineWidth(0.4);
+      doc.line(MX + title.length * 1.6, y - 1, W - MX, y - 1);
+      y += 3;
+
+      body.push(totalRow);
+
+      autoTable(doc, {
+        startY: y,
+        head,
+        body,
+        margin: { left: MX, right: MX, bottom: 25 },
+        styles: {
+          fontSize: 8,
+          cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+          font: "helvetica",
+          textColor: [30, 41, 59],
+          lineColor: BORDER,
+          lineWidth: 0.15,
+        },
+        headStyles: {
+          fillColor: NAVY,
+          textColor: WHITE,
+          fontSize: 7.5,
+          fontStyle: "bold",
+          halign: "left",
+        },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        didParseCell: (data) => {
+          if (data.row.index === body.length - 1 && data.section === "body") {
+            data.cell.styles.fillColor = GOLD_LIGHT;
+            data.cell.styles.fontStyle = "bold";
+            data.cell.styles.textColor = NAVY;
+          }
+        },
+        columnStyles: {
+          0: { cellWidth: 10, textColor: MUTED, halign: "center" },
+          [head[0].length - 1]: { halign: "right", fontStyle: "bold", textColor: NAVY, cellWidth: 30 },
+          [head[0].length - 2]: { halign: "right", fontStyle: "normal", cellWidth: 25 },
+          [head[0].length - 3]: { halign: "right", fontStyle: "normal", cellWidth: 25 },
+        },
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 10;
+    };
+
+    if (colorBreakdown.length > 0) {
+      let totalValue = 0;
+      const rows = colorBreakdown.map((r: any, i: number) => {
+        const rowPrice = (r.priceOverride !== '' && r.priceOverride !== undefined && r.priceOverride !== null) ? Number(r.priceOverride) : Number(article.purchasePricePerUnit || 0);
+        const qty = Number(r.rolls) || 0;
+        const rowTotal = qty * rowPrice;
+        totalValue += rowTotal;
+        return [
+          String(i + 1),
+          (r.color || r.colorCode || "—").toUpperCase(),
+          fmtQty(qty, article.unitOfMeasure),
+          rowPrice > 0 ? `$${rowPrice.toFixed(4)}` : "—",
+          rowTotal > 0 ? `$${rowTotal.toFixed(2)}` : "—"
+        ];
+      });
+      drawTable("COLOR BREAKDOWN", [["#", "Color / Code", "Quantity", "Unit Price", "Total Price"]], rows, [
+        "", "TOTAL", 
+        fmtQty(colorBreakdown.reduce((s, r) => s + (Number(r.rolls)||0), 0), article.unitOfMeasure),
+        "", 
+        totalValue > 0 ? `$${totalValue.toFixed(2)}` : "—"
+      ]);
+    } else if (sizeBreakdown.length > 0) {
+      let totalValue = 0;
+      const rows = sizeBreakdown.map((r: any, i: number) => {
+        const rowPrice = (r.priceOverride !== '' && r.priceOverride !== undefined && r.priceOverride !== null) ? Number(r.priceOverride) : Number(article.purchasePricePerUnit || 0);
+        const qty = Number(r.quantity) || 0;
+        const rowTotal = qty * rowPrice;
+        totalValue += rowTotal;
+        return [
+          String(i + 1),
+          (r.size || "—").toUpperCase(),
+          fmtQty(qty, "U"),
+          rowPrice > 0 ? `$${rowPrice.toFixed(4)}` : "—",
+          rowTotal > 0 ? `$${rowTotal.toFixed(2)}` : "—"
+        ];
+      });
+      drawTable("SIZE BREAKDOWN", [["#", "Size", "Quantity", "Unit Price", "Total Price"]], rows, [
+        "", "TOTAL", 
+        fmtQty(sizeBreakdown.reduce((s, r) => s + (Number(r.quantity)||0), 0), "U"),
+        "", 
+        totalValue > 0 ? `$${totalValue.toFixed(2)}` : "—"
+      ]);
+    }
+  }
 
   // ════════════════════════════════════════════════════════════════════════
   // TERMS & CONDITIONS
