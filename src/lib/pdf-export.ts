@@ -2861,8 +2861,8 @@ export async function exportBaseOrderPDF(order: any) {
       doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
       doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
       doc.setFontSize(6.5); doc.setTextColor(148, 163, 184);
-      doc.text(\`MODÈLE DE COMMANDE  |  \${todayStr}  |  OFFRE\`, MX + 5, H - 3.5);
-      doc.text(\`Page \${i} / \${pages}\`, W - MX, H - 3.5, { align: 'right' });
+      doc.text(`MODÈLE DE COMMANDE  |  ${todayStr}  |  OFFRE`, MX + 5, H - 3.5);
+      doc.text(`Page ${i} / ${pages}`, W - MX, H - 3.5, { align: 'right' });
     }
   };
 
@@ -2890,12 +2890,12 @@ export async function exportBaseOrderPDF(order: any) {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MUTED);
-  doc.text(\`Date : \${todayFr}\`, W - MX, y + 19, { align: 'right' });
-  doc.text(\`\${articles.length} article\${articles.length > 1 ? 's' : ''}\`, W - MX, y + 24, { align: 'right' });
+  doc.text(`Date : ${todayFr}`, W - MX, y + 19, { align: 'right' });
+  doc.text(`${articles.length} article${articles.length > 1 ? 's' : ''}`, W - MX, y + 24, { align: 'right' });
   
   if (order.description) {
     doc.setTextColor(...TEXT);
-    doc.text(\`Description : \${order.description}\`, MX, y + 30);
+    doc.text(`Description : ${order.description}`, MX, y + 30);
   }
 
   y += 35;
@@ -2935,8 +2935,8 @@ export async function exportBaseOrderPDF(order: any) {
 
     // Specs row (size, color)
     const specParts: string[] = [];
-    if (a.size && a.size !== 'various') specParts.push(\`Taille: \${a.size}\`);
-    if (a.color && a.color !== 'various') specParts.push(\`Couleur: \${a.color}\`);
+    if (a.size && a.size !== 'various') specParts.push(`Taille: ${a.size}`);
+    if (a.color && a.color !== 'various') specParts.push(`Couleur: ${a.color}`);
     if (specParts.length > 0) {
       doc.setTextColor(...MUTED);
       doc.setFontSize(7);
@@ -2953,7 +2953,7 @@ export async function exportBaseOrderPDF(order: any) {
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text(
-      \`\${qty.toLocaleString('fr-MA')} \${(a.unitOfMeasure || 'U').toUpperCase()}\`,
+      `${qty.toLocaleString('fr-MA')} ${(a.unitOfMeasure || 'U').toUpperCase()}`,
       COL_RIGHT - 10,
       y + 16,
       { align: 'right' }
@@ -2963,7 +2963,7 @@ export async function exportBaseOrderPDF(order: any) {
       doc.setFontSize(7.5);
       doc.setTextColor(...MUTED);
       doc.text(
-        \`Prix Unitaire: $\${price.toFixed(4)}\`,
+        `Prix Unitaire: $${price.toFixed(4)}`,
         COL_RIGHT - 10,
         y + 22,
         { align: 'right' }
@@ -2972,7 +2972,7 @@ export async function exportBaseOrderPDF(order: any) {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(180, 100, 0);
       doc.text(
-        \`$\${total.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}\`,
+        `$${total.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}`,
         COL_RIGHT - 10,
         y + 28,
         { align: 'right' }
@@ -2996,17 +2996,17 @@ export async function exportBaseOrderPDF(order: any) {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text(\`TOTAL — \${articles.length} ARTICLE\${articles.length > 1 ? 'S' : ''}\`, MX + 8, y + 11);
+  doc.text(`TOTAL — ${articles.length} ARTICLE${articles.length > 1 ? 'S' : ''}`, MX + 8, y + 11);
 
   doc.setTextColor(...GOLD);
   doc.setFontSize(8);
   doc.text(
-    \`Quantité : \${totalQty.toLocaleString('fr-MA')}  |  Valeur estimée : $\${totalVal.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}\`,
+    `Quantité : ${totalQty.toLocaleString('fr-MA')}  |  Valeur estimée : $${totalVal.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}`,
     W - MX,
     y + 11,
     { align: 'right' }
   );
 
   addPageFooter();
-  doc.save(\`Modele_\${(order.name || 'Base').replace(/[^a-zA-Z0-9]/g, '_')}_\${todayStr}.pdf\`);
+  doc.save(`Modele_${(order.name || 'Base').replace(/[^a-zA-Z0-9]/g, '_')}_${todayStr}.pdf`);
 }
