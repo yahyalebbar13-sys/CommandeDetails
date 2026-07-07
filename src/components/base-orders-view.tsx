@@ -232,67 +232,9 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         <p className="text-stone-400 font-bold uppercase tracking-widest text-xs">Chargement des modèles...</p>
-  
-      {/* MODAL BREAKDOWN COLOR/SIZE */}
-      <Dialog open={breakdownItemIndex !== null} onOpenChange={(o) => { if (!o) setBreakdownItemIndex(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-black uppercase tracking-tighter text-stone-900">
-              Détail Répartition
-            </DialogTitle>
-          </DialogHeader>
-          {breakdownItemIndex !== null && (
-            <div className="py-4 space-y-6">
-              <div className="bg-stone-50 p-3 rounded-xl border border-stone-100 mb-2 flex justify-between items-center">
-                <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">
-                  Article Ligne {breakdownItemIndex + 1}
-                </span>
-                <Badge variant="outline" className="text-stone-700 bg-white border-stone-200">
-                  {items[breakdownItemIndex].categoryId || 'Sans cat.'}
-                </Badge>
-              </div>
-
-              <div className="space-y-4">
-                <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/30">
-                  <ColorBreakdownInput 
-                    value={items[breakdownItemIndex].colorBreakdown || null}
-                    onChange={(rows, total) => {
-                      updateItem(breakdownItemIndex, 'colorBreakdown', rows);
-                      if (rows && rows.length > 0) {
-                        updateItem(breakdownItemIndex, 'quantity', total);
-                        updateItem(breakdownItemIndex, 'color', 'various');
-                      }
-                    }}
-                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
-                  />
-                </div>
-
-                <div className="border border-teal-100 rounded-2xl p-4 bg-teal-50/30">
-                  <SizeBreakdownInput 
-                    value={items[breakdownItemIndex].sizeBreakdown || null}
-                    onChange={(rows, total) => {
-                      updateItem(breakdownItemIndex, 'sizeBreakdown', rows);
-                      if (rows && rows.length > 0) {
-                        updateItem(breakdownItemIndex, 'quantity', total);
-                        updateItem(breakdownItemIndex, 'size', 'various');
-                      }
-                    }}
-                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setBreakdownItemIndex(null)} className="bg-stone-900 hover:bg-black text-white rounded-xl font-black uppercase tracking-widest text-[10px]">
-              Fermer & Appliquer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -540,6 +482,63 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
             <Button variant="outline" onClick={() => setIsGeneratorOpen(false)} className="rounded-xl font-black uppercase tracking-widest text-[10px]">Annuler</Button>
             <Button onClick={generateRealOrder} disabled={!supplierId.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px]">
               <ArrowRight className="w-4 h-4 mr-2" /> Générer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* MODAL BREAKDOWN COLOR/SIZE */}
+      <Dialog open={breakdownItemIndex !== null} onOpenChange={(o) => { if (!o) setBreakdownItemIndex(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black uppercase tracking-tighter text-stone-900">
+              Détail Répartition
+            </DialogTitle>
+          </DialogHeader>
+          {breakdownItemIndex !== null && (
+            <div className="py-4 space-y-6">
+              <div className="bg-stone-50 p-3 rounded-xl border border-stone-100 mb-2 flex justify-between items-center">
+                <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">
+                  Article Ligne {breakdownItemIndex + 1}
+                </span>
+                <Badge variant="outline" className="text-stone-700 bg-white border-stone-200">
+                  {items[breakdownItemIndex].categoryId || 'Sans cat.'}
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/30">
+                  <ColorBreakdownInput 
+                    value={items[breakdownItemIndex].colorBreakdown || null}
+                    onChange={(rows, total) => {
+                      updateItem(breakdownItemIndex, 'colorBreakdown', rows);
+                      if (rows && rows.length > 0) {
+                        updateItem(breakdownItemIndex, 'quantity', total);
+                        updateItem(breakdownItemIndex, 'color', 'various');
+                      }
+                    }}
+                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
+                  />
+                </div>
+
+                <div className="border border-teal-100 rounded-2xl p-4 bg-teal-50/30">
+                  <SizeBreakdownInput 
+                    value={items[breakdownItemIndex].sizeBreakdown || null}
+                    onChange={(rows, total) => {
+                      updateItem(breakdownItemIndex, 'sizeBreakdown', rows);
+                      if (rows && rows.length > 0) {
+                        updateItem(breakdownItemIndex, 'quantity', total);
+                        updateItem(breakdownItemIndex, 'size', 'various');
+                      }
+                    }}
+                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setBreakdownItemIndex(null)} className="bg-stone-900 hover:bg-black text-white rounded-xl font-black uppercase tracking-widest text-[10px]">
+              Fermer & Appliquer
             </Button>
           </DialogFooter>
         </DialogContent>
