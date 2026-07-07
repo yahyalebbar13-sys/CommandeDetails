@@ -139,7 +139,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
         ...(editingOrder ? {} : { createdAt: serverTimestamp() })
       };
       
-      await setDocumentNonBlocking(firestore, `users/${user!.uid}/baseOrders/${orderId}`, payload);
+      await setDocumentNonBlocking(doc(firestore!, 'users', user!.uid, 'baseOrders', orderId), payload, { merge: true });
       
       toast({ title: 'Succès', description: 'Modèle sauvegardé' });
       setIsModalOpen(false);
@@ -151,7 +151,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   const handleDelete = async (id: string) => {
     if (!confirm('Voulez-vous vraiment supprimer ce modèle ?')) return;
     try {
-      await deleteDocumentNonBlocking(firestore, `users/${user!.uid}/baseOrders/${id}`);
+      await deleteDocumentNonBlocking(doc(firestore!, 'users', user!.uid, 'baseOrders', id));
       toast({ title: 'Succès', description: 'Modèle supprimé' });
     } catch (err: any) {
       toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
