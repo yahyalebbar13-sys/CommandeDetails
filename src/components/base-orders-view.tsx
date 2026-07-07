@@ -190,8 +190,10 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
           quantity: Number(item.quantity) || 0,
           colorBreakdown: item.colorBreakdown || null,
           sizeBreakdown: item.sizeBreakdown || null,
-          status: 'TO_ORDER',
+          status: 'PI',
           priority: 'todo',
+          orderDate: new Date().toISOString().split('T')[0],
+          containerRef: selectedBaseOrder?.name || 'Base Order',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           generatedFromBaseOrder: selectedBaseOrder?.name || 'Base Order'
@@ -199,7 +201,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       });
 
       await batch.commit();
-      toast({ title: 'Succès', description: 'Commande générée avec succès (ajoutée aux commandes à passer)' });
+      toast({ title: 'Succès', description: 'Commande générée avec succès (ajoutée en Production)' });
       setIsGeneratorOpen(false);
     } catch (err: any) {
       toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
