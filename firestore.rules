@@ -136,6 +136,11 @@ service cloud.firestore {
       match /clientPayments/{id} {
         allow read, write: if hasAccess(userId);
       }
+
+      // baseOrders: modèles de commandes fixes, owner only
+      match /baseOrders/{id} {
+        allow read, write: if hasAccess(userId);
+      }
     }
 
     // ── Client Access mapping ──────────────────────────────────────────────────

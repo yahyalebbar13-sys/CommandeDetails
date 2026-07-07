@@ -2799,3 +2799,55 @@ export async function exportCommercialPDF(
   doc.save(`Offre_Commerciale_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
+export async function exportBaseOrderPDF(order: any) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(28, 25, 23); // stone-900
+  doc.rect(0, 0, pageW, 30, 'F');
+  
+  try {
+    await addPdfLogoHeader(doc, 10, 5, 30, 15, true);
+  } catch (e) {}
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MODÈLE DE COMMANDE (BASE)', 50, 15);
+  doc.setFontSize(10);
+  doc.setTextColor(200, 200, 200);
+  doc.text(order.name || 'Modèle sans nom', 50, 22);
+
+  let y = 40;
+  if (order.description) {
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(10);
+    doc.text(`Description : ${order.description}`, 14, y);
+    y += 10;
+  }
+
+  const items = order.items || [];
+  if (items.length > 0) {
+    const tableBody = items.map((item: any) => [
+      item.categoryId || '-',
+      item.color || '-',
+      item.size || '-',
+      `${item.quantity || 0} ${item.unitOfMeasure || ''}`,
+      item.purchasePricePerUnit ? `${item.purchasePricePerUnit} $` : '-'
+    ]);
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Catégorie', 'Couleur', 'Taille / Specs', 'Quantité', 'Prix U.']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8 },
+    });
+  }
+
+  doc.save(`Modele_Commande_${(order.name || 'Base').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+}

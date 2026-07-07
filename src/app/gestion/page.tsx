@@ -21,6 +21,7 @@ import CostSaleView from '@/components/cost-sale-view';
 import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
+import BaseOrdersView from '@/components/base-orders-view';
 
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
@@ -462,6 +463,7 @@ function AdminApp() {
     [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'to-order', label: 'Besoins', icon: ClipboardList },
+      { id: 'base-orders', label: 'Base Cmd', icon: Package },
       { id: 'pending', label: 'Production', icon: Factory },
       { id: 'timeline', label: 'Timeline', icon: Timer },
       { id: 'factures', label: 'Arrivages', icon: Anchor },
@@ -573,6 +575,9 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'to-order' ? 'block animate-in fade-in' : 'hidden'}>
               <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
+            </div>
+            <div className={activeTab === 'base-orders' ? 'block animate-in fade-in' : 'hidden'}>
+              <BaseOrdersView subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
               <PendingOrdersView articles={articles} factures={factures} generalCategories={generalCategories} onEdit={setEditingArticle} />
