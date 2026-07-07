@@ -63,46 +63,8 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
     setSelectedBaseOrder(order);
     setSupplierId('');
     
-    // Éclatement des articles pour prévisualisation
-    const generated: any[] = [];
-    (order.items || []).forEach((item: any, originalIndex: number) => {
-      const sc = subCategories.find((c: any) => c.name === item.categoryId);
-      const basePayload = {
-        _refIndex: originalIndex,
-        categoryId: item.categoryId || '',
-        generalCategoryId: sc?.generalCategoryId || '',
-        unitOfMeasure: item.unitOfMeasure || 'pièces',
-        color: item.color || '',
-        size: item.size || '',
-        purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
-      };
-
-      if (item.colorBreakdown && item.colorBreakdown.length > 0) {
-        item.colorBreakdown.forEach((row: any) => {
-          generated.push({
-            ...basePayload,
-            color: row.color,
-            quantity: Number(row.rolls) || 0,
-            purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : basePayload.purchasePricePerUnit,
-          });
-        });
-      } else if (item.sizeBreakdown && item.sizeBreakdown.length > 0) {
-        item.sizeBreakdown.forEach((row: any) => {
-          generated.push({
-            ...basePayload,
-            size: row.size,
-            quantity: Number(row.quantity) || 0,
-            purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : basePayload.purchasePricePerUnit,
-          });
-        });
-      } else {
-        generated.push({
-          ...basePayload,
-          quantity: Number(item.quantity) || 0,
-        });
-      }
-    });
-
+    // On ne "flat" plus les articles, on garde la structure groupée pour permettre de mettre des prix de base et des priceOverrides
+    const generated = JSON.parse(JSON.stringify(order.items || []));
     setArticlesToGenerate(generated);
     setIsGeneratorOpen(true);
     
@@ -226,6 +188,8 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
           size: item.size || '',
           purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
           quantity: Number(item.quantity) || 0,
+          colorBreakdown: item.colorBreakdown || null,
+          sizeBreakdown: item.sizeBreakdown || null,
           status: 'TO_ORDER',
           priority: 'todo',
           createdAt: serverTimestamp(),
@@ -516,20 +480,35 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                     return (
                       <TableRow key={idx}>
                         <TableCell className="font-bold text-xs text-stone-700">{art.categoryId || '-'}</TableCell>
-                        <TableCell className="font-medium text-xs">{art.color || '-'}</TableCell>
-                        <TableCell className="font-medium text-xs">{art.size || '-'}</TableCell>
-                        <TableCell className="p-2 w-24">
-                          <Input 
-                            type="number" 
-                            value={art.quantity} 
-                            onChange={(e) => {
-                              const newArr = [...articlesToGenerate];
-                              newArr[idx].quantity = e.target.value;
-                              setArticlesToGenerate(newArr);
-                            }} 
-                            className="h-8 text-xs text-center font-bold" 
-                          />
+                        <TableCell className="p-2">
+                          <div className="flex items-center gap-1">
+                            {art.colorBreakdown && art.colorBreakdown.length > 0 ? (
+                              <div className="h-8 flex-1 flex items-center justify-center bg-indigo-50 border border-indigo-100 rounded text-[10px] font-black text-indigo-700 uppercase tracking-widest cursor-pointer hover:bg-indigo-100" onClick={() => setBreakdownItemIndex(idx)}>VARIOUS ({art.colorBreakdown.length})</div>
+                            ) : (
+                              <span className="font-medium text-xs">{art.color || '-'}</span>
+                            )}
+                            {(!art.colorBreakdown || art.colorBreakdown.length === 0) && (
+                              <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0 text-stone-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50" onClick={() => setBreakdownItemIndex(idx)}>
+                                <Palette className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
+                        <TableCell className="p-2">
+                          <div className="flex items-center gap-1">
+                            {art.sizeBreakdown && art.sizeBreakdown.length > 0 ? (
+                              <div className="h-8 flex-1 flex items-center justify-center bg-teal-50 border border-teal-100 rounded text-[10px] font-black text-teal-700 uppercase tracking-widest cursor-pointer hover:bg-teal-100" onClick={() => setBreakdownItemIndex(idx)}>VARIOUS ({art.sizeBreakdown.length})</div>
+                            ) : (
+                              <span className="font-medium text-xs">{art.size || '-'}</span>
+                            )}
+                            {(!art.sizeBreakdown || art.sizeBreakdown.length === 0) && (
+                              <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0 text-stone-400 hover:text-teal-600 rounded-lg hover:bg-teal-50" onClick={() => setBreakdownItemIndex(idx)}>
+                                <Maximize className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-bold text-xs">{art.quantity || 0}</TableCell>
                         <TableCell className="text-xs text-stone-500">{art.unitOfMeasure}</TableCell>
                         <TableCell className="p-2 w-28">
                           <Input 
@@ -550,7 +529,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                   })}
                   {articlesToGenerate.length > 0 && (
                     <TableRow className="bg-stone-50 hover:bg-stone-50">
-                      <TableCell colSpan={6} className="text-right font-black uppercase tracking-widest text-[10px] text-stone-400">Total Estimé</TableCell>
+                      <TableCell colSpan={6} className="text-right font-black uppercase tracking-widest text-[10px] text-stone-400">Total de Base Estimé</TableCell>
                       <TableCell className="text-right font-black text-sm text-indigo-600">
                         {articlesToGenerate.reduce((acc, art) => acc + (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0), 0).toFixed(2)} $
                       </TableCell>
@@ -576,48 +555,64 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
               Détail Répartition
             </DialogTitle>
           </DialogHeader>
-          {breakdownItemIndex !== null && (
+          {breakdownItemIndex !== null && (() => {
+            const isGen = isGeneratorOpen;
+            const currentItem = isGen ? articlesToGenerate[breakdownItemIndex] : items[breakdownItemIndex];
+            if (!currentItem) return null;
+            
+            const handleUpdate = (field, value) => {
+              if (isGen) {
+                const newArr = [...articlesToGenerate];
+                newArr[breakdownItemIndex] = { ...newArr[breakdownItemIndex], [field]: value };
+                setArticlesToGenerate(newArr);
+              } else {
+                updateItem(breakdownItemIndex, field, value);
+              }
+            };
+
+            return (
             <div className="py-4 space-y-6">
               <div className="bg-stone-50 p-3 rounded-xl border border-stone-100 mb-2 flex justify-between items-center">
                 <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">
                   Article Ligne {breakdownItemIndex + 1}
                 </span>
                 <Badge variant="outline" className="text-stone-700 bg-white border-stone-200">
-                  {items[breakdownItemIndex].categoryId || 'Sans cat.'}
+                  {currentItem.categoryId || 'Sans cat.'}
                 </Badge>
               </div>
 
               <div className="space-y-4">
                 <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/30">
                   <ColorBreakdownInput 
-                    value={items[breakdownItemIndex].colorBreakdown || null}
+                    value={currentItem.colorBreakdown || null}
                     onChange={(rows, total) => {
-                      updateItem(breakdownItemIndex, 'colorBreakdown', rows);
+                      handleUpdate('colorBreakdown', rows);
                       if (rows && rows.length > 0) {
-                        updateItem(breakdownItemIndex, 'quantity', total);
-                        updateItem(breakdownItemIndex, 'color', 'various');
+                        handleUpdate('quantity', total);
+                        handleUpdate('color', 'various');
                       }
                     }}
-                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
+                    unit={currentItem.unitOfMeasure || 'pièces'}
                   />
                 </div>
 
                 <div className="border border-teal-100 rounded-2xl p-4 bg-teal-50/30">
                   <SizeBreakdownInput 
-                    value={items[breakdownItemIndex].sizeBreakdown || null}
+                    value={currentItem.sizeBreakdown || null}
                     onChange={(rows, total) => {
-                      updateItem(breakdownItemIndex, 'sizeBreakdown', rows);
+                      handleUpdate('sizeBreakdown', rows);
                       if (rows && rows.length > 0) {
-                        updateItem(breakdownItemIndex, 'quantity', total);
-                        updateItem(breakdownItemIndex, 'size', 'various');
+                        handleUpdate('quantity', total);
+                        handleUpdate('size', 'various');
                       }
                     }}
-                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
+                    unit={currentItem.unitOfMeasure || 'pièces'}
                   />
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
           <DialogFooter>
             <Button onClick={() => setBreakdownItemIndex(null)} className="bg-stone-900 hover:bg-black text-white rounded-xl font-black uppercase tracking-widest text-[10px]">
               Fermer & Appliquer
