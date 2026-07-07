@@ -267,7 +267,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
           {baseOrders.map(order => (
             <Card key={order.id} className="overflow-hidden border-0 shadow-xl shadow-stone-200/40 rounded-2xl bg-white group hover:shadow-2xl transition-all duration-300">
               <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="text-lg font-black text-stone-900 tracking-tighter uppercase line-clamp-1">{order.name}</h3>
                     {order.description && <p className="text-xs font-bold text-stone-400 mt-1 line-clamp-2">{order.description}</p>}
@@ -275,6 +275,19 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                   <div className="bg-indigo-50 text-indigo-600 font-black text-[10px] px-2.5 py-1 rounded-lg uppercase tracking-widest whitespace-nowrap">
                     {order.items?.length || 0} art.
                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  {order.cbm ? (
+                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-stone-500 bg-stone-50 border border-stone-100 px-2 py-1 rounded-md">
+                      <Box className="w-3 h-3 text-stone-400" /> {order.cbm} CBM
+                    </div>
+                  ) : null}
+                  {order.isFullContainer ? (
+                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-md">
+                      <Package className="w-3 h-3 text-orange-500" /> Conteneur Complet
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2 mb-6">
