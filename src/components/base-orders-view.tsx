@@ -47,14 +47,14 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [baseCbm, setBaseCbm] = useState('');
+  const [baseIsFullContainer, setBaseIsFullContainer] = useState(false);
   const [items, setItems] = useState<any[]>([]);
 
   // Generator modal state
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [selectedBaseOrder, setSelectedBaseOrder] = useState<any>(null);
   const [supplierId, setSupplierId] = useState('');
-  const [cbm, setCbm] = useState('');
-  const [isFullContainer, setIsFullContainer] = useState(false);
   const [articlesToGenerate, setArticlesToGenerate] = useState<any[]>([]);
   const [breakdownItemIndex, setBreakdownItemIndex] = useState<number | null>(null);
 
@@ -65,8 +65,6 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   const openGenerator = async (order: any) => {
     setSelectedBaseOrder(order);
     setSupplierId('');
-    setCbm('');
-    setIsFullContainer(false);
     
     // On ne "flat" plus les articles, on garde la structure groupée pour permettre de mettre des prix de base et des priceOverrides
     const generated = JSON.parse(JSON.stringify(order.items || []));
@@ -93,6 +91,8 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
     setEditingOrder(null);
     setName('');
     setDescription('');
+    setBaseCbm('');
+    setBaseIsFullContainer(false);
     setItems([]);
     setIsModalOpen(true);
   };
@@ -101,6 +101,8 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
     setEditingOrder(order);
     setName(order.name || '');
     setDescription(order.description || '');
+    setBaseCbm(order.cbm?.toString() || '');
+    setBaseIsFullContainer(order.isFullContainer || false);
     setItems(order.items || []);
     setIsModalOpen(true);
   };
@@ -146,6 +148,8 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       const payload = {
         name: name.trim(),
         description: description.trim(),
+        cbm: Number(baseCbm) || 0,
+        isFullContainer: baseIsFullContainer,
         items,
         updatedAt: serverTimestamp(),
         ...(editingOrder ? {} : { createdAt: serverTimestamp() })
@@ -189,8 +193,8 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
         const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
         batch.set(articleRef, {
           supplierId: supplierId.trim(),
-          cbm: Number(cbm) || 0,
-          isFullContainer: isFullContainer,
+          cbm: Number(selectedBaseOrder?.cbm) || 0,
+          isFullContainer: selectedBaseOrder?.isFullContainer || false,
           name: item.name || item.categoryId || '',
           categoryId: item.categoryId || '',
           generalCategoryId: generalCatId,
@@ -332,6 +336,36 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-stone-400 flex items-center gap-1"><Box className="w-3 h-3"/> Volume total (CBM)</Label>
+                <Input 
+                  type="number"
+                  value={baseCbm} 
+                  onChange={e => setBaseCbm(e.target.value)} 
+                  placeholder="Ex: 68" 
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-2 flex flex-col justify-end pb-1">
+                <div className={`rounded-xl border transition-all h-[42px] flex items-center ${baseIsFullContainer ? 'bg-orange-50 border-orange-200' : 'bg-white border-stone-200'}`}>
+                  <div className="flex items-center justify-between w-full p-3">
+                    <div className="flex items-center gap-2">
+                      <Package className={`w-4 h-4 ${baseIsFullContainer ? 'text-orange-600' : 'text-stone-400'}`} />
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${baseIsFullContainer ? 'text-orange-700' : 'text-stone-500'}`}>
+                        Conteneur Complet
+                      </span>
+                    </div>
+                    <Switch
+                      checked={baseIsFullContainer}
+                      onCheckedChange={v => setBaseIsFullContainer(v)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-stone-400">Articles du Modèle</Label>
@@ -449,59 +483,29 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
               Veuillez vérifier et ajuster les prix et quantités ci-dessous.
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-100">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-stone-400">Fournisseur</Label>
-                {knownSuppliers.length > 0 ? (
-                  <div className="relative">
-                    <Input 
-                      value={supplierId} 
-                      onChange={e => setSupplierId(e.target.value)} 
-                      placeholder="Choix/Saisie" 
-                      className="font-black text-sm rounded-xl border-stone-200 uppercase bg-white"
-                      list="suppliers-list"
-                    />
-                    <datalist id="suppliers-list">
-                      {knownSuppliers.map(s => <option key={s} value={s} />)}
-                    </datalist>
-                  </div>
-                ) : (
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-stone-400">Fournisseur de la commande</Label>
+              {knownSuppliers.length > 0 ? (
+                <div className="relative">
                   <Input 
                     value={supplierId} 
                     onChange={e => setSupplierId(e.target.value)} 
-                    placeholder="Nom" 
+                    placeholder="Saisissez ou choisissez un fournisseur" 
                     className="font-black text-sm rounded-xl border-stone-200 uppercase bg-white"
+                    list="suppliers-list"
                   />
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-stone-400 flex items-center gap-1"><Box className="w-3 h-3"/> Volume (CBM)</Label>
-                <Input 
-                  type="number"
-                  value={cbm} 
-                  onChange={e => setCbm(e.target.value)} 
-                  placeholder="Ex: 68" 
-                  className="font-black text-sm rounded-xl border-stone-200 bg-white"
-                />
-              </div>
-
-              <div className="space-y-2 flex flex-col justify-end pb-1">
-                <div className={`rounded-xl border transition-all ${isFullContainer ? 'bg-orange-50 border-orange-200' : 'bg-white border-stone-200'}`}>
-                  <div className="flex items-center justify-between p-2">
-                    <div className="flex items-center gap-2">
-                      <Package className={`w-4 h-4 ${isFullContainer ? 'text-orange-600' : 'text-stone-400'}`} />
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isFullContainer ? 'text-orange-700' : 'text-stone-500'}`}>
-                        Conteneur Complet
-                      </span>
-                    </div>
-                    <Switch
-                      checked={isFullContainer}
-                      onCheckedChange={v => setIsFullContainer(v)}
-                    />
-                  </div>
+                  <datalist id="suppliers-list">
+                    {knownSuppliers.map(s => <option key={s} value={s} />)}
+                  </datalist>
                 </div>
-              </div>
+              ) : (
+                <Input 
+                  value={supplierId} 
+                  onChange={e => setSupplierId(e.target.value)} 
+                  placeholder="Nom du fournisseur" 
+                  className="font-black text-sm rounded-xl border-stone-200 uppercase bg-white"
+                />
+              )}
             </div>
 
             <div className="border border-stone-200 rounded-xl overflow-hidden bg-white">
