@@ -139,19 +139,21 @@ export default function ShopHeader() {
             : "bg-white border-b border-gray-100"
         }`}
       >
-        {/* ── Promo Banner ──────────────────────────────────────────────── */}
-        <div
-          className="text-white text-xs font-medium py-2 overflow-hidden select-none"
-          style={{ backgroundColor: "#C8102E" }}
-        >
-          <div className="shop-marquee-inner inline-flex items-center gap-0">
-            <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
-            <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
+        {/* ── Desktop Collapsible Header Section ──────────────────────────── */}
+        <div className={`transition-all duration-500 ease-in-out origin-top overflow-hidden ${isScrolled ? 'lg:max-h-0 lg:opacity-0' : 'max-h-[500px] opacity-100'}`}>
+          {/* ── Promo Banner ──────────────────────────────────────────────── */}
+          <div
+            className="text-white text-xs font-medium py-2 overflow-hidden select-none"
+            style={{ backgroundColor: "#C8102E" }}
+          >
+            <div className="shop-marquee-inner inline-flex items-center gap-0">
+              <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
+              <span className="pr-8">{language === 'ar' ? PROMO_TEXT_AR : PROMO_TEXT_FR}</span>
+            </div>
           </div>
-        </div>
 
-        {/* ── Top Row: Logo, Search, Actions ────────────────────────────── */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* ── Top Row: Logo, Search, Actions ────────────────────────────── */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-24 gap-4 lg:gap-8">
             {/* ── Logo ──────────────────────────────────────────────────── */}
             <Link
@@ -288,6 +290,7 @@ export default function ShopHeader() {
             </div>
           </div>
         </div>
+        </div>
 
         {/* ── Bottom Row: Navigation Bar (Desktop Only) ────────────────── */}
         <div className="hidden lg:block border-t border-gray-100 bg-white">
@@ -412,6 +415,32 @@ export default function ShopHeader() {
                 )
               )}
             </nav>
+
+            {/* ── Mini Actions (Visible only on scroll) ────────────────── */}
+            <div className={`absolute right-4 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2 flex items-center gap-5 transition-opacity duration-500 delay-100 ${isScrolled ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+               <button
+                 onClick={() => setIsSearchOpen(true)}
+                 className="p-1 text-gray-600 hover:text-[#C8102E] transition-colors"
+                 aria-label="Rechercher"
+               >
+                 <Search className="w-5 h-5" />
+               </button>
+               <button
+                 onClick={openCart}
+                 className="p-1 relative text-gray-600 hover:text-[#C8102E] transition-colors group"
+                 aria-label={`Panier`}
+               >
+                 <ShoppingCart className="w-5 h-5 transition-transform group-hover:scale-110" />
+                 {itemCount > 0 && (
+                   <span
+                     className="absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-white text-[9px] font-bold px-1"
+                     style={{ backgroundColor: "#C8102E" }}
+                   >
+                     {itemCount > 99 ? "99+" : itemCount}
+                   </span>
+                 )}
+               </button>
+            </div>
           </div>
         </div>
       </header>
