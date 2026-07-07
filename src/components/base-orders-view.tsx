@@ -22,6 +22,9 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, deleteDocumentNo
 import { collection, doc, serverTimestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { exportBaseOrderPDF } from '@/lib/pdf-export';
+import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
+import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
+import { Palette, Maximize } from 'lucide-react';
 
 interface BaseOrdersViewProps {
   subCategories: any[];
@@ -49,6 +52,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [selectedBaseOrder, setSelectedBaseOrder] = useState<any>(null);
   const [supplierId, setSupplierId] = useState('');
+  const [breakdownItemIndex, setBreakdownItemIndex] = useState<number | null>(null);
 
   // Suppliers list (for generator)
   const [knownSuppliers, setKnownSuppliers] = useState<string[]>([]);
@@ -162,23 +166,56 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
     try {
       const batch = writeBatch(firestore!);
       selectedBaseOrder.items.forEach((item: any) => {
-        const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
-        const sc = subCategories.find(c => c.name === item.categoryId);
-        batch.set(articleRef, {
+        const sc = subCategories.find((c: any) => c.name === item.categoryId);
+        const basePayload = {
           supplierId: supplierId.trim(),
           categoryId: item.categoryId || '',
           generalCategoryId: sc?.generalCategoryId || '',
-          quantity: Number(item.quantity) || 0,
           unitOfMeasure: item.unitOfMeasure || 'pièces',
           color: item.color || '',
           size: item.size || '',
           purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
-          status: 'TO_ORDER', // Start in "to order" state
+          status: 'TO_ORDER',
           priority: 'todo',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           generatedFromBaseOrder: selectedBaseOrder.name
-        });
+        };
+
+        if (item.colorBreakdown && item.colorBreakdown.length > 0) {
+          const groups = new Map<number, ColorBreakdownRow[]>();
+          for (const row of item.colorBreakdown) {
+            const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0);
+            if (!groups.has(price)) groups.set(price, []);
+            groups.get(price)!.push(row);
+          }
+          groups.forEach((rows, price) => {
+            const id = doc(collection(firestore!, 'users', user!.uid, 'articles')).id;
+            const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
+            batch.set(doc(firestore!, 'users', user!.uid, 'articles', id), {
+              ...basePayload, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, color: 'various'
+            });
+          });
+        } else if (item.sizeBreakdown && item.sizeBreakdown.length > 0) {
+          const groups = new Map<number, SizeBreakdownRow[]>();
+          for (const row of item.sizeBreakdown) {
+            const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0);
+            if (!groups.has(price)) groups.set(price, []);
+            groups.get(price)!.push(row);
+          }
+          groups.forEach((rows, price) => {
+            const id = doc(collection(firestore!, 'users', user!.uid, 'articles')).id;
+            const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+            batch.set(doc(firestore!, 'users', user!.uid, 'articles', id), {
+              ...basePayload, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, size: 'various'
+            });
+          });
+        } else {
+          const id = doc(collection(firestore!, 'users', user!.uid, 'articles')).id;
+          batch.set(doc(firestore!, 'users', user!.uid, 'articles', id), {
+            ...basePayload, quantity: Number(item.quantity) || 0
+          });
+        }
       });
       await batch.commit();
       toast({ title: 'Succès', description: 'Commande générée avec succès (ajoutée aux commandes à passer)' });
@@ -193,9 +230,67 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         <p className="text-stone-400 font-bold uppercase tracking-widest text-xs">Chargement des modèles...</p>
-      </div>
-    );
-  }
+  
+      {/* MODAL BREAKDOWN COLOR/SIZE */}
+      <Dialog open={breakdownItemIndex !== null} onOpenChange={(o) => { if (!o) setBreakdownItemIndex(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black uppercase tracking-tighter text-stone-900">
+              Détail Répartition
+            </DialogTitle>
+          </DialogHeader>
+          {breakdownItemIndex !== null && (
+            <div className="py-4 space-y-6">
+              <div className="bg-stone-50 p-3 rounded-xl border border-stone-100 mb-2 flex justify-between items-center">
+                <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">
+                  Article Ligne {breakdownItemIndex + 1}
+                </span>
+                <Badge variant="outline" className="text-stone-700 bg-white border-stone-200">
+                  {items[breakdownItemIndex].categoryId || 'Sans cat.'}
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/30">
+                  <ColorBreakdownInput 
+                    value={items[breakdownItemIndex].colorBreakdown || null}
+                    onChange={(rows, total) => {
+                      updateItem(breakdownItemIndex, 'colorBreakdown', rows);
+                      if (rows && rows.length > 0) {
+                        updateItem(breakdownItemIndex, 'quantity', total);
+                        updateItem(breakdownItemIndex, 'color', 'various');
+                      }
+                    }}
+                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
+                  />
+                </div>
+
+                <div className="border border-teal-100 rounded-2xl p-4 bg-teal-50/30">
+                  <SizeBreakdownInput 
+                    value={items[breakdownItemIndex].sizeBreakdown || null}
+                    onChange={(rows, total) => {
+                      updateItem(breakdownItemIndex, 'sizeBreakdown', rows);
+                      if (rows && rows.length > 0) {
+                        updateItem(breakdownItemIndex, 'quantity', total);
+                        updateItem(breakdownItemIndex, 'size', 'various');
+                      }
+                    }}
+                    unit={items[breakdownItemIndex].unitOfMeasure || 'pièces'}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setBreakdownItemIndex(null)} className="bg-stone-900 hover:bg-black text-white rounded-xl font-black uppercase tracking-widest text-[10px]">
+              Fermer & Appliquer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
   return (
     <div className="space-y-6">
@@ -347,10 +442,28 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                             </Select>
                           </TableCell>
                           <TableCell className="p-2">
-                            <Input value={item.color} onChange={(e) => updateItem(idx, 'color', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Couleur" />
+                            <div className="flex items-center gap-1">
+                              {item.colorBreakdown && item.colorBreakdown.length > 0 ? (
+                                <div className="h-8 flex-1 flex items-center justify-center bg-indigo-50 border border-indigo-100 rounded text-[10px] font-black text-indigo-700 uppercase tracking-widest cursor-pointer hover:bg-indigo-100" onClick={() => setBreakdownItemIndex(idx)}>VARIOUS</div>
+                              ) : (
+                                <Input value={item.color} onChange={(e) => updateItem(idx, 'color', e.target.value)} className="h-8 w-full text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Couleur" />
+                              )}
+                              <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0 text-stone-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50" onClick={() => setBreakdownItemIndex(idx)}>
+                                <Palette className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                           <TableCell className="p-2">
-                            <Input value={item.size} onChange={(e) => updateItem(idx, 'size', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Taille" />
+                            <div className="flex items-center gap-1">
+                              {item.sizeBreakdown && item.sizeBreakdown.length > 0 ? (
+                                <div className="h-8 flex-1 flex items-center justify-center bg-teal-50 border border-teal-100 rounded text-[10px] font-black text-teal-700 uppercase tracking-widest cursor-pointer hover:bg-teal-100" onClick={() => setBreakdownItemIndex(idx)}>VARIOUS</div>
+                              ) : (
+                                <Input value={item.size} onChange={(e) => updateItem(idx, 'size', e.target.value)} className="h-8 w-full text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Taille" />
+                              )}
+                              <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0 text-stone-400 hover:text-teal-600 rounded-lg hover:bg-teal-50" onClick={() => setBreakdownItemIndex(idx)}>
+                                <Maximize className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                           <TableCell className="p-2">
                             <Input type="number" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="h-8 text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Qté" />
