@@ -106,9 +106,11 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   };
 
   const updateItem = (index: number, field: string, value: any) => {
-    const newItems = [...items];
-    newItems[index][field] = value;
-    setItems(newItems);
+    setItems(prevItems => {
+      const newItems = [...prevItems];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return newItems;
+    });
   };
 
   const removeItem = (index: number) => {
