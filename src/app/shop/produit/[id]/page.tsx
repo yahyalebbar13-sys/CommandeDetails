@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package } from 'lucide-react';
+import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package, ArrowLeft } from 'lucide-react';
 import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
@@ -444,10 +444,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
           <button 
             onClick={() => window.history.back()} 
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1A] bg-white border border-[#E8E4DF] px-4 py-2 rounded-xl hover:bg-[#FBF8F3] hover:border-[#D4A843] hover:text-[#C8102E] transition-all shadow-sm self-start"
+            aria-label="Retour"
+            title="Retour"
+            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#D4A843] hover:text-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A]"
           >
-            <RotateCcw className="w-4 h-4" />
-            Retour
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="hidden sm:block w-px h-5 bg-[#E8E4DF]"></div>
           <nav className="flex items-center flex-wrap gap-1.5 text-xs text-[#6B6B6B]">

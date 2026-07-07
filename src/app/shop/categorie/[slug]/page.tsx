@@ -254,13 +254,14 @@ export default function CategoryPage({ params }: { params: any }) {
       {/* ─── Toolbar ──────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-[#E8E4DF] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <Link
-            href="/shop/boutique"
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#C8102E] transition-colors font-medium"
+          <button
+            onClick={() => window.history.back()}
+            aria-label="Retour"
+            title="Retour"
+            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E]"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Toute la boutique</span>
-          </Link>
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400 hidden sm:inline">Trier par :</span>
             <select
