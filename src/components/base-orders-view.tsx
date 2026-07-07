@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel
 } from '@/components/ui/select';
 import {
   ClipboardList, Plus, Edit2, Trash2, ArrowRight, FileDown, Layers, Loader2, Save
@@ -336,11 +336,12 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                               </SelectTrigger>
                               <SelectContent>
                                 {generalCategories.map(gc => (
-                                  <optgroup key={gc.id} label={gc.name}>
+                                  <SelectGroup key={gc.id}>
+                                    <SelectLabel>{gc.name}</SelectLabel>
                                     {subCategories.filter(sc => sc.generalCategoryId === gc.id).map(sc => (
                                       <SelectItem key={sc.id} value={sc.name}>{sc.name}</SelectItem>
                                     ))}
-                                  </optgroup>
+                                  </SelectGroup>
                                 ))}
                               </SelectContent>
                             </Select>
