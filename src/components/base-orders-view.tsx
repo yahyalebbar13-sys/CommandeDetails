@@ -192,9 +192,9 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
             groups.get(price)!.push(row);
           }
           groups.forEach((rows, price) => {
-            const id = doc(collection(firestore!, 'users', user!.uid, 'articles')).id;
+            const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
             const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
-            batch.set(doc(firestore!, 'users', user!.uid, 'articles', id), {
+            batch.set(articleRef, {
               ...basePayload, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, color: 'various'
             });
           });
@@ -206,15 +206,15 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
             groups.get(price)!.push(row);
           }
           groups.forEach((rows, price) => {
-            const id = doc(collection(firestore!, 'users', user!.uid, 'articles')).id;
+            const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
             const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
-            batch.set(doc(firestore!, 'users', user!.uid, 'articles', id), {
+            batch.set(articleRef, {
               ...basePayload, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, size: 'various'
             });
           });
         } else {
-          const id = doc(collection(firestore!, 'users', user!.uid, 'articles')).id;
-          batch.set(doc(firestore!, 'users', user!.uid, 'articles', id), {
+          const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
+          batch.set(articleRef, {
             ...basePayload, quantity: Number(item.quantity) || 0
           });
         }
