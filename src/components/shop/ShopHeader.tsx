@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Phone,
   Truck,
+  Home,
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
@@ -291,7 +292,7 @@ export default function ShopHeader() {
         {/* ── Bottom Row: Navigation Bar (Desktop Only) ────────────────── */}
         <div className="hidden lg:block border-t border-gray-100 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center justify-center gap-8 h-12">
+            <nav className="flex items-center justify-center gap-10 lg:gap-20 h-14">
               {NAV_LINKS.map((link) =>
                 link.hasDropdown ? (
                   <div key={link.labelKey} ref={dropdownRef} className="relative h-full flex items-center">
@@ -399,12 +400,13 @@ export default function ShopHeader() {
                   <Link
                     key={link.labelKey}
                     href={link.href}
-                    className={`flex items-center h-full text-sm font-semibold transition-all duration-200 border-b-2 ${
+                    className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 ${
                       isActive(link.href)
                         ? "border-[#C8102E] text-[#C8102E]"
                         : "border-transparent text-gray-700 hover:text-[#C8102E]"
                     }`}
                   >
+                    {link.labelKey === 'nav_home' && <Home className="w-4 h-4 mb-[2px]" />}
                     {t(link.labelKey)}
                   </Link>
                 )
