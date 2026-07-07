@@ -2801,53 +2801,212 @@ export async function exportCommercialPDF(
 
 export async function exportBaseOrderPDF(order: any) {
   const { default: jsPDF } = await import('jspdf');
-  const { default: autoTable } = await import('jspdf-autotable');
+
+  const NAVY: [number, number, number]   = [15, 23, 42];
+  const GOLD: [number, number, number]   = [196, 160, 98];
+  const AMBER: [number, number, number]  = [245, 158, 11];
+  const RED: [number, number, number]    = [220, 38, 38];
+  const INDIGO: [number, number, number] = [99, 102, 241];
+  const STONE: [number, number, number]  = [120, 113, 108];
+  const TEXT: [number, number, number]   = [30, 41, 59];
+  const MUTED: [number, number, number]  = [100, 116, 139];
+  const LIGHT: [number, number, number]  = [248, 250, 252];
+  const BORDER: [number, number, number] = [226, 232, 240];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayFr  = new Date().toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const MX = 14;
+  const CW = W - MX * 2;
 
-  doc.setFillColor(28, 25, 23); // stone-900
-  doc.rect(0, 0, pageW, 30, 'F');
+  // Extraire et aplatir les articles du modèle
+  const articles: any[] = [];
+  (order.items || []).forEach((item: any) => {
+    if (item.colorBreakdown && item.colorBreakdown.length > 0) {
+      item.colorBreakdown.forEach((row: any) => {
+        articles.push({
+          ...item,
+          color: row.color,
+          quantity: Number(row.rolls) || 0,
+          purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0)
+        });
+      });
+    } else if (item.sizeBreakdown && item.sizeBreakdown.length > 0) {
+      item.sizeBreakdown.forEach((row: any) => {
+        articles.push({
+          ...item,
+          size: row.size,
+          quantity: Number(row.quantity) || 0,
+          purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0)
+        });
+      });
+    } else {
+      articles.push({ ...item, quantity: Number(item.quantity) || 0, purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0 });
+    }
+  });
+
+  // Footer
+  const addPageFooter = () => {
+    const pages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...MUTED);
+      doc.text('LEBTEX TEXTILE IMPORT  |  31 Rue 65, Lot. Al Hamd Ain-Chock, Casablanca, Maroc', W / 2, H - 14.5, { align: 'center' });
+      doc.text('Tél : +212 5 22 25 77 78  |  Email : Contact.lebtex@gmail.com', W / 2, H - 11, { align: 'center' });
+      doc.setFillColor(...NAVY); doc.rect(0, H - 8, W, 8, 'F');
+      doc.setFillColor(...GOLD); doc.rect(0, H - 8, 4, 8, 'F');
+      doc.setFontSize(6.5); doc.setTextColor(148, 163, 184);
+      doc.text(\`MODÈLE DE COMMANDE  |  \${todayStr}  |  OFFRE\`, MX + 5, H - 3.5);
+      doc.text(\`Page \${i} / \${pages}\`, W - MX, H - 3.5, { align: 'right' });
+    }
+  };
+
+  let y = MX;
+
+  // Logo
+  await addPdfLogoHeader(doc, MX, y, 40, 20);
+
+  // Title block
+  doc.setTextColor(...NAVY);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MODÈLE DE COMMANDE', W - MX, y + 5, { align: 'right' });
+
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.6);
+  doc.line(W - MX - 78, y + 8, W - MX, y + 8);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...TEXT);
+  const nameText = (order.name || 'Sans Nom').toUpperCase();
+  doc.text(nameText.length > 35 ? nameText.slice(0, 34) + '...' : nameText, W - MX, y + 14, { align: 'right' });
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(\`Date : \${todayFr}\`, W - MX, y + 19, { align: 'right' });
+  doc.text(\`\${articles.length} article\${articles.length > 1 ? 's' : ''}\`, W - MX, y + 24, { align: 'right' });
   
-  try {
-    await addPdfLogoHeader(doc, 10, 5, 30, 15, true);
-  } catch (e) {}
+  if (order.description) {
+    doc.setTextColor(...TEXT);
+    doc.text(\`Description : \${order.description}\`, MX, y + 30);
+  }
+
+  y += 35;
+
+  const ROW_H = 34;
+  const IMG_W = 22;
+  const IMG_H = 28;
+
+  const COL_LEFT = MX + 4 + IMG_W + 5;
+  const COL_RIGHT = W - MX;
+
+  for (let idx = 0; idx < articles.length; idx++) {
+    if (y + ROW_H > H - 25) { doc.addPage(); y = MX + 10; }
+
+    const a = articles[idx];
+
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(MX, y, CW, ROW_H, 2, 2, 'FD');
+
+    // Colored placeholder (no image in base order)
+    doc.setFillColor(...INDIGO);
+    doc.roundedRect(MX + 4, y + 3, IMG_W, IMG_H, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const initials = (a.categoryId || '?').slice(0, 2).toUpperCase();
+    doc.text(initials, MX + 4 + IMG_W / 2, y + 3 + IMG_H / 2 + 3, { align: 'center' });
+
+    // Article name (category)
+    doc.setTextColor(...NAVY);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const artName = (a.categoryId || 'Article').toUpperCase();
+    doc.text(artName.length > 40 ? artName.slice(0, 39) + '…' : artName, COL_LEFT, y + 9);
+
+    // Specs row (size, color)
+    const specParts: string[] = [];
+    if (a.size && a.size !== 'various') specParts.push(\`Taille: \${a.size}\`);
+    if (a.color && a.color !== 'various') specParts.push(\`Couleur: \${a.color}\`);
+    if (specParts.length > 0) {
+      doc.setTextColor(...MUTED);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(specParts.join('  ·  ').slice(0, 80), COL_LEFT, y + 14);
+    }
+
+    // Quantity + price block (right side)
+    const qty = Number(a.quantity || 0);
+    const price = Number(a.purchasePricePerUnit || 0);
+    const total = qty * price;
+
+    doc.setTextColor(...NAVY);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(
+      \`\${qty.toLocaleString('fr-MA')} \${(a.unitOfMeasure || 'U').toUpperCase()}\`,
+      COL_RIGHT - 10,
+      y + 16,
+      { align: 'right' }
+    );
+
+    if (price > 0) {
+      doc.setFontSize(7.5);
+      doc.setTextColor(...MUTED);
+      doc.text(
+        \`Prix Unitaire: $\${price.toFixed(4)}\`,
+        COL_RIGHT - 10,
+        y + 22,
+        { align: 'right' }
+      );
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(180, 100, 0);
+      doc.text(
+        \`$\${total.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}\`,
+        COL_RIGHT - 10,
+        y + 28,
+        { align: 'right' }
+      );
+    }
+
+    y += ROW_H + 3;
+  }
+
+  // Summary totals
+  if (y + 20 > H - 20) { doc.addPage(); y = MX; }
+
+  const totalQty = articles.reduce((s, a) => s + Number(a.quantity || 0), 0);
+  const totalVal = articles.reduce((s, a) => s + (Number(a.quantity || 0) * Number(a.purchasePricePerUnit || 0)), 0);
+
+  doc.setFillColor(...NAVY);
+  doc.roundedRect(MX, y + 2, CW, 16, 2, 2, 'F');
+  doc.setFillColor(...GOLD);
+  doc.roundedRect(MX, y + 2, 3, 16, 1, 1, 'F');
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(14);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text('MODÈLE DE COMMANDE (BASE)', 50, 15);
-  doc.setFontSize(10);
-  doc.setTextColor(200, 200, 200);
-  doc.text(order.name || 'Modèle sans nom', 50, 22);
+  doc.text(\`TOTAL — \${articles.length} ARTICLE\${articles.length > 1 ? 'S' : ''}\`, MX + 8, y + 11);
 
-  let y = 40;
-  if (order.description) {
-    doc.setTextColor(50, 50, 50);
-    doc.setFontSize(10);
-    doc.text(`Description : ${order.description}`, 14, y);
-    y += 10;
-  }
+  doc.setTextColor(...GOLD);
+  doc.setFontSize(8);
+  doc.text(
+    \`Quantité : \${totalQty.toLocaleString('fr-MA')}  |  Valeur estimée : $\${totalVal.toLocaleString('fr-MA', { maximumFractionDigits: 2 })}\`,
+    W - MX,
+    y + 11,
+    { align: 'right' }
+  );
 
-  const items = order.items || [];
-  if (items.length > 0) {
-    const tableBody = items.map((item: any) => [
-      item.categoryId || '-',
-      item.color || '-',
-      item.size || '-',
-      `${item.quantity || 0} ${item.unitOfMeasure || ''}`,
-      item.purchasePricePerUnit ? `${item.purchasePricePerUnit} $` : '-'
-    ]);
-
-    autoTable(doc, {
-      startY: y,
-      head: [['Catégorie', 'Couleur', 'Taille / Specs', 'Quantité', 'Prix U.']],
-      body: tableBody,
-      theme: 'grid',
-      headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 8 },
-    });
-  }
-
-  doc.save(`Modele_Commande_${(order.name || 'Base').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+  addPageFooter();
+  doc.save(\`Modele_\${(order.name || 'Base').replace(/[^a-zA-Z0-9]/g, '_')}_\${todayStr}.pdf\`);
 }
