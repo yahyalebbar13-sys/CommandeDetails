@@ -210,9 +210,12 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
                 value={pasteText}
                 onChange={e => setPasteText(e.target.value)}
                 onPaste={e => {
+                  const pastedData = e.clipboardData.getData('text') || '';
+                  const currentValue = e.currentTarget.value || '';
+                  
                   // Auto-parse on paste
                   setTimeout(() => {
-                    const text = e.currentTarget.value + e.clipboardData.getData('text');
+                    const text = currentValue + pastedData;
                     const parsed = parsePastedTable(text);
                     if (parsed.length > 0) {
                       const next = [...rows, ...parsed];
