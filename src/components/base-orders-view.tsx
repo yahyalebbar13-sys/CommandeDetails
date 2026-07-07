@@ -52,6 +52,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [selectedBaseOrder, setSelectedBaseOrder] = useState<any>(null);
   const [supplierId, setSupplierId] = useState('');
+  const [articlesToGenerate, setArticlesToGenerate] = useState<any[]>([]);
   const [breakdownItemIndex, setBreakdownItemIndex] = useState<number | null>(null);
 
   // Suppliers list (for generator)
@@ -61,7 +62,50 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   const openGenerator = async (order: any) => {
     setSelectedBaseOrder(order);
     setSupplierId('');
+    
+    // Éclatement des articles pour prévisualisation
+    const generated: any[] = [];
+    (order.items || []).forEach((item: any, originalIndex: number) => {
+      const sc = subCategories.find((c: any) => c.name === item.categoryId);
+      const basePayload = {
+        _refIndex: originalIndex,
+        categoryId: item.categoryId || '',
+        generalCategoryId: sc?.generalCategoryId || '',
+        unitOfMeasure: item.unitOfMeasure || 'pièces',
+        color: item.color || '',
+        size: item.size || '',
+        purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
+      };
+
+      if (item.colorBreakdown && item.colorBreakdown.length > 0) {
+        item.colorBreakdown.forEach((row: any) => {
+          generated.push({
+            ...basePayload,
+            color: row.color,
+            quantity: Number(row.rolls) || 0,
+            purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : basePayload.purchasePricePerUnit,
+          });
+        });
+      } else if (item.sizeBreakdown && item.sizeBreakdown.length > 0) {
+        item.sizeBreakdown.forEach((row: any) => {
+          generated.push({
+            ...basePayload,
+            size: row.size,
+            quantity: Number(row.quantity) || 0,
+            purchasePricePerUnit: (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : basePayload.purchasePricePerUnit,
+          });
+        });
+      } else {
+        generated.push({
+          ...basePayload,
+          quantity: Number(item.quantity) || 0,
+        });
+      }
+    });
+
+    setArticlesToGenerate(generated);
     setIsGeneratorOpen(true);
+    
     if (firestore && user) {
       try {
         const snap = await getDocs(collection(firestore, 'users', user.uid, 'articles'));
@@ -76,6 +120,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       }
     }
   };
+
 
   const handleOpenNew = () => {
     setEditingOrder(null);
@@ -163,26 +208,40 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       toast({ title: 'Erreur', description: 'Veuillez renseigner un fournisseur', variant: 'destructive' });
       return;
     }
-    if (!selectedBaseOrder || !selectedBaseOrder.items.length) return;
+    if (!articlesToGenerate.length) return;
 
     try {
       const batch = writeBatch(firestore!);
-      selectedBaseOrder.items.forEach((item: any) => {
-        const sc = subCategories.find((c: any) => c.name === item.categoryId);
-        const basePayload = {
+      
+      const toCreate = articlesToGenerate.filter(a => Number(a.quantity) > 0);
+      
+      toCreate.forEach((item: any) => {
+        const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
+        batch.set(articleRef, {
           supplierId: supplierId.trim(),
           categoryId: item.categoryId || '',
-          generalCategoryId: sc?.generalCategoryId || '',
+          generalCategoryId: item.generalCategoryId || '',
           unitOfMeasure: item.unitOfMeasure || 'pièces',
           color: item.color || '',
           size: item.size || '',
           purchasePricePerUnit: Number(item.purchasePricePerUnit) || 0,
+          quantity: Number(item.quantity) || 0,
           status: 'TO_ORDER',
           priority: 'todo',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          generatedFromBaseOrder: selectedBaseOrder.name
-        };
+          generatedFromBaseOrder: selectedBaseOrder?.name || 'Base Order'
+        });
+      });
+
+      await batch.commit();
+      toast({ title: 'Succès', description: 'Commande générée avec succès (ajoutée aux commandes à passer)' });
+      setIsGeneratorOpen(false);
+    } catch (err: any) {
+      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    }
+  };
+
 
         if (item.colorBreakdown && item.colorBreakdown.length > 0) {
           const groups = new Map<number, ColorBreakdownRow[]>();
@@ -442,18 +501,19 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
 
       {/* MODAL GÉNÉRATION COMMANDE */}
       <Dialog open={isGeneratorOpen} onOpenChange={setIsGeneratorOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-xl font-black uppercase tracking-tighter text-stone-900">
               Générer une Commande
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-2">
             <p className="text-sm font-bold text-stone-600">
-              Vous allez générer une vraie commande (statut <Badge variant="outline" className="text-[10px] bg-stone-100 text-stone-600 border-stone-200">À COMMANDER</Badge>) 
-              avec les {selectedBaseOrder?.items?.length || 0} articles du modèle <span className="text-indigo-600 font-black uppercase tracking-tighter">"{selectedBaseOrder?.name}"</span>.
+              Vous allez générer une commande à partir du modèle <span className="text-indigo-600 font-black uppercase tracking-tighter">"{selectedBaseOrder?.name}"</span>. 
+              Veuillez vérifier et ajuster les prix et quantités ci-dessous.
             </p>
-            <div className="space-y-2 pt-2">
+            
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-stone-400">Fournisseur de la commande</Label>
               {knownSuppliers.length > 0 ? (
                 <div className="relative">
@@ -461,7 +521,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                     value={supplierId} 
                     onChange={e => setSupplierId(e.target.value)} 
                     placeholder="Saisissez ou choisissez un fournisseur" 
-                    className="font-black text-sm rounded-xl border-stone-200 uppercase"
+                    className="font-black text-sm rounded-xl border-stone-200 uppercase bg-white"
                     list="suppliers-list"
                   />
                   <datalist id="suppliers-list">
@@ -473,15 +533,78 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                   value={supplierId} 
                   onChange={e => setSupplierId(e.target.value)} 
                   placeholder="Nom du fournisseur" 
-                  className="font-black text-sm rounded-xl border-stone-200 uppercase"
+                  className="font-black text-sm rounded-xl border-stone-200 uppercase bg-white"
                 />
               )}
             </div>
+
+            <div className="border border-stone-200 rounded-xl overflow-hidden bg-white">
+              <Table>
+                <TableHeader className="bg-stone-50">
+                  <TableRow>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400">Catégorie</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400">Couleur</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400">Taille</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400">Qté</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400">Unité</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400">Prix U. ($)</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-stone-400 text-right">Total ($)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {articlesToGenerate.map((art, idx) => {
+                    const total = (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0);
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell className="font-bold text-xs text-stone-700">{art.categoryId || '-'}</TableCell>
+                        <TableCell className="font-medium text-xs">{art.color || '-'}</TableCell>
+                        <TableCell className="font-medium text-xs">{art.size || '-'}</TableCell>
+                        <TableCell className="p-2 w-24">
+                          <Input 
+                            type="number" 
+                            value={art.quantity} 
+                            onChange={(e) => {
+                              const newArr = [...articlesToGenerate];
+                              newArr[idx].quantity = e.target.value;
+                              setArticlesToGenerate(newArr);
+                            }} 
+                            className="h-8 text-xs text-center font-bold" 
+                          />
+                        </TableCell>
+                        <TableCell className="text-xs text-stone-500">{art.unitOfMeasure}</TableCell>
+                        <TableCell className="p-2 w-28">
+                          <Input 
+                            type="number" 
+                            step="0.01"
+                            value={art.purchasePricePerUnit} 
+                            onChange={(e) => {
+                              const newArr = [...articlesToGenerate];
+                              newArr[idx].purchasePricePerUnit = e.target.value;
+                              setArticlesToGenerate(newArr);
+                            }} 
+                            className="h-8 text-xs font-bold bg-green-50/50 border-green-100 text-green-700 focus-visible:ring-green-500" 
+                          />
+                        </TableCell>
+                        <TableCell className="text-right font-black text-xs text-stone-900">{total > 0 ? total.toFixed(2) : '-'}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {articlesToGenerate.length > 0 && (
+                    <TableRow className="bg-stone-50 hover:bg-stone-50">
+                      <TableCell colSpan={6} className="text-right font-black uppercase tracking-widest text-[10px] text-stone-400">Total Estimé</TableCell>
+                      <TableCell className="text-right font-black text-sm text-indigo-600">
+                        {articlesToGenerate.reduce((acc, art) => acc + (Number(art.quantity) || 0) * (Number(art.purchasePricePerUnit) || 0), 0).toFixed(2)} $
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="mt-4 pt-4 border-t border-stone-100">
             <Button variant="outline" onClick={() => setIsGeneratorOpen(false)} className="rounded-xl font-black uppercase tracking-widest text-[10px]">Annuler</Button>
             <Button onClick={generateRealOrder} disabled={!supplierId.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px]">
-              <ArrowRight className="w-4 h-4 mr-2" /> Générer
+              <ArrowRight className="w-4 h-4 mr-2" /> Confirmer & Générer
             </Button>
           </DialogFooter>
         </DialogContent>
