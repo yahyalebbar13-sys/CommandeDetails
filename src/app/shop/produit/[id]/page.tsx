@@ -83,10 +83,11 @@ function MultiVariantSelector({
 
   const visibleVariants = variants.filter(v => (v.size || 'Standard') === selectedSize);
 
-  const setQty = (variantId: string, delta: number, max: number) => {
+  const setQty = (variantId: string, delta: number, max: number | undefined) => {
     setQtys(prev => {
       const current = prev[variantId] || 0;
-      const next = Math.max(0, Math.min(max, current + delta));
+      const safeMax = (typeof max === 'number' && !isNaN(max)) ? max : 999999;
+      const next = Math.max(0, Math.min(safeMax, current + delta));
       return { ...prev, [variantId]: next };
     });
   };
