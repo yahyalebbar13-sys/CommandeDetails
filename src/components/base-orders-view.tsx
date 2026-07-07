@@ -243,48 +243,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
   };
 
 
-        if (item.colorBreakdown && item.colorBreakdown.length > 0) {
-          const groups = new Map<number, ColorBreakdownRow[]>();
-          for (const row of item.colorBreakdown) {
-            const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0);
-            if (!groups.has(price)) groups.set(price, []);
-            groups.get(price)!.push(row);
-          }
-          groups.forEach((rows, price) => {
-            const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
-            const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
-            batch.set(articleRef, {
-              ...basePayload, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, color: 'various'
-            });
-          });
-        } else if (item.sizeBreakdown && item.sizeBreakdown.length > 0) {
-          const groups = new Map<number, SizeBreakdownRow[]>();
-          for (const row of item.sizeBreakdown) {
-            const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(item.purchasePricePerUnit || 0);
-            if (!groups.has(price)) groups.set(price, []);
-            groups.get(price)!.push(row);
-          }
-          groups.forEach((rows, price) => {
-            const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
-            const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
-            batch.set(articleRef, {
-              ...basePayload, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, size: 'various'
-            });
-          });
-        } else {
-          const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
-          batch.set(articleRef, {
-            ...basePayload, quantity: Number(item.quantity) || 0
-          });
-        }
-      });
-      await batch.commit();
-      toast({ title: 'Succès', description: 'Commande générée avec succès (ajoutée aux commandes à passer)' });
-      setIsGeneratorOpen(false);
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
-    }
-  };
+
 
   if (isLoading) {
     return (
