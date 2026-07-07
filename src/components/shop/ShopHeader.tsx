@@ -149,9 +149,9 @@ export default function ShopHeader() {
           </div>
         </div>
 
-        {/* ── Navigation Bar ────────────────────────────────────────────── */}
+        {/* ── Top Row: Logo, Search, Actions ────────────────────────────── */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 lg:h-20">
+          <div className="flex items-center justify-between h-16 lg:h-24 gap-4 lg:gap-8">
             {/* ── Logo ──────────────────────────────────────────────────── */}
             <Link
               href="/shop"
@@ -166,18 +166,142 @@ export default function ShopHeader() {
               />
             </Link>
 
-            {/* ── Desktop Navigation ────────────────────────────────────── */}
-            <nav className="hidden lg:flex items-center gap-1">
+            {/* ── Desktop Search Bar (Permanent) ────────────────────────── */}
+            <div className="hidden lg:flex flex-1 max-w-2xl mx-auto">
+              <form
+                onSubmit={handleSearchSubmit}
+                className="flex w-full items-center shadow-sm rounded-full overflow-hidden border border-gray-200 focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/20 transition-all"
+              >
+                <div className="pl-4 text-gray-400">
+                  <Search className="w-5 h-5" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher des produits, catégories..."
+                  className="w-full px-3 py-3 text-sm focus:outline-none bg-white text-gray-700"
+                />
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-[#C8102E] hover:bg-[#A30C24] text-white font-bold text-sm tracking-wider transition-colors"
+                >
+                  GO
+                </button>
+              </form>
+            </div>
+
+            {/* ── Right Actions ─────────────────────────────────────────── */}
+            <div className="flex items-center gap-1 sm:gap-2">
+              
+              {/* Language Toggle */}
+              <button
+                onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
+                className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors mr-1"
+                title="Changer de langue / تغيير اللغة"
+              >
+                {language === 'fr' ? 'AR' : 'FR'}
+              </button>
+
+              {/* Mobile Search Icon (Expanding) */}
+              <div className="relative lg:hidden" ref={categoriesRef}>
+                {isSearchOpen ? (
+                  <form
+                    onSubmit={handleSearchSubmit}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <input
+                        ref={searchRef}
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Rechercher…"
+                        className="w-44 sm:w-56 pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] transition-all bg-gray-50"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSearchOpen(false);
+                        setSearchQuery("");
+                      }}
+                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setIsSearchOpen(true)}
+                    className="p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all"
+                    aria-label="Rechercher"
+                  >
+                    <Search className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* WhatsApp - desktop only */}
+              <a
+                href="https://wa.me/212760998347"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden xl:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#10B981] hover:text-[#10B981] hover:bg-green-50 transition-all"
+              >
+                <Phone className="w-4 h-4" />
+                <span>WhatsApp</span>
+              </a>
+
+              {/* Cart Button */}
+              <button
+                onClick={openCart}
+                className="relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group"
+                aria-label={`Panier — ${itemCount} article${itemCount !== 1 ? "s" : ""}`}
+              >
+                <ShoppingCart className="w-6 h-6 transition-transform group-hover:scale-110" />
+                {itemCount > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[20px] h-[20px] flex items-center justify-center rounded-full text-white text-[10px] font-bold px-1 shop-badge-pulse"
+                    style={{ backgroundColor: "#C8102E" }}
+                  >
+                    {itemCount > 99 ? "99+" : itemCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Mobile hamburger */}
+              <button
+                onClick={() => setIsMobileMenuOpen((v) => !v)}
+                className="lg:hidden p-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors"
+                aria-label="Menu"
+                aria-expanded={isMobileMenuOpen}
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Bottom Row: Navigation Bar (Desktop Only) ────────────────── */}
+        <div className="hidden lg:block border-t border-gray-100 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex items-center justify-center gap-8 h-12">
               {NAV_LINKS.map((link) =>
                 link.hasDropdown ? (
-                  <div key={link.labelKey} ref={dropdownRef} className="relative">
+                  <div key={link.labelKey} ref={dropdownRef} className="relative h-full flex items-center">
                     <button
                       onClick={() => setIsCategoriesOpen((v) => !v)}
                       onMouseEnter={() => setIsCategoriesOpen(true)}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 ${
                         isActive(link.href)
-                          ? "text-[#C8102E] bg-red-50"
-                          : "text-gray-700 hover:text-[#C8102E] hover:bg-gray-50"
+                          ? "border-[#C8102E] text-[#C8102E]"
+                          : "border-transparent text-gray-700 hover:text-[#C8102E]"
                       }`}
                     >
                       {t(link.labelKey)}
@@ -192,7 +316,7 @@ export default function ShopHeader() {
                     {isCategoriesOpen && (
                       <div
                         onMouseLeave={() => setIsCategoriesOpen(false)}
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[520px] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-gray-100 p-4 grid grid-cols-3 gap-1.5 z-50"
+                        className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-[520px] bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-4 grid grid-cols-3 gap-1.5 z-50"
                       >
                         {/* Header */}
                         <div className="col-span-3 pb-2 mb-1 border-b border-gray-100">
@@ -245,11 +369,11 @@ export default function ShopHeader() {
                     )}
                   </div>
                 ) : link.isMoreDropdown ? (
-                  <div key={link.labelKey} className="relative">
+                  <div key={link.labelKey} className="relative h-full flex items-center">
                     <button
                       onClick={() => setIsMoreOpen((v) => !v)}
                       onMouseEnter={() => setIsMoreOpen(true)}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 transition-all duration-200`}
+                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 border-transparent text-gray-700 hover:text-[#C8102E]`}
                     >
                       {t(link.labelKey)}
                       <ChevronDown
@@ -261,10 +385,10 @@ export default function ShopHeader() {
                     {isMoreOpen && (
                       <div
                         onMouseLeave={() => setIsMoreOpen(false)}
-                        className="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-gray-100 p-2 z-50 flex flex-col gap-1"
+                        className="absolute top-full right-0 mt-0 w-48 bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-2 z-50 flex flex-col gap-1"
                       >
                         {MORE_LINKS.map(ml => (
-                           <Link key={ml.labelKey} href={ml.href} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
+                           <Link key={ml.labelKey} href={ml.href} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
                              {t(ml.labelKey)}
                            </Link>
                         ))}
@@ -275,10 +399,10 @@ export default function ShopHeader() {
                   <Link
                     key={link.labelKey}
                     href={link.href}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    className={`flex items-center h-full text-sm font-semibold transition-all duration-200 border-b-2 ${
                       isActive(link.href)
-                        ? "text-[#C8102E] bg-red-50"
-                        : "text-gray-700 hover:text-[#C8102E] hover:bg-gray-50"
+                        ? "border-[#C8102E] text-[#C8102E]"
+                        : "border-transparent text-gray-700 hover:text-[#C8102E]"
                     }`}
                   >
                     {t(link.labelKey)}
@@ -286,101 +410,6 @@ export default function ShopHeader() {
                 )
               )}
             </nav>
-
-            {/* ── Right Actions ─────────────────────────────────────────── */}
-            <div className="flex items-center gap-1 sm:gap-2">
-              
-              {/* Language Toggle */}
-              <button
-                onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors mr-1"
-                title="Changer de langue / تغيير اللغة"
-              >
-                {language === 'fr' ? 'AR' : 'FR'}
-              </button>
-
-              {/* Search */}
-              <div className="relative" ref={categoriesRef}>
-                {isSearchOpen ? (
-                  <form
-                    onSubmit={handleSearchSubmit}
-                    className="flex items-center gap-2"
-                  >
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      <input
-                        ref={searchRef}
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Rechercher…"
-                        className="w-44 sm:w-56 pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] transition-all bg-gray-50"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsSearchOpen(false);
-                        setSearchQuery("");
-                      }}
-                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    onClick={() => setIsSearchOpen(true)}
-                    className="p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all"
-                    aria-label="Rechercher"
-                  >
-                    <Search className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-
-              {/* WhatsApp - desktop only */}
-              <a
-                href="https://wa.me/212760998347"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden xl:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-green-400 hover:text-green-600 hover:bg-green-50 transition-all"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>WhatsApp</span>
-              </a>
-
-              {/* Cart Button */}
-              <button
-                onClick={openCart}
-                className="relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group"
-                aria-label={`Panier — ${itemCount} article${itemCount !== 1 ? "s" : ""}`}
-              >
-                <ShoppingCart className="w-5 h-5 transition-transform group-hover:scale-110" />
-                {itemCount > 0 && (
-                  <span
-                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-white text-[10px] font-bold px-1 shop-badge-pulse"
-                    style={{ backgroundColor: "#C8102E" }}
-                  >
-                    {itemCount > 99 ? "99+" : itemCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Mobile hamburger */}
-              <button
-                onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="lg:hidden p-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors"
-                aria-label="Menu"
-                aria-expanded={isMobileMenuOpen}
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-5 h-5" />
-                ) : (
-                  <Menu className="w-5 h-5" />
-                )}
-              </button>
-            </div>
           </div>
         </div>
       </header>
