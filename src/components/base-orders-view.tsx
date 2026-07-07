@@ -178,12 +178,13 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
       const toCreate = articlesToGenerate.filter(a => Number(a.quantity) > 0);
       
       toCreate.forEach((item: any) => {
-        const sc = subCategories.find((c: any) => c.name === item.categoryId);
+        const sc = subCategories.find((c: any) => c.name?.trim() === item.categoryId?.trim());
         const generalCatId = sc ? sc.generalCategoryId : (item.generalCategoryId || '');
         
         const articleRef = doc(collection(firestore!, 'users', user!.uid, 'articles'));
         batch.set(articleRef, {
           supplierId: supplierId.trim(),
+          name: item.name || item.categoryId || '',
           categoryId: item.categoryId || '',
           generalCategoryId: generalCatId,
           unitOfMeasure: item.unitOfMeasure || 'pièces',
