@@ -439,16 +439,27 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       )}
 
       <div className="max-w-7xl mx-auto px-4 py-6 md:py-10">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-xs text-[#6B6B6B] mb-6">
-          <Link href="/shop" className="hover:text-[#C8102E] transition-colors">Accueil</Link>
-          <ChevronRight className="w-3 h-3" />
-          <Link href="/shop/categories" className="hover:text-[#C8102E] transition-colors">Boutique</Link>
-          <ChevronRight className="w-3 h-3" />
-          <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-[#C8102E] transition-colors">{product.categoryName}</Link>
-          <ChevronRight className="w-3 h-3" />
-          <span className="text-[#1A1A1A] font-medium truncate max-w-[200px]">{product.name}</span>
-        </nav>
+        {/* Navigation & Breadcrumb */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+          <button 
+            onClick={() => window.history.back()} 
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1A] bg-white border border-[#E8E4DF] px-4 py-2 rounded-xl hover:bg-[#FBF8F3] hover:border-[#D4A843] hover:text-[#C8102E] transition-all shadow-sm self-start"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Retour
+          </button>
+          <div className="hidden sm:block w-px h-5 bg-[#E8E4DF]"></div>
+          <nav className="flex items-center flex-wrap gap-1.5 text-xs text-[#6B6B6B]">
+            <Link href="/shop" className="hover:text-[#C8102E] transition-colors">Accueil</Link>
+            <ChevronRight className="w-3 h-3" />
+            <Link href="/shop/categories" className="hover:text-[#C8102E] transition-colors">Boutique</Link>
+            <ChevronRight className="w-3 h-3" />
+            <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-[#C8102E] transition-colors">{product.categoryName}</Link>
+            <ChevronRight className="w-3 h-3" />
+            <span className="text-[#1A1A1A] font-medium truncate max-w-[200px]">{product.name}</span>
+          </nav>
+        </div>
+
 
         {/* Main grid */}
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
