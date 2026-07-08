@@ -140,18 +140,18 @@ function BoutiqueContent() {
       {/* Hero */}
       <div className="relative overflow-hidden bg-[#0F0F0F] text-white py-16 lg:py-24">
         {/* Real Products Collage Background */}
-        <div className="absolute inset-0 z-0 overflow-hidden opacity-30">
+        <div className="absolute inset-0 z-0 overflow-hidden opacity-50">
           {heroImages.length > 0 && (
-            <div className="absolute inset-0 grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 transform scale-125 -rotate-3 blur-[2px]">
+            <div className="absolute inset-0 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 transform scale-110 -rotate-2">
               {heroImages.map((img, idx) => (
-                <div key={idx} className="relative w-full aspect-square rounded-2xl overflow-hidden bg-[#1A1A1A]">
-                  <img src={img} alt="" className="w-full h-full object-cover opacity-80" />
+                <div key={idx} className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-lg">
+                  <img src={img} alt="" className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0F0F0F] via-[#0F0F0F]/80 to-[#0F0F0F]/30" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F] via-transparent to-[#0F0F0F]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0F0F0F] via-[#0F0F0F]/50 to-[#0F0F0F]/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F] via-transparent to-[#0F0F0F] opacity-80" />
         </div>
         
         {/* Premium Background Effects */}
