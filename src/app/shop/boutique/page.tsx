@@ -7,81 +7,7 @@ import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
 import { useShopCart } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-
-// --- ProductCard inlined to avoid circular imports ---
-function ProductCardInline({ product }: { product: ShopProduct }) {
-  const { addItem } = useShopCart();
-  const [added, setAdded] = useState(false);
-  const [wished, setWished] = useState(false);
-
-  const handleAdd = (e: React.MouseEvent) => {
-    e.preventDefault();
-    addItem({
-      productId: product.id,
-      productName: product.name,
-      productImage: product.images[0] || '',
-      price: product.price,
-      quantity: product.minOrderQty || 1,
-      maxStock: product.stockQty,
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
-  };
-
-  const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden shop-product-card relative group flex flex-col h-full">
-      {/* Image */}
-      <div className="relative aspect-square shop-img-zoom bg-gray-50">
-        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-        </div>
-        {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
-          {product.isNew && <span className="bg-[#10B981] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">Nouveau</span>}
-          {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">-{discount}%</span>}
-        </div>
-        {/* Wishlist */}
-        <button onClick={(e) => { e.preventDefault(); setWished(!wished); }}
-          className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-20">
-          <span className={`text-base ${wished ? 'text-red-500' : 'text-gray-400'}`}>{wished ? '♥' : '♡'}</span>
-        </button>
-        {/* Quick add overlay */}
-        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-          <button onClick={handleAdd}
-            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
-            {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
-          </button>
-        </div>
-      </div>
-      {/* Content */}
-      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col flex-grow">
-        <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wide mb-1">{product.categoryName}</p>
-        <h3 className="font-semibold text-[#1A1A1A] text-sm leading-tight mb-2 line-clamp-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
-        {/* Rating */}
-        {product.rating && (
-          <div className="flex items-center gap-1 mb-2">
-            <span className="text-[#D4A843] text-xs">{'★'.repeat(Math.floor(product.rating))}{'☆'.repeat(5 - Math.floor(product.rating))}</span>
-            <span className="text-xs text-[#6B6B6B]">({product.reviewCount})</span>
-          </div>
-        )}
-        {/* Price */}
-        <div className="flex items-center gap-2">
-          <span className="font-black text-[#1A1A1A]">{formatPrice(product.price)}</span>
-          {product.comparePrice && <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>}
-        </div>
-        {/* Stock */}
-        <div className="mt-2 flex items-center gap-1">
-          <span className={`w-1.5 h-1.5 rounded-full ${product.inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
-          <span className="text-xs text-[#6B6B6B]">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
-        </div>
-      </Link>
-    </div>
-  );
-}
-
+import ProductCard from '@/components/shop/ProductCard';
 // --- Filter Sidebar ---
 function FilterSidebar({
   categories,
@@ -208,15 +134,25 @@ function BoutiqueContent() {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
       {/* Hero */}
-      <div className="bg-[#0F0F0F] text-white py-12">
-        <div className="max-w-7xl mx-auto px-6">
-          <nav className="text-xs text-gray-500 mb-3">
+      <div className="relative overflow-hidden bg-[#0F0F0F] text-white py-16 lg:py-24">
+        {/* Premium Background Effects */}
+        <div className="absolute inset-0 opacity-40">
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#C8102E] rounded-full mix-blend-screen filter blur-[120px] animate-blob" />
+          <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-[#D4A843] rounded-full mix-blend-screen filter blur-[100px] animate-blob animation-delay-2000" />
+        </div>
+        
+        <div className="relative z-10 max-w-7xl mx-auto px-6 text-center flex flex-col items-center">
+          <nav className="text-xs text-gray-400 mb-4 tracking-widest uppercase flex items-center gap-2">
             <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
-            <span className="mx-2">›</span>
-            <span className="text-white">Boutique</span>
+            <span className="text-gray-600">/</span>
+            <span className="text-white font-semibold">Boutique</span>
           </nav>
-          <h1 className="text-4xl font-black" style={{ fontFamily: 'Outfit, sans-serif' }}>Notre Boutique</h1>
-          <p className="text-gray-400 mt-2">Accessoires textiles & mercerie professionnelle</p>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black mb-4 tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            Notre <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#C8102E] to-[#D4A843]">Boutique</span>
+          </h1>
+          <p className="text-gray-300 max-w-2xl text-base md:text-lg">
+            Découvrez notre sélection premium d'accessoires textiles et de mercerie professionnelle. Tout pour donner vie à vos créations.
+          </p>
         </div>
       </div>
 
@@ -302,7 +238,7 @@ function BoutiqueContent() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {products.map(product => (
-                  <ProductCardInline key={product.id} product={product} />
+                  <ProductCard key={product.id} product={product} />
                 ))}
               </div>
             )}
