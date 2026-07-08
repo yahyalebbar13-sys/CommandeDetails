@@ -35,7 +35,8 @@ import {
   ChevronRight,
   ArrowRightLeft,
   ArrowDownToLine,
-  ArrowUpFromLine
+  ArrowUpFromLine,
+  ShieldAlert
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
