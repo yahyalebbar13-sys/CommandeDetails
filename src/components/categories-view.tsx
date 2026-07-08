@@ -977,10 +977,25 @@ export default function CategoriesView({
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/30 transition-colors border-stone-50">
                         <TableCell className="py-3.5 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
-                            <span>{a.name}</span>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
-                              <Pencil className="w-3 h-3" />
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{a.name}</span>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const articleEntries = (stockItems || []).filter(s => (s._realArticleId || s.articleId) === a.id && s.type === 'IN');
+                                setHistoryArticle(a);
+                                setHistoryEntries(articleEntries);
+                                setHistoryModalOpen(true);
+                              }}
+                              variant="outline" 
+                              className="h-6 w-fit px-2 bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200 text-[8px] font-black uppercase tracking-widest rounded-md"
+                            >
+                              <ShieldAlert className="w-3 h-3 mr-1" /> Hist. Douane
                             </Button>
                           </div>
                         </TableCell>
@@ -1049,9 +1064,24 @@ export default function CategoriesView({
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors border-stone-50">
                         <TableCell className="py-3.5 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
-                            <span>{a.name}</span>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}><Pencil className="w-3 h-3" /></Button>
+                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{a.name}</span>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}><Pencil className="w-3 h-3" /></Button>
+                            </div>
+                            <Button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const articleEntries = (stockItems || []).filter(s => (s._realArticleId || s.articleId) === a.id && s.type === 'IN');
+                                setHistoryArticle(a);
+                                setHistoryEntries(articleEntries);
+                                setHistoryModalOpen(true);
+                              }}
+                              variant="outline" 
+                              className="h-6 w-fit px-2 bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200 text-[8px] font-black uppercase tracking-widest rounded-md"
+                            >
+                              <ShieldAlert className="w-3 h-3 mr-1" /> Hist. Douane
+                            </Button>
                           </div>
                         </TableCell>
                         <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
@@ -1146,10 +1176,25 @@ export default function CategoriesView({
                             isValidated ? 'hover:bg-emerald-50/20' : 'hover:bg-amber-50/20'
                           }`}>
                             <TableCell className="py-3.5 px-6 align-top">
-                              <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
-                                <span>{a.name}</span>
-                                <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
-                                  <Pencil className="w-3 h-3" />
+                              <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex flex-col gap-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span>{a.name}</span>
+                                  <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <Button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const articleEntries = (stockItems || []).filter(s => (s._realArticleId || s.articleId) === a.id && s.type === 'IN');
+                                    setHistoryArticle(a);
+                                    setHistoryEntries(articleEntries);
+                                    setHistoryModalOpen(true);
+                                  }}
+                                  variant="outline" 
+                                  className="h-6 w-fit px-2 bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200 text-[8px] font-black uppercase tracking-widest rounded-md"
+                                >
+                                  <ShieldAlert className="w-3 h-3 mr-1" /> Hist. Douane
                                 </Button>
                               </div>
                             </TableCell>
