@@ -6,6 +6,7 @@ export const translations: Translations = {
   // ── Navigation ────────────────────────────────────────────────────────────
   nav_home:         { fr: 'Accueil',        ar: 'الرئيسية' },
   nav_shop:         { fr: 'Boutique',       ar: 'المتجر' },
+  nav_all_products: { fr: 'Tous les produits', ar: 'كل المنتجات' },
   nav_categories:   { fr: 'Catégories',     ar: 'التصنيفات' },
   nav_promos:       { fr: 'Promotions',     ar: 'التخفيضات' },
   nav_tracking:     { fr: 'Suivi commande', ar: 'تتبع الطلب' },
