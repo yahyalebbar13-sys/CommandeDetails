@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
+import CustomsHistoryModal from './customs-history-modal';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
   Cell, PieChart, Pie, Legend, LineChart, Line, CartesianGrid
@@ -76,56 +77,25 @@ const STATUS_COLORS = {
   'PENDING': '#F59E0B'
 };
 // ── FicheStock : fiche dépliable par produit ────────────────────────────────
-function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures }: {
+function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures, onOpenHistory }: {
   article: any; color: string; pct: number;
   entriesIN: any[]; entriesOUT: any[]; factures: any[];
+  onOpenHistory: (article: any, entries: any[]) => void;
 }) {
-  const { firestore, user } = useFirebase();
   const [open, setOpen] = React.useState(false);
-  const [overridesCache, setOverridesCache] = React.useState<Record<string, any>>({});
-  const [loadingOverrides, setLoadingOverrides] = React.useState(false);
   const totalIn  = a.initialQty + a.mouvementsIn;
   const totalOut = a.mouvementsOut;
-
-  React.useEffect(() => {
-    if (!open || !firestore || !user || entriesIN.length === 0) return;
-    const factureIds = Array.from(new Set(entriesIN.map(mv => mv.factureId).filter(Boolean)));
-    if (factureIds.length === 0) return;
-
-    let mounted = true;
-    setLoadingOverrides(true);
-    const fetchOverrides = async () => {
-      const cache: Record<string, any> = {};
-      try {
-        await Promise.all(
-          factureIds.map(async (fid: string) => {
-            const snap = await getDoc(doc(firestore, 'users', user.uid, 'dp_declarations', fid));
-            if (snap.exists() && snap.data().overrides) {
-              cache[fid] = snap.data().overrides;
-            }
-          })
-        );
-        if (mounted) setOverridesCache(cache);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        if (mounted) setLoadingOverrides(false);
-      }
-    };
-    fetchOverrides();
-    return () => { mounted = false; };
-  }, [open, firestore, user, entriesIN]);
 
   return (
     <div className="bg-white rounded-2xl shadow-md border border-stone-100 overflow-hidden transition-all duration-300">
       {/* ── En-tête produit (toujours visible) ── */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full text-left"
-      >
+      <div className="w-full text-left relative group">
         {/* barre couleur */}
         <div className="h-1 w-full" style={{ backgroundColor: color }} />
-        <div className="flex items-center gap-4 px-5 py-4">
+        <div 
+          className="flex items-center gap-4 px-5 py-4 cursor-pointer"
+          onClick={() => setOpen(o => !o)}
+        >
 
           {/* Swatch couleur */}
           <div className="w-10 h-10 rounded-xl border border-stone-100 shrink-0 flex items-center justify-center"
@@ -171,13 +141,25 @@ function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures }:
               <p className="text-[11px] font-black" style={{ color }}>{Number(a.totalValue).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} {a.hasTTCCost ? 'MAD' : '$'}</p>
             </div>
 
+            {/* Bouton Historique Dédouanement */}
+            <div className="shrink-0 ml-2" onClick={e => e.stopPropagation()}>
+              <Button 
+                onClick={() => onOpenHistory(a, entriesIN)}
+                size="sm" 
+                variant="outline"
+                className="h-8 bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200 text-[9px] font-black uppercase tracking-widest rounded-lg px-3 shadow-sm"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 mr-1.5" /> Hist. Douane
+              </Button>
+            </div>
+
             {/* Chevron */}
-            <div className={`w-7 h-7 rounded-xl border border-stone-200 flex items-center justify-center transition-transform duration-300 ${open ? 'rotate-180 bg-stone-900 border-stone-900' : 'bg-white'}`}>
+            <div className={`w-7 h-7 ml-3 rounded-xl border border-stone-200 flex items-center justify-center transition-transform duration-300 ${open ? 'rotate-180 bg-stone-900 border-stone-900' : 'bg-white'}`}>
               <ChevronDown className={`w-4 h-4 ${open ? 'text-white' : 'text-stone-400'}`} />
             </div>
           </div>
         </div>
-      </button>
+      </div>
 
       {/* ── Détail historique (déplié) ── */}
       {open && (
@@ -185,18 +167,11 @@ function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures }:
 
           {/* ENTRÉES */}
           <div>
-            <div className="flex items-center gap-2 mb-3 justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-lg bg-emerald-100 flex items-center justify-center">
-                  <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
-                </div>
-                <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest">Entrées en stock — {entriesIN.length} arrivage{entriesIN.length > 1 ? 's' : ''}</p>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-5 h-5 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <ArrowDownToLine className="w-3 h-3 text-emerald-600" />
               </div>
-              {loadingOverrides && (
-                <div className="flex items-center gap-1.5 text-[8px] font-black text-stone-400 uppercase tracking-widest animate-pulse">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Vérification Douane
-                </div>
-              )}
+              <p className="text-[9px] font-black text-stone-600 uppercase tracking-widest">Entrées en stock — {entriesIN.length} arrivage{entriesIN.length > 1 ? 's' : ''}</p>
             </div>
             {entriesIN.length === 0 ? (
               <p className="text-[9px] text-stone-300 font-bold pl-7">Aucune entrée enregistrée</p>
@@ -205,50 +180,31 @@ function FicheStock({ article: a, color, pct, entriesIN, entriesOUT, factures }:
                 {entriesIN.map((mv, i) => {
                   const facture = factures.find((f: any) => f.id === mv.factureId);
                   const hasCost = mv.purchasePriceMAD != null && mv.purchasePriceMAD > 0;
-                  const articleOverrides = (mv.factureId && mv.articleId) ? overridesCache[mv.factureId]?.[mv.articleId] : null;
-                  const hasOverride = articleOverrides && Object.keys(articleOverrides).length > 0;
-
                   return (
-                    <div key={i} className="flex flex-col gap-2 bg-white rounded-xl px-4 py-3 border border-emerald-100 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                        <div className="flex-1 grid grid-cols-4 gap-3 text-[10px]">
-                          <div>
-                            <p className="text-stone-400 font-bold uppercase text-[7px]">Date</p>
-                            <p className="font-black text-stone-700">{mv.date || '—'}</p>
-                          </div>
-                          <div>
-                            <p className="text-stone-400 font-bold uppercase text-[7px]">Quantité</p>
-                            <p className="font-black text-emerald-700">+{Number(mv.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure}</p>
-                          </div>
-                          <div>
-                            <p className="text-stone-400 font-bold uppercase text-[7px]">Coût de Revient</p>
-                            {hasCost ? (
-                              <p className="font-black text-violet-700">{Number(mv.purchasePriceMAD).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD/u</p>
-                            ) : (
-                              <p className="font-bold text-stone-300">—</p>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-stone-400 font-bold uppercase text-[7px]">Arrivage</p>
-                            <p className="font-black text-stone-500 truncate">{facture?.id || mv.factureId || mv.notes || '—'}</p>
-                          </div>
+                    <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-emerald-100 shadow-sm">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                      <div className="flex-1 grid grid-cols-4 gap-3 text-[10px]">
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Date</p>
+                          <p className="font-black text-stone-700">{mv.date || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Quantité</p>
+                          <p className="font-black text-emerald-700">+{Number(mv.quantity).toLocaleString('fr-MA')} {a.unitOfMeasure}</p>
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Coût de Revient</p>
+                          {hasCost ? (
+                            <p className="font-black text-violet-700">{Number(mv.purchasePriceMAD).toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD/u</p>
+                          ) : (
+                            <p className="font-bold text-stone-300">—</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-stone-400 font-bold uppercase text-[7px]">Arrivage</p>
+                          <p className="font-black text-stone-500 truncate">{facture?.id || mv.factureId || mv.notes || '—'}</p>
                         </div>
                       </div>
-                      
-                      {hasOverride && (
-                        <div className="ml-5 mt-1 pt-2 border-t border-stone-50 flex items-center gap-2">
-                          <span className="flex items-center gap-1 bg-red-50 text-red-600 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border border-red-100">
-                            Fausse Déclaration (Override)
-                          </span>
-                          {articleOverrides.customsValuePerKg && (
-                            <span className="text-[9px] font-bold text-stone-500">Val. Douane: {articleOverrides.customsValuePerKg} MAD/kg</span>
-                          )}
-                          {articleOverrides.netWeight && (
-                            <span className="text-[9px] font-bold text-stone-500">Poids Net: {articleOverrides.netWeight} kg</span>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -328,7 +284,11 @@ export default function CategoriesView({
   const [reorderSaving, setReorderSaving] = useState(false);
   
   const [expandedStockItems, setExpandedStockItems] = useState<Set<string>>(new Set());
-  
+  const [activeTab, setActiveTab] = useState<'categories' | 'articles' | 'stock'>('categories');
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyArticle, setHistoryArticle] = useState<any>(null);
+  const [historyEntries, setHistoryEntries] = useState<any[]>([]);
+
   const toggleStockExpand = (articleId: string) => {
     setExpandedStockItems(prev => {
       const next = new Set(prev);
