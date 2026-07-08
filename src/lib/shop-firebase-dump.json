@@ -1,0 +1,3400 @@
+{
+  "overrides": {
+    "ac-aiguilles-asst": {
+      "hidden": true
+    },
+    "ac-de-metal": {
+      "hidden": true
+    },
+    "ac-epingles-100": {
+      "hidden": true
+    },
+    "bc-20mm-assort": {
+      "hidden": true
+    },
+    "bi-coton-18mm-3m": {
+      "hidden": true
+    },
+    "bp-15mm-assort": {
+      "hidden": true
+    },
+    "custom_1780496515405_uryjt": {
+      "shortDescription": "Fil à coudre 40/2 de haute qualité, conçu pour les travaux de confection, de couture industrielle et artisanale.",
+      "avantages": "",
+      "categoryName": "Bobines de fil",
+      "stockQty": 13986,
+      "largeurMaille": "",
+      "design": "",
+      "inStock": true,
+      "couleur": "",
+      "description": "Fil à Coudre 40/2 – Résistance, Régularité et Performance\n\nNotre fil à coudre 40/2 est spécialement conçu pour répondre aux exigences des professionnels de la confection, des ateliers de couture et des fabricants de vêtements. Grâce à sa structure composée de deux brins torsadés, il garantit une excellente résistance à la traction, une grande régularité de couture et une finition soignée.\n\nPolyvalent, ce fil convient parfaitement à la couture de nombreux types de tissus, allant des tissus légers aux tissus de poids moyen. Il assure un passage fluide dans les machines à coudre industrielles et domestiques, réduisant les risques de casse et permettant un travail rapide et efficace.\n\nDisponible dans une large gamme de couleurs, le fil 40/2 offre une excellente tenue des couleurs et contribue à la réalisation de coutures esthétiques, durables et professionnelles.",
+      "isNew": true,
+      "typeProduit": "",
+      "matiereMailles": "",
+      "variants": [
+        {
+          "id": "v_1780499245418",
+          "color": "Noir",
+          "inStock": true,
+          "colorHex": "#1a1a1a",
+          "stock": 999
+        },
+        {
+          "inStock": true,
+          "id": "v_1780499247844",
+          "color": "Blanc",
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "color": "Rouge",
+          "id": "v_1780503311365",
+          "inStock": true,
+          "colorHex": "#e53e3e",
+          "stock": 999
+        },
+        {
+          "id": "v_1780503311551",
+          "color": "Bleu",
+          "inStock": true,
+          "colorHex": "#3182ce",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "colorHex": "#38a169",
+          "inStock": true,
+          "id": "v_1780503311781",
+          "color": "Vert"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d69e2e",
+          "inStock": true,
+          "color": "Jaune",
+          "id": "v_1780503311981"
+        },
+        {
+          "colorHex": "#dd6b20",
+          "stock": 999,
+          "id": "v_1780503312179",
+          "color": "Orange",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1780503312385",
+          "color": "Rose",
+          "stock": 999,
+          "colorHex": "#d53f8c"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#805ad5",
+          "inStock": true,
+          "id": "v_1780503312583",
+          "color": "Violet"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#92400e",
+          "inStock": true,
+          "id": "v_1780503312753",
+          "color": "Marron"
+        },
+        {
+          "colorHex": "#718096",
+          "stock": 999,
+          "id": "v_1780503328755",
+          "color": "Gris",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1780503328913",
+          "color": "Beige",
+          "stock": 999,
+          "colorHex": "#d4b896"
+        },
+        {
+          "color": "Doré",
+          "id": "v_1780503329095",
+          "inStock": true,
+          "colorHex": "#D4A843",
+          "stock": 999
+        },
+        {
+          "color": "Argenté",
+          "id": "v_1780503329265",
+          "inStock": true,
+          "colorHex": "#a0aec0",
+          "stock": 999
+        }
+      ],
+      "name": "Fil à Coudre 40/2– Pack de 12 Bobines (100g)",
+      "compatibleAvec": "",
+      "securite": "",
+      "paysFabrication": "",
+      "type": "",
+      "resistance": "",
+      "weight": 100,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780496509636_il89mu.png?alt=media&token=30db0cd2-c362-4c09-b632-e396a291feee",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780503280583_b1nii1.png?alt=media&token=b848fbd8-21e1-494b-98de-399311ad4e59",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780503290526_qdwz94.jpg?alt=media&token=4e94606b-12ad-4700-ac4c-28db580b736c",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780503306139_ruyuwb.jpeg?alt=media&token=90d1d1c1-3908-4e2b-b596-7e54b2e21d13"
+      ],
+      "longueur": "",
+      "material": "100% Polyester",
+      "price": 60,
+      "specification": "40/2",
+      "isFeatured": false,
+      "motsCles": "",
+      "informationCommerciale": "",
+      "compositionRuban": "",
+      "applications": "",
+      "conseilsEntretien": "",
+      "isPromo": false,
+      "packaging": "12 pièces",
+      "comparePrice": 75,
+      "categorySlug": "tissu-doublure"
+    },
+    "custom_1780502082575_qi5br": {
+      "name": "fil Cannete",
+      "variants": [
+        {
+          "price": 75,
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1780502010295"
+        }
+      ],
+      "isNew": false,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781216066019_e00h3t.jpeg?alt=media&token=04b4ecab-d877-4c6c-bfb8-f5e77157baa1"
+      ],
+      "comparePrice": 86,
+      "categorySlug": "tissu-doublure",
+      "description": "Fil à Coudre Canette Polyester – Grande Capacité pour la Confection Industrielle\n\nNotre fil à coudre canette polyester est spécialement conçu pour répondre aux exigences des professionnels du textile, des ateliers de confection et des unités de production industrielle.\n\nFabriqué à partir de fibres polyester de haute qualité, ce fil offre une excellente résistance à la traction, une grande régularité et une performance optimale sur les machines à coudre industrielles à haute vitesse.\n\nGrâce à son format grande capacité sur cône, il réduit les changements de bobines et améliore la productivité en atelier. Il convient parfaitement à la fabrication de vêtements, uniformes, textiles de maison et autres articles de confection.\n\nSa finition soignée permet des coutures propres, durables et résistantes à l'usure quotidienne.\n\nCaractéristiques\nFil polyester haute qualité\nGrande bobine industrielle\nExcellente résistance à la traction\nCoutures régulières et propres\nFaible taux de casse\nCompatible avec les machines industrielles\nDisponible en plusieurs couleurs\nIdéal pour la production en série\nApplications\nConfection textile\nVêtements professionnels\nUniformes\nPrêt-à-porter\nLingerie\nTextile de maison\nAteliers de couture\nIndustrie textile",
+      "isPromo": false,
+      "stockQty": 999,
+      "inStock": true,
+      "price": 75,
+      "shortDescription": "Fil à coudre canette polyester de qualité industrielle, conçu pour les ateliers de confection et les fabricants de vêtements. Résistant, régulier et économique grâce à sa grande capacité, il garantit des coutures solides et une excellente productivité.",
+      "isFeatured": true
+    },
+    "custom_1780503129736_5if0z": {
+      "price": 120,
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1780503113200",
+          "color": "Blanc",
+          "price": 120,
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "inStock": true,
+          "id": "v_1780503117578",
+          "color": "Noir",
+          "price": 130,
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        }
+      ],
+      "stockQty": 1998,
+      "isNew": false,
+      "inStock": true,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781273193468_tjve1p.png?alt=media&token=e336ca54-19e8-426a-a1a6-142a1edb6975",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781546520863_00fukb.jpeg?alt=media&token=07bcae62-1147-4dbd-b5d6-721f1cecd654"
+      ],
+      "isFeatured": true,
+      "isPromo": false
+    },
+    "custom_1780601016715_p3t1p": {
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780600854300_fei6sv.jpg?alt=media&token=3ccda662-7575-4b73-9320-085d7653d857",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780601033874_uwrdni.jpg?alt=media&token=26ab3837-9b72-4d83-a695-6554aa5debc2"
+      ],
+      "inStock": true,
+      "isPromo": false,
+      "isFeatured": false,
+      "price": 84,
+      "variants": [
+        {
+          "colorHex": "#1a1a1a",
+          "stock": 999,
+          "id": "v_1780600961369",
+          "color": "Noir",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1780600961552",
+          "color": "Blanc"
+        },
+        {
+          "inStock": true,
+          "color": "Rouge",
+          "id": "v_1780600961773",
+          "stock": 999,
+          "colorHex": "#e53e3e"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#3182ce",
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1780600962188"
+        },
+        {
+          "colorHex": "#38a169",
+          "stock": 999,
+          "id": "v_1780600962403",
+          "color": "Vert",
+          "inStock": true
+        },
+        {
+          "colorHex": "#dd6b20",
+          "stock": 999,
+          "color": "Orange",
+          "id": "v_1780600962857",
+          "inStock": true
+        },
+        {
+          "colorHex": "#d53f8c",
+          "stock": 999,
+          "id": "v_1780601000913",
+          "color": "Rose",
+          "inStock": true
+        },
+        {
+          "colorHex": "#805ad5",
+          "stock": 999,
+          "id": "v_1780601001069",
+          "color": "Violet",
+          "inStock": true
+        },
+        {
+          "colorHex": "#92400e",
+          "stock": 999,
+          "id": "v_1780601001220",
+          "color": "Marron",
+          "inStock": true
+        },
+        {
+          "colorHex": "#718096",
+          "stock": 999,
+          "id": "v_1780601001364",
+          "color": "Gris",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "id": "v_1780601001584",
+          "color": "Beige"
+        }
+      ],
+      "stockQty": 10989,
+      "isNew": false
+    },
+    "custom_1781213370895_92nbv": {
+      "variants": [
+        {
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1782671895892",
+          "stock": 999,
+          "size": "15mm",
+          "colorHex": "#1a1a1a",
+          "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fvariants%2F1782672000911_db92ta.png?alt=media&token=65705651-093e-4b12-8175-5acf0d0e7c6f"
+        },
+        {
+          "size": "15mm",
+          "stock": 999,
+          "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fvariants%2F1782672053582_0wlipz.png?alt=media&token=a99239b8-761f-45cd-b64d-3ae6fc7cfc64",
+          "colorHex": "#c8ced5",
+          "inStock": true,
+          "id": "v_1782672027946",
+          "color": "Nickel"
+        }
+      ],
+      "name": "Bouton Pression à Ressort 15 mm Blanc Type W en Fer – 1000 Ensembles/Sachet",
+      "stockQty": 1998,
+      "isNew": false,
+      "inStock": true,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782671781800_myp4su.png?alt=media&token=331fd0c1-274e-41e1-9b91-f6d8c85e029a",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782672297709_xawcoh.png?alt=media&token=882ed34e-953c-4423-94eb-3635004fcb2a"
+      ],
+      "categorySlug": "boutons",
+      "price": 72.99,
+      "description": "Le bouton pression à ressort 15 mm Type W est une solution de fermeture pratique, résistante et durable pour l'industrie textile et la confection. Sa conception à ressort assure une excellente tenue et une ouverture/fermeture fluide.\n\nFabriqué en fer robuste avec une finition blanche propre et élégante, ce bouton convient parfaitement aux vêtements, uniformes, accessoires de mode, maroquinerie légère et projets de couture.\n\nCaractéristiques\nProduit : Snap Spring Button\nType : W-Style\nDiamètre : 15 mm\nCouleur : Blanc\nMatière : Fer (Iron Material)\nUtilisation : Couture, confection, textile, maroquinerie\nFermeture solide et durable\nInstallation avec presse à boutons pression",
+      "shortDescription": "Bouton pression à ressort de 15 mm de couleur blanche, fabriqué en fer de haute qualité. Idéal pour vêtements, uniformes, sacs, articles textiles et travaux de confection professionnels.",
+      "isFeatured": true,
+      "isPromo": false
+    },
+    "custom_1781548051720_mliyd": {
+      "isNew": false,
+      "stockQty": 11988,
+      "price": 70,
+      "variants": [
+        {
+          "stock": 999,
+          "colorHex": "#1a1a1a",
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1781548021777"
+        },
+        {
+          "colorHex": "#f5f5f5",
+          "stock": 999,
+          "id": "v_1781548022360",
+          "color": "Blanc",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1781548022552",
+          "color": "Rouge",
+          "stock": 999,
+          "colorHex": "#e53e3e"
+        },
+        {
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1781548022744",
+          "stock": 999,
+          "colorHex": "#3182ce"
+        },
+        {
+          "id": "v_1781548022929",
+          "color": "Vert",
+          "inStock": true,
+          "colorHex": "#38a169",
+          "stock": 999
+        },
+        {
+          "color": "Jaune",
+          "id": "v_1781548023088",
+          "inStock": true,
+          "colorHex": "#d69e2e",
+          "stock": 999
+        },
+        {
+          "color": "Orange",
+          "id": "v_1781548031681",
+          "inStock": true,
+          "colorHex": "#dd6b20",
+          "stock": 999
+        },
+        {
+          "colorHex": "#d53f8c",
+          "stock": 999,
+          "id": "v_1781548031856",
+          "color": "Rose",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "colorHex": "#92400e",
+          "inStock": true,
+          "id": "v_1781548032040",
+          "color": "Marron"
+        },
+        {
+          "inStock": true,
+          "color": "Gris",
+          "id": "v_1781548039705",
+          "stock": 999,
+          "colorHex": "#718096"
+        },
+        {
+          "colorHex": "#a0aec0",
+          "stock": 999,
+          "color": "Argenté",
+          "id": "v_1781548039976",
+          "inStock": true
+        },
+        {
+          "colorHex": "#d4b896",
+          "stock": 999,
+          "color": "Beige",
+          "id": "v_1781548045209",
+          "inStock": true
+        }
+      ],
+      "isPromo": false,
+      "isFeatured": true,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781547995559_gxrr7n.jpg?alt=media&token=f13baea4-7753-405f-a16a-075100f915c0",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781548061309_0o6e8d.jpg?alt=media&token=282a7186-04be-43e5-a902-5e168782b011"
+      ],
+      "inStock": true
+    },
+    "custom_1781549677899_11okn": {
+      "isPromo": true,
+      "conseilsEntretien": "",
+      "comparePrice": 130,
+      "categorySlug": "fermeture-en-nylon-no5-50cm-1m20",
+      "isFeatured": false,
+      "motsCles": "",
+      "longueur": "",
+      "price": 114.99,
+      "compositionRuban": "",
+      "informationCommerciale": "",
+      "applications": "",
+      "couleur": "",
+      "description": "Cette fermeture éclair nylon N°5 de 75 cm est équipée d'un curseur Auto Lock assurant une fermeture fiable et sécurisée. Grâce à sa souplesse, sa résistance et sa finition de qualité, elle est particulièrement adaptée à la confection professionnelle de vêtements, vestes, sweat-shirts, survêtements et autres articles textiles.\n\nLe système Auto Lock maintient le curseur en position lorsqu'il n'est pas manipulé, évitant ainsi toute ouverture involontaire. Vendue en lot de 100 pièces, cette fermeture est idéale pour les ateliers de confection, fabricants de vêtements et grossistes.\n\nCaractéristiques\nType : Fermeture éclair nylon\nNuméro : N°5\nLongueur : 75 cm\nModèle : Half Tour\nCurseur : Auto Lock\nRésistante et flexible\nUtilisation professionnelle\nOuverture et fermeture fluides\nSpécifications\nProduit : Nylon Zipper\nTaille : N°5\nLongueur : 75 cm\nType de curseur : Auto Lock Slider\nConditionnement : 100 pièces\nApplication : Habillement et confection textile\nApplications\nVestes\nSurvêtements\nSweat-shirts\nVêtements de travail\nArticles de mode\nConfection textile",
+      "paysFabrication": "",
+      "type": "",
+      "resistance": "",
+      "compatibleAvec": "",
+      "securite": "",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1783329929946_z71thu.jpg?alt=media&token=372f0ae5-1362-4f5d-bf79-a82d12455f6f",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1783329961017_digcf4.jpg?alt=media&token=eeffa4b9-e5c5-481f-aeba-e15bb0508502"
+      ],
+      "isNew": false,
+      "matiereMailles": "",
+      "typeProduit": "",
+      "name": "Fermeture Éclair Nylon N°5 – 75 cm Half Tour – 100 Pièces",
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1781549788978",
+          "color": "Noir",
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1781549789178"
+        },
+        {
+          "inStock": true,
+          "id": "v_1781549789418",
+          "color": "Rouge",
+          "stock": 999,
+          "colorHex": "#e53e3e"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#3182ce",
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1781549789610"
+        },
+        {
+          "color": "Vert",
+          "id": "v_1781549789778",
+          "inStock": true,
+          "colorHex": "#38a169",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d69e2e",
+          "inStock": true,
+          "id": "v_1781549789970",
+          "color": "Jaune"
+        },
+        {
+          "id": "v_1781549790162",
+          "color": "Orange",
+          "inStock": true,
+          "colorHex": "#dd6b20",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d53f8c",
+          "inStock": true,
+          "color": "Rose",
+          "id": "v_1781549790378"
+        },
+        {
+          "inStock": true,
+          "id": "v_1781549801578",
+          "color": "Violet",
+          "stock": 999,
+          "colorHex": "#805ad5"
+        },
+        {
+          "colorHex": "#92400e",
+          "stock": 999,
+          "color": "Marron",
+          "id": "v_1781549801746",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "color": "Gris",
+          "id": "v_1781549801946",
+          "stock": 999,
+          "colorHex": "#718096"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "color": "Beige",
+          "id": "v_1781549802106"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#D4A843",
+          "inStock": true,
+          "color": "Doré",
+          "id": "v_1781549807658"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#a0aec0",
+          "inStock": true,
+          "color": "Argenté",
+          "id": "v_1781549807818"
+        }
+      ],
+      "shortDescription": "Fermeture éclair nylon N°5 de 75 cm avec curseur Auto Lock. Modèle Half Tour conçu pour les vêtements, vestes, survêtements et articles de confection. Conditionnement professionnel de 100 pièces.",
+      "design": "",
+      "inStock": true,
+      "categoryName": "Fermeture en nylon No5 -(50cm-1m20)",
+      "stockQty": 13986,
+      "avantages": "",
+      "largeurMaille": ""
+    },
+    "custom_1781800044807_y5s58": {
+      "price": 34,
+      "longueur": "",
+      "motsCles": "",
+      "isFeatured": true,
+      "applications": "",
+      "informationCommerciale": "",
+      "compositionRuban": "",
+      "conseilsEntretien": "",
+      "isPromo": false,
+      "categorySlug": "fermeture-en-nylon-n-3-10-50cm",
+      "shortDescription": "Fermeture éclair en nylon blanc de 20 cm (maille n°3). Fluide, résistante et facile à coudre, elle est l'accessoire de mercerie indispensable pour la confection et la réparation de vos jupes, robes, trousses ou petits coussins.",
+      "largeurMaille": "",
+      "avantages": "",
+      "stockQty": 13986,
+      "categoryName": "Fermeture en nylon N°3 (10-50cm)",
+      "inStock": true,
+      "design": "",
+      "description": "Apportez une finition propre et professionnelle à vos créations avec notre Fermeture à glissière en nylon n°3. Conçue pour un usage quotidien, sa maille en spirale plastique offre une ouverture et une fermeture douces, sans accroc.\n\nCaractéristiques principales :\n\nLongueur de la maille : 20 cm (idéal pour les petits et moyens ouvrages).\n\nTaille de la maille : n°3 (standard pour la couture classique).\n\nMatière : Maille en nylon/plastique souple sur ruban en polyester.\n\nCouleur : Blanc uni, discret et facile à assortir.\n\nCurseur : Métal avec finition assortie, offrant une bonne prise en main.\n\nIdéal pour : Vêtements (jupes, pantalons légers, robes), petite maroquinerie, pochettes, trousses d'école, housses de coussin et loisirs créatifs.\n\nLégère mais robuste, cette fermeture se pique facilement à la machine à coudre et garantit une excellente longévité à tous vos projets de couture.",
+      "couleur": "",
+      "variants": [
+        {
+          "stock": 999,
+          "colorHex": "#1a1a1a",
+          "inStock": true,
+          "id": "v_1781799833480",
+          "color": "Noir"
+        },
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1781799833928",
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "color": "Rouge",
+          "id": "v_1781799834120",
+          "inStock": true,
+          "colorHex": "#e53e3e",
+          "stock": 999
+        },
+        {
+          "colorHex": "#3182ce",
+          "stock": 999,
+          "color": "Bleu",
+          "id": "v_1781799834312",
+          "inStock": true
+        },
+        {
+          "id": "v_1781799834472",
+          "color": "Vert",
+          "inStock": true,
+          "colorHex": "#38a169",
+          "stock": 999
+        },
+        {
+          "id": "v_1781799834672",
+          "color": "Jaune",
+          "inStock": true,
+          "colorHex": "#d69e2e",
+          "stock": 999
+        },
+        {
+          "colorHex": "#dd6b20",
+          "stock": 999,
+          "color": "Orange",
+          "id": "v_1781799834856",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1781799835048",
+          "color": "Rose",
+          "stock": 999,
+          "colorHex": "#d53f8c"
+        },
+        {
+          "colorHex": "#805ad5",
+          "stock": 999,
+          "id": "v_1781799844016",
+          "color": "Violet",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "colorHex": "#92400e",
+          "inStock": true,
+          "id": "v_1781799844192",
+          "color": "Marron"
+        },
+        {
+          "inStock": true,
+          "id": "v_1781799844360",
+          "color": "Gris",
+          "stock": 999,
+          "colorHex": "#718096"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "id": "v_1781799844536",
+          "color": "Beige"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#D4A843",
+          "inStock": true,
+          "color": "Doré",
+          "id": "v_1781799844848"
+        },
+        {
+          "id": "v_1781799845032",
+          "color": "Argenté",
+          "inStock": true,
+          "colorHex": "#a0aec0",
+          "stock": 999
+        }
+      ],
+      "name": "Fermeture Nylon N°3 - 20 cm",
+      "typeProduit": "",
+      "isNew": false,
+      "matiereMailles": "",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781800001525_5d7t6u.jpg?alt=media&token=b80135c7-31e8-4947-aee7-d0145007f71e",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781800030908_uoxugl.jpg?alt=media&token=c7b06711-dcb7-4629-a382-95e061fea37c"
+      ],
+      "securite": "",
+      "compatibleAvec": "",
+      "resistance": "",
+      "paysFabrication": "",
+      "type": ""
+    },
+    "custom_1781882828844_wzuoq": {
+      "compositionRuban": "",
+      "informationCommerciale": "",
+      "applications": "",
+      "isFeatured": false,
+      "motsCles": "",
+      "longueur": "",
+      "price": 22,
+      "categorySlug": "accessoires-de-confection",
+      "comparePrice": 24,
+      "isPromo": false,
+      "conseilsEntretien": "",
+      "design": "",
+      "inStock": true,
+      "categoryName": "Accessoires de Confection",
+      "stockQty": 1000,
+      "avantages": "",
+      "largeurMaille": "",
+      "shortDescription": "Le lot idéal et économique pour les professionnels du textile et les ateliers de confection. Cette boîte contient 12 mètres ruban extra-larges (1,9 cm) d'une longueur de 150 cm. Souples, indéformables et hautement lisibles, ils offrent un confort de travail supérieur et une excellente prise en main pour toutes vos mesures.",
+      "paysFabrication": "",
+      "type": "",
+      "resistance": "",
+      "securite": "",
+      "compatibleAvec": "",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781882373188_8g4ayo.jpeg?alt=media&token=dd782d9a-56bb-4af7-bcdf-bc49f4663345",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781882888517_ilw6s4.jpeg?alt=media&token=8a7c6542-a243-4690-a115-a6358ee1c160"
+      ],
+      "matiereMailles": "",
+      "typeProduit": "",
+      "isNew": true,
+      "variants": [],
+      "name": "Pack de 12 Mètres Ruban – 150 cm",
+      "couleur": "",
+      "description": "Un standard de l'industrie textile, optimisé pour la durabilité et le confort visuel. Ce pack de 12 mètres ruban professionnels se distingue par sa largeur supérieure de 1,9 cm, offrant une meilleure stabilité à plat et une résistance accrue à l'usure quotidienne.\n\n✨ Caractéristiques principales :\n\nFormat économique (Lot de 12 pièces) : Idéal pour équiper entièrement un atelier de couture, un centre de formation, ou pour la revente.\n\nGrande largeur de 1,9 cm : Plus large que les modèles standards, ce ruban ne se tord pas facilement pendant la manipulation et permet l'affichage de chiffres plus grands pour un confort visuel optimal.\n\nLisibilité maximale : Les graduations millimétrées et les chiffres noirs contrastés sont imprimés de manière très nette, garantissant une lecture rapide et sans erreur.\n\nMatériau professionnel indéformable : Fabriqués dans une matière souple et renforcée qui épouse parfaitement les courbes du corps ou des tissus, sans jamais s'étirer ni se détendre au fil du temps.\n\nEmbouts métalliques robustes : Chaque extrémité est protégée par un collier métallique solide, évitant l'effilochage et assurant un point zéro parfaitement précis."
+    },
+    "custom_1782228665235_uvyn0": {
+      "description": "L'allié parfait pour des finitions durables et professionnelles !\n\nQue vous soyez un tailleur professionnel, un atelier de confection ou un passionné de loisirs créatifs (DIY), notre élastique tressé est conçu pour répondre à toutes vos exigences. Sa conception tressée lui confère une robustesse supérieure : il maintient fermement, ne rétrécit pas lorsqu'il est étiré et retrouve toujours sa forme initiale.\n\nPourquoi choisir notre élastique tressé ?\n\nFormat ultra-économique : Vendu à la pièce (au rouleau), chaque bobine vous offre une longueur très généreuse de 100 yards (plus de 91 mètres). Vous avez de quoi réaliser de grandes séries ou de nombreux projets sans risquer la rupture de stock !\n\nSur-mesure pour vos projets : Disponible en différentes tailles (largeurs). Que ce soit pour des ceintures de pantalons, des jupes, des sous-vêtements, des poignets, des masques ou des draps-housses, sélectionnez simplement la dimension adéquate.\n\nRésistance exceptionnelle : Conçu pour durer, il supporte de multiples lavages en machine et passages au sèche-linge sans perdre sa tension ou s'effilocher.\n\nFacile à travailler : Doux au toucher, il glisse sans accroc dans les ourlets et les coulisses, et peut être cousu directement sur le tissu en toute simplicité.\n\n(Note : N'oubliez pas de sélectionner la largeur souhaitée dans le menu déroulant avant d'ajouter votre rouleau au panier !)",
+      "isPromo": false,
+      "variants": [
+        {
+          "color": "Blanc",
+          "id": "v_1782228234405",
+          "inStock": false,
+          "colorHex": "#f5f5f5",
+          "stock": 0
+        },
+        {
+          "inStock": false,
+          "id": "v_1782228246348",
+          "color": "Noir",
+          "stock": 0,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "price": 25,
+          "stock": 999,
+          "colorHex": "#1a1a1a",
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1782228496356"
+        },
+        {
+          "colorHex": "#f5f5f5",
+          "price": 25,
+          "stock": 999,
+          "color": "Blanc",
+          "id": "v_1782228501307",
+          "inStock": true
+        }
+      ],
+      "name": "Rouleau d'Élastique Tressé– 100 Yards",
+      "isNew": true,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782228264233_wb5cv4.jpg?alt=media&token=10ecb2f6-2e30-4650-9ebe-0c4893fcff06"
+      ],
+      "comparePrice": 40,
+      "categorySlug": "elastiques",
+      "price": 29.99,
+      "shortDescription": "Rouleau d'élastique tressé de haute qualité, vendu à la pièce (1 bobine = 100 yards, soit environ 91,4 mètres). Extensible, indéformable et résistant, c'est l'accessoire de mercerie indispensable pour tous vos travaux de couture et de confection. Disponible en plusieurs largeurs pour s'adapter parfaitement à toutes vos créations !",
+      "isFeatured": false,
+      "stockQty": 1998,
+      "inStock": true
+    },
+    "custom_1782301687832_m5bv4": {
+      "categorySlug": "boutons",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782301363139_c85w8q.jpg?alt=media&token=a046ebef-35c6-40f1-8888-7e99c0145629",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782301561214_wt54h0.jpeg?alt=media&token=0111f713-79ad-451f-9393-64a450817ce4"
+      ],
+      "inStock": true,
+      "stockQty": 3996,
+      "isNew": true,
+      "name": "Pack 1000 Sets de Moules (Boutons à Recouvrir en Aluminium)",
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1782301451738",
+          "color": "NICKEL",
+          "price": 30,
+          "size": "15MM",
+          "stock": 999,
+          "colorHex": "#a0aec0"
+        },
+        {
+          "colorHex": "#a0aec0",
+          "size": "18MM",
+          "stock": 999,
+          "price": 41,
+          "id": "v_1782301458481",
+          "color": "NICKEL",
+          "inStock": true
+        },
+        {
+          "colorHex": "#a0aec0",
+          "stock": 999,
+          "price": 51.5,
+          "size": "20MM",
+          "id": "v_1782301463297",
+          "color": "NICKEL",
+          "inStock": true
+        },
+        {
+          "id": "v_1782301466944",
+          "color": "NICKEL",
+          "inStock": true,
+          "colorHex": "#a0aec0",
+          "stock": 999,
+          "price": 62,
+          "size": "25MM"
+        }
+      ],
+      "isPromo": false,
+      "isFeatured": false,
+      "shortDescription": "Optimisez vos créations avec ce pack professionnel de 1000 sets de moules pour boutons à recouvrir. Fabriqués en aluminium de haute qualité, ils sont ultra-légers, durables et 100 % inoxydables (anti-rouille). Disponibles en plusieurs tailles, ils s'adaptent parfaitement à vos tissus pour des finitions impeccables en haute couture, prêt-à-porter et tapisserie d'ameublement (salons, canapés, têtes de lit). Le choix idéal pour les professionnels, les ateliers et les passionnés !",
+      "description": "Donnez une finition sur-mesure et parfaite à toutes vos créations !\n\nQue vous soyez un atelier de confection, un tapissier d'ameublement professionnel ou un créateur passionné, notre lot de 1000 sets de moules pour boutons à recouvrir est la fourniture indispensable pour personnaliser vos pièces en grande série.\n\nConçus pour être recouverts de n'importe quel type de tissu (coton, velours, lin, cuir fin, soie...), ces moules s'assemblent facilement à l'aide d'une presse et offrent un maintien parfait et esthétique de la matière.\n\n🌟 Pourquoi choisir nos moules en aluminium ?\n\n🛡️ 100 % Inoxydable (Zéro Rouille) : L'avantage majeur de l'aluminium ! Contrairement au fer ou à l'acier classique, il garantit une résistance totale à l'eau. Vos clients pourront laver leurs vêtements sans jamais craindre l'apparition de taches de rouille autour du bouton.\n\n🪶 Légèreté et Robustesse : Ils n'alourdissent pas les tissus fluides ou délicats, tout en offrant une solidité parfaite pour supporter les fortes tensions (idéal pour le capitonnage).\n\n📏 Différentes tailles disponibles : Choisissez le diamètre parfaitement adapté à votre projet directement dans les options de la page.\n\n💼 Format Économique : Le pack de 1000 sets (1 set = 1 calotte supérieure bombée + 1 dos à coudre avec anneau) est pensé pour vous garantir le meilleur rapport qualité/prix et ne jamais tomber en rupture de stock.\n\n🛠️ Domaines d'application (Idéal pour) :\n\nCouture & Prêt-à-porter : Robes, chemisiers, manteaux, caftans.\n\nAmeublement & Tapisserie : Capitonnage de canapés (Chesterfield), fauteuils, têtes de lit, salons marocains (tlamet) et coussins.\n\nMaroquinerie & Loisirs créatifs (DIY).",
+      "price": 30
+    },
+    "custom_1782415355559_rjysz": {
+      "description": "Le bouton de référence pour la confection à grande échelle !Que vous gériez une usine de confection, un atelier de couture ou une marque de vêtements, le choix d'un bouton fiable est primordial. Ce lot de 1440 boutons en résine a été pensé pour répondre aux besoins des professionnels exigeants, offrant un compromis parfait entre qualité supérieure et prix de gros.Une fixation à 4 trous pour une tenue infaillible :Contrairement aux modèles à 2 trous, le design à 4 trous permet une couture croisée ou parallèle, offrant une résistance maximale à l'arrachement. C'est le format standard exigé pour les vêtements soumis à des tensions quotidiennes ou à un usage intensif (pantalons, vestes, uniformes, chemises, blouses de travail).Un format B2B \"Gros Volume\" ultra-économique :Dans le jargon de la mercerie, une \"grosse\" équivaut à 144 pièces (12 douzaines). En optant pour ce conditionnement industriel de 10 grosses, vous disposez d'un stock de 1440 boutons prêts à l'emploi. Ce format vous permet de réduire drastiquement vos coûts unitaires et d'optimiser vos marges d'approvisionnement sur les grandes séries.  Finition nette et polyvalence :Leur forme classique et épurée s'intègre harmonieusement sur tous types de textiles (coton, lin, denim, matières synthétiques). Chaque bouton est moulé avec précision pour garantir des bords lisses qui ne coupent pas le fil de couture lors du passage en machine.",
+      "isPromo": false,
+      "name": "Pack de 10 Grosses (1440 pièces) - Boutons en Résine 4 Trous",
+      "variants": [
+        {
+          "colorHex": "#f5f5f5",
+          "price": 0,
+          "stock": 999,
+          "size": "18L",
+          "id": "v_1782414966539",
+          "color": "Blanc",
+          "inStock": true
+        },
+        {
+          "id": "v_1782414974290",
+          "color": "Blanc",
+          "inStock": true,
+          "colorHex": "#f5f5f5",
+          "stock": 999,
+          "price": 0,
+          "size": "20L"
+        },
+        {
+          "inStock": true,
+          "id": "v_1782414979739",
+          "color": "Blanc",
+          "size": "24L",
+          "price": 0,
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "color": "Blanc",
+          "id": "v_1782415244881",
+          "inStock": true,
+          "colorHex": "#f5f5f5",
+          "stock": 999,
+          "price": 0,
+          "size": "28L"
+        }
+      ],
+      "isNew": false,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782414830643_nxpxmv.jpg?alt=media&token=a943ada1-17a1-474a-9ddd-df9e8faa6e49",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782415293751_ube5pf.png?alt=media&token=e7c3479f-609c-4d52-91ab-76b3249179cc"
+      ],
+      "categorySlug": "boutons",
+      "price": 0,
+      "shortDescription": "Optimisez vos coûts de production avec ce pack industriel de 10 grosses (soit 1440 pièces) de boutons classiques en résine. Dotés de 4 trous pour une couture ultra-solide et durable, ils sont le standard incontournable pour la confection de chemises, pantalons, vestes et vêtements de travail. Un essentiel de mercerie combinant résistance, finition soignée et rentabilité maximale ! (Unité de vente : 1 ajout au panier = 1 carton de 10 grosses / 1440 boutons).",
+      "isFeatured": true,
+      "categoryName": "Boutons",
+      "stockQty": 3996,
+      "inStock": true
+    },
+    "custom_1782935835919_kgfc8": {
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782938597587_gl9a1a.png?alt=media&token=9aa9f7cd-9753-4931-a516-4d472d3a3f35",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782936426649_9s6zwx.jpeg?alt=media&token=c9b3bc2f-e5e1-47ed-b4ae-459ce5f76124"
+      ],
+      "compatibleAvec": "Tissus moyens à épais (Polaire, softshell, coton lourd)",
+      "securite": "Autobloquant (Auto-Lock / A/L)",
+      "type": "Séparable (Open-End / O/E)",
+      "paysFabrication": "Chine",
+      "resistance": "Autobloquant (Auto-Lock / A/L)",
+      "name": "Lot de 50 Fermetures à Glissière Plastique 75 cm –(Halftour)",
+      "variants": [
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1782935802634",
+          "stock": 999,
+          "size": "75cm",
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "color": "Rouge",
+          "id": "v_1782935804799",
+          "inStock": true,
+          "colorHex": "#e53e3e",
+          "stock": 999,
+          "size": "75cm"
+        },
+        {
+          "stock": 999,
+          "size": "75cm",
+          "colorHex": "#3182ce",
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1782935805230"
+        },
+        {
+          "id": "v_1782935805407",
+          "color": "Vert",
+          "inStock": true,
+          "colorHex": "#38a169",
+          "stock": 999,
+          "size": "75cm"
+        },
+        {
+          "colorHex": "#d69e2e",
+          "stock": 999,
+          "size": "75cm",
+          "color": "Jaune",
+          "id": "v_1782935805582",
+          "inStock": true
+        },
+        {
+          "colorHex": "#d53f8c",
+          "stock": 999,
+          "size": "75cm",
+          "color": "Rose",
+          "id": "v_1782935805758",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1782935805942",
+          "color": "Violet",
+          "size": "75cm",
+          "stock": 999,
+          "colorHex": "#805ad5"
+        },
+        {
+          "color": "Marron",
+          "id": "v_1782935806150",
+          "inStock": true,
+          "colorHex": "#92400e",
+          "stock": 999,
+          "size": "75cm"
+        },
+        {
+          "inStock": true,
+          "color": "Gris",
+          "id": "v_1782935806294",
+          "stock": 999,
+          "size": "75cm",
+          "colorHex": "#718096"
+        },
+        {
+          "size": "75cm",
+          "stock": 999,
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "color": "Beige",
+          "id": "v_1782935806333"
+        },
+        {
+          "size": "75cm",
+          "stock": 999,
+          "colorHex": "#D4A843",
+          "inStock": true,
+          "id": "v_1782935822439",
+          "color": "Doré"
+        },
+        {
+          "colorHex": "#a0aec0",
+          "size": "75cm",
+          "stock": 999,
+          "color": "Argenté",
+          "id": "v_1782935822590",
+          "inStock": true
+        }
+      ],
+      "typeProduit": "Fermeture à glissière / Zip",
+      "matiereMailles": "Plastique injecté (Polyacétal / POM)",
+      "isNew": false,
+      "description": "Un design affirmé pour des finitions parfaites\nCe pack de 50 fermetures à glissière en plastique injecté de 75 cm est la fourniture idéale pour les créateurs, ateliers de confection et marques de prêt-à-porter qui cherchent à allier technicité et esthétisme. Le point fort de ce modèle réside dans le design unique de son curseur, apportant une vraie signature visuelle à vos vêtements d'extérieur.\n\nComprendre les caractéristiques : O/E, A/L et Curseur Halftour\n\nCurseur Halftour (Demi-cercle) : Fini la tirette plate classique ! Le modèle Halftour possède une tirette en forme de demi-cercle (ou anneau en D). Très prisée dans le streetwear, la mode hivernale et la maroquinerie, cette forme offre une ergonomie exceptionnelle : elle est facile à attraper, à tirer d'un seul doigt, et reste manipulable même en portant des gants épais.\n\nSéparable (O/E - Open End) : La fermeture s'ouvre et se sépare totalement à sa base. C'est la caractéristique incontournable pour les vestes, gilets, blousons et parkas.\n\nAutobloquant (A/L - Auto-Lock) : Un mécanisme de sécurité intégré bloque automatiquement les mailles dès que la tirette demi-cercle est relâchée. Cela garantit que votre veste ne s'ouvrira pas involontairement lors de vos mouvements.\n\nQualité professionnelle et durabilité\nLes mailles en plastique injecté (Vislon) offrent une glisse extrêmement fluide et une grande résistance aux tractions répétées. Plus léger que le métal et totalement inoxydable (ne rouille pas), le plastique est le choix numéro un pour les vêtements de mi-saison et d'hiver. Le ruban, tissé en polyester haute ténacité, garantit une pose aisée et une tenue impeccable lavage après lavage.\n\nSecteurs d'utilisation multiples\nCette fermeture sublimera le prêt-à-porter urbain, le sportswear (sweats zippés, vestes de survêtement), les vêtements de travail, la mode enfantine (où l'ergonomie de la tirette ronde aide les enfants à s'habiller seuls) ainsi que les accessoires de bagagerie créative.",
+      "couleur": "Selon déclinaison",
+      "inStock": true,
+      "design": "Halftour (Tirette en forme de demi-cercle / D-ring)",
+      "largeurMaille": "Standard N°5 (environ 5 mm)",
+      "avantages": "Esthétisme moderne : La tirette en demi-cercle donne un look premium et original.\n\nErgonomie optimale : Prise en main ultra-facile, idéale pour les enfants ou les conditions hivernales.\n\nSécurité intégrée : Le système Auto-Lock maintient la veste fermée au niveau souhaité.\n\nPraticité : S'ouvre totalement (Open-End).\n\nLongévité : Plastique injecté robuste, fluide et qui ne gèle pas.\n\nTarif grossiste : Vendu en lot de 50 pour optimiser les coûts de production.",
+      "categoryName": "Fermeture en plastique N°5",
+      "stockQty": 11988,
+      "shortDescription": "Démarquez vos créations avec ce lot de 50 fermetures à glissière en plastique de 75 cm. Séparables (Open-End) et dotées d'un système autobloquant (Auto-Lock), elles se distinguent par leur curseur \"Halftour\" avec une tirette en forme de demi-cercle. ",
+      "comparePrice": 80,
+      "categorySlug": "fermeture-en-plastique-n-5",
+      "isPromo": false,
+      "conseilsEntretien": "Lavage en machine à 40°C maximum.\n\nToujours remonter le curseur jusqu'en haut avant le lavage pour protéger les dents et la tirette contre les chocs du tambour.\n\nNe jamais repasser directement sur les mailles en plastique (utiliser une pattemouille).",
+      "applications": "Vestes, manteaux, blousons (style bomber ou teddy).\n\nGilets et sweats zippés épais (sportswear et streetwear).\n\nVêtements d'hiver (la tirette ronde est pratique avec des gants).\n\nVêtements pour enfants (favorise l'autonomie).\n\nGrands sacs de sport ou maroquinerie moderne.",
+      "informationCommerciale": "Unité de vente : Vendu au lot (Pack de 50 pièces).\n\nConditionnement : Sachet plastique ou boîte.\n\nUtilisation professionnelle : Oui (Ateliers de confection, créateurs de mode, marques de prêt-à-porter).\n\nUtilisation particulière : Oui.",
+      "compositionRuban": "100% Polyester haute ténacité",
+      "motsCles": "Français (30) : fermeture eclair plastique, zip 75cm, fermeture separable, curseur demi cercle, tirette halftour, zip autobloquant, zip auto lock, fermeture open end, lot fermetures eclair, mercerie pro, grossiste fermeture, zip veste, tirette anneau, zip streetwear, fermeture injectee, accessoire couture, zip doudoune, achat zip gros, fourniture textile, zip blouson, tirette ronde, fermeture eclair pas cher, lot 50 zips, maille plastique 5mm, couture professionnelle, mercerie en ligne, fourniture vêtement, zip enfant ergonomique, fermeture design.\n\nAnglais (30) : plastic zipper, 75cm zipper, open end zip, separating zipper, half circle slider, D-ring pull zipper, auto lock zipper, halftour zipper, wholesale zipper, haberdashery wholesale, bulk zippers, jacket zipper, coat zip, round pull zipper, injected plastic zip, vislon zipper, streetwear zipper, garment accessories, B2B haberdashery, sewing notions, plastic teeth zipper, O/E zipper, A/L zipper, outerwear zip, zip fastener, auto-lock slider, 50 pcs zippers, apparel manufacturing, ergonomic zip pull, thick plastic zip.\n\nArabe classique (30) : سحاب بلاستيك, سحاب 75 سم, سحاب قابل للفصل, سحاب جاكيت, منزلق نصف دائري, سحاب حلقة, سحاب معطف, سحاب قفل تلقائي, خردوات بالجملة, مستلزمات خياطة, لوازم تفصيل, بيع سحابات بالجملة, سحاب بلاستيك قوي, منزلق سحاب دائري, إكسسوارات ملابس, سحاب سترة, مستلزمات نسيج, سحابات بتصميم عصري, سحابات مفتوحة النهاية, سحاب 75 سنتيمتر, تجارة الخردوات, أدوات خياطة احترافية, سحاب عالي الجودة, سستة بلاستيك, سستة جاكيت, سحاب ملابس رياضية, سحاب سهل الاستخدام, سحاب للأطفال, سستة بتعليقة دائرية.\n\nDarija marocaine (30) : snesla mika, snesla 75cm, snesla djakita, snesla meftouha, tiret nos dwira, jomla lkhyata, snesla sboit, rwaq lkhyata, snesla d lkabout, snesla rkina, snesla s7i7a, bi3 jomla snesla, lkhyata w tfassil, snesla plastique, tiret mdawra, mzlaq snesla daira, fourniture lkhyata, blaka d snesla, snesla auto lock, snesla d lkhadma, snesla sport, snesla separable, jomla mercerie, atelye lkhyata, jarrarat snesla, snesla twila, sneslat jomla, khit w snesla, snesla mzyana, tiret zwina.",
+      "isFeatured": true,
+      "price": 69.99,
+      "longueur": "75 cm"
+    },
+    "el-dentelle-15mm": {
+      "hidden": true
+    },
+    "el-plat-10mm-10m": {
+      "hidden": true
+    },
+    "el-plat-25mm-5m": {
+      "hidden": true
+    },
+    "fi-22cm-assort": {
+      "hidden": true
+    },
+    "fi-25cm-assort": {
+      "hidden": true
+    },
+    "fm-no3-15-argent": {
+      "hidden": true
+    },
+    "fm-no5-20-laiton": {
+      "hidden": true
+    },
+    "fn-no3-20-assort": {
+      "hidden": true
+    },
+    "fn-no5-120-assort": {
+      "hidden": true
+    },
+    "fn-no5-75-noir": {
+      "hidden": true
+    },
+    "fn-no8-60-noir": {
+      "hidden": true
+    },
+    "fr-no3-20-multicolor": {
+      "hidden": true
+    },
+    "fr-no5-35-assort": {
+      "hidden": true
+    },
+    "ru-satin-25mm-5m": {
+      "inStock": true,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780932256023_9azep9.png?alt=media&token=e8164ae3-57e7-4b7b-a8f6-2c5ab4775fdd",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780932297776_p1jt6s.png?alt=media&token=0e78b369-5716-4392-834d-a269f37a8277"
+      ],
+      "variants": [
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v1",
+          "stock": 999,
+          "colorHex": "#ffffff"
+        },
+        {
+          "inStock": true,
+          "id": "v2",
+          "color": "Or",
+          "stock": 999,
+          "colorHex": "#D4A843"
+        },
+        {
+          "color": "Argent",
+          "id": "v3",
+          "inStock": true,
+          "colorHex": "#9ca3af",
+          "stock": 999
+        },
+        {
+          "colorHex": "#C8102E",
+          "stock": 999,
+          "color": "Rouge",
+          "id": "v4",
+          "inStock": true
+        },
+        {
+          "id": "v5",
+          "color": "Rose",
+          "inStock": true,
+          "colorHex": "#ec4899",
+          "stock": 999
+        }
+      ],
+      "isNew": true,
+      "stockQty": 4995,
+      "hidden": true,
+      "isFeatured": false,
+      "isPromo": false,
+      "price": 10
+    },
+    "sc-20mm-blanc-1m": {
+      "hidden": true
+    },
+    "sc-50mm-noir-1m": {
+      "hidden": true
+    }
+  },
+  "customProducts": [
+    {
+      "id": "custom_1780496515405_uryjt",
+      "minOrderQty": 1,
+      "rating": 5,
+      "isPromo": false,
+      "description": "Fil à Coudre 40/2 – Résistance, Régularité et Performance\n\nNotre fil à coudre 40/2 est spécialement conçu pour répondre aux exigences des professionnels de la confection, des ateliers de couture et des fabricants de vêtements. Grâce à sa structure composée de deux brins torsadés, il garantit une excellente résistance à la traction, une grande régularité de couture et une finition soignée.\n\nPolyvalent, ce fil convient parfaitement à la couture de nombreux types de tissus, allant des tissus légers aux tissus de poids moyen. Il assure un passage fluide dans les machines à coudre industrielles et domestiques, réduisant les risques de casse et permettant un travail rapide et efficace.\n\nDisponible dans une large gamme de couleurs, le fil 40/2 offre une excellente tenue des couleurs et contribue à la réalisation de coutures esthétiques, durables et professionnelles.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780496509636_il89mu.png?alt=media&token=30db0cd2-c362-4c09-b632-e396a291feee"
+      ],
+      "slug": "fil-coudre-40-2",
+      "categorySlug": "tissu-doublure",
+      "comparePrice": 75,
+      "name": "Fil à Coudre 40/2",
+      "reviewCount": 0,
+      "variants": [
+        {
+          "colorHex": "#718096",
+          "stock": 999,
+          "id": "v_1780496439869",
+          "color": "Gris",
+          "inStock": true
+        },
+        {
+          "id": "v_1780496454820",
+          "color": "Rouge",
+          "inStock": true,
+          "colorHex": "#e53e3e",
+          "stock": 999
+        }
+      ],
+      "isNew": true,
+      "isFeatured": false,
+      "price": 60,
+      "shortDescription": "Fil à coudre 40/2 de haute qualité, conçu pour les travaux de confection, de couture industrielle et artisanale.",
+      "inStock": true,
+      "tags": [
+        "Fil à coudre 40/2",
+        "fil couture",
+        "fil à coudre polyester",
+        "fil textile",
+        "fil industriel",
+        "fil de confection",
+        "fil pour machine à coudre",
+        "fil haute résistance",
+        "fil pour vêtements",
+        "fil couture professionnelle",
+        "fil de qualité",
+        "fil pour atelier de couture",
+        "accessoires de couture",
+        "fournitures textiles",
+        "fil de couture Maroc",
+        "fil textile Maroc",
+        "sewing thread 40/2",
+        "polyester sewing thread",
+        "industrial sewing thread",
+        "garment sewing thread",
+        "خيط الخياطة",
+        "خيط خياطة 40/2",
+        "خيط بوليستر",
+        "خيط للخياطة الصناعية",
+        "خيط الملابس",
+        "خيط النسيج",
+        "مستلزمات الخياطة",
+        "لوازم الخياطة",
+        "خيط قوي للخياطة",
+        "خيط احترافي",
+        "خيط ماكينات الخياطة",
+        "fil dyal lkhyata",
+        "khit lkhyata",
+        "khit 40/2",
+        "khit polyester",
+        "khit dyal machines",
+        "khit dyal lmalabis",
+        "lkhiyata",
+        "accessoires lkhiyata",
+        "fournitures textile maroc",
+        "khit professionel",
+        "khit qwi",
+        "khit dyal confection",
+        "khit textile maroc",
+        "couture maroc",
+        "sewing supplies morocco"
+      ],
+      "categoryName": "Bobines de fil",
+      "stockQty": 1998
+    },
+    {
+      "id": "custom_1780502082575_qi5br",
+      "price": 75,
+      "shortDescription": "Fil à coudre canette polyester de qualité industrielle, conçu pour les ateliers de confection et les fabricants de vêtements. Résistant, régulier et économique grâce à sa grande capacité, il garantit des coutures solides et une excellente productivité.",
+      "isFeatured": true,
+      "stockQty": 999,
+      "categoryName": "Bobines de fil",
+      "inStock": true,
+      "tags": [
+        "Fil canette",
+        "fil à coudre canette",
+        "fil polyester industriel",
+        "fil couture industriel",
+        "fil à coudre polyester",
+        "fil de confection",
+        "fil textile",
+        "fil industriel Maroc",
+        "fil de couture Maroc",
+        "bobine industrielle",
+        "cône de fil",
+        "fil haute résistance",
+        "sewing thread",
+        "polyester sewing thread",
+        "industrial sewing thread",
+        "cone thread",
+        "garment thread",
+        "textile thread",
+        "خيط الخياطة",
+        "خيط صناعي",
+        "خيط بوليستر",
+        "خيط الخياطة الصناعي",
+        "خيط النسيج",
+        "خيط الملابس",
+        "مستلزمات الخياطة",
+        "لوازم الخياطة",
+        "fil canette maroc",
+        "khit lkhyata",
+        "khit polyester",
+        "khit sina3i",
+        "khit dyal confection",
+        "khit dyal machines",
+        "khit textile",
+        "fil couture casablanca",
+        "grossiste textile maroc",
+        "accessoires textile maroc",
+        "Lebtex",
+        "Lebtex Maroc",
+        "Lebtex.ma"
+      ],
+      "description": "Fil à Coudre Canette Polyester – Grande Capacité pour la Confection Industrielle\n\nNotre fil à coudre canette polyester est spécialement conçu pour répondre aux exigences des professionnels du textile, des ateliers de confection et des unités de production industrielle.\n\nFabriqué à partir de fibres polyester de haute qualité, ce fil offre une excellente résistance à la traction, une grande régularité et une performance optimale sur les machines à coudre industrielles à haute vitesse.\n\nGrâce à son format grande capacité sur cône, il réduit les changements de bobines et améliore la productivité en atelier. Il convient parfaitement à la fabrication de vêtements, uniformes, textiles de maison et autres articles de confection.\n\nSa finition soignée permet des coutures propres, durables et résistantes à l'usure quotidienne.\n\nCaractéristiques\nFil polyester haute qualité\nGrande bobine industrielle\nExcellente résistance à la traction\nCoutures régulières et propres\nFaible taux de casse\nCompatible avec les machines industrielles\nDisponible en plusieurs couleurs\nIdéal pour la production en série\nApplications\nConfection textile\nVêtements professionnels\nUniformes\nPrêt-à-porter\nLingerie\nTextile de maison\nAteliers de couture\nIndustrie textile",
+      "minOrderQty": 1,
+      "isPromo": false,
+      "rating": 5,
+      "name": "fil Cannete",
+      "variants": [
+        {
+          "id": "v_1780502010295",
+          "color": "Blanc",
+          "inStock": true,
+          "colorHex": "#f5f5f5",
+          "price": 75,
+          "stock": 999
+        }
+      ],
+      "reviewCount": 0,
+      "isNew": false,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780501994394_n8252s.jpeg?alt=media&token=8cb7cfdc-cd17-48e9-b056-6b79ff90a33d"
+      ],
+      "comparePrice": 86,
+      "categorySlug": "tissu-doublure",
+      "slug": "fil-cannete"
+    },
+    {
+      "id": "custom_1780503129736_5if0z",
+      "slug": "viseline-1040ef-entoilage-thermocollantthermocollante",
+      "categorySlug": "fermetures-invisibles",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780503103469_wtviom.jpg?alt=media&token=ea7b1143-03c5-4e82-b8fd-412c687d742d"
+      ],
+      "isNew": false,
+      "name": "Viseline 1040EF (Entoilage ThermocollantThermocollante)",
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1780503113200",
+          "color": "Blanc",
+          "price": 120,
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "color": "Noir",
+          "id": "v_1780503117578",
+          "inStock": true,
+          "colorHex": "#1a1a1a",
+          "price": 130,
+          "stock": 999
+        }
+      ],
+      "reviewCount": 0,
+      "rating": 5,
+      "isPromo": false,
+      "minOrderQty": 1,
+      "description": "La Viseline Nonwoven 1040EF est un entoilage non tissé thermocollant utilisé dans l'industrie de l'habillement pour apporter maintien, structure et durabilité aux vêtements. Fabriquée à partir de fibres de qualité avec revêtement thermocollant, elle garantit une excellente adhérence au tissu et une finition professionnelle.\n\nGrâce à son poids intermédiaire d'environ 40 g/m², la 1040EF est particulièrement adaptée aux chemises, uniformes, vêtements de travail, vêtements traditionnels et articles nécessitant un bon maintien sans rigidité excessive.\n\nElle est largement utilisée pour :\n\nCols de chemises\nPoignets\nPattes de boutonnage\nDevants de vêtements\nRenforts de vestes et uniformes\nArticles de confection textile professionnelle\n\nSon application thermocollante permet une pose rapide et efficace tout en garantissant une excellente tenue après utilisation et entretien.\n\nCaractéristiques\nRéférence : 1040EF\nType : Nonwoven (non tissé)\nThermocollante\nExcellente stabilité dimensionnelle\nBonne adhérence au tissu\nToucher souple et confortable\nConvient aux tissus légers et moyens\nUtilisation industrielle et artisanale",
+      "tags": [
+        "Viseline 1040EF",
+        "Nonwoven 1040EF",
+        "entoilage thermocollant",
+        "viseline thermocollante",
+        "nonwoven fusible",
+        "entoilage textile",
+        "renfort textile",
+        "entoilage pour chemise",
+        "entoilage pour col",
+        "entoilage pour poignet",
+        "textile interlining",
+        "fusible interlining",
+        "non woven interlining",
+        "garment interlining",
+        "shirt interlining",
+        "polyester interlining",
+        "textile accessories",
+        "textile manufacturing",
+        "confection textile",
+        "fournitures de confection",
+        "accessoires textile Maroc",
+        "viseline Maroc",
+        "entoilage Maroc",
+        "nonwoven Maroc",
+        "thermocollant textile",
+        "فيزلين",
+        "قماش لاصق للخياطة",
+        "بطانة لاصقة",
+        "فيزلين 1040EF",
+        "لوازم الخياطة",
+        "مستلزمات الخياطة",
+        "entoilage professionnel",
+        "viseline professionnelle",
+        "Lebtex",
+        "Lebtex Maroc",
+        "Lebtex.ma"
+      ],
+      "inStock": true,
+      "categoryName": "Tissu & Doublure",
+      "stockQty": 1998,
+      "isFeatured": true,
+      "shortDescription": "90yds/rlx , 150cm",
+      "price": 120
+    },
+    {
+      "id": "custom_1780595583026_yc5ik",
+      "tags": [
+        "doublure 210T",
+        "tissu doublure",
+        "doublure polyester",
+        "doublure veste",
+        "doublure manteau",
+        "doublure blouson",
+        "tissu de doublure",
+        "tissu couture",
+        "tissu textile",
+        "doublure professionnelle",
+        "doublure légère",
+        "doublure résistante",
+        "tissu pour sacs",
+        "doublure sac à dos",
+        "doublure valise",
+        "tissu maroquinerie",
+        "accessoires couture",
+        "fournisseur textile Maroc",
+        "mercerie Maroc",
+        "tissu largeur 150 cm طانة 210T، قماش بطانة، بطانة بوليستر، بطانة للسترات، بطانة للمعاطف، بطانة للملابس، قماش خفيف، قماش مقاوم، قماش للخياطة، مستلزمات الخياطة، بطانة الحقائب، بطانة الشنط، بطانة الحقائب المدرسية، بطانة عالية الجودة، أقمشة النسيج، مورد أقمشة المغرب، مستلزمات النسيج، بطانة احترافية، قماش صناعي، بطانة بعرض 150 سمdoblor",
+        "doblor 210T",
+        "batana",
+        "batana dyal lmalabis",
+        "doblor dyal vest",
+        "doblor dyal manteau",
+        "doblor dyal blouson",
+        "doblor dyal sac",
+        "qmach doblor",
+        "tissu doblor",
+        "doblor polyester",
+        "batana professionnelle",
+        "fournitures couture maroc",
+        "accessoires confection maroc"
+      ],
+      "inStock": true,
+      "categoryName": "Tissu & Doublure",
+      "stockQty": 5994,
+      "isFeatured": true,
+      "shortDescription": "1m50 , 100m/rlx",
+      "price": 650,
+      "slug": "doublure-210t-largeur-1m50-tissu-de-doublure-l-ger-et-r-sistant",
+      "categorySlug": "fermetures-invisibles",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780595533701_3haxxn.png?alt=media&token=f363f0e6-11da-4d91-8430-8c783a57630d",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780595393223_eb4tza.png?alt=media&token=c782d955-4104-4cfe-a513-2038bc126275"
+      ],
+      "isNew": false,
+      "variants": [
+        {
+          "id": "v_1780595547452",
+          "color": "Noir",
+          "inStock": true,
+          "colorHex": "#1a1a1a",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1780595548002",
+          "color": "Blanc"
+        },
+        {
+          "inStock": true,
+          "color": "Rouge",
+          "id": "v_1780595548203",
+          "stock": 999,
+          "colorHex": "#e53e3e"
+        },
+        {
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1780595548352",
+          "stock": 999,
+          "colorHex": "#3182ce"
+        },
+        {
+          "id": "v_1780595571815",
+          "color": "Rose",
+          "inStock": true,
+          "colorHex": "#d53f8c",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "colorHex": "#dd6b20",
+          "inStock": true,
+          "color": "Orange",
+          "id": "v_1780595576491"
+        }
+      ],
+      "reviewCount": 0,
+      "name": "Doublure 210T Largeur 1m50 – Tissu de Doublure Léger et Résistant",
+      "isPromo": false,
+      "rating": 5,
+      "minOrderQty": 1,
+      "description": "🧵 La doublure 210T est un tissu technique apprécié pour sa légèreté, sa résistance et son confort. Elle est principalement utilisée pour doubler les vêtements et accessoires afin d'améliorer leur finition, leur durabilité et leur confort d'utilisation.\n\nGrâce à sa texture lisse et agréable au toucher, elle facilite l'enfilage des vêtements tout en apportant un aspect soigné et professionnel aux créations textiles.\n\nAvec une largeur de 1m50, cette doublure convient parfaitement à la fabrication de vestes, manteaux, blousons, sacs, bagages et divers articles de confection.\n\n✅ Légère et confortable\n✅ Résistante à l'usure quotidienne\n✅ Facile à couper et à coudre\n✅ Finition propre et professionnelle\n✅ Adaptée aux vêtements et accessoires textiles\n\nApplications : Vestes, manteaux, blousons, uniformes, sacs, sacs à dos, valises, maroquinerie et confection textile."
+    },
+    {
+      "id": "custom_1780597564525_qupv8",
+      "rating": 5,
+      "isPromo": true,
+      "minOrderQty": 1,
+      "description": "Le fil à coudre polyester 20/3 est un fil épais et résistant, spécialement conçu pour les coutures soumises à des contraintes importantes. Grâce à sa fabrication en polyester haute ténacité, il offre une excellente résistance à la traction, à l'abrasion et à l'usure quotidienne.\n\nSa structure 20/3 (3 brins) garantit des coutures solides, régulières et durables, ce qui en fait un choix privilégié pour les ateliers de confection, les fabricants de vêtements de travail, de jeans, de sacs et d'articles textiles nécessitant une finition robuste.\n\nLa bobine de 350g permet une utilisation prolongée et une meilleure productivité en atelier.\n\n✔️ Haute résistance\n✔️ Excellente durabilité\n✔️ Finition professionnelle\n✔️ Faible risque de casse\n✔️ Adapté aux coutures exigeantes",
+      "slug": "fil-coudre-polyester-20-3-pack-de-6-bobines-350g",
+      "categorySlug": "tissu-doublure",
+      "comparePrice": 150,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780597536183_wbgw34.jpg?alt=media&token=7c2f0a21-a2ee-46ee-9ed3-5c1320fe55a0"
+      ],
+      "isNew": false,
+      "name": "Fil à Coudre Polyester 20/3 – Pack de 6 Bobines (350g)",
+      "variants": [],
+      "reviewCount": 0,
+      "isFeatured": false,
+      "shortDescription": "Pack de 6 bobines de fil à coudre polyester 20/3 de 350g, offrant une excellente résistance et une qualité professionnelle.",
+      "price": 120,
+      "tags": [
+        "Tags Français  fil à coudre 20/3",
+        "fil polyester 20/3",
+        "fil couture polyester",
+        "fil à coudre industriel",
+        "fil haute résistance",
+        "fil pour jeans",
+        "fil denim",
+        "fil pour sacs",
+        "fil pour maroquinerie",
+        "fil textile",
+        "fil couture professionnel",
+        "fil polyester 350g",
+        "bobine fil couture",
+        "fil pour machine industrielle",
+        "accessoires couture",
+        "mercerie Maroc",
+        "fournisseur textile Maroc",
+        "fil de confection",
+        "fil résistant",
+        "fil polyester industriel  🏷️ Tags Arabe  خيط خياطة 20/3، خيط بوليستر، خيط خياطة صناعي، خيط عالي الجودة، خيط قوي، خيط للجينز، خيط للحقائب، خيط للخياطة، خيط بوليستر صناعي، مستلزمات الخياطة، خيط مقاوم، خيط للنسيج، خيط للملابس، خيط للمصانع، خيط احترافي، بكرة خيط 350 غرام، خيط للزي المهني، خيط قوي للخياطة، خيط للخياطة الصناعية، خيط متعدد الاستعمالات  🏷️ Tags Darija  fil 20/3",
+        "fil a coudre 20/3",
+        "khit dyal khyata",
+        "fil polyester",
+        "khit polyester",
+        "fil professionnel",
+        "khit lmachine",
+        "fil industriel",
+        "khit dyal jean",
+        "fil dyal denim",
+        "khit dyal sac",
+        "fil mqawem",
+        "khit qwi",
+        "bobine 350g",
+        "fil textile maroc",
+        "fournitures couture maroc",
+        "accessoires khyata",
+        "fil dyal confection",
+        "khit professionnel",
+        "fournisseur textile maroc"
+      ],
+      "inStock": true,
+      "categoryName": "Bobines de fil",
+      "stockQty": 500
+    },
+    {
+      "id": "custom_1780601016715_p3t1p",
+      "rating": 5,
+      "isPromo": false,
+      "minOrderQty": 1,
+      "description": "Le fil à coudre polyester 40/3 est l'un des fils les plus utilisés dans l'industrie de la confection grâce à son excellent équilibre entre finesse et résistance.\n\nFabriqué à partir de polyester de haute qualité, il assure des coutures nettes, régulières et durables sur une large gamme de tissus. Sa résistance à la traction et aux lavages fréquents en fait un choix privilégié pour les ateliers de couture, les fabricants de vêtements et les professionnels du textile.\n\n📦 Conditionné en pack de 12 bobines, il constitue une solution pratique et économique pour les productions régulières et les besoins professionnels.\n\n✅ Caractéristiques\nRéférence : 40/3\nMatière : Polyester\nConditionnement : Pack de 12 bobines\nHaute résistance à l'usure\nCoutures propres et régulières\nCompatible avec les machines industrielles et domestiques\nQualité professionnelle\n🎯 Utilisations\nChemises\nT-shirts\nPantalons\nUniformes\nVêtements de travail\nRetouches et couture générale\nConfection textile professionnelle\n⭐ Avantages\n\n✔️ Excellente résistance\n✔️ Finition soignée\n✔️ Faible risque de casse\n✔️ Adapté à une utilisation intensive\n✔️ Idéal pour les ateliers et professionnels",
+      "slug": "fil-coudre-polyester-40-3-pack-de-12-bobines",
+      "categorySlug": "tissu-doublure",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780600854300_fei6sv.jpg?alt=media&token=3ccda662-7575-4b73-9320-085d7653d857"
+      ],
+      "isNew": false,
+      "name": "Fil à Coudre Polyester 40/3 – Pack de 12 Bobines",
+      "variants": [
+        {
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1780600961369",
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1780600961552",
+          "color": "Blanc"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#e53e3e",
+          "inStock": true,
+          "id": "v_1780600961773",
+          "color": "Rouge"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#3182ce",
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1780600962188"
+        },
+        {
+          "colorHex": "#38a169",
+          "stock": 999,
+          "color": "Vert",
+          "id": "v_1780600962403",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1780600962857",
+          "color": "Orange",
+          "stock": 999,
+          "colorHex": "#dd6b20"
+        },
+        {
+          "id": "v_1780601000913",
+          "color": "Rose",
+          "inStock": true,
+          "colorHex": "#d53f8c",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "colorHex": "#805ad5",
+          "inStock": true,
+          "id": "v_1780601001069",
+          "color": "Violet"
+        },
+        {
+          "id": "v_1780601001220",
+          "color": "Marron",
+          "inStock": true,
+          "colorHex": "#92400e",
+          "stock": 999
+        },
+        {
+          "colorHex": "#718096",
+          "stock": 999,
+          "id": "v_1780601001364",
+          "color": "Gris",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "color": "Beige",
+          "id": "v_1780601001584"
+        }
+      ],
+      "reviewCount": 0,
+      "isFeatured": false,
+      "shortDescription": "Pack de 12 bobines de fil à coudre polyester 40/3, conçu pour offrir des coutures fines, solides et régulières. Idéal pour la confection de vêtements, chemises, t-shirts, pantalons, uniformes et travaux de couture professionnels.",
+      "price": 84,
+      "tags": [
+        "🏷️ Tags Français  fil à coudre 40/3",
+        "fil polyester 40/3",
+        "pack 12 bobines",
+        "fil couture professionnel",
+        "fil textile",
+        "fil polyester haute qualité",
+        "fil confection",
+        "fil pour vêtements",
+        "fil pour chemise",
+        "fil pour pantalon",
+        "fil pour t-shirt",
+        "fil industriel",
+        "fil machine à coudre",
+        "accessoires couture",
+        "mercerie Maroc",
+        "fournisseur textile Maroc",
+        "fil polyester industriel",
+        "fil résistant",
+        "fil de confection professionnelle",
+        "fil couture Maroc  🏷️ Tags Arabe  خيط خياطة 40/3، خيط بوليستر، علبة 12 بكرة، خيط للخياطة، خيط احترافي، خيط للملابس، خيط للقمصان، خيط للبناطيل، خيط للتيشورت، خيط صناعي، خيط بوليستر عالي الجودة، مستلزمات الخياطة، خيط للمصانع، خيط للنسيج، خيط قوي، خيط مقاوم، خيط للخياطة المهنية، خيط متعدد الاستعمالات، خيط للزي المهني، خيط للملابس الجاهزة  🏷️ Tags Darija  fil 40/3",
+        "fil a coudre 40/3",
+        "pack 12 bobines",
+        "khit dyal khyata",
+        "khit polyester",
+        "fil polyester",
+        "khit professionnel",
+        "fil industriel",
+        "khit dyal lmalabis",
+        "fil dyal chemise",
+        "fil dyal pantalon",
+        "fil dyal t-shirt",
+        "khit lmachine",
+        "fournitures couture maroc",
+        "accessoires khyata",
+        "fil textile maroc",
+        "fournisseur textile maroc",
+        "khit qwi",
+        "fil qualité professionnelle",
+        "khit dyal confection"
+      ],
+      "inStock": true,
+      "categoryName": "Bobines de fil",
+      "stockQty": 10989
+    },
+    {
+      "id": "custom_1780932946065_4li5t",
+      "price": 45,
+      "shortDescription": "Ruban satin 25 mm de haute qualité, vendu en pack de 10 rouleaux de 20 mètres chacun. Souple, brillant et résistant, il est idéal pour la décoration, l'emballage cadeau, les créations artisanales, la couture et les événements.",
+      "isFeatured": true,
+      "categoryName": "Biais & Rubans",
+      "stockQty": 9990,
+      "inStock": true,
+      "tags": [
+        "Pour un site e-commerce professionnel",
+        "le titre doit être claireur titre  Fil à Coudre Polyester 40/2 Haute Résistance  Autres options Fil à Coudre 40/2 Professionnel pour Confection Textile Fil à Coudre Polyester 40/2 – Qualité Industrielle Fil de Couture 40/2 Haute Performance Fil à Coudre 40/2 pour Machines Industrielles et Domestiques Fil Polyester 40/2 pour Couture et Confection Pour Lebtex.ma (recommandé)  Fil à Coudre Polyester 40/2 Haute Résistance – Confection Professionnelle  Ce titre est bon pour :  le référencement Google ; les clients professionnels du textile ; les fabricants de vêtements et ateliers de couture ; les ventes B2B et B2C. Maintenant",
+        "je veux la même chose pour le fil à coudre canette. C'est les grands fils à coudre. Attends",
+        "je t'envoie une photo.  Parfait. D'après la photo",
+        "il s'agit de grandes bobines cônes de fil à coudre polyester pour usage industriel",
+        "souvent utilisées comme fil de canette / fil de couture industriel dans les ateliers de confection.  Titre du produit  Fil à Coudre Canette Polyester Industriel Haute Résistance  Alternatives SEO Fil de Canette Industriel Polyester Fil à Coudre Industriel pour Confection Textile Fil Polyester sur Cône Grande Capacité Fil à Coudre Canette Blanc pour Machines Industrielles Fil de Couture Industriel Haute Performance Description courte  Fil à coudre canette polyester de qualité industrielle",
+        "conçu pour les ateliers de confection et les fabricants de vêtements. Résistant",
+        "régulier et économique grâce à sa grande capacité",
+        "il garantit des coutures solides et une excellente productivité.  Description complète Fil à Coudre Canette Polyester – Grande Capacité pour la Confection Industrielle  Notre fil à coudre canette polyester est spécialement conçu pour répondre aux exigences des professionnels du textile",
+        "des ateliers de confection et des unités de production industrielle.  Fabriqué à partir de fibres polyester de haute qualité",
+        "ce fil offre une excellente résistance à la traction",
+        "une grande régularité et une performance optimale sur les machines à coudre industrielles à haute vitesse.  Grâce à son format grande capacité sur cône",
+        "il réduit les changements de bobines et améliore la productivité en atelier. Il convient parfaitement à la fabrication de vêtements",
+        "uniformes",
+        "textiles de maison et autres articles de confection.  Sa finition soignée permet des coutures propres",
+        "durables et résistantes à l'usure quotidienne.  Caractéristiques Fil polyester haute qualité Grande bobine industrielle Excellente résistance à la traction Coutures régulières et propres Faible taux de casse Compatible avec les machines industrielles Disponible en plusieurs couleurs Idéal pour la production en série Applications Confection textile Vêtements professionnels Uniformes Prêt-à-porter Lingerie Textile de maison Ateliers de couture Industrie textile Tags SEO (séparés par virgule)  Fil canette",
+        "fil à coudre canette",
+        "fil polyester industriel",
+        "fil couture industriel",
+        "fil à coudre polyester",
+        "fil de confection",
+        "fil textile",
+        "fil industriel Maroc",
+        "fil de couture Maroc",
+        "bobine industrielle",
+        "cône de fil",
+        "fil haute résistance",
+        "sewing thread",
+        "polyester sewing thread",
+        "industrial sewing thread",
+        "cone thread",
+        "garment thread",
+        "textile thread",
+        "خيط الخياطة",
+        "خيط صناعي",
+        "خيط بوليستر",
+        "خيط الخياطة الصناعي",
+        "خيط النسيج",
+        "خيط الملابس",
+        "مستلزمات الخياطة",
+        "لوازم الخياطة",
+        "fil canette maroc",
+        "khit lkhyata",
+        "khit polyester",
+        "khit sina3i",
+        "khit dyal confection",
+        "khit dyal machines",
+        "khit textile",
+        "fil couture casablanca",
+        "grossiste textile maroc",
+        "accessoires textile maroc",
+        "Lebtex",
+        "Lebtex Maroc",
+        "Lebtex.ma  ⚠️ Si tu connais la référence exacte du fil (par exemple 20/2",
+        "20/3",
+        "40/2",
+        "40/3",
+        "50/2",
+        "60/2)",
+        "je peux te rédiger une fiche produit beaucoup plus précise et professionnelle.  mtn pour Viseline 1040EF (NONWOVEN  Titre du produit  Viseline Nonwoven 1040EF Thermocollante pour Confection Textile  Alternatives SEO Viseline 1040EF Nonwoven Haute Qualité Entoilage Thermocollant 1040EF Nonwoven 1040EF pour Cols",
+        "Poignets et Renforts Viseline Thermocollante 1040EF pour Vêtements Entoilage Non Tissé 1040EF Professionnel Description courte  La Viseline Nonwoven 1040EF est un entoilage thermocollant de haute qualité conçu pour renforcer les tissus tout en conservant leur souplesse. Idéale pour les cols",
+        "poignets",
+        "pattes de boutonnage et diverses applications de confection textile professionnelle.  Description complète Viseline Nonwoven 1040EF – Stabilité et Finition Professionnelle  La Viseline Nonwoven 1040EF est un entoilage non tissé thermocollant utilisé dans l'industrie de l'habillement pour apporter maintien",
+        "structure et durabilité aux vêtements. Fabriquée à partir de fibres de qualité avec revêtement thermocollant",
+        "elle garantit une excellente adhérence au tissu et une finition professionnelle.  Grâce à son poids intermédiaire d'environ 40 g/m²",
+        "la 1040EF est particulièrement adaptée aux chemises",
+        "uniformes",
+        "vêtements de travail",
+        "vêtements traditionnels et articles nécessitant un bon maintien sans rigidité excessive.  Elle est largement utilisée pour :  Cols de chemises Poignets Pattes de boutonnage Devants de vêtements Renforts de vestes et uniformes Articles de confection textile professionnelle  Son application thermocollante permet une pose rapide et efficace tout en garantissant une excellente tenue après utilisation et entretien.  Caractéristiques Référence : 1040EF Type : Nonwoven (non tissé) Thermocollante Excellente stabilité dimensionnelle Bonne adhérence au tissu Toucher souple et confortable Convient aux tissus légers et moyens Utilisation industrielle et artisanale Disponible en blanc",
+        "noir et autres coloris selon arrivage Tags SEO  Viseline 1040EF",
+        "Nonwoven 1040EF",
+        "entoilage thermocollant",
+        "viseline thermocollante",
+        "nonwoven fusible",
+        "entoilage textile",
+        "renfort textile",
+        "entoilage pour chemise",
+        "entoilage pour col",
+        "entoilage pour poignet",
+        "textile interlining",
+        "fusible interlining",
+        "non woven interlining",
+        "garment interlining",
+        "shirt interlining",
+        "polyester interlining",
+        "textile accessories",
+        "textile manufacturing",
+        "confection textile",
+        "fournitures de confection",
+        "accessoires textile Maroc",
+        "viseline Maroc",
+        "entoilage Maroc",
+        "nonwoven Maroc",
+        "thermocollant textile",
+        "فيزلين",
+        "قماش لاصق للخياطة",
+        "بطانة لاصقة",
+        "فيزلين 1040EF",
+        "لوازم الخياطة",
+        "مستلزمات الخياطة",
+        "entoilage professionnel",
+        "viseline professionnelle",
+        "Lebtex",
+        "Lebtex Maroc",
+        "Lebtex.ma  Meta Title SEO (Google)  Viseline Nonwoven 1040EF Thermocollante | Entoilage Textile Professionnel | Lebtex Maroc  Meta Description SEO  Découvrez la Viseline Nonwoven 1040EF thermocollante de haute qualité. Idéale pour renforcer cols",
+        "poignets et vêtements professionnels. Disponible chez Lebtex Maroc.  mtn pour le ruban satin 25mm 10piece 20m/p Titre du produit  Ruban Satin 25 mm – Pack de 10 Pièces (20 m par Rouleau)  Alternatives SEO Ruban Satin 25mm Haute Qualité – 10 Rouleaux Ruban Satin Décoratif 25 mm – 20 m/Rouleau Ruban Satin Double Face 25 mm Ruban Satin pour Emballage Cadeaux et Décoration Ruban Satin Professionnel 25 mm Description courte  Ruban satin 25 mm de haute qualité",
+        "vendu en pack de 10 rouleaux de 20 mètres chacun. Souple",
+        "brillant et résistant",
+        "il est idéal pour la décoration",
+        "l'emballage cadeau",
+        "les créations artisanales",
+        "la couture et les événements.  Description complète Ruban Satin 25 mm – Élégance et Polyvalence  Apportez une finition élégante à vos créations avec notre ruban satin 25 mm. Fabriqué avec des matériaux de qualité",
+        "il offre un aspect brillant",
+        "un toucher doux et une excellente résistance à l'usure.  Chaque pack contient 10 rouleaux de 20 mètres",
+        "offrant une solution économique pour les professionnels de la décoration",
+        "les fleuristes",
+        "les organisateurs d'événements",
+        "les boutiques de cadeaux et les ateliers de couture.  Grâce à sa largeur de 25 mm",
+        "ce ruban est parfait pour la confection de nœuds",
+        "l'emballage de cadeaux",
+        "la décoration de mariages",
+        "anniversaires",
+        "baptêmes et autres événements spéciaux.  Caractéristiques Largeur : 25 mm Longueur : 20 mètres par rouleau Conditionnement : Pack de 10 rouleaux Aspect satiné brillant Toucher doux et soyeux Résistant et durable Facile à nouer et à manipuler Disponible en plusieurs couleurs Applications Emballage cadeau Décoration événementielle Mariages et fêtes Fleuristerie Couture et confection Loisirs créatifs Décoration artisanale Création de nœuds et accessoires Tags SEO  Ruban satin 25mm",
+        "ruban satin",
+        "ruban décoratif",
+        "ruban cadeau",
+        "ruban mariage",
+        "ruban emballage cadeau",
+        "ruban satin 20m",
+        "ruban satin professionnel",
+        "ruban textile",
+        "ruban couture",
+        "ruban décoration",
+        "satin ribbon",
+        "decorative ribbon",
+        "gift ribbon",
+        "wedding ribbon",
+        "craft ribbon",
+        "packaging ribbon",
+        "textile ribbon",
+        "ribbon roll",
+        "satin bow ribbon",
+        "ruban satin maroc",
+        "accessoires couture maroc",
+        "fournitures décoration maroc",
+        "روبان ساتان",
+        "شريط ساتان",
+        "شريط تزيين",
+        "شريط هدايا",
+        "شريط ساتان 25 مم",
+        "مستلزمات التزيين",
+        "لوازم الخياطة",
+        "ruban dyal satin",
+        "ribbon maroc",
+        "satin maroc",
+        "ruban pour cadeaux",
+        "ruban pour fleuriste",
+        "Lebtex",
+        "Lebtex Maroc",
+        "Lebtex.ma  Meta Title SEO  Ruban Satin 25 mm – Pack 10 Rouleaux de 20 m | Lebtex Maroc  Meta Description SEO  Ruban satin 25 mm de haute qualité vendu en pack de 10 rouleaux de 20 mètres. Idéal pour décoration",
+        "emballage cadeau",
+        "couture et événements. Disponible chez Lebtex Maroc."
+      ],
+      "description": "Description complète\nRuban Satin 25 mm – Élégance et Polyvalence\n\nApportez une finition élégante à vos créations avec notre ruban satin 25 mm. Fabriqué avec des matériaux de qualité, il offre un aspect brillant, un toucher doux et une excellente résistance à l'usure.\n\nChaque pack contient 10 rouleaux de 20 mètres, offrant une solution économique pour les professionnels de la décoration, les fleuristes, les organisateurs d'événements, les boutiques de cadeaux et les ateliers de couture.\n\nGrâce à sa largeur de 25 mm, ce ruban est parfait pour la confection de nœuds, l'emballage de cadeaux, la décoration de mariages, anniversaires, baptêmes et autres événements spéciaux.\n\nCaractéristiques\nLargeur : 25 mm\nLongueur : 20 mètres par rouleau\nConditionnement : Pack de 10 rouleaux\nAspect satiné brillant\nToucher doux et soyeux\nRésistant et durable\nFacile à nouer et à manipuler\nDisponible en plusieurs couleurs\nApplications\nEmballage cadeau\nDécoration événementielle\nMariages et fêtes\nFleuristerie\nCouture et confection\nLoisirs créatifs\nDécoration artisanale\nCréation de nœuds et accessoires",
+      "minOrderQty": 1,
+      "isPromo": false,
+      "rating": 5,
+      "reviewCount": 0,
+      "variants": [
+        {
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1780932923395",
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1780932923544",
+          "color": "Blanc"
+        },
+        {
+          "color": "Rouge",
+          "id": "v_1780932923711",
+          "inStock": true,
+          "colorHex": "#e53e3e",
+          "stock": 999
+        },
+        {
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1780932923860",
+          "stock": 999,
+          "colorHex": "#3182ce"
+        },
+        {
+          "inStock": true,
+          "id": "v_1780932924015",
+          "color": "Vert",
+          "stock": 999,
+          "colorHex": "#38a169"
+        },
+        {
+          "inStock": true,
+          "id": "v_1780932924164",
+          "color": "Jaune",
+          "stock": 999,
+          "colorHex": "#d69e2e"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#dd6b20",
+          "inStock": true,
+          "id": "v_1780932924381",
+          "color": "Orange"
+        },
+        {
+          "color": "Rose",
+          "id": "v_1780932938058",
+          "inStock": true,
+          "colorHex": "#d53f8c",
+          "stock": 999
+        },
+        {
+          "inStock": true,
+          "id": "v_1780932938184",
+          "color": "Violet",
+          "stock": 999,
+          "colorHex": "#805ad5"
+        },
+        {
+          "id": "v_1780932938403",
+          "color": "Marron",
+          "inStock": true,
+          "colorHex": "#92400e",
+          "stock": 999
+        }
+      ],
+      "name": "Ruban Satin 25 mm – Pack de 10 Pièces",
+      "isNew": false,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780932903903_l4r0xt.jpg?alt=media&token=a9bfa00a-cf0d-4ade-b857-20deb80ae852",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1780932910103_bmbhpv.png?alt=media&token=e3f8524c-0a13-4d4c-bf2d-2383b03d343e"
+      ],
+      "slug": "ruban-satin-25-mm-pack-de-10-pi-ces",
+      "categorySlug": "biais-rubans",
+      "comparePrice": 55
+    },
+    {
+      "id": "custom_1781027836259_yb000",
+      "isFeatured": true,
+      "shortDescription": "Tissu popeline polyester 100% de haute qualité, idéal pour la confection de vêtements, uniformes, chemises, robes, articles promotionnels et travaux de couture. Léger, résistant et facile d'entretien, vendu en rouleau de 50 mètres.",
+      "price": 750,
+      "tags": [
+        "قماش بوبلين",
+        "بوبلين بوليستر",
+        "قماش بوليستر 100%",
+        "قماش للخياطة",
+        "أقمشة الملابس",
+        "قماش قمصان",
+        "قماش زي موحد",
+        "قماش مدارس",
+        "قماش مهني",
+        "قماش خفيف",
+        "قماش ناعم",
+        "قماش متين",
+        "قماش عالي الجودة",
+        "رول قماش 50 متر",
+        "قماش صناعة الملابس",
+        "مستلزمات الخياطة",
+        "أقمشة النسيج",
+        "قماش للفساتين",
+        "قماش للعجفاف",
+        "أقمشةمل",
+        "أقمشة بالجملة",
+        "بوبلين أبيض",
+        "بوبلين ملون",
+        "قماش سهل العناية",
+        "قماش سريعTissu Popeline Polyester 100% en rouleau de 50 mètres. Léger",
+        "résistant et facile d'entretien. Idéal pour vêtements",
+        "uniformes et confection textile.  🏷️ Tags  popeline polyester",
+        "tissu popeline",
+        "polyester 100%",
+        "tissu confection",
+        "tissu textile",
+        "rouleau tissu 50m",
+        "tissu uniforme",
+        "tissu chemise",
+        "tissu habillement",
+        "tissu léger",
+        "tissu couture",
+        "poplin fabric",
+        "polyester fabric",
+        "textile maroc",
+        "tissu professionnel ال المغرب  🔎 Mots-clés SEO arabe supplémentaires  قماش بوبلين بوليستر",
+        "شراء قماش بوبلين",
+        "قماش بوليستر بالجملة",
+        "أقمشة للخياطة والتفصيل",
+        "مستلزمات صناعة الملابس",
+        "أقمشة عالية الجودة",
+        "مورد أقمشة بالمغرب",
+        "قماش للزي المدرسي",
+        "قماش للملابس المهنية",
+        "قماش اقتصادي ومتعدد الاستعمالات."
+      ],
+      "inStock": true,
+      "categoryName": "Tissu & Doublure",
+      "stockQty": 4995,
+      "isPromo": false,
+      "rating": 5,
+      "minOrderQty": 1,
+      "description": "Notre tissu popeline polyester 100% offre une excellente qualité de finition pour les professionnels du textile et de la confection. Grâce à son tissage fin et régulier, il garantit un rendu élégant tout en restant résistant à l'usure quotidienne.\n\nSa texture douce et légère le rend adapté à de nombreuses applications : vêtements professionnels, chemises, blouses, robes, uniformes scolaires, vêtements de travail, décoration textile et projets de couture.\n\nCaractéristiques :\n\n✔ Composition : 100% Polyester\n✔ Type : Popeline\n✔ Conditionnement : Rouleau de 50 mètres\n✔ Texture : Lisse et légère\n✔ Entretien facile\n✔ Bonne résistance aux plis\n✔ Séchage rapide\n✔ Convient à la confection et à l'industrie textile",
+      "slug": "tissu-popeline-polyester-100-rouleau-de-50-m-tres",
+      "categorySlug": "fermetures-invisibles",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781027753821_bz7nym.jpg?alt=media&token=7368dd01-f7bf-4a3c-81e7-0434af7ce6f8",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781027766404_zapr45.jpg?alt=media&token=c3bc0170-52ce-45f7-9cf4-998cb3dafda5"
+      ],
+      "isNew": false,
+      "name": "Tissu Popeline Polyester 100% – Rouleau de 50 Mètres",
+      "variants": [
+        {
+          "stock": 999,
+          "colorHex": "#1a1a1a",
+          "inStock": true,
+          "id": "v_1781027816573",
+          "color": "Noir"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1781027817045",
+          "color": "Blanc"
+        },
+        {
+          "color": "Bleu",
+          "id": "v_1781027817514",
+          "inStock": true,
+          "colorHex": "#3182ce",
+          "stock": 999
+        },
+        {
+          "color": "Gris",
+          "id": "v_1781027818507",
+          "inStock": true,
+          "colorHex": "#718096",
+          "stock": 999
+        },
+        {
+          "inStock": true,
+          "color": "Doré",
+          "id": "v_1781027827129",
+          "stock": 999,
+          "colorHex": "#D4A843"
+        }
+      ],
+      "reviewCount": 0
+    },
+    {
+      "id": "custom_1781213370895_92nbv",
+      "isPromo": false,
+      "rating": 5,
+      "minOrderQty": 1,
+      "description": "Le bouton pression à ressort 15 mm Type W est une solution de fermeture pratique, résistante et durable pour l'industrie textile et la confection. Sa conception à ressort assure une excellente tenue et une ouverture/fermeture fluide.\n\nFabriqué en fer robuste avec une finition blanche propre et élégante, ce bouton convient parfaitement aux vêtements, uniformes, accessoires de mode, maroquinerie légère et projets de couture.\n\nCaractéristiques\nProduit : Snap Spring Button\nType : W-Style\nDiamètre : 15 mm\nCouleur : Blanc\nMatière : Fer (Iron Material)\nUtilisation : Couture, confection, textile, maroquinerie\nFermeture solide et durable\nInstallation avec presse à boutons pression",
+      "slug": "bouton-pression-ressort-15-mm-blanc-type-w-en-fer-1000-ensembles-sachet",
+      "categorySlug": "boutons",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781212931119_8irrb7.png?alt=media&token=a7bc9877-7f03-457a-8db4-1b3bc22efc7e"
+      ],
+      "isNew": false,
+      "name": "Bouton Pression à Ressort 15 mm Blanc Type W en Fer – 1000 Ensembles/Sachet",
+      "variants": [],
+      "reviewCount": 0,
+      "isFeatured": true,
+      "shortDescription": "Bouton pression à ressort de 15 mm de couleur blanche, fabriqué en fer de haute qualité. Idéal pour vêtements, uniformes, sacs, articles textiles et travaux de confection professionnels.",
+      "price": 72.99,
+      "tags": [
+        "bouton pression 15mm",
+        "snap spring button",
+        "bouton pression blanc",
+        "bouton pression métal",
+        "bouton pression fer",
+        "bouton pression type w",
+        "bouton pression textile",
+        "bouton pression confection",
+        "accessoires couture",
+        "mercerie professionnelle",
+        "bouton pression pour vêtements",
+        "bouton pression pour sacs",
+        "fournitures textile",
+        "bouton pression maroc",
+        "bouton pression haute qualité  Tags Arabe  زر كبس 15 مم، زر ضغط أبيض، زر كبس معدني، زر ضغط حديدي، زر كبس للخياطة، زر كبس للملابس، زر ضغط للحقائب، مستلزمات الخياطة، لوازم التفصيل، اكسسوارات النسيج، زر كبس احترافي، زر ضغط قوي، زر كبس أبيض 15 مم، مستلزمات صناعة الملابس، زر ضغط معدني عالي الجودة  Remarqu"
+      ],
+      "inStock": true,
+      "categoryName": "Boutons",
+      "stockQty": 500
+    },
+    {
+      "id": "custom_1781548051720_mliyd",
+      "name": "Velvet Ribbon (Moubra)– 100 Yards/Roll",
+      "variants": [
+        {
+          "stock": 999,
+          "colorHex": "#1a1a1a",
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1781548021777"
+        },
+        {
+          "colorHex": "#f5f5f5",
+          "stock": 999,
+          "id": "v_1781548022360",
+          "color": "Blanc",
+          "inStock": true
+        },
+        {
+          "color": "Rouge",
+          "id": "v_1781548022552",
+          "inStock": true,
+          "colorHex": "#e53e3e",
+          "stock": 999
+        },
+        {
+          "inStock": true,
+          "color": "Bleu",
+          "id": "v_1781548022744",
+          "stock": 999,
+          "colorHex": "#3182ce"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#38a169",
+          "inStock": true,
+          "color": "Vert",
+          "id": "v_1781548022929"
+        },
+        {
+          "colorHex": "#d69e2e",
+          "stock": 999,
+          "id": "v_1781548023088",
+          "color": "Jaune",
+          "inStock": true
+        },
+        {
+          "colorHex": "#dd6b20",
+          "stock": 999,
+          "color": "Orange",
+          "id": "v_1781548031681",
+          "inStock": true
+        },
+        {
+          "color": "Rose",
+          "id": "v_1781548031856",
+          "inStock": true,
+          "colorHex": "#d53f8c",
+          "stock": 999
+        },
+        {
+          "inStock": true,
+          "id": "v_1781548032040",
+          "color": "Marron",
+          "stock": 999,
+          "colorHex": "#92400e"
+        },
+        {
+          "inStock": true,
+          "color": "Gris",
+          "id": "v_1781548039705",
+          "stock": 999,
+          "colorHex": "#718096"
+        },
+        {
+          "colorHex": "#a0aec0",
+          "stock": 999,
+          "id": "v_1781548039976",
+          "color": "Argenté",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "color": "Beige",
+          "id": "v_1781548045209",
+          "stock": 999,
+          "colorHex": "#d4b896"
+        }
+      ],
+      "reviewCount": 0,
+      "isNew": false,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781547995559_gxrr7n.jpg?alt=media&token=f13baea4-7753-405f-a16a-075100f915c0"
+      ],
+      "slug": "velvet-ribbon-moubra-100-yards-roll",
+      "categorySlug": "biais-rubans",
+      "description": "Notre ruban velours (Moubra) est fabriqué avec une finition douce et luxueuse, garantissant une excellente apparence et une grande durabilité. Grâce à sa texture veloutée et son aspect premium, il est largement utilisé dans l'industrie textile, la confection de vêtements, les accessoires, les emballages cadeaux haut de gamme et les projets de décoration.\n\nCaractéristiques :\n\nMatière : Velvet Ribbon\nTexture douce et élégante\nExcellente résistance à l'usure\nCouleurs riches et durables\nFacile à coudre et à manipuler\nConvient à un usage professionnel et artisanal\nSpécifications\nProduit : Velvet Ribbon (Moubra)\nLongueur : 100 Yards / Roll\nType : Decorative Velvet Ribbon\nUtilisation : Couture, habillement, décoration, emballage cadeau, artisanat",
+      "minOrderQty": 1,
+      "isPromo": false,
+      "rating": 5,
+      "categoryName": "Biais & Rubans",
+      "stockQty": 11988,
+      "inStock": true,
+      "tags": [
+        "uban velours",
+        "Ruban moubra",
+        "Ruban textile",
+        "Ruban couture",
+        "Ruban décoratif",
+        "Mercerie",
+        "Accessoires de confection",
+        "Ruban premium",
+        "Ruban vêtements",
+        "Velvet ribbon  Tags AR  موبرة، شريط مخملي، روبان مخمل، لوازم الخياطة، اكسسوارات الملابس، شريط للتزيين، مستلزمات الخياطة، شريط فاخر، روبان قماش، مخمل  Tags EN  Velvet Ribbon",
+        "Velvet Tape",
+        "Decorative Ribbon",
+        "Sewing Ribbon",
+        "Garment Accessories",
+        "Textile Ribbon",
+        "Fashion Accessories",
+        "Premium Ribbon",
+        "Craft Ribbon",
+        "Gift Wrapping Ribbon"
+      ],
+      "price": 70,
+      "shortDescription": "Ruban velours de haute qualité offrant une texture douce et élégante. Idéal pour la confection, la décoration, l'emballage cadeau, les accessoires de mode et les travaux de couture professionnels.",
+      "isFeatured": true
+    },
+    {
+      "id": "custom_1781549677899_11okn",
+      "slug": "fermeture-clair-nylon-n-5-75-cm-half-tour-100-pi-ces",
+      "categorySlug": "fermetures-nylon",
+      "comparePrice": 130,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781549673977_t384xm.jpg?alt=media&token=7292aa5e-ebab-4f6d-9e0c-6f1be21affd4"
+      ],
+      "isNew": false,
+      "name": "Fermeture Éclair Nylon N°5 – 75 cm Half Tour – 100 Pièces",
+      "variants": [],
+      "reviewCount": 0,
+      "isPromo": true,
+      "rating": 5,
+      "minOrderQty": 1,
+      "description": "Cette fermeture éclair nylon N°5 de 75 cm est équipée d'un curseur Auto Lock assurant une fermeture fiable et sécurisée. Grâce à sa souplesse, sa résistance et sa finition de qualité, elle est particulièrement adaptée à la confection professionnelle de vêtements, vestes, sweat-shirts, survêtements et autres articles textiles.\n\nLe système Auto Lock maintient le curseur en position lorsqu'il n'est pas manipulé, évitant ainsi toute ouverture involontaire. Vendue en lot de 100 pièces, cette fermeture est idéale pour les ateliers de confection, fabricants de vêtements et grossistes.\n\nCaractéristiques\nType : Fermeture éclair nylon\nNuméro : N°5\nLongueur : 75 cm\nModèle : Half Tour\nCurseur : Auto Lock\nRésistante et flexible\nUtilisation professionnelle\nOuverture et fermeture fluides\nSpécifications\nProduit : Nylon Zipper\nTaille : N°5\nLongueur : 75 cm\nType de curseur : Auto Lock Slider\nConditionnement : 100 pièces\nApplication : Habillement et confection textile\nApplications\nVestes\nSurvêtements\nSweat-shirts\nVêtements de travail\nArticles de mode\nConfection textile",
+      "tags": [
+        "Fermeture éclair nylon",
+        "Fermeture N°5",
+        "Fermeture 75 cm",
+        "Fermeture Half Tour",
+        "Curseur Auto Lock",
+        "Mercerie",
+        "Fournitures de couture",
+        "Accessoires textile",
+        "Fermeture vêtements",
+        "Fermeture professionnelle  Tags AR  سحاب نايلون، سوستة نايلون، سحاب رقم 5، سحاب 75 سم، سحاب أوتولوك، مستلزمات الخياطة، اكسسوارات الملابس، سحاب للملابس، لوازم التفصيل، سحاب احترافي  Tags EN  Nylon Zipper",
+        "No.5 Zipper",
+        "75cm Zipper",
+        "Auto Lock Slider",
+        "Half Tour Zipper",
+        "Garment Zipper",
+        "Sewing Supplies",
+        "Textile Accessories",
+        "Apparel Zipper",
+        "Professional Zipper  Alt Text Image"
+      ],
+      "inStock": true,
+      "categoryName": "Fermetures Nylon",
+      "stockQty": 999,
+      "isFeatured": false,
+      "shortDescription": "Fermeture éclair nylon N°5 de 75 cm avec curseur Auto Lock. Modèle Half Tour conçu pour les vêtements, vestes, survêtements et articles de confection. Conditionnement professionnel de 100 pièces.",
+      "price": 114.99
+    },
+    {
+      "id": "custom_1781639488186_8gm8s",
+      "inStock": true,
+      "tags": [
+        "زرارين / زر 2 ثقوب / two hole button / bouton 2 trous أزرار خياطة / sewing buttons / boutons couture أزرار ملابس / garment buttons / boutons vêtements أزرار بلاستيك / plastic buttons / boutons plastique أزرار ريزين / resin buttons / boutons résine مستلزمات الخياطة / sewing supplies / fournitures couture لوازم الخياطة / tailoring accessories / accessoires couture أزرار بالجملة / wholesale buttons / boutons en gros 1440 قطعة / 1440 pieces / 1440 pièces زرار ديال القمصان / shirt buttons / boutons chemise زرار ديال اللباس / clothing buttons / boutons habillement زرار ديال الصنعة / industrial sewing buttons / boutons industrie textile"
+      ],
+      "width": "28L",
+      "categoryName": "Boutons",
+      "stockQty": 500,
+      "isFeatured": false,
+      "specification": "BLANC",
+      "price": 56,
+      "material": "100% Resine",
+      "shortDescription": "Boîte de 1440 boutons 2 trous en résine de haute qualité, idéale pour les ateliers de confection, fabricants de vêtements et grossistes.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781639437667_h0o6iy.png?alt=media&token=b2b22c90-c411-44f1-b51a-4039342e42b0",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781639340709_df97bb.jpg?alt=media&token=9e55fcd0-a918-4c6a-9b56-a1e8880382b9",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781639431418_vdbdtn.jpg?alt=media&token=c62e72cc-ec59-4cb0-beaf-0430abea2d04"
+      ],
+      "slug": "bouton-2-trous-en-r-sine-10gross",
+      "categorySlug": "boutons",
+      "variants": [],
+      "reviewCount": 0,
+      "name": "Bouton 2 Trous en Résine – 10Gross",
+      "isNew": true,
+      "packaging": "1440pièces",
+      "minOrderQty": 1,
+      "rating": 5,
+      "isPromo": false,
+      "description": "Le bouton 2 trous en résine est conçu pour répondre aux exigences des ateliers de confection, fabricants de vêtements et couturiers. Fabriqué à partir d'une résine de haute qualité, il offre une excellente résistance à l'usure, aux lavages répétés et à l'utilisation quotidienne.\n\nSon design classique à 2 trous garantit une fixation solide tout en apportant une finition propre et élégante à tous types de vêtements.Applications\nConfection textile\nIndustrie de l'habillement\nRetouches et réparation de vêtements\nArtisanat et loisirs créatifs\nUniformes scolaires et professionnels\nAvantages\n\n✅ Durable et résistant\n✅ Aspect professionnel\n✅ Fixation simple et efficace\n✅ Disponible en plusieurs tailles et couleurs\n✅ Adapté à la production industrielle et artisanale"
+    },
+    {
+      "id": "custom_1781800044807_y5s58",
+      "description": "Apportez une finition propre et professionnelle à vos créations avec notre Fermeture à glissière en nylon n°3. Conçue pour un usage quotidien, sa maille en spirale plastique offre une ouverture et une fermeture douces, sans accroc.\n\nCaractéristiques principales :\n\nLongueur de la maille : 20 cm (idéal pour les petits et moyens ouvrages).\n\nTaille de la maille : n°3 (standard pour la couture classique).\n\nMatière : Maille en nylon/plastique souple sur ruban en polyester.\n\nCouleur : Blanc uni, discret et facile à assortir.\n\nCurseur : Métal avec finition assortie, offrant une bonne prise en main.\n\nIdéal pour : Vêtements (jupes, pantalons légers, robes), petite maroquinerie, pochettes, trousses d'école, housses de coussin et loisirs créatifs.\n\nLégère mais robuste, cette fermeture se pique facilement à la machine à coudre et garantit une excellente longévité à tous vos projets de couture.",
+      "rating": 5,
+      "isPromo": false,
+      "minOrderQty": 1,
+      "isNew": false,
+      "packaging": "100 pcs",
+      "name": "Fermeture Nylon N°3 - 20 cm",
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1781799833480",
+          "color": "Noir",
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1781799833928",
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "colorHex": "#e53e3e",
+          "stock": 999,
+          "id": "v_1781799834120",
+          "color": "Rouge",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1781799834312",
+          "color": "Bleu",
+          "stock": 999,
+          "colorHex": "#3182ce"
+        },
+        {
+          "colorHex": "#38a169",
+          "stock": 999,
+          "color": "Vert",
+          "id": "v_1781799834472",
+          "inStock": true
+        },
+        {
+          "colorHex": "#d69e2e",
+          "stock": 999,
+          "color": "Jaune",
+          "id": "v_1781799834672",
+          "inStock": true
+        },
+        {
+          "color": "Orange",
+          "id": "v_1781799834856",
+          "inStock": true,
+          "colorHex": "#dd6b20",
+          "stock": 999
+        },
+        {
+          "colorHex": "#d53f8c",
+          "stock": 999,
+          "id": "v_1781799835048",
+          "color": "Rose",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1781799844016",
+          "color": "Violet",
+          "stock": 999,
+          "colorHex": "#805ad5"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#92400e",
+          "inStock": true,
+          "color": "Marron",
+          "id": "v_1781799844192"
+        },
+        {
+          "inStock": true,
+          "id": "v_1781799844360",
+          "color": "Gris",
+          "stock": 999,
+          "colorHex": "#718096"
+        },
+        {
+          "stock": 999,
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "id": "v_1781799844536",
+          "color": "Beige"
+        },
+        {
+          "inStock": true,
+          "color": "Doré",
+          "id": "v_1781799844848",
+          "stock": 999,
+          "colorHex": "#D4A843"
+        },
+        {
+          "inStock": true,
+          "color": "Argenté",
+          "id": "v_1781799845032",
+          "stock": 999,
+          "colorHex": "#a0aec0"
+        }
+      ],
+      "reviewCount": 0,
+      "slug": "fermeture-nylon-n-3-20-cm",
+      "categorySlug": "fermetures-nylon",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781800001525_5d7t6u.jpg?alt=media&token=b80135c7-31e8-4947-aee7-d0145007f71e",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781800030908_uoxugl.jpg?alt=media&token=c7b06711-dcb7-4629-a382-95e061fea37c"
+      ],
+      "shortDescription": "Fermeture éclair en nylon blanc de 20 cm (maille n°3). Fluide, résistante et facile à coudre, elle est l'accessoire de mercerie indispensable pour la confection et la réparation de vos jupes, robes, trousses ou petits coussins.",
+      "price": 34,
+      "material": "Nylon",
+      "isFeatured": true,
+      "specification": "NO3",
+      "stockQty": 13986,
+      "categoryName": "Fermetures Nylon",
+      "tags": [
+        "fermeture éclair",
+        "fermeture à glissière",
+        "zip blanc",
+        "zip 20 cm",
+        "mercerie",
+        "couture",
+        "fermeture nylon",
+        "fermeture plastique",
+        "accessoires couture",
+        "confection.  🇬🇧 Anglais : zipper",
+        "white zip",
+        "20cm zipper",
+        "nylon zipper",
+        "sewing accessories",
+        "haberdashery",
+        "craft supplies",
+        "dressmaking zip",
+        "closed-end zipper.  🇸🇦 Arabe : سحاب، سحاب نايلون، سوستة، سوستة بيضاء، مستلزمات خياطة، سحاب 20 سم، خردوات، سحاب ملابس.selsla",
+        "sinsla",
+        "سلسلة",
+        "fermeture",
+        "selsla byda",
+        "سلسلة بيضا",
+        "selsla d lplastik",
+        "selsla 20 cm",
+        "lkhyata",
+        "خياطة",
+        "lawazim lkhyata",
+        "لوازم الخياطة"
+      ],
+      "width": "20CM",
+      "inStock": true
+    },
+    {
+      "id": "custom_1781800977018_7ht78",
+      "inStock": true,
+      "tags": [
+        "bande auto-agrippante",
+        "ruban scratch",
+        "velcro 2.5 cm",
+        "scratch à coudre",
+        "mercerie",
+        "fermeture agrippante",
+        "hook and loop",
+        "fournitures maroquinerie",
+        "accessoires couture.  🇬🇧 Anglais : hook and loop tape",
+        "sew-on velcro",
+        "2.5cm fastener tape",
+        "scratch tape",
+        "sewing notions",
+        "bag making supplies",
+        "non-adhesive hook and loop",
+        "haberdashery.  🇸🇦 Arabe : شريط لاصق، فيلكرو خياطة، شريط فيلكرو 2.5 سم، سكراتش، مستلزمات خياطة، شريط لاصق للملابس، خردوات.  🇲🇦 Darija (Marocain) : scratch",
+        "sakratch",
+        "سكراتش",
+        "scratch d lkhyata",
+        "scratch 2.5",
+        "lassak d lhwayej",
+        "لصاق حوايج",
+        "lawazim lkhyata",
+        "rouleau scratch."
+      ],
+      "width": "2.5cm",
+      "stockQty": 1998,
+      "categoryName": "Scratch / Velcro",
+      "isFeatured": false,
+      "specification": "25yds/rlx",
+      "price": 19.5,
+      "material": "Polyester",
+      "shortDescription": "Ruban auto-agrippant de haute qualité, largeur 2,5 cm. Ce système de fermeture composé de deux rubans (crochet et velours) est facile à coudre et offre une fixation solide et ajustable. L'accessoire incontournable pour la confection de vêtements, sacs et équipements professionnels.",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781800863800_w1gwzc.jpg?alt=media&token=ea1c39fa-81ed-475f-a840-c568bb39266d"
+      ],
+      "slug": "rouleau-de-bande-auto-agrippante-scratch-velcro-2-5-cm",
+      "categorySlug": "scratch-velcro",
+      "name": "Rouleau de Bande Auto-agrippante(Scratch / Velcro)- 2,5 cm",
+      "variants": [
+        {
+          "stock": 999,
+          "colorHex": "#1a1a1a",
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1781800769147"
+        },
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1781800769307",
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        }
+      ],
+      "reviewCount": 0,
+      "isNew": true,
+      "minOrderQty": 1,
+      "rating": 5,
+      "isPromo": false,
+      "description": "Apportez une solution de fermeture pratique, rapide et réutilisable à vos créations avec notre Bande Auto-agrippante de 2,5 cm. Ce système classique à \"scratch\" est composé de deux parties complémentaires : la face mâle (crochets rugueux) et la face femelle (velours doux) qui assurent une accroche ferme et résistante à l'usure."
+    },
+    {
+      "id": "custom_1781882828844_wzuoq",
+      "isFeatured": false,
+      "specification": "150cm",
+      "shortDescription": "Le lot idéal et économique pour les professionnels du textile et les ateliers de confection. Cette boîte contient 12 mètres ruban extra-larges (1,9 cm) d'une longueur de 150 cm. Souples, indéformables et hautement lisibles, ils offrent un confort de travail supérieur et une excellente prise en main pour toutes vos mesures.",
+      "price": 22.5,
+      "width": "1.9cm",
+      "tags": [
+        "pack de 12 mètres ruban",
+        "lot mètre couture large",
+        "mètre tailleur 1.9cm",
+        "ruban à mesurer large",
+        "accessoires couture gros",
+        "mètre 150cm professionnel",
+        "fourniture textile",
+        "matériel de confection",
+        "boite 12 metres  🇬🇧 Anglais (EN) 12 pack measuring tape",
+        "wide tape measure 1.9cm",
+        "bulk tailor tape measure",
+        "sewing tape measure wide",
+        "150cm tape measure bulk",
+        "professional sewing accessories",
+        "wholesale garment tools  🇸🇦 Arabe Classique (AR) مجموعة 12 شريط قياس",
+        "متر خياطة عريض",
+        "متر خياطة جملة",
+        "شريط قياس قماشي 1.9 سم",
+        "أدوات خياطة محترفة",
+        "متر قياس 150 سم  🇲🇦 Darija Marocaine pack 12 santim",
+        "santim dyal khyata kbir",
+        "santim rdid",
+        "miter lkhyata gros",
+        "lwazem lkhyata 1.9cm",
+        "سنتيم غليظ",
+        "سنتيم ديال الخياطة جملة",
+        "سلعة الخياطة"
+      ],
+      "inStock": true,
+      "categoryName": "Accessoires de Confection",
+      "stockQty": 1000,
+      "isPromo": false,
+      "rating": 5,
+      "minOrderQty": 1,
+      "description": "Un standard de l'industrie textile, optimisé pour la durabilité et le confort visuel. Ce pack de 12 mètres ruban professionnels se distingue par sa largeur supérieure de 1,9 cm, offrant une meilleure stabilité à plat et une résistance accrue à l'usure quotidienne.\n\n✨ Caractéristiques principales :\n\nFormat économique (Lot de 12 pièces) : Idéal pour équiper entièrement un atelier de couture, un centre de formation, ou pour la revente.\n\nGrande largeur de 1,9 cm : Plus large que les modèles standards, ce ruban ne se tord pas facilement pendant la manipulation et permet l'affichage de chiffres plus grands pour un confort visuel optimal.\n\nLisibilité maximale : Les graduations millimétrées et les chiffres noirs contrastés sont imprimés de manière très nette, garantissant une lecture rapide et sans erreur.\n\nMatériau professionnel indéformable : Fabriqués dans une matière souple et renforcée qui épouse parfaitement les courbes du corps ou des tissus, sans jamais s'étirer ni se détendre au fil du temps.\n\nEmbouts métalliques robustes : Chaque extrémité est protégée par un collier métallique solide, évitant l'effilochage et assurant un point zéro parfaitement précis.",
+      "slug": "pack-de-12-m-tres-ruban-150-cm",
+      "comparePrice": 25,
+      "categorySlug": "accessoires-de-confection",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781882373188_8g4ayo.jpeg?alt=media&token=dd782d9a-56bb-4af7-bcdf-bc49f4663345",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781882375678_168byw.jpeg?alt=media&token=71f3e1ed-9d0d-406b-a298-c994aa477fb9"
+      ],
+      "packaging": "12pcs",
+      "isNew": true,
+      "name": "Pack de 12 Mètres Ruban – 150 cm",
+      "variants": [],
+      "reviewCount": 0
+    },
+    {
+      "id": "custom_1781885141767_1ok3o",
+      "categoryName": "Accessoires de Confection",
+      "stockQty": 500,
+      "inStock": true,
+      "tags": [
+        "coupe-fils couture",
+        "pack de 12 coupe-fils",
+        "outil de couture",
+        "coupe fil professionnel",
+        "accessoire couture",
+        "matériel de confection",
+        "retouche couture",
+        "outil atelier couture",
+        "coupe fil pratique",
+        "fournitures couture  🇬🇧 Anglais (EN) : thread cutter",
+        "6 piece thread cutter pack",
+        "sewing tool",
+        "professional thread cutter",
+        "sewing accessory",
+        "garment making tools",
+        "tailoring supplies",
+        "cutting threads",
+        "sewing workshop tool",
+        "practical cutter  🇸🇦 Arabe Classique (AR) : قاطع الخيوط، مجموعة 6 قطع، أداة خياطة، أداة قص الخيوط، ملحقات الخياطة، مستلزمات التفصيل، أدوات ورشة الخياطة، قص الخيط بدقة، أداة عملية، لوازم الخياطة  🇲🇦 Darija Marocaine : coupe-fils",
+        "pack 6 pièces",
+        "outil dyal khiyata",
+        "aksesoire dyal couture",
+        "matériel dyal tafsila",
+        "l’outil dyal qta3 khit",
+        "fournitures dyal khiyata",
+        "outil pratique l’atelier",
+        "coupe fil professionnel",
+        "l’khedma dyal couture"
+      ],
+      "price": 39.99,
+      "shortDescription": "Ce pack de 12 coupe-fils est idéal pour couper rapidement et proprement les fils lors des travaux de couture, de retouche et de confection. Pratique, économique et indispensable en atelier, il vous aide à gagner du temps tout en gardant une finition nette et professionnelle.",
+      "isFeatured": true,
+      "name": "Pack de 12 Coupe-fils de couture professionnels",
+      "variants": [],
+      "reviewCount": 0,
+      "isNew": false,
+      "packaging": "12pcs",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781884985237_c8dpzn.jpeg?alt=media&token=5e5b505f-ad97-4474-a929-e2b67fa64d39",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781884993252_w9v8c0.png?alt=media&token=b14ace33-af3a-482d-92ff-1e7198944ae0"
+      ],
+      "slug": "pack-de-12-coupe-fils-de-couture-professionnels",
+      "categorySlug": "accessoires-de-confection",
+      "description": "Pensé pour les couturiers, retoucheurs, ateliers de confection et amateurs de couture, ce pack de 12 coupe-fils est un indispensable pour un travail précis et efficace. Son format en lot permet d’équiper plusieurs postes de travail ou de disposer de plusieurs outils à portée de main selon vos besoins.\n\n✨ Caractéristiques principales :\n\nPack économique de 6 pièces : idéal pour un usage professionnel ou intensif\nCoupe nette et rapide : parfait pour enlever les fils avec précision\nOutil pratique et facile à utiliser : adapté aux travaux de couture quotidiens\nIndispensable en atelier : convient pour la confection, les retouches et la finition\nFormat polyvalent : utile pour professionnels, artisans et passionnés de couture\nGain de temps : accélère les petites finitions et améliore la productivité",
+      "minOrderQty": 1,
+      "rating": 5,
+      "isPromo": false
+    },
+    {
+      "id": "custom_1782228665235_uvyn0",
+      "name": "Rouleau d'Élastique Tressé– 100 Yards",
+      "variants": [
+        {
+          "stock": 999,
+          "size": "10mm",
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1782228234405",
+          "color": "Blanc"
+        },
+        {
+          "inStock": true,
+          "color": "Noir",
+          "id": "v_1782228246348",
+          "size": "10mm",
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "color": "Noir",
+          "id": "v_1782228496356",
+          "inStock": true,
+          "colorHex": "#1a1a1a",
+          "size": "8mm",
+          "stock": 999,
+          "price": 25
+        },
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1782228501307",
+          "stock": 999,
+          "size": "8mm",
+          "price": 25,
+          "colorHex": "#f5f5f5"
+        }
+      ],
+      "reviewCount": 0,
+      "isNew": true,
+      "packaging": "1 rouleau",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782228264233_wb5cv4.jpg?alt=media&token=10ecb2f6-2e30-4650-9ebe-0c4893fcff06"
+      ],
+      "slug": "rouleau-d-lastique-tress-100-yards",
+      "categorySlug": "elastiques",
+      "description": "L'allié parfait pour des finitions durables et professionnelles !\n\nQue vous soyez un tailleur professionnel, un atelier de confection ou un passionné de loisirs créatifs (DIY), notre élastique tressé est conçu pour répondre à toutes vos exigences. Sa conception tressée lui confère une robustesse supérieure : il maintient fermement, ne rétrécit pas lorsqu'il est étiré et retrouve toujours sa forme initiale.\n\nPourquoi choisir notre élastique tressé ?\n\nFormat ultra-économique : Vendu à la pièce (au rouleau), chaque bobine vous offre une longueur très généreuse de 100 yards (plus de 91 mètres). Vous avez de quoi réaliser de grandes séries ou de nombreux projets sans risquer la rupture de stock !\n\nSur-mesure pour vos projets : Disponible en différentes tailles (largeurs). Que ce soit pour des ceintures de pantalons, des jupes, des sous-vêtements, des poignets, des masques ou des draps-housses, sélectionnez simplement la dimension adéquate.\n\nRésistance exceptionnelle : Conçu pour durer, il supporte de multiples lavages en machine et passages au sèche-linge sans perdre sa tension ou s'effilocher.\n\nFacile à travailler : Doux au toucher, il glisse sans accroc dans les ourlets et les coulisses, et peut être cousu directement sur le tissu en toute simplicité.\n\n(Note : N'oubliez pas de sélectionner la largeur souhaitée dans le menu déroulant avant d'ajouter votre rouleau au panier !)",
+      "minOrderQty": 1,
+      "rating": 5,
+      "isPromo": false,
+      "categoryName": "Élastiques",
+      "stockQty": 3996,
+      "inStock": true,
+      "tags": [
+        "élastique tressé",
+        "rouleau élastique",
+        "bande élastique",
+        "ruban élastique",
+        "mercerie en ligne",
+        "couture",
+        "élastique 100 yards",
+        "fournitures de couture",
+        "élastique vêtement",
+        "élastique multi-tailles",
+        "gros rouleau élastique.  🇬🇧 Anglais (EN) :  braided elastic",
+        "elastic roll",
+        "sewing elastic",
+        "stretch band",
+        "100 yards elastic",
+        "elastic tape",
+        "haberdashery",
+        "sewing supplies",
+        "waistband elastic",
+        "garment elastic",
+        "craft elastic.  🇸🇦 Arabe Classique (ARB) :  شريط مطاطي",
+        "مطاط خياطة",
+        "مطاط مضفر",
+        "بكرة مطاط 100 ياردة",
+        "مستلزمات خياطة",
+        "خيوط مطاطية",
+        "مطاط للملابس",
+        "أدوات الخياطة",
+        "شريط مطاطي عريض.  🇲🇦 Darija Marocaine (DARIGA) :  لاستيك",
+        "رولو د لاستيك",
+        "لاستيك د الخياطة",
+        "لاستيك مضفور",
+        "لوازم الخياطة",
+        "لاستيك السراول",
+        "خردوات الخياطة",
+        "لاستيك عبار. (Et en lettres latines pour ceux qui cherchent en franco-arabe : lastik",
+        "roulo lastik",
+        "lastik lkhyata",
+        "lastik mdfour",
+        "lwazem lkhyata",
+        "lastik srawel)."
+      ],
+      "price": 30,
+      "material": "Composition Premium : Mélange optimal de Polyester (environ 70%, pour une excellente résistance aux frottements et une grande durabilité) et de Latex naturel / Élasthanne (environ 30%, pour une flexibilité fluide et un rebond élastique parfait).",
+      "shortDescription": "Rouleau d'élastique tressé de haute qualité, vendu à la pièce (1 bobine = 100 yards, soit environ 91,4 mètres). Extensible, indéformable et résistant, c'est l'accessoire de mercerie indispensable pour tous vos travaux de couture et de confection. Disponible en plusieurs largeurs pour s'adapter parfaitement à toutes vos créations !",
+      "specification": "100yds",
+      "isFeatured": false
+    },
+    {
+      "id": "custom_1782301687832_m5bv4",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782301363139_c85w8q.jpg?alt=media&token=a046ebef-35c6-40f1-8888-7e99c0145629",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782301561214_wt54h0.jpeg?alt=media&token=0111f713-79ad-451f-9393-64a450817ce4"
+      ],
+      "slug": "1000-sets-de-moules-boutons-recouvrir-en-aluminium",
+      "categorySlug": "fermetures-invisibles",
+      "name": "1000 Sets de Moules (Boutons à Recouvrir en Aluminium)",
+      "reviewCount": 0,
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1782301451738",
+          "color": "NICKEL",
+          "size": "15MM",
+          "stock": 999,
+          "price": 30,
+          "colorHex": "#a0aec0"
+        },
+        {
+          "colorHex": "#a0aec0",
+          "stock": 999,
+          "size": "18MM",
+          "price": 41,
+          "color": "NICKEL",
+          "id": "v_1782301458481",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "size": "20MM",
+          "price": 51.5,
+          "colorHex": "#a0aec0",
+          "inStock": true,
+          "id": "v_1782301463297",
+          "color": "NICKEL"
+        },
+        {
+          "price": 62,
+          "size": "25MM",
+          "stock": 999,
+          "colorHex": "#a0aec0",
+          "inStock": true,
+          "id": "v_1782301466944",
+          "color": "NICKEL"
+        }
+      ],
+      "packaging": "Pack de 1000 sets complets (1000 hauts + 1000 dos à anneau)",
+      "isNew": true,
+      "minOrderQty": 1,
+      "isPromo": false,
+      "rating": 5,
+      "description": "Donnez une finition sur-mesure et parfaite à toutes vos créations !\n\nQue vous soyez un atelier de confection, un tapissier d'ameublement professionnel ou un créateur passionné, notre lot de 1000 sets de moules pour boutons à recouvrir est la fourniture indispensable pour personnaliser vos pièces en grande série.\n\nConçus pour être recouverts de n'importe quel type de tissu (coton, velours, lin, cuir fin, soie...), ces moules s'assemblent facilement à l'aide d'une presse et offrent un maintien parfait et esthétique de la matière.\n\n🌟 Pourquoi choisir nos moules en aluminium ?\n\n🛡️ 100 % Inoxydable (Zéro Rouille) : L'avantage majeur de l'aluminium ! Contrairement au fer ou à l'acier classique, il garantit une résistance totale à l'eau. Vos clients pourront laver leurs vêtements sans jamais craindre l'apparition de taches de rouille autour du bouton.\n\n🪶 Légèreté et Robustesse : Ils n'alourdissent pas les tissus fluides ou délicats, tout en offrant une solidité parfaite pour supporter les fortes tensions (idéal pour le capitonnage).\n\n📏 Différentes tailles disponibles : Choisissez le diamètre parfaitement adapté à votre projet directement dans les options de la page.\n\n💼 Format Économique : Le pack de 1000 sets (1 set = 1 calotte supérieure bombée + 1 dos à coudre avec anneau) est pensé pour vous garantir le meilleur rapport qualité/prix et ne jamais tomber en rupture de stock.\n\n🛠️ Domaines d'application (Idéal pour) :\n\nCouture & Prêt-à-porter : Robes, chemisiers, manteaux, caftans.\n\nAmeublement & Tapisserie : Capitonnage de canapés (Chesterfield), fauteuils, têtes de lit, salons marocains (tlamet) et coussins.\n\nMaroquinerie & Loisirs créatifs (DIY).",
+      "inStock": true,
+      "tags": [
+        "boutons à recouvrir",
+        "moules pour boutons",
+        "boutons en aluminium",
+        "mercerie en gros",
+        "fournitures de couture",
+        "boutons tapissier",
+        "lot 1000 boutons",
+        "boutons ameublement",
+        "capitonnage",
+        "accessoires couture",
+        "boutons anti-rouille.  🇬🇧 En Anglais (EN) :  covered mould buttons",
+        "fabric covered buttons",
+        "aluminum button blanks",
+        "1000 sets buttons",
+        "sewing supplies wholesale",
+        "upholstery buttons",
+        "rustproof buttons",
+        "bulk craft supplies",
+        "tufting buttons.  🇸🇦 En Arabe Classique (AR) :  قوالب أزرار للتغليف",
+        "أزرار ألمنيوم",
+        "مستلزمات خياطة بالجملة",
+        "أزرار قماش",
+        "أزرار تنجيد",
+        "أزرار غير قابلة للصدأ",
+        "كبس أزرار",
+        "أزرار معدنية",
+        "أدوات خياطة احترافية.  🇲🇦 En Darija Marocaine (MA) :  صداف للتغلاف",
+        "قوالب الصداف",
+        "صداف ألمنيوم",
+        "بوطونات د التوب",
+        "سلعة الخياطة",
+        "صداف الطلامط",
+        "صداف الطابيسري",
+        "باك 1000 صدفة",
+        "صداف ماكيصديوش",
+        "صداف بالجملة",
+        "sdaf mghelfyn",
+        "sdaf aluminium",
+        "sdaf tlamet."
+      ],
+      "categoryName": "Tissu & Doublure",
+      "stockQty": 3996,
+      "isFeatured": false,
+      "material": "100 % Aluminium",
+      "price": 30,
+      "shortDescription": "Optimisez vos créations avec ce pack professionnel de 1000 sets de moules pour boutons à recouvrir. Fabriqués en aluminium de haute qualité, ils sont ultra-légers, durables et 100 % inoxydables (anti-rouille). Disponibles en plusieurs tailles, ils s'adaptent parfaitement à vos tissus pour des finitions impeccables en haute couture, prêt-à-porter et tapisserie d'ameublement (salons, canapés, têtes de lit). Le choix idéal pour les professionnels, les ateliers et les passionnés !"
+    },
+    {
+      "id": "custom_1782415355559_rjysz",
+      "slug": "pack-de-10-grosses-1440-pi-ces-boutons-en-r-sine-4-trous",
+      "categorySlug": "boutons",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782414830643_nxpxmv.jpg?alt=media&token=a943ada1-17a1-474a-9ddd-df9e8faa6e49",
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782415293751_ube5pf.png?alt=media&token=e7c3479f-609c-4d52-91ab-76b3249179cc"
+      ],
+      "packaging": "Pack de 10 grosses (1440 pièces exactes)",
+      "isNew": false,
+      "name": "Pack de 10 Grosses (1440 pièces) - Boutons en Résine 4 Trous",
+      "reviewCount": 0,
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1782414966539",
+          "color": "Blanc",
+          "stock": 999,
+          "size": "18L",
+          "price": 0,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "size": "20L",
+          "price": 0,
+          "stock": 999,
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1782414974290"
+        },
+        {
+          "inStock": true,
+          "color": "Blanc",
+          "id": "v_1782414979739",
+          "price": 0,
+          "size": "24L",
+          "stock": 999,
+          "colorHex": "#f5f5f5"
+        },
+        {
+          "colorHex": "#f5f5f5",
+          "size": "28L",
+          "price": 0,
+          "stock": 999,
+          "id": "v_1782415244881",
+          "color": "Blanc",
+          "inStock": true
+        }
+      ],
+      "isPromo": false,
+      "rating": 5,
+      "minOrderQty": 1,
+      "description": "Le bouton de référence pour la confection à grande échelle !Que vous gériez une usine de confection, un atelier de couture ou une marque de vêtements, le choix d'un bouton fiable est primordial. Ce lot de 1440 boutons en résine a été pensé pour répondre aux besoins des professionnels exigeants, offrant un compromis parfait entre qualité supérieure et prix de gros.Une fixation à 4 trous pour une tenue infaillible :Contrairement aux modèles à 2 trous, le design à 4 trous permet une couture croisée ou parallèle, offrant une résistance maximale à l'arrachement. C'est le format standard exigé pour les vêtements soumis à des tensions quotidiennes ou à un usage intensif (pantalons, vestes, uniformes, chemises, blouses de travail).Un format B2B \"Gros Volume\" ultra-économique :Dans le jargon de la mercerie, une \"grosse\" équivaut à 144 pièces (12 douzaines). En optant pour ce conditionnement industriel de 10 grosses, vous disposez d'un stock de 1440 boutons prêts à l'emploi. Ce format vous permet de réduire drastiquement vos coûts unitaires et d'optimiser vos marges d'approvisionnement sur les grandes séries.  Finition nette et polyvalence :Leur forme classique et épurée s'intègre harmonieusement sur tous types de textiles (coton, lin, denim, matières synthétiques). Chaque bouton est moulé avec précision pour garantir des bords lisses qui ne coupent pas le fil de couture lors du passage en machine.",
+      "tags": [
+        "صداف",
+        "صدفة",
+        "صدافي الرزين",
+        "صداف 4 تقبات",
+        "صدافي ميكا",
+        "لوازم الخياطة جملة",
+        "صدافي الخياطة",
+        "باك صدافي",
+        "سلعة الخياطة",
+        "صداف قميجة",
+        "بيع بالجملة. (sdaf",
+        "sdafi",
+        "sdaf resin",
+        "4 tqbat",
+        "sdafi mika",
+        "lwazim lkhyata",
+        "sdafi lkhyata",
+        "sdaf jomla",
+        "pack sdafi",
+        "sdafi 9amija)  🇸🇦 En Arabe Classique :  أزرار خياطة",
+        "زر راتنج",
+        "أزرار 4 ثقوب",
+        "أزرار قمصان",
+        "أزرار ملابس بالجملة",
+        "10 جروس أزرار",
+        "1440 زر",
+        "مستلزمات خياطة بالجملة",
+        "خردوات خياطة.  🇫🇷 En Français :  bouton résine",
+        "bouton 4 trous",
+        "lot de 10 grosses",
+        "1440 boutons",
+        "mercerie en gros",
+        "bouton chemise",
+        "bouton pantalon",
+        "fourniture confection",
+        "boutonnerie industrielle",
+        "accessoires couture pro.  🇬🇧 En Anglais :  resin button",
+        "4 hole button",
+        "10 gross buttons",
+        "1440 pcs buttons",
+        "wholesale sewing buttons",
+        "apparel accessories",
+        "shirt buttons",
+        "bulk buttons",
+        "sewing hardware",
+        "garment manufacturing supplies."
+      ],
+      "inStock": true,
+      "categoryName": "Boutons",
+      "stockQty": 3996,
+      "isFeatured": true,
+      "shortDescription": "Optimisez vos coûts de production avec ce pack industriel de 10 grosses (soit 1440 pièces) de boutons classiques en résine. Dotés de 4 trous pour une couture ultra-solide et durable, ils sont le standard incontournable pour la confection de chemises, pantalons, vestes et vêtements de travail. Un essentiel de mercerie combinant résistance, finition soignée et rentabilité maximale ! (Unité de vente : 1 ajout au panier = 1 carton de 10 grosses / 1440 boutons).",
+      "material": "RésignE",
+      "price": 0
+    },
+    {
+      "id": "custom_1782935835919_kgfc8",
+      "shortDescription": "Démarquez vos créations avec ce lot de 50 fermetures à glissière en plastique de 75 cm. Séparables (Open-End) et dotées d'un système autobloquant (Auto-Lock), elles se distinguent par leur curseur \"Halftour\" avec une tirette en forme de demi-cercle. Parfaites pour les vestes, le sportswear ou la bagagerie, elles offrent une prise en main ultra-ergonomique et une glisse fluide pour un rendu professionnel.",
+      "inStock": true,
+      "design": "Halftour (Tirette en forme de demi-cercle / D-ring)",
+      "tags": [
+        "Français : fermeture-plastique",
+        "zip-75cm",
+        "zip-separable",
+        "curseur-demi-cercle",
+        "halftour",
+        "auto-lock  Anglais : plastic-zipper",
+        "75cm-zip",
+        "open-end",
+        "half-circle-pull",
+        "wholesale-sewing  Arabe : سحاب_بلاستيك",
+        "سحاب_75سم",
+        "سحاب_نصف_دائري",
+        "خياطة_جملة  Darija : snesla_mika",
+        "snesla_75cm",
+        "tiret_mdawra",
+        "snesla_jomla"
+      ],
+      "largeurMaille": "Standard N°5 (environ 5 mm)",
+      "stockQty": 11988,
+      "categoryName": "Tissu & Doublure",
+      "avantages": "Esthétisme moderne : La tirette en demi-cercle donne un look premium et original.\n\nErgonomie optimale : Prise en main ultra-facile, idéale pour les enfants ou les conditions hivernales.\n\nSécurité intégrée : Le système Auto-Lock maintient la veste fermée au niveau souhaité.\n\nPraticité : S'ouvre totalement (Open-End).\n\nLongévité : Plastique injecté robuste, fluide et qui ne gèle pas.\n\nTarif grossiste : Vendu en lot de 50 pour optimiser les coûts de production.",
+      "rating": 5,
+      "description": "Un design affirmé pour des finitions parfaites\nCe pack de 50 fermetures à glissière en plastique injecté de 75 cm est la fourniture idéale pour les créateurs, ateliers de confection et marques de prêt-à-porter qui cherchent à allier technicité et esthétisme. Le point fort de ce modèle réside dans le design unique de son curseur, apportant une vraie signature visuelle à vos vêtements d'extérieur.\n\nComprendre les caractéristiques : O/E, A/L et Curseur Halftour\n\nCurseur Halftour (Demi-cercle) : Fini la tirette plate classique ! Le modèle Halftour possède une tirette en forme de demi-cercle (ou anneau en D). Très prisée dans le streetwear, la mode hivernale et la maroquinerie, cette forme offre une ergonomie exceptionnelle : elle est facile à attraper, à tirer d'un seul doigt, et reste manipulable même en portant des gants épais.\n\nSéparable (O/E - Open End) : La fermeture s'ouvre et se sépare totalement à sa base. C'est la caractéristique incontournable pour les vestes, gilets, blousons et parkas.\n\nAutobloquant (A/L - Auto-Lock) : Un mécanisme de sécurité intégré bloque automatiquement les mailles dès que la tirette demi-cercle est relâchée. Cela garantit que votre veste ne s'ouvrira pas involontairement lors de vos mouvements.\n\nQualité professionnelle et durabilité\nLes mailles en plastique injecté (Vislon) offrent une glisse extrêmement fluide et une grande résistance aux tractions répétées. Plus léger que le métal et totalement inoxydable (ne rouille pas), le plastique est le choix numéro un pour les vêtements de mi-saison et d'hiver. Le ruban, tissé en polyester haute ténacité, garantit une pose aisée et une tenue impeccable lavage après lavage.\n\nSecteurs d'utilisation multiples\nCette fermeture sublimera le prêt-à-porter urbain, le sportswear (sweats zippés, vestes de survêtement), les vêtements de travail, la mode enfantine (où l'ergonomie de la tirette ronde aide les enfants à s'habiller seuls) ainsi que les accessoires de bagagerie créative.",
+      "couleur": "Selon déclinaison",
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1782935791127_u8lcrj.jpeg?alt=media&token=799cbe86-1c7b-49d8-bf0d-e5ec90a2e37a"
+      ],
+      "paysFabrication": "Chine",
+      "resistance": "Autobloquant (Auto-Lock / A/L)",
+      "type": "Séparable (Open-End / O/E)",
+      "securite": "Autobloquant (Auto-Lock / A/L)",
+      "compatibleAvec": "Tissus moyens à épais (Polaire, softshell, coton lourd)",
+      "variants": [
+        {
+          "color": "Blanc",
+          "id": "v_1782935802634",
+          "inStock": true,
+          "colorHex": "#f5f5f5",
+          "size": "75cm",
+          "stock": 999
+        },
+        {
+          "colorHex": "#e53e3e",
+          "stock": 999,
+          "size": "75cm",
+          "id": "v_1782935804799",
+          "color": "Rouge",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "id": "v_1782935805230",
+          "color": "Bleu",
+          "stock": 999,
+          "size": "75cm",
+          "colorHex": "#3182ce"
+        },
+        {
+          "id": "v_1782935805407",
+          "color": "Vert",
+          "inStock": true,
+          "colorHex": "#38a169",
+          "size": "75cm",
+          "stock": 999
+        },
+        {
+          "stock": 999,
+          "size": "75cm",
+          "colorHex": "#d69e2e",
+          "inStock": true,
+          "color": "Jaune",
+          "id": "v_1782935805582"
+        },
+        {
+          "size": "75cm",
+          "stock": 999,
+          "colorHex": "#d53f8c",
+          "inStock": true,
+          "id": "v_1782935805758",
+          "color": "Rose"
+        },
+        {
+          "size": "75cm",
+          "stock": 999,
+          "colorHex": "#805ad5",
+          "inStock": true,
+          "id": "v_1782935805942",
+          "color": "Violet"
+        },
+        {
+          "colorHex": "#92400e",
+          "size": "75cm",
+          "stock": 999,
+          "color": "Marron",
+          "id": "v_1782935806150",
+          "inStock": true
+        },
+        {
+          "colorHex": "#718096",
+          "size": "75cm",
+          "stock": 999,
+          "color": "Gris",
+          "id": "v_1782935806294",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "size": "75cm",
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "id": "v_1782935806333",
+          "color": "Beige"
+        },
+        {
+          "id": "v_1782935822439",
+          "color": "Doré",
+          "inStock": true,
+          "colorHex": "#D4A843",
+          "size": "75cm",
+          "stock": 999
+        },
+        {
+          "id": "v_1782935822590",
+          "color": "Argenté",
+          "inStock": true,
+          "colorHex": "#a0aec0",
+          "size": "75cm",
+          "stock": 999
+        }
+      ],
+      "name": "Lot de 50 Fermetures à Glissière Plastique 75 cm Séparables – Curseur Demi-Cercle (Halftour)",
+      "isNew": false,
+      "typeProduit": "Fermeture à glissière / Zip",
+      "matiereMailles": "Plastique injecté (Polyacétal / POM)",
+      "motsCles": "Français (30) : fermeture eclair plastique, zip 75cm, fermeture separable, curseur demi cercle, tirette halftour, zip autobloquant, zip auto lock, fermeture open end, lot fermetures eclair, mercerie pro, grossiste fermeture, zip veste, tirette anneau, zip streetwear, fermeture injectee, accessoire couture, zip doudoune, achat zip gros, fourniture textile, zip blouson, tirette ronde, fermeture eclair pas cher, lot 50 zips, maille plastique 5mm, couture professionnelle, mercerie en ligne, fourniture vêtement, zip enfant ergonomique, fermeture design.\n\nAnglais (30) : plastic zipper, 75cm zipper, open end zip, separating zipper, half circle slider, D-ring pull zipper, auto lock zipper, halftour zipper, wholesale zipper, haberdashery wholesale, bulk zippers, jacket zipper, coat zip, round pull zipper, injected plastic zip, vislon zipper, streetwear zipper, garment accessories, B2B haberdashery, sewing notions, plastic teeth zipper, O/E zipper, A/L zipper, outerwear zip, zip fastener, auto-lock slider, 50 pcs zippers, apparel manufacturing, ergonomic zip pull, thick plastic zip.\n\nArabe classique (30) : سحاب بلاستيك, سحاب 75 سم, سحاب قابل للفصل, سحاب جاكيت, منزلق نصف دائري, سحاب حلقة, سحاب معطف, سحاب قفل تلقائي, خردوات بالجملة, مستلزمات خياطة, لوازم تفصيل, بيع سحابات بالجملة, سحاب بلاستيك قوي, منزلق سحاب دائري, إكسسوارات ملابس, سحاب سترة, مستلزمات نسيج, سحابات بتصميم عصري, سحابات مفتوحة النهاية, سحاب 75 سنتيمتر, تجارة الخردوات, أدوات خياطة احترافية, سحاب عالي الجودة, سستة بلاستيك, سستة جاكيت, سحاب ملابس رياضية, سحاب سهل الاستخدام, سحاب للأطفال, سستة بتعليقة دائرية.\n\nDarija marocaine (30) : snesla mika, snesla 75cm, snesla djakita, snesla meftouha, tiret nos dwira, jomla lkhyata, snesla sboit, rwaq lkhyata, snesla d lkabout, snesla rkina, snesla s7i7a, bi3 jomla snesla, lkhyata w tfassil, snesla plastique, tiret mdawra, mzlaq snesla daira, fourniture lkhyata, blaka d snesla, snesla auto lock, snesla d lkhadma, snesla sport, snesla separable, jomla mercerie, atelye lkhyata, jarrarat snesla, snesla twila, sneslat jomla, khit w snesla, snesla mzyana, tiret zwina.",
+      "isFeatured": true,
+      "specification": "75cm",
+      "price": 69.99,
+      "material": "Plastique injecté (Polyacétal / POM)",
+      "longueur": "75 cm",
+      "width": "Standard N°5 (environ 5 mm)",
+      "applications": "Vestes, manteaux, blousons (style bomber ou teddy).\n\nGilets et sweats zippés épais (sportswear et streetwear).\n\nVêtements d'hiver (la tirette ronde est pratique avec des gants).\n\nVêtements pour enfants (favorise l'autonomie).\n\nGrands sacs de sport ou maroquinerie moderne.",
+      "compositionRuban": "100% Polyester haute ténacité",
+      "informationCommerciale": "Unité de vente : Vendu au lot (Pack de 50 pièces).\n\nConditionnement : Sachet plastique ou boîte.\n\nUtilisation professionnelle : Oui (Ateliers de confection, créateurs de mode, marques de prêt-à-porter).\n\nUtilisation particulière : Oui.",
+      "minOrderQty": 1,
+      "isPromo": false,
+      "conseilsEntretien": "Lavage en machine à 40°C maximum.\n\nToujours remonter le curseur jusqu'en haut avant le lavage pour protéger les dents et la tirette contre les chocs du tambour.\n\nNe jamais repasser directement sur les mailles en plastique (utiliser une pattemouille).",
+      "slug": "lot-de-50-fermetures-a-glissiere-plastique-75-cm-separables-curseur-demi-cercle-halftour",
+      "categorySlug": "fermetures-invisibles",
+      "comparePrice": 80,
+      "reviewCount": 0,
+      "packaging": "Pack de 50 pièces"
+    },
+    {
+      "id": "custom_1783358909721_9avjc",
+      "price": 30,
+      "longueur": "20 cm",
+      "motsCles": "Français (30) : fermeture invisible, zip invisible 20cm, fermeture eclair nylon, fermeture n3, lot fermetures eclair, mercerie pro, grossiste mercerie, fourniture couture, zip auto-lock, fermeture bout fermé, fermeture jupe, zip robe, curseur autobloquant, accessoires confection, couture invisible, fermeture eclair 20 cm, achat zip lot, fermeture coussin, fermeture non séparable, sachet fermetures, mercerie en ligne, matériel tailleur, fermeture robe mariée, zip caché, fourniture vêtement, fermeture de qualité, zip nylon 20cm, fermeture à glissière invisible, tirette invisible, couture professionnelle.\n\nAnglais (30) : invisible zipper, concealed zipper, nylon zipper 20cm, size 3 zipper, closed end zip, auto lock slider, bulk zippers, wholesale haberdashery, sewing supplies, skirt zipper, dress zip, zipper pack, sewing notions, craft supplies, hidden zip, cushion zipper, garment accessories, tailor supplies, non separating zip, bridal zipper, invisible slide fastener, cheap zippers, sewing zipper, nylon coil zipper, online haberdashery, zipper bundle, fabric zipper, dressmaking supplies, lockable zipper, professional sewing.\n\nArabe (30) : سحاب مخفي, سحاب نايلون, سحاب 20 سم, سحاب رقم 3, لوازم خياطة بالجملة, سحاب تنورة, سحاب فستان, خردوات بالجملة, سستة سحرية, سحاب قفل تلقائي, سحاب نهاية مغلقة, بيع سحابات, سحاب وسادة, سحاب بلاستيك, أدوات خياطة, إكسسوارات ملابس, لوازم الخياط, سحاب غير منفصل, سحاب ملابس, حزمة سحابات, سحاب خياطة, تاجر خردوات, سحاب أبيض, سحاب أسود, سحاب عالي الجودة, خياطة وتفصيل, سوست ملابس, مستلزمات مصانع, سحاب مخفي للفساتين, سستة مخفية.\n\nDarija marocaine (30) : sensla mkhabya, sensla nylon, sensla 20cm, sensla d saya, jomla lkhyata, dkaykiya, sfifa w snasel, fermitiour, sensla d mika, atelye khyata, sensla n3, sensla auto lock, sensla msedouda, snasel lkhyata, bi3 snasel, lawazim lkhyata, sensla lmekhda, sensla r9i9a, sensla lmoda, fermitiyour blanc, fermitiyour noir, sansla rkhisa, sansla zwina, sansla seryou, hwayej lkhyata, sansla katbloka, jomla mercerie, sensla kesswa, slaa dial khyata, mercerie jomla.",
+      "isFeatured": true,
+      "applications": "Fermetures invisibles pour jupes (fente arrière ou latérale).\n\nRobes de jour, robes de soirée et de mariée.\n\nPantalons fluides et habillés pour femmes.\n\nCorsages, bustiers et tops ajustés.\n\nHousses de coussins d'ameublement déhoussables.\n\nDoublures intérieures et poches secrètes de sacs.",
+      "informationCommerciale": "Unité de vente : Vendu par lot (Pack indivisible de 100 pièces).\n\nConditionnement : Sachet plastique renforcé.\n\nUtilisation professionnelle : Oui (Ateliers de confection, tailleurs, retoucheurs, usines textiles).\n\nUtilisation particulière : Oui (Couturières passionnées, achats groupés, associations).",
+      "compositionRuban": "100% Polyester",
+      "conseilsEntretien": "Lavage : En machine jusqu'à 60°C. Attention : toujours zipper (fermer) la fermeture éclair avant de laver le vêtement pour protéger les mailles en nylon.\n\nRepassage : Repassage à température douce sur le ruban. Éviter tout contact direct du fer chaud sur les dents en nylon (risque de fonte).\n\nNettoyage à sec : Autorisé.",
+      "minOrderQty": 1,
+      "isPromo": false,
+      "reviewCount": 0,
+      "packaging": "Pack de 100 pièces",
+      "slug": "pack-de-100-fermetures-invisibles-en-nylon-20-cm",
+      "categorySlug": "fermeture-en-nylon-n-3-10-50cm",
+      "shortDescription": "Optimisez vos créations textiles avec ce pack économique de 100 fermetures à glissière invisibles en nylon N°3 (20 cm).",
+      "largeurMaille": "N°3 (Environ 3 à 4 mm de largeur une fois fermée)",
+      "avantages": "Invisibilité parfaite : Ne casse ni le motif ni le tombé du vêtement.\n\nSécurité accrue : Le curseur autobloquant empêche les ouvertures accidentelles.\n\nUltra-rentable : Le format grossiste par 100 réduit drastiquement le coût unitaire.\n\nFluidité : La maille en nylon assure une glisse sans accroc et sans coincement.\n\nDurabilité : Ruban en polyester résistant aux lavages répétés sans rétrécir.",
+      "stockQty": 11988,
+      "categoryName": "Fermeture en nylon N°3 (10-50cm)",
+      "inStock": true,
+      "tags": [
+        "FR : fermeture-invisible",
+        "zip-nylon",
+        "lot-mercerie",
+        "couture-pro",
+        "zip-20cm  EN : invisible-zipper",
+        "nylon-zip",
+        "bulk-sewing",
+        "wholesale-haberdashery",
+        "20cm-zip  AR : سحاب-مخفي",
+        "لوازم-خياطة",
+        "بيع-بالجملة",
+        "سستة-سحرية  Darija : sensla-mkhabya",
+        "jomla-khyata",
+        "sensla-nylon",
+        "lawazim-khyata"
+      ],
+      "description": "L’art de la finition invisible pour vos créations\nLa fermeture à glissière invisible est le secret le mieux gardé des ateliers de confection et des créateurs exigeants. Avec ce pack économique de 100 fermetures en nylon de taille N°3 (20 cm), vous disposez de la fourniture de mercerie idéale pour garantir des finitions impeccables à l'ensemble de vos collections. Une fois montée, la maille disparaît complètement dans la couture, ne laissant visible que la fine tirette du curseur.\n\nQualité professionnelle et sécurité Auto-Lock (A/L)\nFabriquées à partir d'une maille spirale en nylon de haute qualité et d'un ruban en polyester robuste, ces fermetures allient légèreté, souplesse et résistance. Leur véritable atout réside dans le curseur normal doté de la technologie \"Auto-Lock\" (A/L). Ce mécanisme autobloquant assure que la tirette se verrouille automatiquement dès qu'elle est rabattue. Cela empêche toute ouverture intempestive du vêtement lors des mouvements, offrant une sérénité totale à la personne qui le porte.\n\nUne conception \"Closed-End\" pour une polyvalence maximale\nCes fermetures bénéficient d'une base \"Closed-End\" (C/E), signifiant qu'elles sont non-séparables à la base. Les deux pans restent solidement attachés, ce qui est la norme absolue pour les ouvertures partielles.\n\nSecteurs d'utilisation multiples\nCette fermeture polyvalente est un incontournable dans de nombreux domaines :\n\nConfection et Prêt-à-porter : Montage au dos ou sur la hanche pour les jupes ajustées, les robes de mariée, robes de cocktail, et pantalons habillés pour femme.\n\nAmeublement et Décoration : Création de housses de coussins déhoussables où la fermeture ne doit pas casser les motifs du tissu.\n\nMaroquinerie légère : Intégration de poches secrètes à l'intérieur des sacs à main ou pochettes.\n\nConseils d'utilisation de nos experts\nPour une pose parfaite, l'utilisation d'un pied-de-biche spécial pour fermeture invisible est fortement recommandée. Avant la couture, repassez délicatement les dents de la fermeture ouverte, à très basse température, pour les dérouler légèrement. Cela permettra à l'aiguille de votre machine de piquer au plus près de la maille, garantissant un effet 100 % invisible sur l'endroit du tissu. Pensez également à sécuriser la base de votre montage avec un point d'arrêt solide.",
+      "rating": 5,
+      "variants": [
+        {
+          "inStock": true,
+          "id": "v_1783358781896",
+          "color": "Noir",
+          "size": "20cm",
+          "stock": 999,
+          "colorHex": "#1a1a1a"
+        },
+        {
+          "stock": 999,
+          "size": "20cm",
+          "colorHex": "#f5f5f5",
+          "inStock": true,
+          "id": "v_1783358786543",
+          "color": "Blanc"
+        },
+        {
+          "colorHex": "#e53e3e",
+          "stock": 999,
+          "size": "20cm",
+          "id": "v_1783358786719",
+          "color": "Rouge",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "size": "20cm",
+          "colorHex": "#3182ce",
+          "inStock": true,
+          "id": "v_1783358786887",
+          "color": "Bleu"
+        },
+        {
+          "inStock": true,
+          "color": "Vert",
+          "id": "v_1783358787063",
+          "stock": 999,
+          "size": "20cm",
+          "colorHex": "#38a169"
+        },
+        {
+          "color": "Jaune",
+          "id": "v_1783358787079",
+          "inStock": true,
+          "colorHex": "#d69e2e",
+          "size": "20cm",
+          "stock": 999
+        },
+        {
+          "id": "v_1783358787248",
+          "color": "Orange",
+          "inStock": true,
+          "colorHex": "#dd6b20",
+          "size": "20cm",
+          "stock": 999
+        },
+        {
+          "colorHex": "#d53f8c",
+          "size": "20cm",
+          "stock": 999,
+          "id": "v_1783358787407",
+          "color": "Rose",
+          "inStock": true
+        },
+        {
+          "inStock": true,
+          "color": "Violet",
+          "id": "v_1783358798311",
+          "stock": 999,
+          "size": "20cm",
+          "colorHex": "#805ad5"
+        },
+        {
+          "id": "v_1783358798488",
+          "color": "Marron",
+          "inStock": true,
+          "colorHex": "#92400e",
+          "size": "20cm",
+          "stock": 999
+        },
+        {
+          "colorHex": "#718096",
+          "size": "20cm",
+          "stock": 999,
+          "id": "v_1783358798623",
+          "color": "Gris",
+          "inStock": true
+        },
+        {
+          "stock": 999,
+          "size": "20cm",
+          "colorHex": "#d4b896",
+          "inStock": true,
+          "id": "v_1783358798639",
+          "color": "Beige"
+        }
+      ],
+      "name": "Pack de 100 Fermetures Invisibles en Nylon- 20 cm",
+      "matiereMailles": "100% Nylon (Polyamide)",
+      "typeProduit": "Fermeture à glissière invisible (zip caché)",
+      "isNew": false,
+      "images": [
+        "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1783358818282_u4269z.jpeg?alt=media&token=49cb781b-aee9-4e47-bde5-f41c18646b69"
+      ],
+      "compatibleAvec": "Tissus fins à moyens : coton, crêpe, soie, viscose, lin",
+      "paysFabrication": "Chine",
+      "resistance": "Adaptée aux tensions légères à moyennes",
+      "type": "Normal, forme goutte, Autobloquant (Auto-Lock - A/L)"
+    }
+  ],
+  "customCategories": [
+    {
+      "id": "cat_accessoires-de-confection_1781638538209",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1781638543957_w2as4y.png?alt=media&token=72468cd1-b76c-4fb3-9d26-4bcd0fdcc7a1",
+      "description": "outils essentiels, fournitures de couture et accessoires professionnels pour tous vos projets textiles.",
+      "name": "Accessoires de Confection",
+      "slug": "accessoires-de-confection",
+      "color": "#C8102E",
+      "priority": 51
+    },
+    {
+      "id": "cat_biais-rubans_1779471536034",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1779471957982_10h5nk.png?alt=media&token=54628bab-35a0-4016-b210-b5e7573a3847",
+      "name": "Tissu & Doublure",
+      "description": "Découvrez notre sélection de tissus et doublures de haute qualité pour tous vos projets de confection. Du tissu élégant aux doublures confortables et résistantes, nous proposons une large gamme de matières, couleurs et finitions adaptées à la mode, la couture et la création textile professionnelle.",
+      "slug": "biais-rubans",
+      "color": "#C8102E",
+      "priority": 100
+    },
+    {
+      "id": "cat_curseur-pour-fermeture-en-nylon_1779365148873",
+      "priority": 0,
+      "parentSlug": null,
+      "slug": "curseur-pour-fermeture-en-nylon",
+      "color": "#c65910",
+      "description": "Le curseur pour fermeture en nylon est un élément essentiel pour garantir le bon fonctionnement et la durabilité de vos fermetures éclair.",
+      "name": "Curseur pour fermeture éclaire",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1781260624153_bdugk7.png?alt=media&token=43b507a7-ab7b-43d3-ba0b-12f0fd5ae2a8"
+    },
+    {
+      "id": "cat_curseur-pour-fermeture-en-nylon_1782900568877",
+      "parentSlug": "curseur-pour-fermeture-en-nylon",
+      "priority": 0,
+      "slug": "curseur-pour-fermeture-en-nylon",
+      "color": "#C8102E",
+      "name": "Curseur pour fermeture en nylon",
+      "description": "Nos curseurs pour fermetures éclair en nylon sont conçus pour garantir un glissement fluide, une excellente résistance à l'usure et une longue durée de vie. Compatibles avec les fermetures nylon standards utilisées dans la confection textile, ils offrent une solution fiable pour la fabrication, la réparation ou le remplacement de fermetures éclair",
+      "image": null
+    },
+    {
+      "id": "cat_fermeture-en-nylon-n-3-10-50cm_1783357489301",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1783357983755_70znoc.jpeg?alt=media&token=57f2d5c5-cb10-4767-bf85-023904db9ca6",
+      "name": "Fermeture en nylon N°3 (10-50cm)",
+      "description": "Découvrez notre gamme de fermetures à glissière en spirale nylon N°3. Légères, flexibles et discrètes, elles sont incontournables pour la confection de vêtements fins et d'accessoires",
+      "slug": "fermeture-en-nylon-n-3-10-50cm",
+      "color": "#1077c6",
+      "parentSlug": "fermetures-nylon",
+      "priority": 0
+    },
+    {
+      "id": "cat_fermeture-en-nylon-no5-50cm-1m20_1783357644052",
+      "name": "Fermeture en nylon N°5 (60cm-1m20)",
+      "description": "Découvrez notre sélection de fermetures à glissière en spirale nylon N°5.",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1783357838664_58agyy.jpeg?alt=media&token=bc3f667c-8ba0-4e5b-82dd-9b292d1fae95",
+      "parentSlug": "fermetures-nylon",
+      "priority": 0,
+      "slug": "fermeture-en-nylon-no5-50cm-1m20",
+      "color": "#C8102E"
+    },
+    {
+      "id": "cat_fermeture-en-plastique-n-5_1782932843486",
+      "description": "Découvrez notre gamme de fermetures éclair en plastique N°5, conçues pour offrir un excellent équilibre entre solidité, légèreté et durabilité.",
+      "name": "Fermeture en plastique N°5-(60cm-1m20)",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1782933016237_mao4tj.png?alt=media&token=82ac8f29-abc4-496e-a939-4995c35b66be",
+      "parentSlug": "fermetures-resine",
+      "priority": 0,
+      "slug": "fermeture-en-plastique-n-5",
+      "color": "#C8102E"
+    },
+    {
+      "id": "cat_tissu-doublure_1779472078832",
+      "name": "Bobines de fil",
+      "description": "Découvrez notre sélection de bobines de fil de haute qualité, idéales pour la couture, la confection et les travaux textiles professionnels. Résistants, fluides et disponibles en plusieurs couleurs et finitions.",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1779474302499_68tmrf.jpg?alt=media&token=1ef72fd5-e1e7-4d9a-8ea1-dc5d0103288b",
+      "priority": 90,
+      "color": "#1310c6",
+      "slug": "tissu-doublure"
+    }
+  ],
+  "categoryOverrides": {
+    "accessoires-couture": {
+      "name": "Les attaches",
+      "description": "Petites attaches en plastique utilisées avec un pistolet d’étiquetage (tagging gun) pour fixer les étiquettes sur les vêtements ou produits.",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1779476356022_0xtdb0.jpg?alt=media&token=dd1eb7a9-119e-4255-aa44-edd047172e7f",
+      "color": "#F97316",
+      "slug": "accessoires-couture"
+    },
+    "biais-rubans": {
+      "slug": "biais-rubans",
+      "color": "#C8102E",
+      "priority": 40,
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1780935795073_0cae7i.jpg?alt=media&token=23d7895f-a3f4-41a4-9dd7-caf884c706aa",
+      "name": "Biais & Rubans",
+      "description": "Biais coton et rubans satin, gros grain et fantaisie"
+    },
+    "boutons": {
+      "name": "Boutons",
+      "description": "Boutons pression, couverts, fantaisie — large gamme",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1779475872057_tpylt6.jpg?alt=media&token=6a5aa582-ef44-4262-8a26-c04a047acb23",
+      "color": "#10B981",
+      "slug": "boutons"
+    },
+    "elastiques": {
+      "priority": 50,
+      "color": "#F59E0B",
+      "slug": "elastiques",
+      "name": "Élastiques",
+      "description": "Élastiques plats, ronds et dentelle pour toutes applications",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1780936613654_9phor6.png?alt=media&token=4628df68-6ea8-49e6-a7bd-f6b0ef47a65c"
+    },
+    "fermetures-invisibles": {
+      "description": "Découvrez notre sélection de tissus et doublures de haute qualité pour tous vos projets de confection. Du tissu élégant aux doublures confortables et résistantes, nous proposons une large gamme de matières, couleurs et finitions adaptées à la mode, la couture et la création textile professionnelle.",
+      "name": "Tissu & Doublure",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1779474875241_6f3m1v.png?alt=media&token=e92625f2-cb56-4bd2-9040-3650c5b1c68a",
+      "priority": 90,
+      "color": "#EC4899",
+      "slug": "fermetures-invisibles"
+    },
+    "fermetures-metal": {
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1780933991357_h3465i.png?alt=media&token=d2aaaf4d-4512-44fa-81a9-508c75c24ea4",
+      "name": "Fermetures Métal",
+      "description": "Fermetures métalliques laiton et aluminium — haut de gamme",
+      "color": "#D4A843",
+      "slug": "fermetures-metal",
+      "priority": 10
+    },
+    "fermetures-nylon": {
+      "color": "#3B82F6",
+      "slug": "fermetures-nylon",
+      "priority": 11,
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1780416369506_j6jgeb.png?alt=media&token=de5ba794-8b72-4482-966a-f769356bfd19",
+      "description": "Fermetures éclair en nylon de qualité supérieure — toutes tailles et couleurs",
+      "name": "Fermetures Nylon"
+    },
+    "fermetures-resine": {
+      "priority": 10,
+      "color": "#8B5CF6",
+      "slug": "fermetures-resine",
+      "description": "Fermetures en résine (plastique) robustes et colorées",
+      "name": "Fermetures Plastique/Résine",
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1780416628300_jrwp02.png?alt=media&token=125674ee-c574-4fcf-99fe-20a84e3656a1"
+    },
+    "scratch-velcro": {
+      "image": "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fcategories%2F1781215398114_ldmfrv.jpeg?alt=media&token=57411550-c393-4c93-b7ce-6075d6121699",
+      "name": "Scratch / Velcro",
+      "description": "Bandes auto-agrippantes scratch et velcro toutes largeurs",
+      "color": "#06B6D4",
+      "slug": "scratch-velcro",
+      "priority": 30
+    }
+  }
+}

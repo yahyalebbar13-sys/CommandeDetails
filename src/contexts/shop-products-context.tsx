@@ -2,10 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
+import shopStaticData from '@/lib/shop-firebase-dump.json';
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -56,63 +57,11 @@ interface ShopProductsContextType {
 const ShopProductsContext = createContext<ShopProductsContextType | null>(null);
 
 export function ShopProductsProvider({ children }: { children: React.ReactNode }) {
-  const [overrides, setOverrides] = useState<Record<string, ProductOverride>>({});
-  const [customProducts, setCustomProducts] = useState<ShopProduct[]>([]);
-  const [customCategories, setCustomCategories] = useState<ShopCategory[]>([]);
-  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>({});
-  const [isLoading, setIsLoading] = useState(true); // true → attend Firestore avant d'afficher
-
-  // Real-time listeners — any change in Firestore appears instantly in the shop
-  useEffect(() => {
-    let resolved = 0;
-    const total = 4;
-    const tryDone = () => { resolved++; if (resolved >= total) setIsLoading(false); };
-
-    const unsubOv = onSnapshot(
-      collection(db, 'shop_product_overrides'),
-      snap => {
-        const ov: Record<string, ProductOverride> = {};
-        snap.docs.forEach(d => { ov[d.id] = d.data() as ProductOverride; });
-        setOverrides(ov);
-        tryDone();
-      },
-      err => { console.error('[ShopProductsContext] overrides error:', err); tryDone(); }
-    );
-
-    const unsubCp = onSnapshot(
-      collection(db, 'shop_custom_products'),
-      snap => {
-        setCustomProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as ShopProduct)));
-        tryDone();
-      },
-      err => { console.error('[ShopProductsContext] custom products error:', err); tryDone(); }
-    );
-
-    const unsubCc = onSnapshot(
-      collection(db, 'shop_custom_categories'),
-      snap => {
-        setCustomCategories(snap.docs.map(d => ({ id: d.id, ...d.data() } as ShopCategory)));
-        tryDone();
-      },
-      err => { console.error('[ShopProductsContext] custom categories error:', err); tryDone(); }
-    );
-
-    const unsubCo = onSnapshot(
-      collection(db, 'shop_category_overrides'),
-      snap => {
-        const catOv: Record<string, Partial<ShopCategory>> = {};
-        snap.docs.forEach(d => { catOv[d.id] = d.data(); });
-        setCategoryOverrides(catOv);
-        tryDone();
-      },
-      err => { console.error('[ShopProductsContext] category overrides error:', err); tryDone(); }
-    );
-
-    return () => { unsubOv(); unsubCp(); unsubCc(); unsubCo(); };
-  }, []);
-
-
-
+  const [overrides, setOverrides] = useState<Record<string, ProductOverride>>((shopStaticData.overrides as any) || {});
+  const [customProducts, setCustomProducts] = useState<ShopProduct[]>((shopStaticData.customProducts as any) || []);
+  const [customCategories, setCustomCategories] = useState<ShopCategory[]>((shopStaticData.customCategories as any) || []);
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>((shopStaticData.categoryOverrides as any) || {});
+  const [isLoading, setIsLoading] = useState(false); // true → attend Firestore avant d'afficher (now instantly false)
   // Merge hardcoded data with Firestore overrides and custom products
   const products = useMemo(() => {
     const hardcoded = SHOP_PRODUCTS_DATA.map(p => {
