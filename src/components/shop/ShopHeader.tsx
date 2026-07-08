@@ -30,7 +30,7 @@ interface NavLink {
 const NAV_LINKS: NavLink[] = [
   { labelKey: "nav_home", href: "/shop" },
   { labelKey: "nav_categories", href: "/shop/categories", hasDropdown: true },
-  { labelKey: "nav_all_products", href: "/shop/boutique" },
+  { labelKey: "nav_shop", href: "/shop/boutique" },
   { labelKey: "nav_promos", href: "/shop/promotions" },
   { labelKey: "nav_precommande", href: "/shop/precommande" },
   { labelKey: "nav_boutiques", href: "/shop/a-propos" },
