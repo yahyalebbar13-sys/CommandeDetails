@@ -540,9 +540,6 @@ function AdminApp() {
             <div className="hidden xl:flex items-center space-x-1"><NavButtons /></div>
           </div>
           <div className="flex items-center space-x-2">
-            <Button size="sm" onClick={() => exportGlobalPackingPDF(articles, generalCategories)} variant="outline" className="h-9 px-3 rounded-xl border-stone-200 text-stone-700 hover:bg-stone-50 flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest shadow-sm">
-              <FileDown className="w-3.5 h-3.5 shrink-0" /> <span className="hidden sm:inline">Packing Global</span>
-            </Button>
             <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-3 py-2 h-9 rounded-xl shadow-lg flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest whitespace-nowrap">
               <Plus className="w-3.5 h-3.5 shrink-0" /><span>Nouveau Produit</span>
             </Button>
@@ -627,7 +624,12 @@ function AdminApp() {
       <footer className="border-t border-stone-200 bg-white py-6">
         <div className="max-w-[1600px] mx-auto px-6 flex justify-between items-center text-stone-400 text-[9px] font-black uppercase tracking-[0.2em]">
           <p>© 2024 STOCKVUE LOGISTICS ENGINE</p>
-          <span className="text-stone-300">CORE VERSION 2.8.5</span>
+          <div className="flex items-center gap-6">
+            <Button size="sm" onClick={() => exportGlobalPackingPDF(articles, generalCategories)} variant="outline" className="h-8 px-3 rounded-lg border-stone-200 text-stone-700 hover:bg-stone-50 flex items-center gap-1.5 text-[9px] uppercase font-black tracking-widest shadow-sm transition-all duration-300">
+              <FileDown className="w-3.5 h-3.5 shrink-0" /> <span>Export Global Packing</span>
+            </Button>
+            <span className="text-stone-300">CORE VERSION 2.8.5</span>
+          </div>
         </div>
       </footer>
 
