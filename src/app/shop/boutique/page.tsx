@@ -102,6 +102,9 @@ function BoutiqueContent() {
   const { products: allProducts, categories: allContextCategories } = useShopProducts();
   const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
 
+  // Get unique images for the hero collage (top 12 images)
+  const heroImages = Array.from(new Set(allProducts.flatMap(p => p.images))).filter(Boolean).slice(0, 12);
+
   // Filter & sort
   let products = [...allProducts];
 
@@ -136,16 +139,19 @@ function BoutiqueContent() {
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
       {/* Hero */}
       <div className="relative overflow-hidden bg-[#0F0F0F] text-white py-16 lg:py-24">
-        {/* Background Image */}
-        <div className="absolute inset-0 z-0">
-          <Image
-            src="/boutique-hero-bg.png"
-            alt="Mercerie professionnelle"
-            fill
-            className="object-cover opacity-50"
-            priority
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0F0F0F] via-[#0F0F0F]/60 to-transparent" />
+        {/* Real Products Collage Background */}
+        <div className="absolute inset-0 z-0 overflow-hidden opacity-30">
+          {heroImages.length > 0 && (
+            <div className="absolute inset-0 grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 transform scale-125 -rotate-3 blur-[2px]">
+              {heroImages.map((img, idx) => (
+                <div key={idx} className="relative w-full aspect-square rounded-2xl overflow-hidden bg-[#1A1A1A]">
+                  <img src={img} alt="" className="w-full h-full object-cover opacity-80" />
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0F0F0F] via-[#0F0F0F]/80 to-[#0F0F0F]/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F] via-transparent to-[#0F0F0F]" />
         </div>
         
         {/* Premium Background Effects */}
