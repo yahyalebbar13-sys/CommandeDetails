@@ -91,12 +91,6 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
-        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
-        
-        {/* Skeleton — disparaît quand l'image est chargée */}
-        {!imgLoaded && (
-          <div className="absolute inset-0 z-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
-        )}
         <div className="absolute inset-0 z-0 pointer-events-none">
           <Image
             src={primaryImage}
@@ -110,6 +104,14 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
             onLoad={() => setImgLoaded(true)}
           />
         </div>
+        
+        {/* Link is placed AFTER image with higher z-index to ensure it's perfectly clickable on all browsers */}
+        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-10" tabIndex={-1} aria-label={product.name}></Link>
+        
+        {/* Skeleton — disparaît quand l'image est chargée */}
+        {!imgLoaded && (
+          <div className="absolute inset-0 z-10 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
+        )}
 
         {/* Badge Row */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
@@ -211,23 +213,39 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
           <StarRating rating={product.rating} reviewCount={product.reviewCount} />
         )}
 
-        {/* Price Row */}
-        <div className="flex items-center gap-2 flex-wrap mt-0.5">
-          <span
-            className="text-lg font-bold"
-            style={{ color: '#0F0F0F', fontFamily: 'Outfit, sans-serif' }}
-          >
-            {formatPrice(product.price)}
-          </span>
-          {product.comparePrice && (
-            <span className="text-sm text-gray-400 line-through">
-              {formatPrice(product.comparePrice)}
+        {/* Price Row & Mobile Add to Cart */}
+        <div className="flex items-center justify-between mt-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="text-lg font-bold"
+              style={{ color: '#0F0F0F', fontFamily: 'Outfit, sans-serif' }}
+            >
+              {formatPrice(product.price)}
             </span>
-          )}
-          {discountPct > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 text-[#C8102E] border border-red-100">
-              -{discountPct}%
-            </span>
+            {product.comparePrice && (
+              <span className="text-sm text-gray-400 line-through">
+                {formatPrice(product.comparePrice)}
+              </span>
+            )}
+            {discountPct > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 text-[#C8102E] border border-red-100">
+                -{discountPct}%
+              </span>
+            )}
+          </div>
+          
+          {/* Mobile quick-add button (only visible on mobile, since desktop has the hover overlay) */}
+          {showAddToCart && product.inStock && (
+            <button
+              onClick={handleAddToCart}
+              disabled={added}
+              className={`sm:hidden flex items-center justify-center w-8 h-8 rounded-full shadow-sm transition-colors ${
+                added ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-[#C8102E] hover:text-white'
+              }`}
+              aria-label="Ajouter au panier"
+            >
+              {added ? <CheckCircle2 className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+            </button>
           )}
         </div>
 
