@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, X, ChevronDown, Grid3X3, List, Filter } from 'lucide-react';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
@@ -135,8 +136,20 @@ function BoutiqueContent() {
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
       {/* Hero */}
       <div className="relative overflow-hidden bg-[#0F0F0F] text-white py-16 lg:py-24">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/boutique-hero-bg.png"
+            alt="Mercerie professionnelle"
+            fill
+            className="object-cover opacity-50"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0F0F0F] via-[#0F0F0F]/60 to-transparent" />
+        </div>
+        
         {/* Premium Background Effects */}
-        <div className="absolute inset-0 opacity-40">
+        <div className="absolute inset-0 z-0 opacity-30 pointer-events-none">
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#C8102E] rounded-full mix-blend-screen filter blur-[120px] animate-blob" />
           <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-[#D4A843] rounded-full mix-blend-screen filter blur-[100px] animate-blob animation-delay-2000" />
         </div>
