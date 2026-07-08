@@ -22,13 +22,14 @@ import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
 import BaseOrdersView from '@/components/base-orders-view';
+import { exportGlobalPackingPDF } from '@/lib/pdf-global-packing';
 
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -539,6 +540,9 @@ function AdminApp() {
             <div className="hidden xl:flex items-center space-x-1"><NavButtons /></div>
           </div>
           <div className="flex items-center space-x-2">
+            <Button size="sm" onClick={() => exportGlobalPackingPDF(articles, generalCategories)} variant="outline" className="h-9 px-3 rounded-xl border-stone-200 text-stone-700 hover:bg-stone-50 flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest shadow-sm">
+              <FileDown className="w-3.5 h-3.5 shrink-0" /> <span className="hidden sm:inline">Packing Global</span>
+            </Button>
             <Button size="sm" onClick={() => setIsOrderModalOpen(true)} className="bg-stone-900 hover:bg-black text-white px-3 py-2 h-9 rounded-xl shadow-lg flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest whitespace-nowrap">
               <Plus className="w-3.5 h-3.5 shrink-0" /><span>Nouveau Produit</span>
             </Button>
