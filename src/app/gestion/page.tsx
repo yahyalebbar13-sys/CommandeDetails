@@ -578,7 +578,7 @@ function AdminApp() {
               <ToOrderView articles={articles} factures={factures} onEdit={setEditingArticle} />
             </div>
             <div className={activeTab === 'base-orders' ? 'block animate-in fade-in' : 'hidden'}>
-              <BaseOrdersView subCategories={subCategories} generalCategories={generalCategories} />
+              <BaseOrdersView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />
             </div>
             <div className={activeTab === 'pending' ? 'block animate-in fade-in' : 'hidden'}>
               <PendingOrdersView articles={articles} factures={factures} generalCategories={generalCategories} onEdit={setEditingArticle} />

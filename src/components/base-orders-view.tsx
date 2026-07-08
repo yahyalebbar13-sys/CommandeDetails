@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel
 } from '@/components/ui/select';
 import {
-  ClipboardList, Plus, Edit2, Trash2, ArrowRight, FileDown, Layers, Loader2, Save, Package, Box
+  ClipboardList, Plus, Edit2, Trash2, ArrowRight, FileDown, Layers, Loader2, Save, Package, Box, History
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useUser, useFirestore, useCollection, useMemoFirebase, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
@@ -25,14 +25,17 @@ import { useToast } from '@/hooks/use-toast';
 import { exportBaseOrderPDF } from '@/lib/pdf-export';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
+import BaseOrderHistoryModal from './base-order-history-modal';
 import { Palette, Maximize } from 'lucide-react';
 
 interface BaseOrdersViewProps {
+  articles: any[];
+  factures: any[];
   subCategories: any[];
   generalCategories: any[];
 }
 
-export default function BaseOrdersView({ subCategories, generalCategories }: BaseOrdersViewProps) {
+export default function BaseOrdersView({ articles, factures, subCategories, generalCategories }: BaseOrdersViewProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -43,6 +46,7 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [historyOrder, setHistoryOrder] = useState<any>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -307,13 +311,18 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-4 border-t border-stone-100">
+                <div className="grid grid-cols-1 gap-2 pt-4 border-t border-stone-100">
                   <Button onClick={() => openGenerator(order)} className="w-full bg-stone-900 hover:bg-black text-white h-9 text-[10px] uppercase font-black tracking-widest rounded-xl">
                     <ArrowRight className="w-3.5 h-3.5 mr-1.5" /> Générer
                   </Button>
-                  <Button onClick={() => exportBaseOrderPDF(order)} variant="outline" className="w-full border-stone-200 text-stone-600 hover:bg-stone-50 h-9 text-[10px] uppercase font-black tracking-widest rounded-xl">
-                    <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export PDF
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={() => setHistoryOrder(order)} variant="outline" className="w-full border-stone-200 text-indigo-600 hover:bg-indigo-50 h-9 text-[10px] uppercase font-black tracking-widest rounded-xl">
+                      <History className="w-3.5 h-3.5 mr-1.5" /> Historique
+                    </Button>
+                    <Button onClick={() => exportBaseOrderPDF(order)} variant="outline" className="w-full border-stone-200 text-stone-600 hover:bg-stone-50 h-9 text-[10px] uppercase font-black tracking-widest rounded-xl">
+                      <FileDown className="w-3.5 h-3.5 mr-1.5" /> Export PDF
+                    </Button>
+                  </div>
                 </div>
               </div>
               <div className="bg-stone-50 px-4 py-2 border-t border-stone-100 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -680,6 +689,14 @@ export default function BaseOrdersView({ subCategories, generalCategories }: Bas
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Modal Historique d'Importation */}
+      <BaseOrderHistoryModal 
+        baseOrder={historyOrder} 
+        articles={articles} 
+        factures={factures} 
+        open={!!historyOrder} 
+        onOpenChange={(val) => !val && setHistoryOrder(null)} 
+      />
     </div>
   );
 }
