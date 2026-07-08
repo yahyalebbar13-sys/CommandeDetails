@@ -50,16 +50,12 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
     const catName = categories[i];
     const catArticles = byCategory.get(catName)!;
 
-    // We need to flatten the colorBreakdown and sizeBreakdown if they exist to show all sizes/colors
+    // We need to flatten the colorBreakdown and sizeBreakdown if they exist
     const tableBody: any[] = [];
     
     catArticles.forEach(art => {
       // Build a base description
-      const supplier = art.supplierId || '-';
       const container = art.containerRef || '-';
-      const status = art.status === 'PI' ? 'Production' : 
-                     (art.status === 'SHIPPED' || art.status === 'TRANSIT') ? 'Transit' : 
-                     art.status === 'CUSTOMS' ? 'Douane' : art.status;
 
       const hasColorB = art.colorBreakdown && art.colorBreakdown.length > 0;
       const hasSizeB = art.sizeBreakdown && art.sizeBreakdown.length > 0;
@@ -67,10 +63,7 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
       if (hasColorB) {
         art.colorBreakdown.forEach((cb: any) => {
           tableBody.push([
-            supplier,
             container,
-            status,
-            cb.color || '-',
             cb.size || art.size || '-',
             `${cb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
           ]);
@@ -78,20 +71,14 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
       } else if (hasSizeB) {
         art.sizeBreakdown.forEach((sb: any) => {
           tableBody.push([
-            supplier,
             container,
-            status,
-            sb.color || art.color || '-',
             sb.size || '-',
             `${sb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
           ]);
         });
       } else {
         tableBody.push([
-          supplier,
           container,
-          status,
-          art.color || '-',
           art.size || '-',
           `${art.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
         ]);
@@ -111,20 +98,25 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
       startY = 20;
     }
 
+    // Print category title above the table
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(`Catégorie: ${catName} (${gcName})`, 10, startY);
+    
+    startY += 4;
+
     autoTable(doc, {
       startY: startY,
-      head: [[`Catégorie: ${catName} (${gcName})`, 'Dossier / Modèle', 'Statut', 'Couleur', 'Taille / Specs', 'Quantité']],
+      head: [['Dossier / Modèle', 'Taille / Specs', 'Quantité']],
       body: tableBody,
       theme: 'grid',
       headStyles: { fillColor: [63, 63, 70], textColor: 255, fontStyle: 'bold', fontSize: 9 },
       styles: { fontSize: 8, cellPadding: 3, textColor: [40, 40, 40] },
       columnStyles: {
-        0: { cellWidth: 45 },
-        1: { cellWidth: 60 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 35 },
-        4: { cellWidth: 80 },
-        5: { cellWidth: 'auto', halign: 'right' }
+        0: { cellWidth: 80 },
+        1: { cellWidth: 140 },
+        2: { cellWidth: 'auto', halign: 'right' }
       },
       margin: { left: 10, right: 10, bottom: 15 },
       didDrawPage: (data: any) => {
@@ -132,7 +124,7 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
       }
     });
     
-    startY = (doc as any).lastAutoTable.finalY + 8;
+    startY = (doc as any).lastAutoTable.finalY + 12;
   }
 
   // Footer
