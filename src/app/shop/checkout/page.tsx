@@ -211,6 +211,7 @@ function SummaryPanel({ items, subtotal, city }: SummaryPanelProps) {
                   src={item.productImage}
                   alt={item.productName}
                   fill
+                  sizes="48px"
                   className="object-cover"
                 />
               ) : (
@@ -399,7 +400,7 @@ export default function CheckoutPage() {
         clearCart();
         router.push(`/shop/confirmation/${docRef.id}`);
       } catch (err) {
-        console.error("Order submission error:", err);
+        // Silently handle submission errors, user will see the error message below
         setSubmitError(
           "Une erreur s'est produite lors de la validation de votre commande. Veuillez réessayer ou nous contacter sur WhatsApp."
         );

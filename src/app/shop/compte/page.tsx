@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
@@ -51,7 +51,7 @@ import {
   ShoppingBag,
   MessageCircle,
   Loader2,
-  Star,
+
 } from 'lucide-react';
 
 // ─── Firebase init ─────────────────────────────────────────────────────────────
@@ -610,7 +610,7 @@ function AccountDashboard({ user }: { user: User }) {
   useEffect(() => {
     if (!user.email) return;
     setLoadingOrders(true);
-    const fetch = async () => {
+    const fetchOrders = async () => {
       try {
         const q = query(
           collection(db, 'shop_orders'),
@@ -620,13 +620,13 @@ function AccountDashboard({ user }: { user: User }) {
         const snap = await getDocs(q);
         const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ShopOrder));
         setOrders(data);
-      } catch (err) {
-        console.error('Error fetching orders:', err);
+      } catch {
+        // Silently handle order fetch failures
       } finally {
         setLoadingOrders(false);
       }
     };
-    fetch();
+    fetchOrders();
   }, [user.email]);
 
   // Fetch profile phone
@@ -668,7 +668,6 @@ function AccountDashboard({ user }: { user: User }) {
   const tabs = [
     { key: 'orders', label: 'Mes Commandes', icon: <Package className="w-4 h-4" /> },
     { key: 'profile', label: 'Mon Profil', icon: <UserIcon className="w-4 h-4" /> },
-    { key: 'wishlist', label: 'Wishlist', icon: <Heart className="w-4 h-4" /> },
   ] as const;
 
   return (

@@ -32,7 +32,6 @@ import {
   Loader2,
   AlertCircle,
   Phone,
-  Hash,
   RefreshCw,
   ChevronRight,
   ChevronDown,
@@ -341,7 +340,7 @@ export default function SuiviPage() {
       setOrders(results);
       setSearched(true);
     } catch (err) {
-      console.error('Error fetching orders:', err);
+      // Silently handle order fetch failures
       setNotFound(true);
       setSearched(true);
     } finally {
@@ -419,13 +418,14 @@ export default function SuiviPage() {
             className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 space-y-4"
           >
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              <label htmlFor="phone-input" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 Votre numéro de téléphone *
               </label>
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/10 transition-all">
                 <span className="text-sm">🇲🇦</span>
                 <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 <input
+                  id="phone-input"
                   type="tel"
                   value={searchPhone}
                   onChange={(e) => setSearchPhone(e.target.value)}

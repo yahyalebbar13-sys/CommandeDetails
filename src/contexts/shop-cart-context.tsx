@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { CartItem } from '@/lib/shop-types';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           const newQty = Math.min(items[existing].quantity + newItem.quantity, items[existing].maxStock);
           items[existing] = { ...items[existing], quantity: newQty };
         } else {
-          items = [...items, newItem];
+          items.push(newItem);
         }
       }
       return { ...state, items, isOpen: true };
@@ -109,6 +109,7 @@ const STORAGE_KEY = 'lebtex_cart_v1';
 
 export function ShopCartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, { items: [], isOpen: false });
+  const loaded = useRef(false);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -119,10 +120,12 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'LOAD_CART', payload: items });
       }
     } catch {}
+    loaded.current = true;
   }, []);
 
   // Persist to localStorage on change
   useEffect(() => {
+    if (!loaded.current) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
     } catch {}
@@ -145,8 +148,8 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
   const openCart   = useCallback(() => dispatch({ type: 'OPEN_CART' }), []);
   const closeCart  = useCallback(() => dispatch({ type: 'CLOSE_CART' }), []);
 
-  const itemCount = state.items.reduce((s, i) => s + i.quantity, 0);
-  const subtotal  = state.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const itemCount = useMemo(() => state.items.reduce((s, i) => s + i.quantity, 0), [state.items]);
+  const subtotal  = useMemo(() => state.items.reduce((s, i) => s + i.price * i.quantity, 0), [state.items]);
 
   return (
     <CartContext.Provider value={{

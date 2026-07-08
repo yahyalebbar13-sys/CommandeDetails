@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, MessageCircle, Phone, Mail, MapPin } from 'lucide-react';
+import { ChevronDown, ChevronUp, MessageCircle, Phone } from 'lucide-react';
 
 const FAQS = [
   {
@@ -46,6 +46,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
     <div className="border border-[#E8E4DF] rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between p-5 text-left bg-white hover:bg-[#FBF8F3] transition-colors"
       >
         <span className="font-semibold text-[#1A1A1A] pr-4" style={{ fontFamily: 'Outfit, sans-serif' }}>{q}</span>

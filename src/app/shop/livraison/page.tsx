@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { Truck, Clock, MapPin, Shield, RotateCcw, Package, CheckCircle, AlertCircle, MessageCircle } from 'lucide-react';
+import { Truck, Clock, MapPin, RotateCcw, Package, CheckCircle, AlertCircle, MessageCircle } from 'lucide-react';
 
 const ZONES = [
   { city: 'Casablanca & Grand Casablanca', fee: 25, delay: '24 - 48h', partner: 'Amana / Cathedis' },

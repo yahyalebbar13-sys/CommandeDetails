@@ -68,6 +68,7 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
             src={item.productImage}
             alt={item.productName}
             fill
+            sizes="80px"
             className="object-cover"
             onError={() => setImgError(true)}
           />
@@ -222,7 +223,7 @@ export default function PanierPage() {
   const { items, subtotal, updateQty, removeItem, clearCart } = useShopCart();
   const router = useRouter();
   const [couponCode, setCouponCode] = useState("");
-  const [couponApplied, setCouponApplied] = useState(false);
+  const [couponError, setCouponError] = useState("");
   const [clearConfirm, setClearConfirm] = useState(false);
 
   const freeShipping = isEligibleForFreeDelivery(subtotal);
@@ -233,8 +234,7 @@ export default function PanierPage() {
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
 
   const handleApplyCoupon = useCallback(() => {
-    // UI only — coupon logic reserved for future backend integration
-    setCouponApplied(true);
+    setCouponError("Code promo invalide. Aucun code promo disponible actuellement.");
   }, []);
 
   const handleClearCart = useCallback(() => {
@@ -444,22 +444,24 @@ export default function PanierPage() {
                         <input
                           type="text"
                           value={couponCode}
-                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          onChange={(e) => {
+                            setCouponCode(e.target.value.toUpperCase());
+                            setCouponError("");
+                          }}
                           placeholder="ex: LEBTEX10"
-                          disabled={couponApplied}
-                          className="flex-1 px-3 py-2.5 text-sm border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 placeholder:text-[#6B6B6B]/50 disabled:opacity-50 transition-all"
+                          className="flex-1 px-3 py-2.5 text-sm border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 placeholder:text-[#6B6B6B]/50 transition-all"
                         />
                         <button
                           onClick={handleApplyCoupon}
-                          disabled={!couponCode || couponApplied}
+                          disabled={!couponCode}
                           className="px-4 py-2.5 bg-[#0F0F0F] hover:bg-[#1a1a1a] text-white text-sm font-medium rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                         >
-                          {couponApplied ? "✓" : "Appliquer"}
+                          Appliquer
                         </button>
                       </div>
-                      {couponApplied && (
-                        <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
-                          ✓ Code promo appliqué avec succès
+                      {couponError && (
+                        <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                          ✗ {couponError}
                         </p>
                       )}
                     </div>

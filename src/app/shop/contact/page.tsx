@@ -43,7 +43,7 @@ export default function ContactPage() {
                   { icon: MessageCircle, label: 'WhatsApp (Recommandé)', value: '+212 760 998 347', href: 'https://wa.me/212760998347', color: '#25D366', bg: '#f0fdf4' },
                   { icon: Phone, label: 'Téléphone', value: '0760 998 347', href: 'tel:+212760998347', color: '#C8102E', bg: '#fef2f4' },
                   { icon: Mail, label: 'Email', value: 'contact@lebtex.ma', href: 'mailto:contact@lebtex.ma', color: '#3B82F6', bg: '#eff6ff' },
-                  { icon: MapPin, label: 'Adresse', value: 'Casablanca, Maroc', href: '#', color: '#D4A843', bg: '#fffbeb' },
+                  { icon: MapPin, label: 'Adresse', value: 'Casablanca, Maroc', href: 'https://maps.google.com/?q=Casablanca+Maroc', color: '#D4A843', bg: '#fffbeb' },
                 ].map(({ icon: Icon, label, value, href, color, bg }) => (
                   <a key={label} href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"
                     className="flex items-start gap-4 p-4 rounded-xl border border-[#E8E4DF] bg-white hover:shadow-md transition-all group">
@@ -105,12 +105,14 @@ export default function ContactPage() {
                     <label className="block text-sm font-semibold text-[#1A1A1A] mb-1.5">Nom complet *</label>
                     <input required value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
                       placeholder="Votre nom"
+                      aria-label="Nom complet"
                       className="w-full px-4 py-3 border border-[#E8E4DF] rounded-xl focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition-all" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-[#1A1A1A] mb-1.5">Téléphone *</label>
                     <input required value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))}
                       placeholder="06 XX XX XX XX"
+                      aria-label="Téléphone"
                       className="w-full px-4 py-3 border border-[#E8E4DF] rounded-xl focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition-all" />
                   </div>
                 </div>
@@ -118,11 +120,13 @@ export default function ContactPage() {
                   <label className="block text-sm font-semibold text-[#1A1A1A] mb-1.5">Email (optionnel)</label>
                   <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
                     placeholder="votre@email.com"
+                    aria-label="Email"
                     className="w-full px-4 py-3 border border-[#E8E4DF] rounded-xl focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition-all" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-[#1A1A1A] mb-1.5">Sujet *</label>
                   <select required value={form.subject} onChange={e => setForm(f => ({...f, subject: e.target.value}))}
+                    aria-label="Sujet"
                     className="w-full px-4 py-3 border border-[#E8E4DF] rounded-xl focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition-all bg-white">
                     <option value="">Choisir un sujet</option>
                     <option>Commande et livraison</option>
@@ -137,6 +141,7 @@ export default function ContactPage() {
                   <label className="block text-sm font-semibold text-[#1A1A1A] mb-1.5">Message *</label>
                   <textarea required rows={5} value={form.message} onChange={e => setForm(f => ({...f, message: e.target.value}))}
                     placeholder="Décrivez votre demande..."
+                    aria-label="Message"
                     className="w-full px-4 py-3 border border-[#E8E4DF] rounded-xl focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition-all resize-none" />
                 </div>
                 <button type="submit"

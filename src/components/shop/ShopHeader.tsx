@@ -200,31 +200,21 @@ export default function ShopHeader() {
               {/* Language Toggle */}
               <button
                 onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-                        placeholder="Rechercher…"
-                        className="w-44 sm:w-56 pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] transition-all bg-gray-50"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsSearchOpen(false);
-                        setSearchQuery("");
-                      }}
-                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    onClick={() => setIsSearchOpen(true)}
-                    className="p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all"
-                    aria-label="Rechercher"
-                  >
-                    <Search className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-red-50 transition-all"
+                aria-label={language === 'fr' ? 'Passer en arabe' : 'التبديل إلى الفرنسية'}
+              >
+                <span className="text-base">{language === 'ar' ? '🇲🇦' : '🇫🇷'}</span>
+                <span className="hidden sm:inline-block uppercase font-bold">{language === 'ar' ? 'AR' : 'FR'}</span>
+              </button>
+
+              {/* Search Toggle - Mobile/Tablet only */}
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all"
+                aria-label="Rechercher"
+              >
+                <Search className="w-5 h-5" />
+              </button>
 
               {/* WhatsApp - desktop only */}
               <a

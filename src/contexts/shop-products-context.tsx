@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
@@ -36,6 +36,7 @@ export interface ProductOverride {
   // Metadata additionnelle
   categorySlug?: string;
   categoryName?: string;
+  hidden?: boolean;
 }
 
 interface ShopProductsContextType {
