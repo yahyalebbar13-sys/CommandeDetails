@@ -200,26 +200,6 @@ export default function ShopHeader() {
               {/* Language Toggle */}
               <button
                 onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-                className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors mr-1"
-                title="Changer de langue / تغيير اللغة"
-              >
-                {language === 'fr' ? 'AR' : 'FR'}
-              </button>
-
-              {/* Mobile Search Icon (Expanding) */}
-              <div className="relative lg:hidden" ref={categoriesRef}>
-                {isSearchOpen ? (
-                  <form
-                    onSubmit={handleSearchSubmit}
-                    className="flex items-center gap-2"
-                  >
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      <input
-                        ref={searchRef}
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Rechercher…"
                         className="w-44 sm:w-56 pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] transition-all bg-gray-50"
                       />
@@ -415,6 +395,32 @@ export default function ShopHeader() {
                 )
               )}
             </nav>
+
+            {/* ── Desktop Sticky Search Overlay ────────────────────────────── */}
+            {isScrolled && isSearchOpen && (
+              <div className="absolute inset-0 bg-white z-20 flex items-center px-4 rounded-b-lg">
+                <form onSubmit={(e) => { setIsSearchOpen(false); handleSearchSubmit(e); }} className="w-full max-w-3xl mx-auto flex items-center shadow-sm rounded-full overflow-hidden border border-gray-200 focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/20 transition-all bg-gray-50">
+                  <div className="pl-4 text-gray-400">
+                    <Search className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher des produits..."
+                    className="w-full px-3 py-2.5 text-sm focus:outline-none bg-transparent text-gray-700"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsSearchOpen(false)}
+                    className="px-4 py-2 text-gray-500 hover:text-[#C8102E] transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </form>
+              </div>
+            )}
 
             {/* ── Mini Actions (Visible only on scroll) ────────────────── */}
             <div className={`absolute right-4 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2 flex items-center gap-5 transition-opacity duration-500 delay-100 ${isScrolled ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
