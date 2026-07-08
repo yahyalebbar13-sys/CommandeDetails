@@ -64,14 +64,16 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
         art.colorBreakdown.forEach((cb: any) => {
           tableBody.push([
             container,
-            cb.size || art.size || '-',
-            `${cb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
+            cb.colorCode || art.color || '-',
+            art.size || '-',
+            `${cb.rolls || cb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
           ]);
         });
       } else if (hasSizeB) {
         art.sizeBreakdown.forEach((sb: any) => {
           tableBody.push([
             container,
+            art.color || '-',
             sb.size || '-',
             `${sb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
           ]);
@@ -79,6 +81,7 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
       } else {
         tableBody.push([
           container,
+          art.color || '-',
           art.size || '-',
           `${art.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
         ]);
@@ -108,15 +111,16 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
 
     autoTable(doc, {
       startY: startY,
-      head: [['Dossier / Modèle', 'Taille / Specs', 'Quantité']],
+      head: [['Dossier / Modèle', 'Couleur', 'Taille / Specs', 'Quantité']],
       body: tableBody,
       theme: 'grid',
       headStyles: { fillColor: [63, 63, 70], textColor: 255, fontStyle: 'bold', fontSize: 9 },
       styles: { fontSize: 8, cellPadding: 3, textColor: [40, 40, 40] },
       columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 140 },
-        2: { cellWidth: 'auto', halign: 'right' }
+        0: { cellWidth: 70 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 90 },
+        3: { cellWidth: 'auto', halign: 'right' }
       },
       margin: { left: 10, right: 10, bottom: 15 },
       didDrawPage: (data: any) => {
