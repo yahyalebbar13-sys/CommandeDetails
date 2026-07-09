@@ -61,42 +61,61 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
             }
           });
 
-          // Dédoublonnage article+facture
-          articleFactureIds.forEach(fid => {
-            const key = `${article.id}_${fid}`;
-            if (seen.has(key)) return;
-            seen.add(key);
-
-            const facture = factures.find(f => f.id === fid);
-            const decl = allDeclarations[fid];
-            const overrideData = decl?.overrides?.[article.id] || null;
-            const hasOverride = !!overrideData && Object.keys(overrideData).length > 0;
-
-            // Récupérer le code HS de la catégorie depuis dp_declarations ou l'article
-            const defaultHsCode = decl?.hsCode || decl?.hs_code || article.hsCode || null;
-            const defaultImportDuty = decl?.importDutyRate || article.importDutyRate || article.importDuty || null;
-            const defaultTva = decl?.tvaRate || article.tvaRate || article.tva || null;
-
+          if (articleFactureIds.length === 0) {
+            // L'article n'a pas encore de dossier d'arrivage (En production ou en transit)
             data.push({
-              factureId: fid,
-              factureRef: facture?.ref || facture?.containerRef || fid,
-              date: facture?.date || facture?.arrivalDate || article.arrivalDate || '—',
+              factureId: null,
+              factureRef: '—',
+              date: article.arrivalDate || '—',
               articleId: article.id,
               articleName: `${article.name || article.productName || ''}${article.color ? ` - ${article.color}` : ''}${article.size ? ` (${article.size})` : ''}`.trim(),
-              defaultHsCode,
-              defaultImportDuty,
-              defaultTva,
-              hasOverride,
-              override: overrideData,
+              defaultHsCode: article.hsCode || null,
+              defaultImportDuty: article.importDutyRate || article.importDuty || null,
+              defaultTva: article.tvaRate || article.tva || null,
+              hasOverride: false,
+              override: null,
+              status: 'PENDING' // Pseudo status pour l'UI
             });
-          });
+          } else {
+            // Dédoublonnage article+facture
+            articleFactureIds.forEach(fid => {
+              const key = `${article.id}_${fid}`;
+              if (seen.has(key)) return;
+              seen.add(key);
+
+              const facture = factures.find(f => f.id === fid);
+              const decl = allDeclarations[fid];
+              const overrideData = decl?.overrides?.[article.id] || null;
+              const hasOverride = !!overrideData && Object.keys(overrideData).length > 0;
+
+              // Récupérer le code HS de la catégorie depuis dp_declarations ou l'article
+              const defaultHsCode = decl?.hsCode || decl?.hs_code || article.hsCode || null;
+              const defaultImportDuty = decl?.importDutyRate || article.importDutyRate || article.importDuty || null;
+              const defaultTva = decl?.tvaRate || article.tvaRate || article.tva || null;
+
+              data.push({
+                factureId: fid,
+                factureRef: facture?.ref || facture?.containerRef || fid,
+                date: facture?.date || facture?.arrivalDate || article.arrivalDate || '—',
+                articleId: article.id,
+                articleName: `${article.name || article.productName || ''}${article.color ? ` - ${article.color}` : ''}${article.size ? ` (${article.size})` : ''}`.trim(),
+                defaultHsCode,
+                defaultImportDuty,
+                defaultTva,
+                hasOverride,
+                override: overrideData,
+                status: 'ARRIVED'
+              });
+            });
+          }
         });
 
-        // Trier par date décroissante
+        // Trier par date décroissante, puis par nom d'article
         data.sort((a, b) => {
           const da = a.date && a.date !== '—' ? new Date(a.date).getTime() : 0;
           const db = b.date && b.date !== '—' ? new Date(b.date).getTime() : 0;
-          return db - da;
+          if (db !== da) return db - da;
+          return a.articleName.localeCompare(b.articleName);
         });
 
         if (mounted) setHistoryData(data);
@@ -160,6 +179,8 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
                 <TableBody>
                   {historyData.map((row, i) => {
                     const isOverride = row.hasOverride;
+                    const isPending = row.status === 'PENDING';
+                    
                     const hsCode = isOverride && row.override?.hsCode ? row.override.hsCode : row.defaultHsCode || '—';
                     const di = isOverride && row.override?.importDuty ? `${row.override.importDuty}%`
                       : isOverride && row.override?.importDutyRate ? `${row.override.importDutyRate}%`
@@ -169,10 +190,14 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
                       : row.defaultTva ? `${row.defaultTva}%` : '—';
 
                     return (
-                      <TableRow key={i} className="border-stone-800/50 hover:bg-white/[0.03] transition-colors">
+                      <TableRow key={i} className={`border-stone-800/50 hover:bg-white/[0.03] transition-colors ${isPending ? 'opacity-60' : ''}`}>
                         <TableCell className="font-bold text-stone-400 text-xs py-3 px-4">{row.date}</TableCell>
                         <TableCell className="py-3 px-4">
-                          <span className="font-black text-white text-xs bg-stone-800 px-2 py-0.5 rounded-md">{row.factureRef}</span>
+                          {isPending ? (
+                            <span className="font-bold text-[9px] uppercase text-stone-500 tracking-wider">En attente</span>
+                          ) : (
+                            <span className="font-black text-white text-xs bg-stone-800 px-2 py-0.5 rounded-md">{row.factureRef}</span>
+                          )}
                         </TableCell>
                         <TableCell className="font-bold text-stone-300 text-xs uppercase py-3 px-4">{row.articleName}</TableCell>
                         <TableCell className="py-3 px-4">
@@ -185,7 +210,9 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
                           </div>
                         </TableCell>
                         <TableCell className="text-right py-3 px-4">
-                          {isOverride ? (
+                          {isPending ? (
+                            <span className="text-[9px] font-bold text-stone-600 uppercase">—</span>
+                          ) : isOverride ? (
                             <div className="flex flex-col items-end gap-1">
                               <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-black uppercase tracking-widest px-2 hover:bg-red-500/20">
                                 Fausse Déclaration
