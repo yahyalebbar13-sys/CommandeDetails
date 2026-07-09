@@ -799,9 +799,7 @@ export default function CategoriesView({
                         size="sm"
                         className="h-8 border-stone-700 bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white rounded-lg px-3 gap-2 text-[10px] uppercase font-bold"
                         onClick={() => {
-                          const allEntries = stockItems.filter(s => currentArticles.some(a => (s._realArticleId || s.articleId) === a.id) && s.type === 'IN');
                           setHistoryArticles(currentArticles);
-                          setHistoryEntries(allEntries);
                           setHistoryModalOpen(true);
                         }}
                       >
@@ -1378,14 +1376,10 @@ export default function CategoriesView({
           open={historyModalOpen}
           onOpenChange={(v) => {
             setHistoryModalOpen(v);
-            if (!v) {
-              setHistoryArticles([]);
-              setHistoryEntries([]);
-            }
+            if (!v) setHistoryArticles([]);
           }}
           articles={historyArticles}
           categoryName={selectedCategory || ''}
-          entriesIN={historyEntries}
           factures={factures}
         />
       </div>
