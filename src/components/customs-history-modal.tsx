@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFirebase } from '@/firebase';
-import { getDoc, getDocs, doc, collection } from 'firebase/firestore';
+import { getDocs, collection } from 'firebase/firestore';
 import { Loader2, ShieldAlert } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 
 interface CustomsHistoryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  articles: any[]; // tous les articles de la catégorie sélectionnée
+  articles: any[];
   categoryName: string;
   factures: any[];
 }
@@ -25,32 +24,20 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
     let mounted = true;
     const fetchData = async () => {
       setLoading(true);
-      const data: any[] = [];
-
+      
       try {
-        // Charger toutes les déclarations douanières d'un coup
         const allDeclarations: Record<string, any> = {};
         const declSnaps = await getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'));
         declSnaps.forEach(s => { allDeclarations[s.id] = s.data(); });
 
-        // Pour chaque article de la catégorie, trouver dans quelle(s) facture(s) il est arrivé
-        // Un article peut apparaître dans plusieurs factures (champ factureId ou via mouvements)
-        // On utilise directement le champ factureId de l'article (= le dossier d'arrivage)
-        const seen = new Set<string>();
+        const groups = new Map<string, any>();
 
         articles.forEach(article => {
-          // Récupérer toutes les factures liées à cet article
-          // La source principale est article.factureId (arrivage unique)
-          // mais on cherche aussi dans toutes les factures si l'article y apparaît
           const articleFactureIds: string[] = [];
-
-          // 1) Champ direct sur l'article
           if (article.factureId) articleFactureIds.push(article.factureId);
 
-          // 2) Chercher dans toutes les factures (champ articles ou lignes)
           factures.forEach(f => {
             if (f.id && !articleFactureIds.includes(f.id)) {
-              // Vérifier si la facture contient cet article
               const lines = f.articles || f.lignes || f.items || [];
               const found = lines.some((l: any) =>
                 (l.articleId === article.id) ||
@@ -62,63 +49,69 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
           });
 
           if (articleFactureIds.length === 0) {
-            // L'article n'a pas encore de dossier d'arrivage (En production ou en transit)
-            data.push({
-              factureId: null,
-              factureRef: '—',
-              date: article.arrivalDate || '—',
-              articleId: article.id,
-              articleName: `${article.name || article.productName || ''}${article.color ? ` - ${article.color}` : ''}${article.size ? ` (${article.size})` : ''}`.trim(),
-              defaultHsCode: article.hsCode || null,
-              defaultImportDuty: article.importDutyRate || article.importDuty || null,
-              defaultTva: article.tvaRate || article.tva || null,
-              hasOverride: false,
-              override: null,
-              status: 'PENDING' // Pseudo status pour l'UI
-            });
+            // PENDING
+            const key = 'PENDING';
+            if (!groups.has(key)) {
+              groups.set(key, {
+                status: 'PENDING',
+                date: '—',
+                factureRef: '—',
+                count: 0
+              });
+            }
+            groups.get(key).count++;
           } else {
-            // Dédoublonnage article+facture
             articleFactureIds.forEach(fid => {
-              const key = `${article.id}_${fid}`;
-              if (seen.has(key)) return;
-              seen.add(key);
-
               const facture = factures.find(f => f.id === fid);
               const decl = allDeclarations[fid];
               const overrideData = decl?.overrides?.[article.id] || null;
               const hasOverride = !!overrideData && Object.keys(overrideData).length > 0;
 
-              // Récupérer le code HS de la catégorie depuis dp_declarations ou l'article
-              const defaultHsCode = decl?.hsCode || decl?.hs_code || article.hsCode || null;
-              const defaultImportDuty = decl?.importDutyRate || article.importDutyRate || article.importDuty || null;
-              const defaultTva = decl?.tvaRate || article.tvaRate || article.tva || null;
+              const defaultHsCode = decl?.hsCode || decl?.hs_code || article.hsCode || '—';
+              const defaultImportDuty = decl?.importDutyRate || article.importDutyRate || article.importDuty || '—';
+              const defaultTva = decl?.tvaRate || article.tvaRate || article.tva || '—';
+              const defaultTpi = decl?.tpiRate || article.tpiRate || article.tpi || '—';
+              const defaultVal = decl?.customsValuePerKg || article.customsValuePerKg || '—';
 
-              data.push({
-                factureId: fid,
-                factureRef: facture?.ref || facture?.containerRef || fid,
-                date: facture?.date || facture?.arrivalDate || article.arrivalDate || '—',
-                articleId: article.id,
-                articleName: `${article.name || article.productName || ''}${article.color ? ` - ${article.color}` : ''}${article.size ? ` (${article.size})` : ''}`.trim(),
-                defaultHsCode,
-                defaultImportDuty,
-                defaultTva,
-                hasOverride,
-                override: overrideData,
-                status: 'ARRIVED'
-              });
+              const hsCode = hasOverride && overrideData.hsCode ? overrideData.hsCode : defaultHsCode;
+              const di = hasOverride && (overrideData.importDuty || overrideData.importDutyRate) ? (overrideData.importDuty || overrideData.importDutyRate) : defaultImportDuty;
+              const tva = hasOverride && (overrideData.tva || overrideData.tvaRate) ? (overrideData.tva || overrideData.tvaRate) : defaultTva;
+              const tpi = hasOverride && (overrideData.tpi || overrideData.tpiRate) ? (overrideData.tpi || overrideData.tpiRate) : defaultTpi;
+              const val = hasOverride && overrideData.customsValuePerKg ? overrideData.customsValuePerKg : defaultVal;
+
+              const sig = `${fid}_${hsCode}_${di}_${tva}_${tpi}_${val}_${hasOverride}`;
+
+              if (!groups.has(sig)) {
+                groups.set(sig, {
+                  factureId: fid,
+                  factureRef: facture?.ref || facture?.containerRef || fid,
+                  date: facture?.date || facture?.arrivalDate || article.arrivalDate || '—',
+                  status: 'ARRIVED',
+                  hasOverride,
+                  hsCode, di, tva, tpi, val,
+                  baseHsCode: defaultHsCode,
+                  baseDi: defaultImportDuty,
+                  baseTva: defaultTva,
+                  baseTpi: defaultTpi,
+                  baseVal: defaultVal,
+                  count: 0
+                });
+              }
+              groups.get(sig).count++;
             });
           }
         });
 
-        // Trier par date décroissante, puis par nom d'article
-        data.sort((a, b) => {
-          const da = a.date && a.date !== '—' ? new Date(a.date).getTime() : 0;
-          const db = b.date && b.date !== '—' ? new Date(b.date).getTime() : 0;
-          if (db !== da) return db - da;
-          return a.articleName.localeCompare(b.articleName);
+        const arr = Array.from(groups.values());
+        arr.sort((a, b) => {
+          if (a.status === 'PENDING') return 1;
+          if (b.status === 'PENDING') return -1;
+          const da = a.date !== '—' ? new Date(a.date).getTime() : 0;
+          const db = b.date !== '—' ? new Date(b.date).getTime() : 0;
+          return db - da;
         });
 
-        if (mounted) setHistoryData(data);
+        if (mounted) setHistoryData(arr);
       } catch (err) {
         console.error('Error fetching customs history:', err);
       } finally {
@@ -135,7 +128,6 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl p-0 overflow-hidden bg-[#0f0f0f] border-stone-800">
-        {/* Header sombre */}
         <DialogHeader className="p-6 bg-[#111] border-b border-stone-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
@@ -161,69 +153,83 @@ export default function CustomsHistoryModal({ open, onOpenChange, articles, cate
           ) : historyData.length === 0 ? (
             <div className="text-center py-16 bg-[#111] rounded-2xl border border-stone-800">
               <ShieldAlert className="w-8 h-8 text-stone-700 mx-auto mb-3" />
-              <p className="text-stone-500 font-bold text-sm">Aucun dédouanement enregistré pour cette catégorie.</p>
+              <p className="text-stone-500 font-bold text-sm">Aucun historique disponible.</p>
             </div>
           ) : (
             <div className="bg-[#111] border border-stone-800 rounded-2xl overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="border-stone-800 hover:bg-transparent">
-                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest w-[90px] py-3 px-4">Date</TableHead>
+                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest w-[100px] py-3 px-4">Date</TableHead>
                     <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">Dossier</TableHead>
-                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">Produit</TableHead>
                     <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">Code HS</TableHead>
-                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">DI / TVA</TableHead>
-                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest text-right py-3 px-4">Override</TableHead>
+                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">Val. Douane</TableHead>
+                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">DI</TableHead>
+                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">TPI</TableHead>
+                    <TableHead className="font-black text-[9px] uppercase text-stone-500 tracking-widest py-3 px-4">TVA</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {historyData.map((row, i) => {
-                    const isOverride = row.hasOverride;
                     const isPending = row.status === 'PENDING';
                     
-                    const hsCode = isOverride && row.override?.hsCode ? row.override.hsCode : row.defaultHsCode || '—';
-                    const di = isOverride && row.override?.importDuty ? `${row.override.importDuty}%`
-                      : isOverride && row.override?.importDutyRate ? `${row.override.importDutyRate}%`
-                      : row.defaultImportDuty ? `${row.defaultImportDuty}%` : '—';
-                    const tva = isOverride && row.override?.tva ? `${row.override.tva}%`
-                      : isOverride && row.override?.tvaRate ? `${row.override.tvaRate}%`
-                      : row.defaultTva ? `${row.defaultTva}%` : '—';
+                    if (isPending) {
+                      return (
+                        <TableRow key={i} className="border-stone-800/50 hover:bg-white/[0.03] transition-colors opacity-60">
+                          <TableCell className="font-bold text-stone-400 text-xs py-3 px-4">—</TableCell>
+                          <TableCell className="py-3 px-4">
+                            <span className="font-bold text-[9px] uppercase text-stone-500 tracking-wider">
+                              En attente ({row.count} produit{row.count > 1 ? 's' : ''})
+                            </span>
+                          </TableCell>
+                          <TableCell colSpan={5} className="py-3 px-4">
+                            <span className="text-[9px] font-bold text-stone-600 uppercase">—</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    const renderCell = (currentVal: any, baseVal: any, format: (v: any) => string) => {
+                      if (!row.hasOverride || currentVal === baseVal) {
+                        return <span className="text-xs font-bold text-stone-300">{format(currentVal)}</span>;
+                      }
+                      
+                      return (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-black text-amber-400">{format(currentVal)}</span>
+                          <span className="text-[9px] font-bold text-stone-500 line-through">Base: {format(baseVal)}</span>
+                        </div>
+                      );
+                    };
 
                     return (
-                      <TableRow key={i} className={`border-stone-800/50 hover:bg-white/[0.03] transition-colors ${isPending ? 'opacity-60' : ''}`}>
+                      <TableRow key={i} className={`border-stone-800/50 hover:bg-white/[0.03] transition-colors ${row.hasOverride ? 'bg-red-950/10' : ''}`}>
                         <TableCell className="font-bold text-stone-400 text-xs py-3 px-4">{row.date}</TableCell>
                         <TableCell className="py-3 px-4">
-                          {isPending ? (
-                            <span className="font-bold text-[9px] uppercase text-stone-500 tracking-wider">En attente</span>
-                          ) : (
+                          <div className="flex flex-col gap-1 items-start">
                             <span className="font-black text-white text-xs bg-stone-800 px-2 py-0.5 rounded-md">{row.factureRef}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-bold text-stone-300 text-xs uppercase py-3 px-4">{row.articleName}</TableCell>
-                        <TableCell className="py-3 px-4">
-                          <span className="font-black text-amber-400 text-xs font-mono">{hsCode}</span>
-                        </TableCell>
-                        <TableCell className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-stone-400 bg-stone-800 px-1.5 py-0.5 rounded">DI: {di}</span>
-                            <span className="text-[10px] font-bold text-stone-400 bg-stone-800 px-1.5 py-0.5 rounded">TVA: {tva}</span>
+                            <span className="text-[9px] font-bold text-stone-500">{row.count} produit{row.count > 1 ? 's' : ''}</span>
+                            {row.hasOverride && (
+                                <span className="text-[8px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                                  Exception
+                                </span>
+                            )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right py-3 px-4">
-                          {isPending ? (
-                            <span className="text-[9px] font-bold text-stone-600 uppercase">—</span>
-                          ) : isOverride ? (
-                            <div className="flex flex-col items-end gap-1">
-                              <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-black uppercase tracking-widest px-2 hover:bg-red-500/20">
-                                Fausse Déclaration
-                              </Badge>
-                              {row.override?.customsValuePerKg && (
-                                <span className="text-[9px] font-bold text-stone-500">{row.override.customsValuePerKg} MAD/kg</span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[9px] font-bold text-stone-700 uppercase">Standard</span>
-                          )}
+                        <TableCell className="py-3 px-4">
+                          {renderCell(row.hsCode, row.baseHsCode, v => v !== '—' ? v : '—')}
+                        </TableCell>
+                        <TableCell className="py-3 px-4">
+                          {renderCell(row.val, row.baseVal, v => v !== '—' ? `${v} MAD` : '—')}
+                        </TableCell>
+                        <TableCell className="py-3 px-4">
+                          {renderCell(row.di, row.baseDi, v => v !== '—' ? `${v}%` : '—')}
+                        </TableCell>
+                        <TableCell className="py-3 px-4">
+                          {renderCell(row.tpi, row.baseTpi, v => v !== '—' ? `${v}%` : '—')}
+                        </TableCell>
+                        <TableCell className="py-3 px-4">
+                          {renderCell(row.tva, row.baseTva, v => v !== '—' ? `${v}%` : '—')}
                         </TableCell>
                       </TableRow>
                     );
