@@ -371,17 +371,17 @@ export default function CheckoutPage() {
           customerEmail: form.email.trim() || null,
           shippingAddress,
           items: items.map((item) => ({
-            productId: item.productId,
-            productName: item.productName,
-            productImage: item.productImage,
-            price: item.price,
-            quantity: item.quantity,
+            productId: item.productId || 'unknown',
+            productName: item.productName || 'Produit',
+            productImage: item.productImage || '/placeholder.png',
+            price: item.price || 0,
+            quantity: item.quantity || 1,
             variant: item.variant ?? null,
-            maxStock: item.maxStock,
+            maxStock: item.maxStock ?? 99,
           })),
-          subtotal,
-          deliveryFee,
-          total,
+          subtotal: subtotal || 0,
+          deliveryFee: deliveryFee || 0,
+          total: total || 0,
           paymentMethod: "cod",
           status: "pending",
           notes: form.notes.trim() || null,
@@ -399,10 +399,10 @@ export default function CheckoutPage() {
         setOrderSuccess(true);
         clearCart();
         router.push(`/shop/confirmation/${docRef.id}`);
-      } catch (err) {
-        // Silently handle submission errors, user will see the error message below
+      } catch (err: any) {
+        console.error("Erreur Checkout:", err);
         setSubmitError(
-          "Une erreur s'est produite lors de la validation de votre commande. Veuillez réessayer ou nous contacter sur WhatsApp."
+          `Erreur (${err?.code || 'Inconnue'}): ${err?.message || "Veuillez réessayer ou nous contacter sur WhatsApp."}`
         );
         setIsSubmitting(false);
       }
