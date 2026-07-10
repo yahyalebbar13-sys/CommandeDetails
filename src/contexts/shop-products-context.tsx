@@ -83,6 +83,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.description && { description: ov.description }),
         ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
         ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
+        ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
         ...(ov.material && { material: ov.material }),
         ...(ov.specification && { specification: ov.specification }),
         ...(ov.weight !== undefined && { weight: ov.weight }),

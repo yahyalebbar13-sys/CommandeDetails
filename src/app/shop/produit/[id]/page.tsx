@@ -83,6 +83,16 @@ function MultiVariantSelector({
 
   const visibleVariants = variants.filter(v => (v.size || 'Standard') === selectedSize);
 
+  // Guard: if no variants match the selected size, show nothing
+  if (visibleVariants.length === 0 && variants.length > 0) {
+    // Auto-select the first available size
+    const firstAvailableSize = variants[0]?.size || 'Standard';
+    if (firstAvailableSize !== selectedSize) {
+      // Will re-render with correct size
+      setTimeout(() => setSelectedSize(firstAvailableSize), 0);
+    }
+  }
+
   const setQty = (variantId: string, delta: number, max: number | undefined) => {
     setQtys(prev => {
       const current = prev[variantId] || 0;
@@ -138,7 +148,8 @@ function MultiVariantSelector({
 
       {/* Color swatches or Simple Qty */}
       {(() => {
-        const isSimpleSize = visibleVariants.length === 1 && (!visibleVariants[0].color || visibleVariants[0].color.startsWith('Option')) && !visibleVariants[0].image;
+        if (visibleVariants.length === 0) return <p className="text-sm text-gray-500 italic">Aucune variante disponible pour cette taille.</p>;
+        const isSimpleSize = visibleVariants.length === 1 && (!visibleVariants[0]?.color || visibleVariants[0]?.color?.startsWith('Option')) && !visibleVariants[0]?.image;
         
         if (isSimpleSize) {
           const v = visibleVariants[0];
@@ -343,8 +354,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [similarLink, setSimilarLink] = React.useState("/shop");
 
   React.useEffect(() => {
+    setMainImg(0);
+    setSelectedVariant(null);
+    setAdded(false);
     if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
     if (product?.minOrderQty) setQty(product.minOrderQty);
+    else setQty(1);
   }, [product?.id]);
 
   // Compute similar products client-side (Math.random causes hydration mismatch if done during render)
