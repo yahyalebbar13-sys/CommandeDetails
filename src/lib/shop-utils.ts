@@ -3,12 +3,14 @@ import type { DeliveryZone } from './shop-types';
 
 // Format price in MAD
 export function formatPrice(amount: number): string {
-  return `${amount.toLocaleString('fr-MA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} MAD`;
+  const safe = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
+  return `${safe.toLocaleString('fr-MA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} MAD`;
 }
 
 // Format price compact
 export function formatPriceShort(amount: number): string {
-  return `${amount.toFixed(2)} MAD`;
+  const safe = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
+  return `${safe.toFixed(2)} MAD`;
 }
 
 // Calculate delivery fee based on city
@@ -65,7 +67,7 @@ export function slugify(text: string): string {
 
 // Calculate discount percentage
 export function getDiscountPercent(price: number, comparePrice: number): number {
-  if (!comparePrice || comparePrice <= price) return 0;
+  if (!comparePrice || !price || comparePrice <= price) return 0;
   return Math.round(((comparePrice - price) / comparePrice) * 100);
 }
 

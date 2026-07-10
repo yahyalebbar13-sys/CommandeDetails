@@ -5,6 +5,7 @@ import { useShopCart } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { ShoppingBag, ArrowLeft, Package, Loader2 } from 'lucide-react';
+import { formatPrice } from '@/lib/shop-utils';
 
 // ─── Inline ProductCard ────────────────────────────────────────────────────────
 function ProductCard({ product }: { product: ShopProduct }) {
@@ -93,10 +94,10 @@ function ProductCard({ product }: { product: ShopProduct }) {
           </div>
         )}
         <div className="flex items-center gap-2">
-          <span className="font-black text-[#1A1A1A]">{product.price.toFixed(2)} MAD</span>
+          <span className="font-black text-[#1A1A1A]">{formatPrice(product.price)}</span>
           {product.comparePrice && (
             <span className="text-xs text-gray-400 line-through">
-              {product.comparePrice.toFixed(2)} MAD
+              {formatPrice(product.comparePrice)}
             </span>
           )}
         </div>
