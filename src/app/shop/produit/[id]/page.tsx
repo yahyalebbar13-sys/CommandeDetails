@@ -43,7 +43,7 @@ function SimilarProductCard({ product }: { product: any }) {
   return (
     <Link href={`/shop/produit/${product.id}`} className="block bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all">
       <div className="aspect-square overflow-hidden bg-gray-50 relative">
-        <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+        <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
         {discount > 0 && <span className="absolute top-2 left-2 bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full">-{discount}%</span>}
       </div>
       <div className="p-3">
@@ -422,7 +422,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     addItem({
       productId: product.id,
       productName: product.name,
-      productImage: product.images[mainImg] || product.images[0],
+      productImage: product.images?.[mainImg] || product.images?.[0] || '',
       price: currentPrice,
       quantity: qty,
       variant: selectedVariant ? { color: selectedVariant.color, size: selectedVariant.size, variantId: selectedVariant.id } : undefined,
@@ -483,14 +483,14 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           {/* Gallery */}
           <div>
             <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-[#E8E4DF] shop-img-zoom mb-3">
-              <img src={product.images[mainImg] || product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+              <img src={product.images?.[mainImg] || product.images?.[0] || '/placeholder.png'} alt={product.name} className="w-full h-full object-cover" />
               <div className="absolute top-4 left-4 flex flex-col gap-2">
                 {product.isNew && <span className="bg-[#10B981] text-white text-xs font-black px-3 py-1 rounded-full">NOUVEAU</span>}
                 {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-xs font-black px-3 py-1 rounded-full">-{discount}%</span>}
               </div>
             </div>
             <div className="flex gap-2">
-              {product.images.map((img, i) => (
+              {product.images?.map((img, i) => (
                 <button key={i} onClick={() => setMainImg(i)}
                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${mainImg === i ? 'border-[#C8102E]' : 'border-[#E8E4DF] hover:border-[#D4A843]'}`}>
                   <img src={img} alt="" className="w-full h-full object-cover" />
@@ -560,7 +560,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 basePrice={product.price}
                 productId={product.id}
                 productName={product.name}
-                productImage={product.images[mainImg] || product.images[0]}
+                productImage={product.images?.[mainImg] || product.images?.[0] || ''}
                 onAdd={handleAddVariantsToCart}
               />
             ) : (

@@ -152,7 +152,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     return combined.map(cat => {
       if (cat.image) return cat;
       const firstProduct = products.find(p => p.categorySlug === cat.slug && p.images && p.images.length > 0);
-      if (firstProduct && firstProduct.images[0]) {
+      if (firstProduct && firstProduct.images?.[0]) {
         return { ...cat, image: firstProduct.images[0] };
       }
       return cat;

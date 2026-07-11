@@ -21,10 +21,10 @@ function ProductCard({ product }: { product: ShopProduct }) {
     addItem({
       productId: product.id,
       productName: product.name,
-      productImage: product.images[0] || '',
+      productImage: product.images?.[0] || '',
       price: product.price,
       quantity: product.minOrderQty || 1,
-      maxStock: product.stockQty,
+      maxStock: product.stockQty ?? 999,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -36,7 +36,7 @@ function ProductCard({ product }: { product: ShopProduct }) {
         <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
         <div className="absolute inset-0 z-0 pointer-events-none">
           <img
-            src={product.images[0] || `https://picsum.photos/400/400?random=${product.id}`}
+            src={product.images?.[0] || `https://picsum.photos/400/400?random=${product.id}`}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           />

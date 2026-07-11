@@ -14,7 +14,7 @@ function PromoCard({ product }: { product: ShopProduct }) {
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
-    addItem({ productId: product.id, productName: product.name, productImage: product.images[0], price: product.price, quantity: product.minOrderQty || 1, maxStock: product.stockQty });
+    addItem({ productId: product.id, productName: product.name, productImage: product.images?.[0] || '', price: product.price, quantity: product.minOrderQty || 1, maxStock: product.stockQty ?? 999 });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -24,7 +24,7 @@ function PromoCard({ product }: { product: ShopProduct }) {
       <div className="relative aspect-square bg-gray-50 shop-img-zoom">
         <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
         <div className="absolute inset-0 z-0 pointer-events-none">
-          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+          <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} className="w-full h-full object-cover" />
         </div>
         {/* Promo badge */}
         {discount > 0 && (

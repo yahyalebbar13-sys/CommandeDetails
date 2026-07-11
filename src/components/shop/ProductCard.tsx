@@ -54,7 +54,7 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
     ? getDiscountPercent(product.price, product.comparePrice)
     : 0;
 
-  const primaryImage = product.images[0] || `https://picsum.photos/seed/${product.id}/600/600`;
+  const primaryImage = product.images?.[0] || `https://picsum.photos/seed/${product.id}/600/600`;
 
   const handleAddToCart = useCallback(
     (e: React.MouseEvent) => {
