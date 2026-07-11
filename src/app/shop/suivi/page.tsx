@@ -243,7 +243,7 @@ function OrderCard({ order }: { order: ShopOrder }) {
               {order.items?.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-3">
                   {item.productImage ? (
-                    <img src={item.productImage} alt={item.productName} className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
+                    <img src={item.productImage} alt={item.productName} loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover border border-gray-100" />
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                       <ShoppingBag className="w-4 h-4 text-gray-300" />

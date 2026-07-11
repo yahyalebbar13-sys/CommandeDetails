@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useShopCart } from "@/contexts/shop-cart-context";
+import { useLanguage } from "@/contexts/language-context";
 import {
   formatPrice,
   getDeliveryFee,
@@ -31,20 +32,22 @@ import {
 const ESTIMATED_DELIVERY_FEE = 35; // MAD, shown before city is selected
 
 // ─── Cart Item Row ───────────────────────────────────────────────────────────
-interface CartItemRowProps {
+interface CartItemProps {
   item: ReturnType<typeof useShopCart>["items"][number];
-  onUpdateQty: (id: string, qty: number) => void;
-  onRemove: (id: string) => void;
+  onUpdateQty: (productId: string, quantity: number) => void;
+  onRemove: (productId: string) => void;
+  language: string;
+  totalProductQty: number;
 }
 
-function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+function CartItemRow({ item, onUpdateQty, onRemove, language, totalProductQty }: CartItemProps) {
   const [imgError, setImgError] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value);
-    if (!isNaN(val) && val >= 1 && val <= item.maxStock) {
-      onUpdateQty(item.productId, val);
+    if (!isNaN(val)) {
+      onUpdateQty(item.productId, Math.max(1, Math.min(val, item.maxStock)));
     }
   };
 
@@ -57,7 +60,9 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
     }
   };
 
-  const lineTotal = item.price * item.quantity;
+  const isWholesale = item.minOrderQty && totalProductQty >= item.minOrderQty && item.wholesalePrice;
+  const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price);
+  const lineTotal = effectivePrice * item.quantity;
 
   return (
     <div className="flex gap-4 p-4 bg-white rounded-2xl border border-[#E8E4DF] hover:border-[#C8102E]/20 hover:shadow-md transition-all duration-300 group">
@@ -82,9 +87,9 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
       {/* Details */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+          <div className="min-w-0" dir={language === 'ar' ? 'rtl' : 'ltr'}>
             <h3 className="font-semibold text-[#0F0F0F] text-sm leading-tight truncate shop-font-display">
-              {item.productName}
+              {language === 'ar' && item.productNameAr ? item.productNameAr : item.productName}
             </h3>
             {/* Variant badges */}
             <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -94,17 +99,17 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
                     className="w-2.5 h-2.5 rounded-full border border-white shadow-sm"
                     style={{ backgroundColor: item.variant.color.toLowerCase() }}
                   />
-                  {item.variant.color}
+                  {language === 'ar' && item.variant.colorAr ? item.variant.colorAr : item.variant.color}
                 </span>
               )}
               {item.variant?.size && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#FBF8F3] border border-[#E8E4DF] text-xs text-[#6B6B6B] font-medium">
-                  {item.variant.size}
+                  {language === 'ar' && item.variant.sizeAr ? item.variant.sizeAr : item.variant.size}
                 </span>
               )}
             </div>
             <p className="text-xs text-[#6B6B6B] mt-1">
-              {formatPrice(item.price)} / unité
+              {formatPrice(item.price)} / {language === 'ar' ? 'قطعة' : 'unité'}
             </p>
           </div>
 
@@ -160,12 +165,12 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
             {confirmDelete ? (
               <>
                 <AlertTriangle className="w-3.5 h-3.5" />
-                Confirmer
+                {language === 'ar' ? 'تأكيد' : 'Confirmer'}
               </>
             ) : (
               <>
                 <Trash2 className="w-3.5 h-3.5" />
-                Supprimer
+                {language === 'ar' ? 'حذف' : 'Supprimer'}
               </>
             )}
           </button>
@@ -175,7 +180,7 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
         {item.quantity >= item.maxStock && (
           <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
-            Stock maximum atteint ({item.maxStock} unités)
+            {language === 'ar' ? `تم الوصول للحد الأقصى (${item.maxStock} قطع)` : `Stock maximum atteint (${item.maxStock} unités)`}
           </p>
         )}
       </div>
@@ -185,6 +190,7 @@ function CartItemRow({ item, onUpdateQty, onRemove }: CartItemRowProps) {
 
 // ─── Empty Cart ──────────────────────────────────────────────────────────────
 function EmptyCart() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#FBF8F3] flex items-center justify-center px-4">
       <div className="text-center max-w-md">
@@ -199,18 +205,18 @@ function EmptyCart() {
         </div>
 
         <h1 className="text-3xl font-bold text-[#0F0F0F] mb-3 shop-font-display">
-          Votre panier est vide
+          {t('cart_empty')}
         </h1>
         <p className="text-[#6B6B6B] mb-8 leading-relaxed">
-          Découvrez notre collection de produits premium et ajoutez vos coups de cœur au panier.
+          {t('cart_empty_sub')}
         </p>
 
         <Link
-          href="/shop/boutique"
+          href="/shop/categories"
           className="inline-flex items-center gap-2 px-8 py-4 bg-[#C8102E] hover:bg-[#a00d25] text-white font-semibold rounded-2xl transition-all duration-200 shadow-lg shadow-[#C8102E]/20 hover:shadow-xl hover:shadow-[#C8102E]/30 hover:-translate-y-0.5 shop-btn-press"
         >
           <ShoppingBag className="w-5 h-5" />
-          Découvrir la boutique
+          {t('continue_shopping')}
           <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
@@ -220,7 +226,8 @@ function EmptyCart() {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function PanierPage() {
-  const { items, subtotal, updateQty, removeItem, clearCart } = useShopCart();
+  const { t, language } = useLanguage();
+  const { items, subtotal, updateQty, removeItem, clearCart, productQtyMap } = useShopCart();
   const router = useRouter();
   const [couponCode, setCouponCode] = useState("");
   const [couponError, setCouponError] = useState("");
@@ -234,8 +241,8 @@ export default function PanierPage() {
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
 
   const handleApplyCoupon = useCallback(() => {
-    setCouponError("Code promo invalide. Aucun code promo disponible actuellement.");
-  }, []);
+    setCouponError(language === 'ar' ? "الرمز الترويجي غير صالح. لا تتوفر رموز ترويجية حالياً." : "Code promo invalide. Aucun code promo disponible actuellement.");
+  }, [language]);
 
   const handleClearCart = useCallback(() => {
     if (clearConfirm) {
@@ -320,6 +327,25 @@ export default function PanierPage() {
               </div>
             )}
 
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold text-[#0F0F0F] shop-font-display flex items-center gap-2">
+                {t('cart')}
+                <span className="text-sm font-medium px-2.5 py-0.5 rounded-full bg-[#C8102E]/10 text-[#C8102E]">
+                  {itemCount}
+                </span>
+              </h1>
+              <button
+                onClick={handleClearCart}
+                className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  clearConfirm ? "text-[#C8102E]" : "text-[#6B6B6B] hover:text-[#C8102E]"
+                }`}
+              >
+                <Trash2 className="w-4 h-4" />
+                {clearConfirm ? (language === 'ar' ? 'تأكيد التفريغ' : 'Confirmer le vidage') : (language === 'ar' ? 'تفريغ السلة' : 'Vider le panier')}
+              </button>
+            </div>
+
             {/* Items list */}
             <div className="space-y-3">
               {items.map((item) => (
@@ -328,6 +354,8 @@ export default function PanierPage() {
                   item={item}
                   onUpdateQty={updateQty}
                   onRemove={removeItem}
+                  language={language}
+                  totalProductQty={productQtyMap?.[item.productId] || 1}
                 />
               ))}
             </div>
@@ -375,31 +403,25 @@ export default function PanierPage() {
 
                 <div className="p-5 space-y-4">
                   {/* Subtotal */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#6B6B6B]">
-                      Sous-total ({itemCount} article{itemCount > 1 ? "s" : ""})
-                    </span>
+                  <div className="flex items-center justify-between text-[#6B6B6B]">
+                    <span>{t('subtotal')} ({itemCount})</span>
                     <span className="font-semibold text-[#0F0F0F]">{formatPrice(subtotal)}</span>
                   </div>
 
                   {/* Delivery */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#6B6B6B] flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5" />
-                      Livraison estimée
-                    </span>
-                    {freeShipping ? (
-                      <span className="font-semibold text-green-600 flex items-center gap-1">
-                        GRATUIT 🎉
-                      </span>
-                    ) : (
-                      <div className="text-right">
-                        <span className="font-semibold text-[#0F0F0F]">
-                          {formatPrice(ESTIMATED_DELIVERY_FEE)}
+                  <div className="flex items-center justify-between text-[#6B6B6B]">
+                    <span className="flex items-center gap-1.5">
+                      {t('delivery_cost')}
+                      <span className="group relative inline-flex items-center justify-center w-4 h-4 rounded-full border border-[#D4A843] text-[#D4A843] text-[10px] cursor-help">
+                        i
+                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all shadow-xl z-10 pointer-events-none">
+                          {language === 'ar' ? 'توصيل مجاني للطلبات فوق 500 درهم!' : 'Livraison gratuite à partir de 500 DH d\'achats !'}
                         </span>
-                        <p className="text-xs text-[#6B6B6B] mt-0.5">selon la ville</p>
-                      </div>
-                    )}
+                      </span>
+                    </span>
+                    <span className={`font-semibold ${freeShipping ? "text-[#10B981]" : "text-[#0F0F0F]"}`}>
+                      {freeShipping ? t('delivery_free') : formatPrice(ESTIMATED_DELIVERY_FEE)}
+                    </span>
                   </div>
 
                   {/* Progress bar */}
@@ -424,75 +446,64 @@ export default function PanierPage() {
                     </div>
                   )}
 
-                  {freeShipping && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
-                      <span className="text-green-600 text-lg">🎉</span>
-                      <span className="text-xs text-green-700 font-medium">
-                        Félicitations ! Votre livraison est gratuite.
-                      </span>
-                    </div>
-                  )}
+                  <div className="my-5 border-t border-[#E8E4DF] border-dashed" />
 
-                  <div className="border-t border-[#E8E4DF] pt-4">
-                    {/* Coupon */}
-                    <div className="mb-4">
-                      <label className="text-xs font-medium text-[#6B6B6B] flex items-center gap-1 mb-2">
-                        <Tag className="w-3 h-3" />
-                        Code promo
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={couponCode}
-                          onChange={(e) => {
-                            setCouponCode(e.target.value.toUpperCase());
-                            setCouponError("");
-                          }}
-                          placeholder="ex: LEBTEX10"
-                          className="flex-1 px-3 py-2.5 text-sm border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 placeholder:text-[#6B6B6B]/50 transition-all"
-                        />
-                        <button
-                          onClick={handleApplyCoupon}
-                          disabled={!couponCode}
-                          className="px-4 py-2.5 bg-[#0F0F0F] hover:bg-[#1a1a1a] text-white text-sm font-medium rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
-                        >
-                          Appliquer
-                        </button>
-                      </div>
-                      {couponError && (
-                        <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                          ✗ {couponError}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Total */}
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#0F0F0F] text-base">Total</span>
-                      <div className="text-right">
-                        <span className="font-bold text-[#C8102E] text-xl shop-font-display">
-                          {formatPrice(total)}
-                        </span>
-                        <p className="text-xs text-[#6B6B6B]">TTC, livraison incluse</p>
-                      </div>
+                  {/* Total */}
+                  <div className="flex items-center justify-between mb-8">
+                    <span className="text-lg font-bold text-[#0F0F0F] shop-font-display">{t('total')}</span>
+                    <div className="text-right">
+                      <span className="text-2xl font-black text-[#C8102E] shop-font-display">{formatPrice(total)}</span>
+                      <p className="text-[10px] text-[#6B6B6B] mt-1">{language === 'ar' ? 'تتضمن الضرائب' : 'Taxes incluses'}</p>
                     </div>
                   </div>
 
-                  {/* CTA */}
-                  <button
-                    onClick={() => router.push("/shop/checkout")}
-                    className="w-full py-4 bg-[#C8102E] hover:bg-[#a00d25] text-white font-bold rounded-2xl transition-all duration-200 shadow-lg shadow-[#C8102E]/25 hover:shadow-xl hover:shadow-[#C8102E]/35 hover:-translate-y-0.5 flex items-center justify-center gap-2 shop-btn-press shop-font-display text-base"
+                  {/* Coupon */}
+                  <div className="mb-4">
+                    <label className="text-xs font-medium text-[#6B6B6B] flex items-center gap-1 mb-2">
+                      <Tag className="w-3 h-3" />
+                      Code promo
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => {
+                          setCouponCode(e.target.value.toUpperCase());
+                          setCouponError("");
+                        }}
+                        placeholder="ex: LEBTEX10"
+                        className="flex-1 px-3 py-2.5 text-sm border border-[#E8E4DF] rounded-xl bg-[#FBF8F3] focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E]/40 placeholder:text-[#6B6B6B]/50 transition-all"
+                      />
+                      <button
+                        onClick={handleApplyCoupon}
+                        disabled={!couponCode}
+                        className="px-4 py-2.5 bg-[#0F0F0F] hover:bg-[#1a1a1a] text-white text-sm font-medium rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        Appliquer
+                      </button>
+                    </div>
+                    {couponError && (
+                      <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                        ✗ {couponError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Checkout Button */}
+                  <Link
+                    href="/shop/checkout"
+                    className="w-full py-4 bg-[#C8102E] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-[#a00d25] transition-all shadow-lg shadow-[#C8102E]/20 hover:shadow-[#C8102E]/30 hover:-translate-y-0.5 shop-btn-press"
                   >
-                    Passer la commande
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+                    <ShoppingBag className="w-5 h-5" />
+                    {t('checkout')}
+                  </Link>
 
                   {/* Guarantees */}
-                  <div className="grid grid-cols-3 gap-2 pt-2">
+                  <div className="grid grid-cols-3 gap-2 pt-2 mt-4 border-t border-[#E8E4DF]">
                     {[
-                      { icon: <Shield className="w-4 h-4" />, label: "Paiement à la livraison" },
-                      { icon: <RefreshCw className="w-4 h-4" />, label: "Retour 14 jours" },
-                      { icon: <Truck className="w-4 h-4" />, label: "Livraison rapide" },
+                      { icon: <Shield className="w-4 h-4" />, label: language === 'ar' ? "الدفع عند الاستلام" : "Paiement à la livraison" },
+                      { icon: <RefreshCw className="w-4 h-4" />, label: language === 'ar' ? "إرجاع 14 يوم" : "Retour 14 jours" },
+                      { icon: <Truck className="w-4 h-4" />, label: language === 'ar' ? "توصيل سريع" : "Livraison rapide" },
                     ].map(({ icon, label }) => (
                       <div key={label} className="flex flex-col items-center gap-1 text-center">
                         <div className="w-8 h-8 rounded-full bg-[#FBF8F3] border border-[#E8E4DF] flex items-center justify-center text-[#D4A843]">

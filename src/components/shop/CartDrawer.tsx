@@ -26,20 +26,28 @@ function CartLineItem({
   item,
   onUpdateQty,
   onRemove,
+  totalProductQty,
 }: {
   item: CartItem;
   onUpdateQty: (id: string, qty: number, variantId?: string) => void;
   onRemove: (id: string, variantId?: string) => void;
+  totalProductQty: number;
 }) {
-  const lineTotal = item.price * item.quantity;
+  const { language } = useLanguage();
+  const isWholesale = item.minOrderQty && totalProductQty >= item.minOrderQty && item.wholesalePrice;
+  const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price);
+  const lineTotal = effectivePrice * item.quantity;
+  const nameToDisplay = language === 'ar' && item.productNameAr ? item.productNameAr : item.productName;
+  const colorToDisplay = language === 'ar' && item.variant?.colorAr ? item.variant.colorAr : item.variant?.color;
+  const sizeToDisplay = language === 'ar' && item.variant?.sizeAr ? item.variant.sizeAr : item.variant?.size;
 
   return (
-    <div className="group flex gap-3 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/60 -mx-4 px-4 rounded-xl transition-colors">
+    <div className="group flex gap-3 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/60 -mx-4 px-4 rounded-xl transition-colors" dir={language === 'ar' ? 'rtl' : 'ltr'}>
       {/* Product image */}
       <div className="relative flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shadow-sm">
         <img
           src={item.productImage || 'https://picsum.photos/seed/product/72/72'}
-          alt={item.productName}
+          alt={nameToDisplay}
           className="w-full h-full object-cover"
           loading="eager"
           onError={(e) => {
@@ -48,21 +56,16 @@ function CartLineItem({
           }}
         />
         {/* Qty badge */}
-        {item.quantity > 1 && (
-          <div
-            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow"
-            style={{ backgroundColor: "#C8102E" }}
-          >
-            {item.quantity}
-          </div>
-        )}
+        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-10">
+          <span className="text-[9px] font-black text-white">{item.quantity}</span>
+        </div>
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-1">
           <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 flex-1">
-            {item.productName}
+            {nameToDisplay}
           </p>
           {/* Delete */}
           <button
@@ -87,13 +90,13 @@ function CartLineItem({
                       : undefined,
                   }}
                 />
-                {item.variant.color}
+                {colorToDisplay}
               </span>
             )}
             {item.variant.color && item.variant.size && (
               <span className="text-gray-300">·</span>
             )}
-            {item.variant.size && <span>{item.variant.size}</span>}
+            {item.variant.size && <span>{sizeToDisplay}</span>}
           </p>
         )}
 
@@ -129,7 +132,7 @@ function CartLineItem({
             </p>
             {item.quantity > 1 && (
               <p className="text-[10px] text-gray-400">
-                {formatPrice(item.price)} / u
+                {formatPrice(effectivePrice)} / u
               </p>
             )}
           </div>
@@ -257,11 +260,9 @@ function EmptyCartState({ onClose }: { onClose: () => void }) {
 
 // ─── Main CartDrawer ──────────────────────────────────────────────────────────
 export default function CartDrawer() {
-  const { items, isOpen, subtotal, itemCount, closeCart, removeItem, updateQty } =
+  const { items, isOpen, subtotal, itemCount, closeCart, removeItem, updateQty, productQtyMap } =
     useShopCart();
-  const { t } = useLanguage();
-
-  // Close on Escape key
+  const { t, language } = useLanguage();
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -380,6 +381,7 @@ export default function CartDrawer() {
                     item={item}
                     onUpdateQty={handleUpdateQty}
                     onRemove={removeItem}
+                    totalProductQty={productQtyMap?.[item.productId] || 1}
                   />
                 ))}
               </div>

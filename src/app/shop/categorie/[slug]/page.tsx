@@ -1,15 +1,15 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useShopCart } from '@/contexts/shop-cart-context';
+import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
 import { ShoppingBag, ArrowLeft, Package, Loader2 } from 'lucide-react';
 import { formatPrice } from '@/lib/shop-utils';
 
 // ─── Inline ProductCard ────────────────────────────────────────────────────────
-function ProductCard({ product }: { product: ShopProduct }) {
-  const { addItem } = useShopCart();
+const ProductCard = React.memo(function ProductCard({ product }: { product: ShopProduct }) {
+  const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
   const [wished, setWished] = useState(false);
   const discount = product.comparePrice
@@ -63,8 +63,21 @@ function ProductCard({ product }: { product: ShopProduct }) {
             {wished ? '♥' : '♡'}
           </span>
         </button>
-        {/* Quick add overlay */}
-        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+        {/* Mobile Quick Add (Persistent) */}
+        {product.inStock && (
+          <button
+            onClick={handleAdd}
+            disabled={added}
+            className={`lg:hidden absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
+              added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
+            }`}
+          >
+            {added ? <span className="text-[10px] font-bold">✓</span> : <ShoppingBag className="w-4 h-4" />}
+          </button>
+        )}
+        
+        {/* Desktop Quick add overlay */}
+        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
           <button
             onClick={handleAdd}
             className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${
@@ -108,7 +121,7 @@ function ProductCard({ product }: { product: ShopProduct }) {
       </Link>
     </div>
   );
-}
+});
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function CategoryPage({ params }: { params: any }) {
@@ -294,7 +307,7 @@ export default function CategoryPage({ params }: { params: any }) {
                 >
                   <div className="relative h-44 overflow-hidden flex-shrink-0">
                     {cat.image ? (
-                      <img src={cat.image as string} alt={cat.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={cat.image as string} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
                         <span className="text-6xl opacity-50">{cat.icon || '📁'}</span>

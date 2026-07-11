@@ -4,7 +4,8 @@ import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ShoppingCart, Heart, Star, StarHalf, Package, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useShopCart } from '@/contexts/shop-cart-context';
+import { useShopCartActions } from '@/contexts/shop-cart-context';
+import { useLanguage } from '@/contexts/language-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
 import type { ShopProduct } from '@/lib/shop-types';
 
@@ -13,7 +14,7 @@ const BLUR_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8/+F9PQAI8wNPvd7POQAAAABJRU5ErkJggg==';
 
 // ─── Star Rating ──────────────────────────────────────────────────────────────
-function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
+const StarRating = React.memo(function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
   const full = Math.floor(rating);
   const hasHalf = rating % 1 >= 0.5;
   const empty = 5 - full - (hasHalf ? 1 : 0);
@@ -34,7 +35,7 @@ function StarRating({ rating, reviewCount }: { rating: number; reviewCount?: num
       )}
     </div>
   );
-}
+});
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface ProductCardProps {
@@ -43,11 +44,12 @@ interface ProductCardProps {
 }
 
 // ─── ProductCard ──────────────────────────────────────────────────────────────
-export default function ProductCard({ product, showAddToCart = true }: ProductCardProps) {
-  const { addItem } = useShopCart();
+export default React.memo(function ProductCard({ product, showAddToCart = true }: ProductCardProps) {
+  const { language } = useLanguage();
+  const { addItem } = useShopCartActions();
   const [wishlisted, setWishlisted] = useState(false);
   const [added, setAdded] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
+
   const [imgLoaded, setImgLoaded] = useState(false);
 
   const discountPct = product.comparePrice
@@ -86,8 +88,6 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
   return (
     <div
       className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
@@ -145,12 +145,24 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
           />
         </button>
 
-        {/* Quick-Add Overlay */}
+        {/* Mobile Quick-Add Button (Persistent) */}
+        {showAddToCart && product.inStock && (
+          <button
+            onClick={handleAddToCart}
+            disabled={added}
+            aria-label="Ajouter au panier"
+            className={`lg:hidden absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all duration-200 active:scale-95 ${
+              added ? 'bg-emerald-500 text-white' : 'bg-white text-[#0F0F0F] active:bg-gray-100'
+            }`}
+          >
+            {added ? <CheckCircle2 className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
+          </button>
+        )}
+
+        {/* Desktop Quick-Add Overlay */}
         {showAddToCart && (
           <div
-            className={`absolute inset-0 flex items-end justify-center pb-4 z-20 pointer-events-none transition-all duration-300 ${
-              isHovered ? 'opacity-100' : 'opacity-0'
-            }`}
+            className="hidden lg:flex absolute inset-0 items-end justify-center pb-4 z-20 pointer-events-none transition-all duration-300 opacity-0 group-hover:opacity-100"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)' }}
           >
             <button
@@ -191,22 +203,26 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
       </div>
 
       {/* ── Content Section ───────────────────────────────────── */}
-      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col gap-2 flex-grow">
+      <div className="p-4 flex flex-col gap-2 flex-grow relative">
+        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" aria-label="Voir le produit" />
         {/* Category */}
         <span
-          className="text-[11px] font-semibold uppercase tracking-widest"
+          className="text-[11px] font-semibold uppercase tracking-widest relative z-10 pointer-events-none"
           style={{ color: '#D4A843' }}
         >
-          {product.categoryName}
+          {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
         </span>
 
         {/* Product Name */}
-        <h3
-          className="text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 font-display group-hover:text-[#C8102E] transition-colors duration-200"
-          style={{ fontFamily: 'Outfit, sans-serif' }}
-        >
-          {product.name}
-        </h3>
+        <Link href={`/shop/produit/${product.id}`} className="relative z-10 w-fit">
+          <h3
+            className={`text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors duration-200 ${language === 'ar' ? 'text-right' : ''}`}
+            style={{ fontFamily: 'Outfit, sans-serif' }}
+            dir={language === 'ar' ? 'rtl' : 'ltr'}
+          >
+            {language === 'ar' && product.nameAr ? product.nameAr : product.name}
+          </h3>
+        </Link>
 
         {/* Star Rating */}
         {product.rating !== undefined && (
@@ -239,7 +255,7 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
             <button
               onClick={handleAddToCart}
               disabled={added}
-              className={`sm:hidden flex items-center justify-center w-8 h-8 rounded-full shadow-sm transition-colors ${
+              className={`sm:hidden flex items-center justify-center w-8 h-8 rounded-full shadow-sm transition-colors relative z-10 ${
                 added ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-[#C8102E] hover:text-white'
               }`}
               aria-label="Ajouter au panier"
@@ -250,29 +266,28 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
         </div>
 
         {/* Stock Indicator */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 relative z-10 pointer-events-none">
           {product.inStock ? (
             <>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-              <span className="text-xs text-emerald-600 font-medium">En stock</span>
+              <span className="text-xs text-emerald-600 font-medium">{language === 'ar' ? 'متوفر' : 'En stock'}</span>
             </>
           ) : (
             <>
               <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-              <span className="text-xs text-red-500 font-medium">Rupture de stock</span>
+              <span className="text-xs text-red-500 font-medium">{language === 'ar' ? 'نفد المخزون' : 'Rupture de stock'}</span>
             </>
           )}
         </div>
 
         {/* Min Order Note */}
         {product.minOrderQty && product.minOrderQty > 1 && (
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 relative z-10 pointer-events-none">
             <Package className="w-3 h-3" />
-            <span>Min. commande : {product.minOrderQty} pcs</span>
+            <span>{language === 'ar' ? `الحد الأدنى للطلب : ${product.minOrderQty} قطع` : `Min. commande : ${product.minOrderQty} pcs`}</span>
           </div>
         )}
-      </Link>
-
+      </div>
       {/* ── Add to Cart Button ─────────────────────────────────── */}
       {showAddToCart && (
         <div className="px-4 pb-4">
@@ -303,4 +318,4 @@ export default function ProductCard({ product, showAddToCart = true }: ProductCa
       )}
     </div>
   );
-}
+});

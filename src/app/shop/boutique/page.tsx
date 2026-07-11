@@ -145,7 +145,7 @@ function BoutiqueContent() {
             <div className="absolute inset-0 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 transform scale-110 -rotate-2">
               {heroImages.map((img, idx) => (
                 <div key={idx} className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-lg">
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>

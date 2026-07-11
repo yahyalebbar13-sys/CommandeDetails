@@ -107,7 +107,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           <div className="space-y-3 mb-4">
             {(order.items || []).map((item: any, i: number) => (
               <div key={i} className="flex items-center gap-3">
-                {item.productImage && <img src={item.productImage} alt={item.productName} className="w-12 h-12 rounded-xl object-cover border border-[#E8E4DF]" />}
+                {item.productImage && <img src={item.productImage} alt={item.productName} loading="lazy" decoding="async" className="w-12 h-12 rounded-xl object-cover border border-[#E8E4DF]" />}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-[#1A1A1A] truncate">{item.productName}</p>
                   {item.variant?.color && <p className="text-xs text-[#6B6B6B]">Couleur: {item.variant.color}</p>}

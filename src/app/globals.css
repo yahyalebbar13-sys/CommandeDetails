@@ -101,13 +101,15 @@
   animation: gradientShift 8s ease infinite;
 }
 
-/* Product card hover */
+/* Product card hover & hardware acceleration */
 .shop-product-card {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, box-shadow;
+  transform: translateZ(0); /* force GPU acceleration */
 }
 
 .shop-product-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-4px) translateZ(0);
   box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
 }
 
@@ -183,9 +185,9 @@
 }
 
 /* Image zoom container */
-.shop-img-zoom { overflow: hidden; }
-.shop-img-zoom img { transition: transform 0.5s ease; }
-.shop-img-zoom:hover img { transform: scale(1.08); }
+.shop-img-zoom { overflow: hidden; transform: translateZ(0); }
+.shop-img-zoom img { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); will-change: transform; transform: translateZ(0); }
+.shop-img-zoom:hover img { transform: scale(1.08) translateZ(0); }
 
 /* Sticky add-to-cart bar */
 @keyframes slideUpBar {

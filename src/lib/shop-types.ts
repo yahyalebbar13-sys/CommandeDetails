@@ -17,9 +17,11 @@ export interface ShopCategory {
 export interface ProductVariant {
   id: string;
   color?: string;
+  colorAr?: string;
   colorHex?: string;
   image?: string;
   size?: string;
+  sizeAr?: string;
   sku?: string;
   stock: number;
   price?: number; // Override price for this variant
@@ -29,10 +31,14 @@ export interface ShopProduct {
   id: string;
   slug: string;
   name: string;
+  nameAr?: string;
   shortDescription?: string;
+  shortDescriptionAr?: string;
   description: string;
+  descriptionAr?: string;
   categorySlug: string;
   categoryName?: string;
+  categoryNameAr?: string;
   images: string[];
   price: number; // MAD
   comparePrice?: number; // Prix barré
@@ -49,10 +55,13 @@ export interface ShopProduct {
   specifications?: Record<string, string>;
   // ── Champs fiche produit ──
   material?: string;       // Matériau
+  materialAr?: string;
   specification?: string;  // Spécification
+  specificationAr?: string;
   weight?: number;         // Poids (grammes)
   width?: string;          // Largeur
   packaging?: string;      // Emballage
+  packagingAr?: string;
   minOrderQty?: number;
   wholesalePrice?: number;
   
@@ -95,12 +104,18 @@ export interface ShopReview {
 export interface CartItem {
   productId: string;
   productName: string;
+  productNameAr?: string;
   productImage: string;
   price: number;
+  originalPrice?: number;
+  wholesalePrice?: number;
+  minOrderQty?: number;
   quantity: number;
   variant?: {
     color?: string;
+    colorAr?: string;
     size?: string;
+    sizeAr?: string;
     variantId?: string;
   };
   maxStock: number;

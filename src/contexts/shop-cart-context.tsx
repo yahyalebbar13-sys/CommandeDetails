@@ -88,11 +88,15 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
-interface CartContextValue {
+interface CartStateValue {
   items: CartItem[];
   isOpen: boolean;
   itemCount: number;
   subtotal: number;
+  productQtyMap: Record<string, number>;
+}
+
+interface CartActionsValue {
   addItem: (item: CartItem) => void;
   addItems: (items: CartItem[]) => void;
   removeItem: (productId: string, variantId?: string) => void;
@@ -103,7 +107,8 @@ interface CartContextValue {
   closeCart: () => void;
 }
 
-const CartContext = createContext<CartContextValue | null>(null);
+const CartStateContext = createContext<CartStateValue | null>(null);
+const CartActionsContext = createContext<CartActionsValue | null>(null);
 
 const STORAGE_KEY = 'lebtex_cart_v1';
 
@@ -131,48 +136,72 @@ export function ShopCartProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [state.items]);
 
-  const addItem  = useCallback((item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }), []);
-  const addItems = useCallback((items: CartItem[]) => dispatch({ type: 'ADD_ITEMS', payload: items }), []);
-  const removeItem = useCallback(
-    (productId: string, variantId?: string) =>
-      dispatch({ type: 'REMOVE_ITEM', payload: { productId, variantId } }),
-    []
-  );
-  const updateQty = useCallback(
-    (productId: string, quantity: number, variantId?: string) =>
-      dispatch({ type: 'UPDATE_QTY', payload: { productId, variantId, quantity } }),
-    []
-  );
-  const clearCart  = useCallback(() => dispatch({ type: 'CLEAR_CART' }), []);
-  const toggleCart = useCallback(() => dispatch({ type: 'TOGGLE_CART' }), []);
-  const openCart   = useCallback(() => dispatch({ type: 'OPEN_CART' }), []);
-  const closeCart  = useCallback(() => dispatch({ type: 'CLOSE_CART' }), []);
+  const actions = useMemo(() => ({
+    addItem: (item: CartItem) => dispatch({ type: 'ADD_ITEM', payload: item }),
+    addItems: (items: CartItem[]) => dispatch({ type: 'ADD_ITEMS', payload: items }),
+    removeItem: (productId: string, variantId?: string) => dispatch({ type: 'REMOVE_ITEM', payload: { productId, variantId } }),
+    updateQty: (productId: string, quantity: number, variantId?: string) => dispatch({ type: 'UPDATE_QTY', payload: { productId, variantId, quantity } }),
+    clearCart: () => dispatch({ type: 'CLEAR_CART' }),
+    toggleCart: () => dispatch({ type: 'TOGGLE_CART' }),
+    openCart: () => dispatch({ type: 'OPEN_CART' }),
+    closeCart: () => dispatch({ type: 'CLOSE_CART' }),
+  }), []);
 
-  const itemCount = useMemo(() => state.items.reduce((s, i) => s + i.quantity, 0), [state.items]);
-  const subtotal  = useMemo(() => state.items.reduce((s, i) => s + i.price * i.quantity, 0), [state.items]);
+  const itemCount = useMemo(() => state.items.reduce((s, i) => s + (i.quantity || 1), 0), [state.items]);
+
+  const subtotal = useMemo(() => {
+    // 1. Calculate total qty per productId
+    const productQtyMap: Record<string, number> = {};
+    for (const item of state.items) {
+      productQtyMap[item.productId] = (productQtyMap[item.productId] || 0) + (item.quantity || 1);
+    }
+
+    // 2. Calculate subtotal
+    return state.items.reduce((s, item) => {
+      const totalQty = productQtyMap[item.productId];
+      const isWholesale = item.minOrderQty && totalQty >= item.minOrderQty && item.wholesalePrice;
+      const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price || 0);
+      return s + effectivePrice * (item.quantity || 1);
+    }, 0);
+  }, [state.items]);
+
+  const stateValue = useMemo(() => ({
+    items: state.items,
+    isOpen: state.isOpen,
+    itemCount,
+    subtotal,
+    productQtyMap: state.items.reduce((acc, item) => {
+      acc[item.productId] = (acc[item.productId] || 0) + (item.quantity || 1);
+      return acc;
+    }, {} as Record<string, number>),
+  }), [state.items, state.isOpen, itemCount, subtotal]);
 
   return (
-    <CartContext.Provider value={{
-      items: state.items,
-      isOpen: state.isOpen,
-      itemCount,
-      subtotal,
-      addItem,
-      addItems,
-      removeItem,
-      updateQty,
-      clearCart,
-      toggleCart,
-      openCart,
-      closeCart,
-    }}>
-      {children}
-    </CartContext.Provider>
+    <CartActionsContext.Provider value={actions}>
+      <CartStateContext.Provider value={stateValue}>
+        {children}
+      </CartStateContext.Provider>
+    </CartActionsContext.Provider>
   );
 }
 
-export function useShopCart(): CartContextValue {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error('useShopCart must be used within ShopCartProvider');
+// Hook backward compatibility for components that need everything
+export function useShopCart(): CartStateValue & CartActionsValue {
+  const stateCtx = useContext(CartStateContext);
+  const actionsCtx = useContext(CartActionsContext);
+  if (!stateCtx || !actionsCtx) throw new Error('useShopCart must be used within ShopCartProvider');
+  return { ...stateCtx, ...actionsCtx };
+}
+
+// Specialized hooks to avoid re-renders
+export function useShopCartState(): CartStateValue {
+  const ctx = useContext(CartStateContext);
+  if (!ctx) throw new Error('useShopCartState must be used within ShopCartProvider');
+  return ctx;
+}
+
+export function useShopCartActions(): CartActionsValue {
+  const ctx = useContext(CartActionsContext);
+  if (!ctx) throw new Error('useShopCartActions must be used within ShopCartProvider');
   return ctx;
 }

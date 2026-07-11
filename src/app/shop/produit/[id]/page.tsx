@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package, ArrowLeft } from 'lucide-react';
 import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
-import { useShopCart } from '@/contexts/shop-cart-context';
+import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
+import { useLanguage } from '@/contexts/language-context';
 import { db } from '@/lib/firebase-db';
 import { doc, getDoc } from 'firebase/firestore';
 import type { CartItem, ProductVariant } from '@/lib/shop-types';
@@ -43,7 +44,7 @@ function SimilarProductCard({ product }: { product: any }) {
   return (
     <Link href={`/shop/produit/${product.id}`} className="block bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all">
       <div className="aspect-square overflow-hidden bg-gray-50 relative">
-        <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+        <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
         {discount > 0 && <span className="absolute top-2 left-2 bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full">-{discount}%</span>}
       </div>
       <div className="p-3">
@@ -64,16 +65,23 @@ function MultiVariantSelector({
   basePrice,
   productId,
   productName,
+  productNameAr,
   productImage,
+  wholesalePrice,
+  minOrderQty,
   onAdd,
 }: {
   variants: ProductVariant[];
   basePrice: number;
   productId: string;
   productName: string;
+  productNameAr?: string;
   productImage: string;
+  wholesalePrice?: number;
+  minOrderQty?: number;
   onAdd: (items: CartItem[]) => void;
 }) {
+  const { language } = useLanguage();
   const [qtys, setQtys] = useState<Record<string, number>>({});
 
   // Size selection logic
@@ -106,17 +114,25 @@ function MultiVariantSelector({
   const totalPrice = variants.reduce((s, v) => s + (v.price ?? basePrice) * (qtys[v.id] || 0), 0);
 
   const handleAdd = () => {
-    const items: CartItem[] = variants
-      .filter(v => (qtys[v.id] || 0) > 0 && v.stock > 0)
-      .map(v => ({
-        productId,
-        productName,
-        productImage,
-        price: v.price ?? basePrice,
-        quantity: qtys[v.id],
-        variant: { color: v.color, size: v.size, variantId: v.id },
-        maxStock: v.stock,
-      }));
+    const items: CartItem[] = [];
+    variants.forEach(v => {
+      const itemPrice = (qtys[v.id] || 0) > 0 ? (v.price ?? basePrice) : 0;
+      if (itemPrice > 0) {
+        items.push({
+          productId,
+          productName,
+          productNameAr: language === 'ar' && (v.nameAr || productNameAr) ? (v.nameAr || productNameAr) : undefined,
+          productImage: v.image || productImage,
+          price: itemPrice,
+          originalPrice: v.price ?? basePrice,
+          wholesalePrice,
+          minOrderQty,
+          quantity: qtys[v.id],
+          variant: { color: v.color, colorAr: v.colorAr, size: v.size, sizeAr: v.sizeAr, variantId: v.id },
+          maxStock: v.stock,
+        });
+      }
+    });
     if (items.length === 0) return;
     onAdd(items);
     setQtys({});
@@ -124,31 +140,29 @@ function MultiVariantSelector({
 
   return (
     <div className="mb-5">
-      {/* Size Selector */}
       {hasSizes && (
-        <div className="mb-6">
-          <p className="text-sm font-bold text-[#1A1A1A] mb-3">Choisissez une taille</p>
-          <div className="flex flex-wrap gap-2.5">
-            {uniqueSizes.map(size => (
+        <div className="flex flex-col gap-1 mb-3">
+          <label className="text-sm font-semibold text-[#1A1A1A]">{language === 'ar' ? 'اختر المقاس:' : 'Taille :'}</label>
+          <div className="flex flex-wrap gap-2">
+            {uniqueSizes.map(sz => (
               <button
-                key={size}
-                onClick={() => setSelectedSize(size)}
-                className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 border-2 ${
-                  selectedSize === size
-                    ? 'border-[#C8102E] bg-[#C8102E]/5 text-[#C8102E] shadow-sm'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
+                key={sz}
+                onClick={() => setSelectedSize(sz)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border-2 
+                  ${selectedSize === sz
+                    ? 'border-[#C8102E] bg-red-50 text-[#C8102E]'
+                    : 'border-[#E8E4DF] bg-white text-[#6B6B6B] hover:border-[#D4A843]'
+                  }`}
               >
-                {size}
+                {sz}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Color swatches or Simple Qty */}
       {(() => {
-        if (visibleVariants.length === 0) return <p className="text-sm text-gray-500 italic">Aucune variante disponible pour cette taille.</p>;
+        if (visibleVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour cette taille.'}</p>;
         const isSimpleSize = visibleVariants.length === 1 && (!visibleVariants[0]?.color || visibleVariants[0]?.color?.startsWith('Option')) && !visibleVariants[0]?.image;
         
         if (isSimpleSize) {
@@ -161,10 +175,10 @@ function MultiVariantSelector({
                   {v.price && v.price !== basePrice ? formatPrice(v.price) : formatPrice(basePrice)}
                 </p>
                 {v.stock <= 10 && v.stock > 0 && (
-                  <p className="text-[11px] text-[#D4A843] font-bold mt-0.5">🔥 Plus que {v.stock} en stock !</p>
+                  <p className="text-[11px] text-[#D4A843] font-bold mt-0.5">{language === 'ar' ? `🔥 متبقي ${v.stock} فقط!` : `🔥 Plus que ${v.stock} en stock !`}</p>
                 )}
                 {v.stock === 0 && (
-                  <p className="text-[11px] text-red-500 font-bold mt-0.5">Rupture de stock</p>
+                  <p className="text-[11px] text-red-500 font-bold mt-0.5">{language === 'ar' ? 'نفد المخزون' : 'Rupture de stock'}</p>
                 )}
               </div>
               {v.stock > 0 ? (
@@ -181,7 +195,7 @@ function MultiVariantSelector({
                   </button>
                 </div>
               ) : (
-                <span className="px-4 py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm">Épuisé</span>
+                <span className="px-4 py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm">{language === 'ar' ? 'نفد' : 'Épuisé'}</span>
               )}
             </div>
           );
@@ -190,7 +204,7 @@ function MultiVariantSelector({
         return (
           <>
             <p className="text-sm font-bold text-[#1A1A1A] mb-4">
-              {hasSizes ? `Couleurs/Modèles pour ${selectedSize}` : 'Options disponibles'}
+              {hasSizes ? (language === 'ar' ? `الألوان المتاحة لـ ${selectedSize}` : `Couleurs/Modèles pour ${selectedSize}`) : (language === 'ar' ? 'الخيارات المتاحة' : 'Options disponibles')}
             </p>
             <div className="flex flex-wrap gap-5">
               {visibleVariants.map(v => {
@@ -200,12 +214,18 @@ function MultiVariantSelector({
 
                 return (
                   <div key={v.id} className="flex flex-col items-center gap-2">
-                    {/* Variant Button */}
                     <div className="relative">
                       <button
-                        onClick={() => !outOfStock && setQty(v.id, isSelected ? -qty : 1, v.stock)}
+                        onClick={() => {
+                          if (outOfStock) return;
+                          if (isSelected) {
+                            setQty(v.id, -qty, v.stock);
+                          } else {
+                            setQty(v.id, 1, v.stock);
+                          }
+                        }}
                         disabled={outOfStock}
-                        title={outOfStock ? 'Épuisé' : (v.size ? `${v.size} - ${v.color}` : v.color)}
+                        title={outOfStock ? (language === 'ar' ? 'نفد' : 'Épuisé') : (v.size ? `${v.size} - ${language === 'ar' && v.colorAr ? v.colorAr : v.color}` : (language === 'ar' && v.colorAr ? v.colorAr : v.color))}
                         className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative
                           ${v.image 
                             ? 'w-20 h-20 rounded-xl border-2' 
@@ -217,21 +237,18 @@ function MultiVariantSelector({
                               : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
                         `}
                       >
-                        {/* Variant Content: Image or Color */}
                         {v.image ? (
-                          <img src={v.image} alt={v.color || 'Design'} className="w-full h-full object-cover" />
+                          <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
                         )}
 
-                        {/* Out of stock line */}
                         {outOfStock && (
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-inherit">
                             <div className="w-[150%] h-[2px] bg-red-400/50 -rotate-12" />
                           </div>
                         )}
                       </button>
-                      {/* Selection Checkmark */}
                       {isSelected && (
                         <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20">
                           <span className="text-white text-[9px] font-black leading-none">✓</span>
@@ -239,38 +256,35 @@ function MultiVariantSelector({
                       )}
                     </div>
 
-                    {/* Name Label */}
                     <p className="text-[11px] font-semibold text-center text-[#1A1A1A] leading-tight max-w-[80px]">
-                      {v.color && !v.color.startsWith('Option') ? v.color : '—'}
+                      {v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '—'}
                     </p>
 
-                    {/* Price Diff */}
                     {v.price && v.price !== basePrice && (
                       <p className="text-[11px] font-black text-[#C8102E] -mt-1 bg-red-50 px-2 py-0.5 rounded-md">
                         {formatPrice(v.price)}
                       </p>
                     )}
 
-                    {/* Qty stepper (only when selected) */}
-                    <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-6' : 'opacity-0 h-0 overflow-hidden'}`}>
+                    <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-8' : 'opacity-0 h-0 overflow-hidden'}`}>
                       {isSelected && (
                         <>
                           <button onClick={() => setQty(v.id, -1, v.stock)}
-                            className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
-                            <Minus className="w-3 h-3" />
+                            className="w-8 h-8 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
+                            <Minus className="w-3.5 h-3.5" />
                           </button>
                           <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
                           <button onClick={() => setQty(v.id, 1, v.stock)}
                             disabled={qty >= v.stock}
-                            className="w-6 h-6 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
-                            <Plus className="w-3 h-3" />
+                            className="w-8 h-8 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}
                     </div>
 
                     <p className={`text-[9px] uppercase tracking-wider ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400 font-medium'}`}>
-                      {outOfStock ? 'Rupture' : `${v.stock} dispo`}
+                      {outOfStock ? (language === 'ar' ? 'نفد' : 'Rupture') : (language === 'ar' ? `${v.stock} متوفر` : `${v.stock} dispo`)}
                     </p>
                   </div>
                 );
@@ -280,17 +294,15 @@ function MultiVariantSelector({
         );
       })()}
 
-      {/* Summary */}
       {totalQty > 0 && (
         <div className="mt-5 flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
           <p className="text-sm text-gray-600">
-            <span className="font-bold text-[#1A1A1A]">{totalQty}</span> article{totalQty > 1 ? 's' : ''} sélectionné{totalQty > 1 ? 's' : ''}
+            <span className="font-bold text-[#1A1A1A]">{totalQty}</span> {language === 'ar' ? 'منتج مختار' : 'article(s) sélectionné(s)'}
           </p>
           <p className="text-sm font-black text-[#C8102E]">{formatPrice(totalPrice)}</p>
         </div>
       )}
 
-      {/* Add button */}
       <button onClick={handleAdd} disabled={totalQty === 0}
         className={`w-full mt-4 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
           totalQty === 0
@@ -299,22 +311,19 @@ function MultiVariantSelector({
         }`}>
         <ShoppingCart className="w-5 h-5" />
         {totalQty === 0
-          ? 'Cliquez sur une couleur pour sélectionner'
-          : `Ajouter au panier — ${totalQty} article${totalQty > 1 ? 's' : ''}`}
+          ? (language === 'ar' ? 'اضغط لاختيار اللون' : 'Cliquez sur une couleur pour sélectionner')
+          : (language === 'ar' ? `إضافة للسلة — ${totalQty} منتج` : `Ajouter au panier — ${totalQty} article${totalQty > 1 ? 's' : ''}`)}
       </button>
     </div>
   );
 }
 
-
-// ─── Product Page ─────────────────────────────────────────────────────────────
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { language } = useLanguage();
   const { id } = React.use(params);
-  const { addItem, addItems, openCart } = useShopCart();
-  // Use context which already includes Firestore custom products
+  const { addItem, addItems, openCart } = useShopCartActions();
   const { products, getProductById: ctxGetById, isLoading } = useShopProducts();
 
-  // Direct Firestore fallback in case context fails
   const [directProduct, setDirectProduct] = React.useState<any>(null);
   const [directLoading, setDirectLoading] = React.useState(false);
   const [directDone, setDirectDone] = React.useState(false);
@@ -322,7 +331,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const product = ctxGetById(id) || directProduct;
 
   React.useEffect(() => {
-    // If context finished loading and didn't find the product, try direct Firestore fetch
     if (!isLoading && !ctxGetById(id) && !directDone) {
       setDirectLoading(true);
       setDirectDone(true);
@@ -348,7 +356,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [mainImg, setMainImg] = React.useState(0);
   const [wished, setWished] = React.useState(false);
   const [added, setAdded] = React.useState(false);
-  // Similar products — computed client-side to avoid hydration mismatch with Math.random()
   const [similar, setSimilar] = React.useState<typeof products>([]);
   const [similarTitle, setSimilarTitle] = React.useState("Vous aimerez aussi");
   const [similarLink, setSimilarLink] = React.useState("/shop");
@@ -362,7 +369,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     else setQty(1);
   }, [product?.id]);
 
-  // Compute similar products client-side (Math.random causes hydration mismatch if done during render)
   React.useEffect(() => {
     if (!product || products.length === 0) return;
     let sim = products
@@ -374,22 +380,21 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
         .sort(() => 0.5 - Math.random())
         .slice(0, 4);
-      setSimilarTitle("Découvrez d'autres catégories");
+      setSimilarTitle(language === 'ar' ? 'اكتشف فئات أخرى' : "Découvrez d'autres catégories");
       setSimilarLink("/shop");
     } else {
-      setSimilarTitle("Vous aimerez aussi");
+      setSimilarTitle(language === 'ar' ? 'قد يعجبك أيضاً' : "Vous aimerez aussi");
       setSimilarLink(`/shop/categorie/${product.categorySlug}`);
     }
     setSimilar(sim);
-  }, [product?.id, products]);
+  }, [product?.id, products, language]);
 
-  // Still loading
   if (isLoading || directLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]">
         <div className="text-center">
           <div className="w-10 h-10 border-4 border-[#C8102E] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#6B6B6B] text-sm">Chargement du produit…</p>
+          <p className="text-[#6B6B6B] text-sm">{language === 'ar' ? 'جاري التحميل...' : 'Chargement du produit…'}</p>
         </div>
       </div>
     );
@@ -400,11 +405,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       <div className="min-h-screen flex items-center justify-center bg-[#FBF8F3]" style={{ fontFamily: 'Inter, sans-serif' }}>
         <div className="text-center">
           <p className="text-6xl mb-4">😕</p>
-          <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Produit introuvable</h1>
-          <p className="text-[#6B6B6B] mb-6">Ce produit n'existe pas ou a été supprimé.</p>
-          <p className="text-xs text-gray-400 mb-4 font-mono">ID: {id}</p>
+          <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{language === 'ar' ? 'المنتج غير موجود' : 'Produit introuvable'}</h1>
+          <p className="text-[#6B6B6B] mb-6">{language === 'ar' ? 'هذا المنتج غير موجود أو تم حذفه.' : 'Ce produit n\'existe pas ou a été supprimé.'}</p>
           <Link href="/shop/categories" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors">
-            Retour à la boutique
+            {language === 'ar' ? 'العودة للمتجر' : 'Retour à la boutique'}
           </Link>
         </div>
       </div>
@@ -417,45 +421,39 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const stock = selectedVariant?.stock ?? product.stockQty;
   const inStock = hasVariants ? product.variants.some(v => v.stock > 0) : stock > 0;
 
-  // Single variant / no variant add to cart
   const handleAddToCart = () => {
     addItem({
       productId: product.id,
       productName: product.name,
+      productNameAr: product.nameAr,
       productImage: product.images?.[mainImg] || product.images?.[0] || '',
       price: currentPrice,
+      originalPrice: product.price,
+      wholesalePrice: product.wholesalePrice,
+      minOrderQty: product.minOrderQty,
       quantity: qty,
-      variant: selectedVariant ? { color: selectedVariant.color, size: selectedVariant.size, variantId: selectedVariant.id } : undefined,
+      variant: selectedVariant ? { color: selectedVariant.color, colorAr: selectedVariant.colorAr, size: selectedVariant.size, sizeAr: selectedVariant.sizeAr, variantId: selectedVariant.id } : undefined,
       maxStock: stock,
     });
     setAdded(true);
     setTimeout(() => { setAdded(false); openCart(); }, 1500);
   };
 
-  // Multi-variant add to cart
   const handleAddVariantsToCart = (items: CartItem[]) => {
     addItems(items);
     setAdded(true);
     setTimeout(() => { setAdded(false); openCart(); }, 1500);
   };
 
-  const REVIEWS = [
-    { name: 'Fatima Z.', city: 'Casablanca', rating: 5, date: '12 Mai 2025', text: 'Très bonne qualité, correspond parfaitement à la description. Livraison rapide. Je rachèterai !' },
-    { name: 'Ahmed B.', city: 'Marrakech', rating: 4, date: '3 Avril 2025', text: 'Produit conforme, bon rapport qualité/prix. Emballage soigné. Merci LEBTEX !' },
-    { name: 'Samira R.', city: 'Rabat', rating: 5, date: '28 Mars 2025', text: 'Exactement ce que je cherchais. Le paiement à la livraison est très pratique. Recommande !' },
-  ];
-
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
-      {/* Added to cart notification */}
       {added && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#10B981] text-white px-6 py-3 rounded-full font-semibold shadow-lg shop-slide-in-up flex items-center gap-2">
-          <span>✓</span> Ajouté au panier !
+          <span>✓</span> {language === 'ar' ? 'تمت الإضافة للسلة !' : 'Ajouté au panier !'}
         </div>
       )}
 
       <div className="max-w-7xl mx-auto px-4 py-6 md:py-10">
-        {/* Navigation & Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
           <button 
             onClick={() => window.history.back()} 
@@ -467,25 +465,24 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </button>
           <div className="hidden sm:block w-px h-5 bg-[#E8E4DF]"></div>
           <nav className="flex items-center flex-wrap gap-1.5 text-xs text-[#6B6B6B]">
-            <Link href="/shop" className="hover:text-[#C8102E] transition-colors">Accueil</Link>
+            <Link href="/shop" className="hover:text-[#C8102E] transition-colors">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href="/shop/categories" className="hover:text-[#C8102E] transition-colors">Boutique</Link>
+            <Link href="/shop/categories" className="hover:text-[#C8102E] transition-colors">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-[#C8102E] transition-colors">{product.categoryName}</Link>
+            <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-[#C8102E] transition-colors">
+              {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
+            </Link>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-[#1A1A1A] font-medium truncate max-w-[200px]">{product.name}</span>
+            <span className="text-[#1A1A1A] font-medium truncate max-w-[200px]">{language === 'ar' && product.nameAr ? product.nameAr : product.name}</span>
           </nav>
         </div>
 
-
-        {/* Main grid */}
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
-          {/* Gallery */}
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12" dir={language === 'ar' ? 'rtl' : 'ltr'}>
           <div>
             <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-[#E8E4DF] shop-img-zoom mb-3">
-              <img src={product.images?.[mainImg] || product.images?.[0] || '/placeholder.png'} alt={product.name} className="w-full h-full object-cover" />
+              <img src={product.images?.[mainImg] || product.images?.[0] || '/placeholder.png'} alt={product.name} loading="eager" decoding="async" className="w-full h-full object-cover" />
               <div className="absolute top-4 left-4 flex flex-col gap-2">
-                {product.isNew && <span className="bg-[#10B981] text-white text-xs font-black px-3 py-1 rounded-full">NOUVEAU</span>}
+                {product.isNew && <span className="bg-[#10B981] text-white text-xs font-black px-3 py-1 rounded-full">{language === 'ar' ? 'جديد' : 'NOUVEAU'}</span>}
                 {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-xs font-black px-3 py-1 rounded-full">-{discount}%</span>}
               </div>
             </div>
@@ -493,40 +490,25 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               {product.images?.map((img, i) => (
                 <button key={i} onClick={() => setMainImg(i)}
                   className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${mainImg === i ? 'border-[#C8102E]' : 'border-[#E8E4DF] hover:border-[#D4A843]'}`}>
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Product info */}
           <div>
-            {/* Badges */}
-            <div className="flex gap-2 mb-3">
-              {product.isNew && <span className="bg-[#10B981]/10 text-[#10B981] text-xs font-bold px-2.5 py-1 rounded-full">✨ Nouveau</span>}
-              {product.isPromo && <span className="bg-[#C8102E]/10 text-[#C8102E] text-xs font-bold px-2.5 py-1 rounded-full">🏷️ Promotion</span>}
-              {hasVariants && <span className="bg-[#D4A843]/10 text-[#D4A843] text-xs font-bold px-2.5 py-1 rounded-full">🎨 {product.variants.length} variantes</span>}
-            </div>
+            <h1 className="text-2xl md:text-3xl font-black text-[#1A1A1A] mb-3 leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              {language === 'ar' && product.nameAr ? product.nameAr : product.name}
+            </h1>
 
-            <h1 className="text-2xl md:text-3xl font-black text-[#1A1A1A] mb-3 leading-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h1>
+            <p className="text-[#6B6B6B] text-sm md:text-base leading-relaxed mb-6 whitespace-pre-wrap">
+              {language === 'ar' && product.shortDescriptionAr ? product.shortDescriptionAr : product.shortDescription}
+            </p>
 
-            {/* Rating */}
-            {product.rating && (
-              <div className="flex items-center gap-2 mb-4">
-                <div className="flex text-[#D4A843]">
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <Star key={i} className="w-4 h-4" fill={i < Math.floor(product.rating!) ? '#D4A843' : 'none'} />
-                  ))}
-                </div>
-                <span className="text-sm text-[#6B6B6B]">{product.rating}/5 ({product.reviewCount} avis)</span>
-              </div>
-            )}
-
-            {/* Price */}
             <div className="flex items-center gap-3 mb-4">
               {hasVariants ? (
                 <span className="text-2xl font-black text-[#1A1A1A]">
-                  À partir de {formatPrice(Math.min(...product.variants.map(v => v.price ?? product.price)))}
+                  {language === 'ar' ? 'بدءاً من ' : 'À partir de '}{formatPrice(Math.min(...product.variants.map(v => v.price ?? product.price)))}
                 </span>
               ) : (
                 <>
@@ -541,34 +523,34 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               )}
             </div>
 
-            {/* Stock */}
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mb-5 ${inStock ? 'bg-green-50 text-[#10B981]' : 'bg-red-50 text-red-600'}`}>
               <span className={`w-2 h-2 rounded-full ${inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
               {inStock
                 ? hasVariants
-                  ? `${product.variants.reduce((s, v) => s + v.stock, 0)} unités disponibles`
-                  : `En stock (${stock} disponibles)`
-                : 'Rupture de stock'}
+                  ? (language === 'ar' ? `${product.variants.reduce((s, v) => s + v.stock, 0)} قطعة متوفرة` : `${product.variants.reduce((s, v) => s + v.stock, 0)} unités disponibles`)
+                  : (language === 'ar' ? `متوفر (${stock} قطعة)` : `En stock (${stock} disponibles)`)
+                : (language === 'ar' ? 'نفد المخزون' : 'Rupture de stock')}
             </div>
 
             <hr className="border-[#E8E4DF] mb-5" />
 
-            {/* ── VARIANTS or single qty ── */}
             {hasVariants ? (
               <MultiVariantSelector
                 variants={product.variants}
                 basePrice={product.price}
                 productId={product.id}
                 productName={product.name}
+                productNameAr={product.nameAr}
                 productImage={product.images?.[mainImg] || product.images?.[0] || ''}
+                wholesalePrice={product.wholesalePrice}
+                minOrderQty={product.minOrderQty}
                 onAdd={handleAddVariantsToCart}
               />
             ) : (
               <>
-                {/* Quantity */}
                 {inStock && (
                   <div className="mb-4">
-                    <p className="text-sm font-semibold text-[#1A1A1A] mb-2">Quantité</p>
+                    <p className="text-sm font-semibold text-[#1A1A1A] mb-2">{language === 'ar' ? 'الكمية' : 'Quantité'}</p>
                     <div className="flex items-center gap-3">
                       <button onClick={() => setQty(q => Math.max(product.minOrderQty || 1, q - 1))}
                         className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
@@ -579,219 +561,56 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                         className="w-10 h-10 rounded-xl border border-[#E8E4DF] bg-white flex items-center justify-center hover:border-[#C8102E] transition-colors">
                         <Plus className="w-4 h-4" />
                       </button>
-                      <span className="text-xs text-[#6B6B6B]">Total: <strong>{formatPrice(currentPrice * qty)}</strong></span>
                     </div>
-                    {product.minOrderQty && product.minOrderQty > 1 && (
-                      <p className="text-xs text-[#D4A843] mt-1.5 flex items-center gap-1">
-                        <Package className="w-3.5 h-3.5" /> Commande minimum: {product.minOrderQty} pcs
-                      </p>
-                    )}
                   </div>
                 )}
-
-                {/* Wholesale */}
-                {product.wholesalePrice && (
-                  <div className="mb-4 p-3 bg-[#D4A843]/10 border border-[#D4A843]/30 rounded-xl">
-                    <p className="text-sm text-[#1A1A1A]">
-                      💼 <strong>Semi-gros disponible :</strong> {formatPrice(product.wholesalePrice)}/unité (min. {product.minOrderQty || 10} pcs)
-                    </p>
-                  </div>
-                )}
-
-                {/* CTA Buttons */}
-                <div className="flex flex-col gap-3 mb-5">
-                  <button onClick={handleAddToCart} disabled={!inStock}
-                    className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
-                      !inStock ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : added ? 'bg-[#10B981] text-white'
-                      : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
-                    }`}>
-                    <ShoppingCart className="w-5 h-5" />
-                    {added ? '✓ Ajouté au panier !' : inStock ? 'Ajouter au panier' : 'Rupture de stock'}
-                  </button>
-                </div>
+                <button onClick={handleAddToCart} disabled={!inStock}
+                  className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
+                    !inStock ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : added ? 'bg-[#10B981] text-white'
+                    : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
+                  }`}>
+                  <ShoppingCart className="w-5 h-5" />
+                  {added ? (language === 'ar' ? 'تمت الإضافة للسلة' : '✓ Ajouté au panier !') : inStock ? (language === 'ar' ? 'إضافة للسلة' : 'Ajouter au panier') : (language === 'ar' ? 'نفد' : 'Rupture de stock')}
+                </button>
               </>
             )}
-
-            {/* WhatsApp + Wishlist */}
-            <div className="flex gap-3 mb-5">
+            
+            <div className="flex gap-3 mb-5 mt-4">
               <a href={buildWhatsAppLink(product.id, hasVariants ? product.price : currentPrice * qty, product.name)} target="_blank" rel="noopener noreferrer"
                 className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1da851] text-white transition-colors">
-                <MessageCircle className="w-4 h-4" /> Commander sur WhatsApp
+                <MessageCircle className="w-4 h-4" /> {language === 'ar' ? 'الطلب عبر واتساب' : 'Commander sur WhatsApp'}
               </a>
-              <button onClick={() => setWished(!wished)}
-                className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${wished ? 'border-red-400 bg-red-50 text-red-500' : 'border-[#E8E4DF] text-[#6B6B6B] hover:border-red-400'}`}>
-                <Heart className="w-5 h-5" fill={wished ? 'currentColor' : 'none'} />
-              </button>
-            </div>
-
-            {/* Delivery info */}
-            <div className="grid grid-cols-3 gap-2 p-4 bg-white border border-[#E8E4DF] rounded-xl">
-              {[
-                { icon: Truck, text: 'Livraison rapide', sub: 'Casablanca 24-48h' },
-                { icon: Shield, text: 'Paiement livraison', sub: 'Cash à la réception' },
-                { icon: RotateCcw, text: 'Retour 14 jours', sub: 'Satisfait ou remboursé' },
-              ].map(({ icon: Icon, text, sub }) => (
-                <div key={text} className="text-center">
-                  <Icon className="w-5 h-5 text-[#C8102E] mx-auto mb-1" />
-                  <p className="text-[10px] font-bold text-[#1A1A1A] leading-tight">{text}</p>
-                  <p className="text-[9px] text-[#6B6B6B] mt-0.5">{sub}</p>
-                </div>
-              ))}
             </div>
           </div>
         </div>
 
-          {/* ═══ FICHE PRODUIT — Description & Détails Hyper Pro ══════ */}
-          <div className="mt-10 mb-12">
-
-            {/* Description Courte (Mise en évidence) */}
-            {product.shortDescription && (
-              <div className="mb-8 p-6 bg-gradient-to-br from-[#FBF8F3] to-white border border-[#E8E4DF] rounded-2xl shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1.5 h-full bg-[#C8102E]"></div>
-                <h3 className="text-xl md:text-2xl font-bold text-[#1A1A1A] leading-snug" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                  {product.shortDescription}
-                </h3>
+        <div className="mt-10 mb-12">
+          <div className="space-y-4">
+            <Accordion title={language === 'ar' ? 'الوصف المفصل' : 'Description Détaillée'} icon={<ShoppingCart className="w-5 h-5 text-[#C8102E]" />} defaultOpen={true}>
+              <div className="p-6 text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
+                {language === 'ar' && product.descriptionAr ? product.descriptionAr : product.description}
               </div>
-            )}
+            </Accordion>
 
-            <div className="space-y-4">
-              {/* Accordion 1: Description détaillée & Avantages */}
-              {(product.description || product.avantages) && (
-                <Accordion 
-                  title="Description & Avantages" 
-                  icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>}
-                  defaultOpen={true}
-                >
-                  <div className="px-6 py-6 space-y-6">
-                    {product.description && (
-                      <div className="text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
-                        {product.description.split('\n').filter(Boolean).map((para, i) => (
-                          <p key={i}>{para}</p>
-                        ))}
-                      </div>
-                    )}
-                    {product.avantages && (
-                      <div className="bg-[#FBF8F3] rounded-xl p-5 border border-[#F3EFE8]">
-                        <h3 className="text-[#D4A843] font-bold text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
-                          <span>✨</span> Avantages Principaux
-                        </h3>
-                        <div className="text-[#4A4A4A] text-[15px] space-y-2">
-                          {product.avantages.split('\n').filter(Boolean).map((para, i) => (
-                            <p key={i} className="flex gap-2">
-                              <span className="text-[#25D366] mt-1 flex-shrink-0">✓</span> {para}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Accordion>
-              )}
-
-              {/* Accordion 2: Caractéristiques Techniques */}
-              <Accordion 
-                title="Caractéristiques Techniques" 
-                icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                defaultOpen={false}
-              >
-                <div className="grid grid-cols-1 divide-y divide-[#F3EFE8]">
-                  <div className="divide-y divide-[#F3EFE8]">
-                    {[
-                      { label: 'Type de Produit', icon: '🏷️', value: product.typeProduit },
-                      { label: 'Matériau / Mailles', icon: '🧵', value: product.matiereMailles || product.material },
-                      { label: 'Composition Ruban', icon: '🎗️', value: product.compositionRuban },
-                      { label: 'Largeur', icon: '↔️', value: product.largeurMaille || product.width },
-                      { label: 'Longueur', icon: '📏', value: product.longueur },
-                      { label: 'Couleur', icon: '🎨', value: product.couleur },
-                    ].filter(row => row.value).map((row, i) => (
-                      <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-white' : 'bg-[#FDFBF8]'}`}>
-                        <div className="flex items-center gap-3 sm:w-1/2">
-                          <span className="text-base">{row.icon}</span>
-                          <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
-                        </div>
-                        <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="divide-y divide-[#F3EFE8]">
-                    {[
-                      { label: 'Spécification / Type', icon: '📐', value: product.type || product.specification },
-                      { label: 'Design', icon: '✨', value: product.design },
-                      { label: 'Sécurité', icon: '🔒', value: product.securite },
-                      { label: 'Résistance', icon: '💪', value: product.resistance },
-                      { label: 'Pays de fabrication', icon: '🌍', value: product.paysFabrication },
-                      { label: 'Poids', icon: '⚖️', value: product.weight ? `${product.weight} g` : undefined },
-                    ].filter(row => row.value).map((row, i) => (
-                      <div key={row.label} className={`flex flex-col sm:flex-row sm:items-center justify-between px-6 py-3.5 transition-colors hover:bg-[#FBF8F3] group ${i % 2 === 0 ? 'bg-[#FDFBF8]' : 'bg-white'}`}>
-                        <div className="flex items-center gap-3 sm:w-1/2">
-                          <span className="text-base">{row.icon}</span>
-                          <span className="text-sm font-semibold text-[#6B6B6B] group-hover:text-[#1A1A1A]">{row.label}</span>
-                        </div>
-                        <span className="text-sm font-bold text-[#1A1A1A] mt-1 sm:mt-0 text-left sm:text-right w-full sm:w-1/2">{row.value}</span>
-                      </div>
-                    ))}
-                  </div>
+            {((language === 'ar' && product.materialAr) || product.material || (language === 'ar' && product.specificationAr) || product.specification) && (
+              <Accordion title={language === 'ar' ? 'المواصفات التقنية' : 'Spécifications Techniques'} icon={<Star className="w-5 h-5 text-[#D4A843]" />}>
+                <div className="p-6 space-y-3 text-sm">
+                  {((language === 'ar' && product.materialAr) || product.material) && (
+                    <div className="flex items-start gap-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[100px]">{language === 'ar' ? 'المواد:' : 'Matériau:'}</span>
+                      <span className="text-[#6B6B6B]">{language === 'ar' && product.materialAr ? product.materialAr : product.material}</span>
+                    </div>
+                  )}
+                  {product.weight && (
+                    <div className="flex items-start gap-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[100px]">{language === 'ar' ? 'الوزن:' : 'Poids:'}</span>
+                      <span className="text-[#6B6B6B]">{product.weight} g</span>
+                    </div>
+                  )}
                 </div>
               </Accordion>
-
-              {/* Accordion 3: Informations Pratiques */}
-              {(product.applications || product.conseilsEntretien || product.informationCommerciale || product.compatibleAvec) && (
-                <Accordion 
-                  title="Informations Pratiques & Applications" 
-                  icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                  defaultOpen={false}
-                >
-                  <div className="p-5 grid grid-cols-1 gap-5 bg-[#FDFBF8]">
-                    {product.applications && (
-                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
-                        <div className="w-8 h-8 rounded-full bg-[#1A1A1A] flex items-center justify-center mb-3">
-                          <span className="text-white text-sm">🎯</span>
-                        </div>
-                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Applications & Usages</h3>
-                        <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.applications}</p>
-                        {product.compatibleAvec && (
-                          <div className="mt-3 pt-3 border-t border-[#F3EFE8]">
-                            <p className="text-[10px] font-bold text-[#6B6B6B] uppercase mb-1">Compatible avec :</p>
-                            <p className="text-[#1A1A1A] text-xs font-medium">{product.compatibleAvec}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {product.conseilsEntretien && (
-                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
-                        <div className="w-8 h-8 rounded-full bg-[#10B981] flex items-center justify-center mb-3">
-                          <span className="text-white text-sm">💧</span>
-                        </div>
-                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Conseils d'Entretien</h3>
-                        <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap">{product.conseilsEntretien}</p>
-                      </div>
-                    )}
-
-                    {(product.informationCommerciale || product.packaging || product.minOrderQty) && (
-                      <div className="bg-white border border-[#E8E4DF] rounded-xl p-5 shadow-sm">
-                        <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center mb-3">
-                          <span className="text-white text-sm">📦</span>
-                        </div>
-                        <h3 className="font-bold text-[#1A1A1A] mb-2 font-outfit text-sm">Infos Commerciales</h3>
-                        {product.informationCommerciale && (
-                          <p className="text-[#4A4A4A] text-xs leading-relaxed whitespace-pre-wrap mb-3">{product.informationCommerciale}</p>
-                        )}
-                        <ul className="space-y-1.5 text-xs">
-                          {product.packaging && (
-                            <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Conditionnement</span> <span className="font-bold text-[#1A1A1A]">{product.packaging}</span></li>
-                          )}
-                          {product.minOrderQty && (
-                            <li className="flex justify-between border-b border-[#F3EFE8] pb-1"><span className="text-[#6B6B6B]">Quantité min. (MOQ)</span> <span className="font-bold text-[#1A1A1A]">{product.minOrderQty} unités</span></li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </Accordion>
-              )}
+            )}
             </div>
 
 

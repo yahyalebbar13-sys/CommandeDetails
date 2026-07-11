@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
-import { useShopCart } from '@/contexts/shop-cart-context';
+import { useShopCartActions } from '@/contexts/shop-cart-context';
 import type { ShopProduct } from '@/lib/shop-types';
 
-function PromoCard({ product }: { product: ShopProduct }) {
-  const { addItem } = useShopCart();
+const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProduct }) {
+  const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
 
@@ -24,7 +24,7 @@ function PromoCard({ product }: { product: ShopProduct }) {
       <div className="relative aspect-square bg-gray-50 shop-img-zoom">
         <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
         <div className="absolute inset-0 z-0 pointer-events-none">
-          <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} className="w-full h-full object-cover" />
+          <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         </div>
         {/* Promo badge */}
         {discount > 0 && (
@@ -37,7 +37,20 @@ function PromoCard({ product }: { product: ShopProduct }) {
             <span className="bg-[#10B981] text-white font-black text-xs px-2 py-1 rounded-full">NOUVEAU</span>
           </div>
         )}
-        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+        {/* Mobile Quick Add (Persistent) */}
+        {product.inStock !== false && (
+          <button
+            onClick={handleAdd}
+            disabled={added}
+            className={`lg:hidden absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
+              added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
+            }`}
+          >
+            {added ? <span className="text-[10px] font-bold">✓</span> : <ShoppingBag className="w-4 h-4" />}
+          </button>
+        )}
+        {/* Desktop Quick add overlay */}
+        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
           <button onClick={handleAdd}
             className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
             {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
@@ -59,7 +72,7 @@ function PromoCard({ product }: { product: ShopProduct }) {
       </Link>
     </div>
   );
-}
+});
 
 export default function PromotionsPage() {
   const { getPromoProducts, getNewProducts, getFeaturedProducts } = useShopProducts();

@@ -27,6 +27,7 @@ import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/fire
 import { firebaseConfig } from "@/firebase/config";
 
 import { useShopCart } from "@/contexts/shop-cart-context";
+import { useLanguage } from "@/contexts/language-context";
 import {
   formatPrice,
   getDeliveryFee,
@@ -174,8 +175,9 @@ interface SummaryPanelProps {
   items: ReturnType<typeof useShopCart>["items"];
   subtotal: number;
   city: string;
+  productQtyMap: Record<string, number>;
 }
-function SummaryPanel({ items, subtotal, city }: SummaryPanelProps) {
+function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProps) {
   const freeShipping = isEligibleForFreeDelivery(subtotal);
   const deliveryFee = city
     ? freeShipping ? 0 : getDeliveryFee(city)
@@ -190,7 +192,7 @@ function SummaryPanel({ items, subtotal, city }: SummaryPanelProps) {
       <div className="px-5 py-4 bg-gradient-to-r from-[#0F0F0F] to-[#1a1a1a]">
         <h2 className="text-white font-bold shop-font-display flex items-center gap-2">
           <Package className="w-4 h-4 text-[#D4A843]" />
-          Votre commande
+          Votre commande / طلبيتك
         </h2>
         <p className="text-[#6B6B6B] text-xs mt-0.5">
           {itemCount} article{itemCount > 1 ? "s" : ""}
@@ -199,45 +201,51 @@ function SummaryPanel({ items, subtotal, city }: SummaryPanelProps) {
 
       {/* Items */}
       <div className="divide-y divide-[#E8E4DF] max-h-72 overflow-y-auto shop-scrollbar">
-        {items.map((item) => (
-          <div
-            key={`${item.productId}-${item.variant?.color}-${item.variant?.size}`}
-            className="flex gap-3 px-5 py-3"
-          >
-            {/* Thumb */}
-            <div className="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-[#FBF8F3] border border-[#E8E4DF]">
-              {item.productImage ? (
-                <Image
-                  src={item.productImage}
-                  alt={item.productName}
-                  fill
-                  sizes="48px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <ShoppingBag className="w-4 h-4 text-[#D4A843]/40" />
-                </div>
-              )}
-              {/* Qty badge */}
-              <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 min-w-[1.125rem] bg-[#C8102E] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
-                {item.quantity}
+        {items.map((item) => {
+          const totalProductQty = productQtyMap?.[item.productId] || item.quantity;
+          const isWholesale = item.minOrderQty && totalProductQty >= item.minOrderQty && item.wholesalePrice;
+          const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price);
+
+          return (
+            <div
+              key={`${item.productId}-${item.variant?.color}-${item.variant?.size}`}
+              className="flex gap-3 px-5 py-3"
+            >
+              {/* Thumb */}
+              <div className="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-[#FBF8F3] border border-[#E8E4DF]">
+                {item.productImage ? (
+                  <Image
+                    src={item.productImage}
+                    alt={item.productName}
+                    fill
+                    sizes="48px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ShoppingBag className="w-4 h-4 text-[#D4A843]/40" />
+                  </div>
+                )}
+                {/* Qty badge */}
+                <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 min-w-[1.125rem] bg-[#C8102E] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                  {item.quantity}
+                </span>
+              </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-[#0F0F0F] truncate">{item.productName}</p>
+                {(item.variant?.color || item.variant?.size) && (
+                  <p className="text-[10px] text-[#6B6B6B] mt-0.5">
+                    {[item.variant.color, item.variant.size].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </div>
+              <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0">
+                {formatPrice(effectivePrice * item.quantity)}
               </span>
             </div>
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#0F0F0F] truncate">{item.productName}</p>
-              {(item.variant?.color || item.variant?.size) && (
-                <p className="text-[10px] text-[#6B6B6B] mt-0.5">
-                  {[item.variant.color, item.variant.size].filter(Boolean).join(" · ")}
-                </p>
-              )}
-            </div>
-            <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0">
-              {formatPrice(item.price * item.quantity)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Totals */}
@@ -293,8 +301,8 @@ function SummaryPanel({ items, subtotal, city }: SummaryPanelProps) {
 // ─── Main Checkout Page ───────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, subtotal, clearCart } = useShopCart();
-
+  const { items, subtotal, clearCart, productQtyMap } = useShopCart();
+  const { language } = useLanguage();
   const [form, setForm] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -427,7 +435,7 @@ export default function CheckoutPage() {
             </Link>
             <span className="text-[#E8E4DF]">|</span>
             <h1 className="text-lg font-bold text-[#0F0F0F] shop-font-display">
-              Finaliser la commande
+              Finaliser la commande / إنهاء الطلب
             </h1>
           </div>
           <ProgressSteps step={2} />
@@ -446,7 +454,7 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<User className="w-4 h-4" />}
-                  title="Informations personnelles"
+                  title="Informations personnelles / المعلومات الشخصية"
                   subtitle="Vos coordonnées pour le suivi de commande"
                 />
                 <div className="space-y-4">
@@ -530,15 +538,15 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* ── Section 2: Shipping Address ── */}
+              {/* ── Section 2: Delivery ── */}
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
                   icon={<MapPin className="w-4 h-4" />}
-                  title="Adresse de livraison"
+                  title="Adresse de livraison / عنوان التوصيل"
                   subtitle="Où souhaitez-vous recevoir votre commande ?"
                 />
                 <div className="space-y-4">
-                  <InputField label="Adresse complète" required error={errors.address}>
+                  <InputField label="Adresse complète / العنوان الكامل" required error={errors.address}>
                     <input
                       type="text"
                       value={form.address}
@@ -551,7 +559,7 @@ export default function CheckoutPage() {
                   </InputField>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputField label="Ville" required error={errors.city}>
+                    <InputField label="Ville / المدينة" required error={errors.city}>
                       <select
                         value={form.city}
                         onChange={(e) => setField("city", e.target.value)}
@@ -567,7 +575,7 @@ export default function CheckoutPage() {
                         ))}
                       </select>
                     </InputField>
-                    <InputField label="Région" error={errors.region}>
+                    <InputField label="Région / الجهة" error={errors.region}>
                       <input
                         type="text"
                         value={form.region}
@@ -579,7 +587,7 @@ export default function CheckoutPage() {
                     </InputField>
                   </div>
 
-                  <InputField label="Code postal" error={errors.postalCode}>
+                  <InputField label="Code postal / الرمز البريدي" error={errors.postalCode}>
                     <input
                       type="text"
                       value={form.postalCode}
@@ -593,12 +601,12 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* ── Section 3: Payment Method ── */}
+              {/* ── Section 3: Payment ── */}
               <div className="bg-white rounded-2xl border border-[#E8E4DF] p-6 shadow-sm">
                 <SectionHeader
-                  icon={<DollarSign className="w-4 h-4" />}
-                  title="Mode de paiement"
-                  subtitle="Seul le paiement à la livraison est disponible"
+                  icon={<ShieldCheck className="w-4 h-4" />}
+                  title="Paiement / الدفع"
+                  subtitle="Moyen de paiement sécurisé"
                 />
                 <div className="flex items-start gap-4 p-4 bg-gradient-to-r from-[#D4A843]/8 to-[#D4A843]/4 border-2 border-[#D4A843]/40 rounded-2xl">
                   <div className="w-10 h-10 rounded-xl bg-[#D4A843]/20 flex items-center justify-center flex-shrink-0">
@@ -733,7 +741,7 @@ export default function CheckoutPage() {
             {/* ── Right: Order Summary (40%) ── */}
             <div className="lg:col-span-2">
               <div className="sticky top-24">
-                <SummaryPanel items={items} subtotal={subtotal} city={form.city} />
+                <SummaryPanel items={items} subtotal={subtotal} city={form.city} productQtyMap={productQtyMap} />
               </div>
             </div>
           </div>

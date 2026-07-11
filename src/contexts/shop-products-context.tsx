@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
@@ -22,8 +22,11 @@ export interface ProductOverride {
   inStock?: boolean;
   stockQty?: number;
   name?: string;
+  nameAr?: string;
   shortDescription?: string;
+  shortDescriptionAr?: string;
   description?: string;
+  descriptionAr?: string;
   wholesalePrice?: number;
   minOrderQty?: number;
   variants?: import('@/lib/shop-types').ProductVariant[];
@@ -36,6 +39,7 @@ export interface ProductOverride {
   // Metadata additionnelle
   categorySlug?: string;
   categoryName?: string;
+  categoryNameAr?: string;
   hidden?: boolean;
 }
 
@@ -62,7 +66,13 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   const [customProducts, setCustomProducts] = useState<ShopProduct[]>((shopStaticData.customProducts as any) || []);
   const [customCategories, setCustomCategories] = useState<ShopCategory[]>((shopStaticData.customCategories as any) || []);
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>((shopStaticData.categoryOverrides as any) || {});
-  const [isLoading, setIsLoading] = useState(false); // true → attend Firestore avant d'afficher (now instantly false)
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    console.log("ShopProductsContext: Loaded customProducts", customProducts.length);
+    console.log("ShopProductsContext: Total merged products", products.length);
+  }, [customProducts.length, products.length]);
+
   // Merge hardcoded data with Firestore overrides and custom products
   const products = useMemo(() => {
     const hardcoded = SHOP_PRODUCTS_DATA.map(p => {
@@ -100,17 +110,21 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
       .filter(p => !existingIds.has(p.id) && !(overrides[p.id] as any)?.hidden)
       .map(p => {
         const ov = overrides[p.id];
-        if (!ov) return p;
+        const baseInStock = p.inStock !== undefined ? p.inStock : true;
+        const baseStockQty = p.stockQty !== undefined ? p.stockQty : 99;
+        const baseCat = p.categorySlug || (p as any).categoryId || 'autres';
+        if (!ov) return { ...p, inStock: baseInStock, stockQty: baseStockQty, categorySlug: baseCat };
         return {
           ...p,
+          categorySlug: ov.categorySlug || baseCat,
+          inStock: ov.inStock !== undefined ? ov.inStock : baseInStock,
+          stockQty: ov.stockQty !== undefined ? ov.stockQty : baseStockQty,
           ...(ov.price !== undefined && { price: ov.price }),
           ...(ov.comparePrice !== undefined && { comparePrice: ov.comparePrice ?? undefined }),
           ...(ov.images && ov.images.length > 0 && { images: ov.images }),
           ...(ov.isFeatured !== undefined && { isFeatured: ov.isFeatured }),
           ...(ov.isNew !== undefined && { isNew: ov.isNew }),
           ...(ov.isPromo !== undefined && { isPromo: ov.isPromo }),
-          ...(ov.inStock !== undefined && { inStock: ov.inStock }),
-          ...(ov.stockQty !== undefined && { stockQty: ov.stockQty }),
           ...(ov.name && { name: ov.name }),
           ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
           ...(ov.description && { description: ov.description }),
@@ -122,7 +136,6 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.weight !== undefined && { weight: ov.weight }),
           ...(ov.width && { width: ov.width }),
           ...(ov.packaging && { packaging: ov.packaging }),
-          ...(ov.categorySlug && { categorySlug: ov.categorySlug }),
           ...(ov.categoryName && { categoryName: ov.categoryName }),
         };
       });
