@@ -68,11 +68,6 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, Partial<ShopCategory>>>((shopStaticData.categoryOverrides as any) || {});
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    console.log("ShopProductsContext: Loaded customProducts", customProducts.length);
-    console.log("ShopProductsContext: Total merged products", products.length);
-  }, [customProducts.length, products.length]);
-
   // Merge hardcoded data with Firestore overrides and custom products
   const products = useMemo(() => {
     const hardcoded = SHOP_PRODUCTS_DATA.map(p => {
