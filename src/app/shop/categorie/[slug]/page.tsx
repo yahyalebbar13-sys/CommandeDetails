@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useLanguage } from '@/contexts/language-context';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
@@ -9,6 +10,7 @@ import { formatPrice } from '@/lib/shop-utils';
 
 // ─── Inline ProductCard ────────────────────────────────────────────────────────
 const ProductCard = React.memo(function ProductCard({ product }: { product: ShopProduct }) {
+  const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
   const [wished, setWished] = useState(false);
@@ -118,7 +120,6 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
   );
 });
 
-import { useLanguage } from '@/contexts/language-context';
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function CategoryPage({ params }: { params: any }) {
