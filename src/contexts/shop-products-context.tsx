@@ -44,6 +44,24 @@ export interface ProductOverride {
   categoryName?: string;
   categoryNameAr?: string;
   hidden?: boolean;
+  // Détails Hyper Pro
+  applications?: string;
+  avantages?: string;
+  conseilsEntretien?: string;
+  informationCommerciale?: string;
+  motsCles?: string;
+  typeProduit?: string;
+  matiereMailles?: string;
+  compositionRuban?: string;
+  couleur?: string;
+  largeurMaille?: string;
+  longueur?: string;
+  type?: string;
+  design?: string;
+  securite?: string;
+  resistance?: string;
+  compatibleAvec?: string;
+  paysFabrication?: string;
 }
 
 interface ShopProductsContextType {
@@ -106,6 +124,23 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.categorySlug && { categorySlug: ov.categorySlug }),
         ...(ov.categoryName && { categoryName: ov.categoryName }),
         ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
+        ...(ov.applications && { applications: ov.applications }),
+        ...(ov.avantages && { avantages: ov.avantages }),
+        ...(ov.conseilsEntretien && { conseilsEntretien: ov.conseilsEntretien }),
+        ...(ov.informationCommerciale && { informationCommerciale: ov.informationCommerciale }),
+        ...(ov.motsCles && { motsCles: ov.motsCles }),
+        ...(ov.typeProduit && { typeProduit: ov.typeProduit }),
+        ...(ov.matiereMailles && { matiereMailles: ov.matiereMailles }),
+        ...(ov.compositionRuban && { compositionRuban: ov.compositionRuban }),
+        ...(ov.couleur && { couleur: ov.couleur }),
+        ...(ov.largeurMaille && { largeurMaille: ov.largeurMaille }),
+        ...(ov.longueur && { longueur: ov.longueur }),
+        ...(ov.type && { type: ov.type }),
+        ...(ov.design && { design: ov.design }),
+        ...(ov.securite && { securite: ov.securite }),
+        ...(ov.resistance && { resistance: ov.resistance }),
+        ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
+        ...(ov.paysFabrication && { paysFabrication: ov.paysFabrication }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -149,6 +184,23 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.packagingAr && { packagingAr: ov.packagingAr }),
           ...(ov.categoryName && { categoryName: ov.categoryName }),
           ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
+          ...(ov.applications && { applications: ov.applications }),
+          ...(ov.avantages && { avantages: ov.avantages }),
+          ...(ov.conseilsEntretien && { conseilsEntretien: ov.conseilsEntretien }),
+          ...(ov.informationCommerciale && { informationCommerciale: ov.informationCommerciale }),
+          ...(ov.motsCles && { motsCles: ov.motsCles }),
+          ...(ov.typeProduit && { typeProduit: ov.typeProduit }),
+          ...(ov.matiereMailles && { matiereMailles: ov.matiereMailles }),
+          ...(ov.compositionRuban && { compositionRuban: ov.compositionRuban }),
+          ...(ov.couleur && { couleur: ov.couleur }),
+          ...(ov.largeurMaille && { largeurMaille: ov.largeurMaille }),
+          ...(ov.longueur && { longueur: ov.longueur }),
+          ...(ov.type && { type: ov.type }),
+          ...(ov.design && { design: ov.design }),
+          ...(ov.securite && { securite: ov.securite }),
+          ...(ov.resistance && { resistance: ov.resistance }),
+          ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
+          ...(ov.paysFabrication && { paysFabrication: ov.paysFabrication }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];
