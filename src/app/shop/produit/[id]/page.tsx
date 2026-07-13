@@ -611,8 +611,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               </Accordion>
             )}
 
-            {/* ── Détails Hyper Pro ── */}
-            {(product.applications || product.avantages || product.conseilsEntretien || product.informationCommerciale || product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.paysFabrication) && (
+            {/* ── Caractéristiques Techniques (Hyper Pro) ── */}
+            {(product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.paysFabrication) && (
               <Accordion title={language === 'ar' ? 'معلومات تفصيلية' : 'Informations Détaillées'} icon={<Package className="w-5 h-5 text-[#10B981]" />}>
                 <div className="p-6 space-y-3 text-sm">
                   {product.typeProduit && (
@@ -681,28 +681,36 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                       <span className="text-[#6B6B6B]">{product.paysFabrication}</span>
                     </div>
                   )}
+                </div>
+              </Accordion>
+            )}
+
+            {/* ── Informations Complémentaires (Hyper Pro longs textes) ── */}
+            {(product.applications || product.avantages || product.conseilsEntretien || product.informationCommerciale) && (
+              <Accordion title={language === 'ar' ? 'تفاصيل ومعلومات إضافية' : 'Détails & Applications'} icon={<Shield className="w-5 h-5 text-[#8B5CF6]" />}>
+                <div className="p-6 space-y-5 text-sm">
                   {product.applications && (
-                    <div className="border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'التطبيقات:' : 'Applications:'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.applications}</p>
+                    <div className="border-b border-[#F3EFE8] pb-4">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'التطبيقات (قطاعات/استخدامات):' : 'Applications (Secteurs/Usages):'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.applications}</p>
                     </div>
                   )}
                   {product.avantages && (
-                    <div className="border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.avantages}</p>
+                    <div className="border-b border-[#F3EFE8] pb-4">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.avantages}</p>
                     </div>
                   )}
                   {product.conseilsEntretien && (
-                    <div className="border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.conseilsEntretien}</p>
+                    <div className="border-b border-[#F3EFE8] pb-4">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.conseilsEntretien}</p>
                     </div>
                   )}
                   {product.informationCommerciale && (
                     <div className="pb-2">
-                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'معلومات تجارية:' : 'Information commerciale:'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.informationCommerciale}</p>
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'معلومات تجارية (تعبئة، حد أدنى):' : 'Infos commerciales (Conditionnement, MOQ...):'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.informationCommerciale}</p>
                     </div>
                   )}
                 </div>
