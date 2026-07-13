@@ -10,7 +10,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2, Zap, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { FileText, Calendar, Truck, Save, AlertTriangle, Hash, Ship, DollarSign, Building2 } from 'lucide-react';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { sendStatusNotification } from '@/lib/send-status-notification';
 
@@ -29,9 +29,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isProvisional, setIsProvisional] = useState(false);
-  const [trackingLoading, setTrackingLoading] = useState(false);
-  const [trackingResult, setTrackingResult] = useState<{ eta: string | null; vessel: string | null; pod: string | null; carrier: string | null; status: string | null } | null>(null);
-  const [trackingError, setTrackingError] = useState<string | null>(null);
 
   const generateProvisionalId = () => {
     const now = new Date();
@@ -102,31 +99,6 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
       });
     }
   }, [editFacture, open]);
-
-  const fetchETA = async () => {
-    const bl = formData.noBL?.trim();
-    if (!bl) return;
-    setTrackingLoading(true);
-    setTrackingError(null);
-    setTrackingResult(null);
-    try {
-      const res = await fetch(`/api/track-bl?bl=${encodeURIComponent(bl)}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setTrackingError(data.error || 'Erreur inconnue');
-        return;
-      }
-      setTrackingResult(data);
-      // Auto-fill form fields
-      if (data.eta) setFormData((prev: any) => ({ ...prev, arrivalDate: data.eta }));
-      if (data.etd) setFormData((prev: any) => ({ ...prev, shippingDate: data.etd }));
-      if (data.carrier) setFormData((prev: any) => ({ ...prev, shippingLine: data.carrier }));
-    } catch (err: any) {
-      setTrackingError('Erreur réseau : ' + err.message);
-    } finally {
-      setTrackingLoading(false);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -323,87 +295,13 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Hash className="w-3 h-3" /> N° BL
               </Label>
-              <div className="flex items-center gap-2">
-                <Input 
-                  value={formData.noBL}
-                  onChange={e => {
-                    setFormData((prev: any) => ({ ...prev, noBL: e.target.value }));
-                    setTrackingResult(null);
-                    setTrackingError(null);
-                  }}
-                  disabled={isProvisional}
-                  className={`uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900 flex-1 ${isProvisional ? 'opacity-50' : ''}`}
-                  placeholder={isProvisional ? 'Non disponible (provisoire)' : 'EX: COSU63...'}
-                />
-                {!isProvisional && (
-                  <button
-                    type="button"
-                    onClick={fetchETA}
-                    disabled={!formData.noBL?.trim() || trackingLoading}
-                    title="Fetch ETA depuis la compagnie maritime"
-                    className={`h-11 px-3 rounded-xl flex items-center gap-1.5 font-black text-[10px] uppercase transition-all shrink-0 ${
-                      trackingLoading
-                        ? 'bg-stone-100 text-stone-400 cursor-wait'
-                        : !formData.noBL?.trim()
-                        ? 'bg-stone-100 text-stone-400 cursor-not-allowed opacity-50'
-                        : trackingResult?.eta
-                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                        : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    {trackingLoading ? (
-                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>~20s</span></>
-                    ) : trackingResult?.eta ? (
-                      <><CheckCircle2 className="w-3.5 h-3.5" /><span>OK</span></>
-                    ) : (
-                      <><Zap className="w-3.5 h-3.5" /><span>ETA</span></>
-                    )}
-                  </button>
-                )}
-              </div>
-              {(trackingResult || trackingLoading) && (
-                <div className={`${trackingLoading ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} border rounded-xl px-3 py-2 flex flex-col gap-1`}>
-                  <div className="flex items-center gap-1.5">
-                    {trackingLoading ? (
-                      <Loader2 className="w-3 h-3 text-amber-500 shrink-0 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                    )}
-                    <span className={`text-[10px] font-black uppercase tracking-wide ${trackingLoading ? 'text-amber-700' : 'text-emerald-700'}`}>
-                      {trackingLoading
-                        ? 'Interrogation de la compagnie maritime...'
-                        : trackingResult?.eta
-                        ? `ETA: ${new Date(trackingResult.eta + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
-                        : 'Tracking enregistré — ETA pas encore disponible'}
-                    </span>
-                  </div>
-                  {!trackingLoading && trackingResult && (
-                    <div className="flex flex-wrap gap-2">
-                      {trackingResult.carrier && (
-                        <span className="text-[9px] font-bold text-stone-500 uppercase">{trackingResult.carrier}</span>
-                      )}
-                      {trackingResult.vessel && (
-                        <span className="text-[9px] font-bold text-stone-500 uppercase">⚓ {trackingResult.vessel}</span>
-                      )}
-                      {trackingResult.pol && (
-                        <span className="text-[9px] font-bold text-stone-400 uppercase">{trackingResult.pol} →</span>
-                      )}
-                      {trackingResult.pod && (
-                        <span className="text-[9px] font-bold text-stone-500 uppercase">POD: {trackingResult.pod}</span>
-                      )}
-                      {trackingResult.status && (
-                        <span className="text-[9px] font-bold text-blue-600 uppercase bg-blue-50 px-1.5 py-0.5 rounded">{trackingResult.status}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              {trackingError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex items-center gap-2">
-                  <XCircle className="w-3 h-3 text-red-500 shrink-0" />
-                  <span className="text-[10px] font-bold text-red-600">{trackingError}</span>
-                </div>
-              )}
+              <Input 
+                value={formData.noBL}
+                onChange={e => setFormData((prev: any) => ({ ...prev, noBL: e.target.value }))}
+                disabled={isProvisional}
+                className={`uppercase font-black border-stone-200 h-11 rounded-xl focus:ring-stone-900 ${isProvisional ? 'opacity-50' : ''}`}
+                placeholder={isProvisional ? 'Non disponible (provisoire)' : 'EX: COSU63...'}
+              />
             </div>
           </div>
 

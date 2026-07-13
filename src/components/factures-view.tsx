@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink
 } from 'lucide-react';
 import { exportFacturePDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -18,6 +18,49 @@ import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
+
+// ── Tracking URL builder per carrier ─────────────────────────────────────────
+function getTrackingUrl(blNumber: string, shippingLine?: string): string {
+  const bl = encodeURIComponent(blNumber.trim());
+  const prefix = blNumber.toUpperCase().substring(0, 4);
+  const line = (shippingLine || '').toUpperCase();
+
+  if (line.includes('MSC') || prefix === 'MSCU' || prefix === 'MSDU' || prefix === 'MEDU')
+    return `https://www.msc.com/en/track-a-shipment?trackingNumber=${bl}`;
+
+  if (line.includes('MAERSK') || prefix === 'MAEU' || prefix === 'MRKU')
+    return `https://www.maersk.com/tracking/${bl}`;
+
+  if (line.includes('CMA') || line.includes('CGM') || prefix === 'CMDU' || prefix === 'CMAU' || prefix === 'CGMU')
+    return `https://www.cma-cgm.com/ebusiness/tracking/search?SearchBy=BL&Reference=${bl}`;
+
+  if (line.includes('EVERGREEN') || prefix === 'EGLV' || prefix === 'EGHU')
+    return `https://www.evergreen-line.com/eservice/Publicb2b/tracking/bookingTracking.aspx?BL=${bl}`;
+
+  if (line.includes('COSCO') || prefix === 'COSU' || prefix === 'CSNU')
+    return `https://elines.coscoshipping.com/ebusiness/cargotracking?carrierCode=COSU&bl=${bl}`;
+
+  if (line.includes('HAPAG') || line.includes('LLOYD') || prefix === 'HLCU')
+    return `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?trackBy=bl&number=${bl}`;
+
+  if (line.includes('OOCL') || prefix === 'OOLU')
+    return `https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx?bl=${bl}`;
+
+  if (line.includes('YANG MING') || prefix === 'YMLU')
+    return `https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx?bl=${bl}`;
+
+  if (line.includes('ONE') || prefix === 'ONEY')
+    return `https://ecomm.one-line.com/ecom/CUP_HOM_3301GS.do?f_cmd=122&rqst_bl_no=${bl}`;
+
+  if (line.includes('ZIM') || prefix === 'ZIMU')
+    return `https://www.zim.com/tools/track-a-shipment?trackingNumber=${bl}`;
+
+  if (line.includes('HAPAG') || prefix === 'HLCU')
+    return `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?trackBy=bl&number=${bl}`;
+
+  // Fallback: Google search
+  return `https://www.google.com/search?q=tracking+BL+${bl}`;
+}
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import DossierChecklistModal from './dossier-checklist-modal';
@@ -300,9 +343,16 @@ export default function FacturesView({
                     </Badge>
                   )}
                   {selectedFacture.noBL && (
-                    <Badge variant="outline" className="text-blue-400 border-blue-500/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
-                      <Hash className="w-3 h-3 mr-2" /> BL: {selectedFacture.noBL}
-                    </Badge>
+                    <a
+                      href={getTrackingUrl(selectedFacture.noBL, selectedFacture.shippingLine)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/10 hover:text-blue-300 transition-colors"
+                    >
+                      <Hash className="w-3 h-3" /> BL: {selectedFacture.noBL}
+                      <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                    </a>
                   )}
                   {selectedFacture.forwarder && (
                     <Badge variant="outline" className="text-amber-400 border-amber-500/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
