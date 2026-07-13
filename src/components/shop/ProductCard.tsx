@@ -115,21 +115,6 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
 
         {/* Badge Row */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
-          {product.isNew && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-emerald-500 text-white shadow-md uppercase">
-              NEW
-            </span>
-          )}
-          {product.isPromo && (
-            <span className="shop-badge-pulse inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-[#C8102E] text-white shadow-md uppercase">
-              PROMO
-            </span>
-          )}
-          {discountPct > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#D4A843] text-white shadow-md">
-              -{discountPct}%
-            </span>
-          )}
         </div>
 
         {/* Wishlist Button */}
@@ -233,21 +218,11 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         <div className="flex items-center justify-between mt-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className="text-lg font-bold"
-              style={{ color: '#0F0F0F', fontFamily: 'Outfit, sans-serif' }}
+              className="text-sm font-semibold"
+              style={{ color: '#C8102E', fontFamily: 'Outfit, sans-serif' }}
             >
-              {formatPrice(product.price)}
+              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
             </span>
-            {product.comparePrice && (
-              <span className="text-sm text-gray-400 line-through">
-                {formatPrice(product.comparePrice)}
-              </span>
-            )}
-            {discountPct > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 text-[#C8102E] border border-red-100">
-                -{discountPct}%
-              </span>
-            )}
           </div>
           
           {/* Mobile quick-add button (only visible on mobile, since desktop has the hover overlay) */}

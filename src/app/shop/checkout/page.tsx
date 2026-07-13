@@ -240,8 +240,8 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
                   </p>
                 )}
               </div>
-              <span className="text-xs font-bold text-[#0F0F0F] flex-shrink-0">
-                {formatPrice(effectivePrice * item.quantity)}
+              <span className="text-xs font-bold text-[#C8102E] flex-shrink-0">
+                {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
               </span>
             </div>
           );
@@ -252,7 +252,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
       <div className="px-5 py-4 border-t border-[#E8E4DF] space-y-2.5">
         <div className="flex items-center justify-between text-sm">
           <span className="text-[#6B6B6B]">Sous-total</span>
-          <span className="font-semibold text-[#0F0F0F]">{formatPrice(subtotal)}</span>
+          <span className="font-semibold text-[#0F0F0F]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-[#6B6B6B] flex items-center gap-1.5">
@@ -262,7 +262,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
           {freeShipping ? (
             <span className="font-semibold text-green-600">GRATUIT 🎉</span>
           ) : (
-            <span className="font-semibold text-[#0F0F0F]">{formatPrice(deliveryFee)}</span>
+            <span className="font-semibold text-[#0F0F0F]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
           )}
         </div>
         {city && (
@@ -278,7 +278,7 @@ function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProp
           <span className="font-bold text-[#0F0F0F]">Total</span>
           <div className="text-right">
             <span className="font-bold text-[#C8102E] text-xl shop-font-display">
-              {formatPrice(total)}
+              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
             </span>
             <p className="text-[10px] text-[#6B6B6B]">Paiement à la livraison</p>
           </div>

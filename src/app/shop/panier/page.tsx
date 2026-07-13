@@ -109,14 +109,14 @@ function CartItemRow({ item, onUpdateQty, onRemove, language, totalProductQty }:
               )}
             </div>
             <p className="text-xs text-[#6B6B6B] mt-1">
-              {formatPrice(item.price)} / {language === 'ar' ? 'قطعة' : 'unité'}
+              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
             </p>
           </div>
 
           {/* Line total */}
           <div className="text-right flex-shrink-0">
             <span className="font-bold text-[#C8102E] text-base shop-font-display">
-              {formatPrice(lineTotal)}
+              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
             </span>
           </div>
         </div>
@@ -405,7 +405,7 @@ export default function PanierPage() {
                   {/* Subtotal */}
                   <div className="flex items-center justify-between text-[#6B6B6B]">
                     <span>{t('subtotal')} ({itemCount})</span>
-                    <span className="font-semibold text-[#0F0F0F]">{formatPrice(subtotal)}</span>
+                    <span className="font-semibold text-[#0F0F0F]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
                   </div>
 
                   {/* Delivery */}
@@ -452,7 +452,7 @@ export default function PanierPage() {
                   <div className="flex items-center justify-between mb-8">
                     <span className="text-lg font-bold text-[#0F0F0F] shop-font-display">{t('total')}</span>
                     <div className="text-right">
-                      <span className="text-2xl font-black text-[#C8102E] shop-font-display">{formatPrice(total)}</span>
+                      <span className="text-2xl font-black text-[#C8102E] shop-font-display">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
                       <p className="text-[10px] text-[#6B6B6B] mt-1">{language === 'ar' ? 'تتضمن الضرائب' : 'Taxes incluses'}</p>
                     </div>
                   </div>

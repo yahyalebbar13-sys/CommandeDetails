@@ -40,20 +40,15 @@ function Accordion({ title, icon, defaultOpen = false, children }: { title: stri
 }
 
 function SimilarProductCard({ product }: { product: any }) {
-  const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
   return (
     <Link href={`/shop/produit/${product.id}`} className="block bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all">
       <div className="aspect-square overflow-hidden bg-gray-50 relative">
         <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-        {discount > 0 && <span className="absolute top-2 left-2 bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full">-{discount}%</span>}
       </div>
       <div className="p-3">
         <p className="text-xs text-[#D4A843] font-semibold mb-1">{product.categoryName}</p>
         <h4 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h4>
-        <div className="flex items-center gap-2">
-          <span className="font-black text-[#1A1A1A]">{formatPrice(product.price)}</span>
-          {product.comparePrice && <span className="text-xs text-gray-400 line-through">{formatPrice(product.comparePrice)}</span>}
-        </div>
+        <span className="text-xs font-semibold text-[#C8102E]">Sur demande</span>
       </div>
     </Link>
   );
@@ -168,8 +163,8 @@ function MultiVariantSelector({
           return (
             <div className="flex items-center justify-between bg-gray-50/50 border border-gray-100 p-4 rounded-2xl">
               <div>
-                <p className="font-black text-lg text-[#1A1A1A]">
-                  {v.price && v.price !== basePrice ? formatPrice(v.price) : formatPrice(basePrice)}
+                <p className="font-black text-lg text-[#C8102E]">
+                  {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
                 </p>
                 {v.stock <= 10 && v.stock > 0 && (
                   <p className="text-[11px] text-[#D4A843] font-bold mt-0.5">{language === 'ar' ? `🔥 متبقي ${v.stock} فقط!` : `🔥 Plus que ${v.stock} en stock !`}</p>
@@ -257,11 +252,7 @@ function MultiVariantSelector({
                       {v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '—'}
                     </p>
 
-                    {v.price && v.price !== basePrice && (
-                      <p className="text-[11px] font-black text-[#C8102E] -mt-1 bg-red-50 px-2 py-0.5 rounded-md">
-                        {formatPrice(v.price)}
-                      </p>
-                    )}
+
 
                     <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-8' : 'opacity-0 h-0 overflow-hidden'}`}>
                       {isSelected && (
@@ -296,7 +287,7 @@ function MultiVariantSelector({
           <p className="text-sm text-gray-600">
             <span className="font-bold text-[#1A1A1A]">{totalQty}</span> {language === 'ar' ? 'منتج مختار' : 'article(s) sélectionné(s)'}
           </p>
-          <p className="text-sm font-black text-[#C8102E]">{formatPrice(totalPrice)}</p>
+          <p className="text-sm font-black text-[#C8102E]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</p>
         </div>
       )}
 
@@ -480,7 +471,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               <img src={product.images?.[mainImg] || product.images?.[0] || '/placeholder.png'} alt={product.name} loading="eager" decoding="async" className="w-full h-full object-cover" />
               <div className="absolute top-4 left-4 flex flex-col gap-2">
                 {product.isNew && <span className="bg-[#10B981] text-white text-xs font-black px-3 py-1 rounded-full">{language === 'ar' ? 'جديد' : 'NOUVEAU'}</span>}
-                {product.isPromo && discount > 0 && <span className="bg-[#C8102E] text-white text-xs font-black px-3 py-1 rounded-full">-{discount}%</span>}
               </div>
             </div>
             <div className="flex gap-2">
@@ -503,21 +493,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </p>
 
             <div className="flex items-center gap-3 mb-4">
-              {hasVariants ? (
-                <span className="text-2xl font-black text-[#1A1A1A]">
-                  {language === 'ar' ? 'بدءاً من ' : 'À partir de '}{formatPrice(Math.min(...product.variants.map(v => v.price ?? product.price)))}
-                </span>
-              ) : (
-                <>
-                  <span className="text-3xl font-black text-[#1A1A1A]">{formatPrice(currentPrice)}</span>
-                  {product.comparePrice && (
-                    <>
-                      <span className="text-lg text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>
-                      <span className="bg-[#C8102E] text-white text-sm font-black px-2.5 py-0.5 rounded-full">-{discount}%</span>
-                    </>
-                  )}
-                </>
-              )}
+              <span className="text-xl font-bold text-[#C8102E]">
+                {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+              </span>
             </div>
 
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mb-5 ${inStock ? 'bg-green-50 text-[#10B981]' : 'bg-red-50 text-red-600'}`}>
@@ -627,6 +605,104 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
                       <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'الحد الأدنى للكمية:' : 'Quantité min. (MOQ):'}</span>
                       <span className="text-[#6B6B6B]">{product.minOrderQty} {language === 'ar' ? 'وحدات' : 'unités'}</span>
+                    </div>
+                  )}
+                </div>
+              </Accordion>
+            )}
+
+            {/* ── Détails Hyper Pro ── */}
+            {(product.applications || product.avantages || product.conseilsEntretien || product.informationCommerciale || product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.paysFabrication) && (
+              <Accordion title={language === 'ar' ? 'معلومات تفصيلية' : 'Informations Détaillées'} icon={<Package className="w-5 h-5 text-[#10B981]" />}>
+                <div className="p-6 space-y-3 text-sm">
+                  {product.typeProduit && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'نوع المنتج:' : 'Type de produit:'}</span>
+                      <span className="text-[#6B6B6B]">{product.typeProduit}</span>
+                    </div>
+                  )}
+                  {product.matiereMailles && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'مادة الأسنان:' : 'Matière mailles:'}</span>
+                      <span className="text-[#6B6B6B]">{product.matiereMailles}</span>
+                    </div>
+                  )}
+                  {product.compositionRuban && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'تركيبة الشريط:' : 'Composition ruban:'}</span>
+                      <span className="text-[#6B6B6B]">{product.compositionRuban}</span>
+                    </div>
+                  )}
+                  {product.largeurMaille && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'عرض الأسنان:' : 'Largeur maille:'}</span>
+                      <span className="text-[#6B6B6B]">{product.largeurMaille}</span>
+                    </div>
+                  )}
+                  {product.longueur && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'الطول:' : 'Longueur:'}</span>
+                      <span className="text-[#6B6B6B]">{product.longueur}</span>
+                    </div>
+                  )}
+                  {product.type && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'النوع:' : 'Type:'}</span>
+                      <span className="text-[#6B6B6B]">{product.type}</span>
+                    </div>
+                  )}
+                  {product.design && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'التصميم:' : 'Design:'}</span>
+                      <span className="text-[#6B6B6B]">{product.design}</span>
+                    </div>
+                  )}
+                  {product.securite && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'الأمان:' : 'Sécurité:'}</span>
+                      <span className="text-[#6B6B6B]">{product.securite}</span>
+                    </div>
+                  )}
+                  {product.resistance && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'المقاومة:' : 'Résistance:'}</span>
+                      <span className="text-[#6B6B6B]">{product.resistance}</span>
+                    </div>
+                  )}
+                  {product.compatibleAvec && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'متوافق مع:' : 'Compatible avec:'}</span>
+                      <span className="text-[#6B6B6B]">{product.compatibleAvec}</span>
+                    </div>
+                  )}
+                  {product.paysFabrication && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'بلد الصنع:' : 'Pays de fabrication:'}</span>
+                      <span className="text-[#6B6B6B]">{product.paysFabrication}</span>
+                    </div>
+                  )}
+                  {product.applications && (
+                    <div className="border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'التطبيقات:' : 'Applications:'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.applications}</p>
+                    </div>
+                  )}
+                  {product.avantages && (
+                    <div className="border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.avantages}</p>
+                    </div>
+                  )}
+                  {product.conseilsEntretien && (
+                    <div className="border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.conseilsEntretien}</p>
+                    </div>
+                  )}
+                  {product.informationCommerciale && (
+                    <div className="pb-2">
+                      <span className="font-semibold text-[#1A1A1A] block mb-1">{language === 'ar' ? 'معلومات تجارية:' : 'Information commerciale:'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line">{product.informationCommerciale}</p>
                     </div>
                   )}
                 </div>

@@ -5,9 +5,11 @@ import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
+import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct } from '@/lib/shop-types';
 
 const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProduct }) {
+  const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
@@ -27,11 +29,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         </div>
         {/* Promo badge */}
-        {discount > 0 && (
-          <div className="absolute top-3 left-3 z-10 pointer-events-none">
-            <span className="bg-[#C8102E] text-white font-black text-sm px-3 py-1 rounded-full shadow-lg">-{discount}%</span>
-          </div>
-        )}
+
         {product.isNew && (
           <div className="absolute top-3 right-3 z-10 pointer-events-none">
             <span className="bg-[#10B981] text-white font-black text-xs px-2 py-1 rounded-full">NOUVEAU</span>
@@ -61,13 +59,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
         <p className="text-xs font-semibold text-[#D4A843] uppercase mb-1">{product.categoryName}</p>
         <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
         <div className="flex items-center gap-2">
-          <span className="font-black text-[#C8102E] text-lg">{formatPrice(product.price)}</span>
-          {product.comparePrice && (
-            <div className="flex flex-col">
-              <span className="text-xs text-[#6B6B6B] line-through">{formatPrice(product.comparePrice)}</span>
-              <span className="text-xs text-[#10B981] font-bold">Économisez {formatPrice(product.comparePrice - product.price)}</span>
-            </div>
-          )}
+          <span className="font-black text-[#C8102E] text-lg">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
         </div>
       </Link>
     </div>

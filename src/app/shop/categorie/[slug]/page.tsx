@@ -107,12 +107,7 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
           </div>
         )}
         <div className="flex items-center gap-2">
-          <span className="font-black text-[#1A1A1A]">{formatPrice(product.price)}</span>
-          {product.comparePrice && (
-            <span className="text-xs text-gray-400 line-through">
-              {formatPrice(product.comparePrice)}
-            </span>
-          )}
+          <span className="text-sm font-semibold text-[#C8102E]">{language === 'ar' ? '\u062d\u0633\u0628 \u0627\u0644\u0637\u0644\u0628' : 'Sur demande'}</span>
         </div>
         <div className="mt-2 flex items-center gap-1">
           <span className={`w-1.5 h-1.5 rounded-full ${product.inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />

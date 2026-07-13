@@ -130,13 +130,8 @@ function CartLineItem({
           {/* Line total */}
           <div className="text-right">
             <p className="text-sm font-bold text-gray-900">
-              {formatPrice(lineTotal)}
+              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
             </p>
-            {item.quantity > 1 && (
-              <p className="text-[10px] text-gray-400">
-                {formatPrice(effectivePrice)} / u
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -369,11 +364,7 @@ export default function CartDrawer() {
             {/* Scrollable item list */}
             <div className="flex-1 overflow-y-auto shop-scrollbar px-4 py-2">
               {/* Free delivery nudge (top) */}
-              {subtotal < FREE_DELIVERY_THRESHOLD && (
-                <div className="mt-2 mb-1">
-                  <FreeDeliveryProgress subtotal={subtotal} />
-                </div>
-              )}
+
 
               {/* Items */}
               <div>
@@ -404,7 +395,7 @@ export default function CartDrawer() {
               style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             >
               {/* Free delivery bar (bottom) when subtotal > 0 */}
-              <FreeDeliveryProgress subtotal={subtotal} />
+
 
               {/* Order summary */}
               <div className="space-y-1.5">
@@ -413,23 +404,7 @@ export default function CartDrawer() {
                     {t('subtotal')} ({itemCount})
                   </span>
                   <span className="font-semibold text-gray-800">
-                    {formatPrice(subtotal)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">{t('delivery_cost')}</span>
-                  <span
-                    className="text-xs font-semibold"
-                    style={{
-                      color:
-                        subtotal >= FREE_DELIVERY_THRESHOLD
-                          ? "#10B981"
-                          : "#6B7280",
-                    }}
-                  >
-                    {subtotal >= FREE_DELIVERY_THRESHOLD
-                       ? t('delivery_free')
-                       : t('delivery_calc')}
+                    {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
                   </span>
                 </div>
                 <div
@@ -444,7 +419,7 @@ export default function CartDrawer() {
                     className="font-black text-xl"
                     style={{ color: "#C8102E" }}
                   >
-                    {formatPrice(subtotal)}
+                    {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
                   </span>
                 </div>
               </div>

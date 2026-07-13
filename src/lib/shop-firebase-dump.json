@@ -38,7 +38,7 @@
           "color": "Noir",
           "inStock": true,
           "id": "v_1780499245418",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "colorHex": "#f5f5f5",
@@ -46,7 +46,7 @@
           "inStock": true,
           "color": "Blanc",
           "id": "v_1780499247844",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "color": "Rouge",
@@ -54,7 +54,7 @@
           "id": "v_1780503311365",
           "stock": 999,
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "id": "v_1780503311551",
@@ -62,7 +62,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#3182ce",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "stock": 999,
@@ -70,7 +70,7 @@
           "inStock": true,
           "id": "v_1780503311781",
           "colorHex": "#38a169",
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "colorHex": "#d69e2e",
@@ -78,7 +78,7 @@
           "color": "Jaune",
           "inStock": true,
           "id": "v_1780503311981",
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "color": "Orange",
@@ -86,7 +86,7 @@
           "id": "v_1780503312179",
           "stock": 999,
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "colorHex": "#d53f8c",
@@ -94,7 +94,7 @@
           "id": "v_1780503312385",
           "color": "Rose",
           "inStock": true,
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "inStock": true,
@@ -102,7 +102,7 @@
           "id": "v_1780503312583",
           "stock": 999,
           "colorHex": "#805ad5",
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "colorHex": "#92400e",
@@ -110,7 +110,7 @@
           "inStock": true,
           "color": "Marron",
           "id": "v_1780503312753",
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "colorHex": "#718096",
@@ -118,7 +118,7 @@
           "color": "Gris",
           "id": "v_1780503328755",
           "stock": 999,
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "color": "Beige",
@@ -126,7 +126,7 @@
           "id": "v_1780503328913",
           "stock": 999,
           "colorHex": "#d4b896",
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         },
         {
           "colorHex": "#D4A843",
@@ -134,7 +134,7 @@
           "inStock": true,
           "id": "v_1780503329095",
           "stock": 999,
-          "colorAr": "Doré"
+          "colorAr": "ذهبي"
         },
         {
           "colorHex": "#a0aec0",
@@ -142,7 +142,7 @@
           "color": "Argenté",
           "inStock": true,
           "id": "v_1780503329265",
-          "colorAr": "Argenté"
+          "colorAr": "فضي"
         }
       ],
       "shortDescription": "Fil à coudre 40/2 de haute qualité, conçu pour les travaux de confection, de couture industrielle et artisanale.",
@@ -175,7 +175,7 @@
       "nameAr": "خيط خياطة 40/2",
       "descriptionAr": "خيط خياطة 40/2 – المتانة والانتظام والأداء العالي\n\nخيطنا المصنوع من البوليستر 40/2 يجمع بين القوة الاستثنائية والنعومة الممتازة. مثالي للخياطة الصناعية والحرفية على حدٍّ سواء.\n\nالمميزات الرئيسية:\n• مقاومة فائقة للكسر والشد\n• ملمس ناعم لا يؤثر على القماش\n• ألوان ثابتة لا تبهت بعد الغسيل\n• مناسب لجميع أنواع ماكينات الخياطة\n\nمثالي لـ: خياطة الملابس، التطريز الصناعي، ورش الخياطة.",
       "shortDescriptionAr": "خيط خياطة 40/2 عالي الجودة، مصمم لأعمال الخياطة الصناعية والحرفية.",
-      "categoryNameAr": "Bobines de fil",
+      "categoryNameAr": "بكرات الخيط",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 40/2",
       "packagingAr": "10 بكرات في العبوة"
@@ -195,7 +195,7 @@
           "color": "Blanc",
           "id": "v_1780502010295",
           "stock": 999,
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         }
       ],
       "name": "fil Cannete",
@@ -226,7 +226,7 @@
           "id": "v_1780503113200",
           "color": "Blanc",
           "inStock": true,
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "price": 130,
@@ -235,7 +235,7 @@
           "inStock": true,
           "color": "Noir",
           "stock": 999,
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         }
       ],
       "images": [
@@ -271,7 +271,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "color": "Blanc",
@@ -279,7 +279,7 @@
           "id": "v_1780600961552",
           "stock": 999,
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "stock": 999,
@@ -287,7 +287,7 @@
           "inStock": true,
           "id": "v_1780600961773",
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "id": "v_1780600962188",
@@ -295,7 +295,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#3182ce",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "colorHex": "#38a169",
@@ -303,7 +303,7 @@
           "color": "Vert",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "stock": 999,
@@ -311,7 +311,7 @@
           "color": "Orange",
           "id": "v_1780600962857",
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "inStock": true,
@@ -319,7 +319,7 @@
           "id": "v_1780601000913",
           "stock": 999,
           "colorHex": "#d53f8c",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#805ad5",
@@ -327,7 +327,7 @@
           "color": "Violet",
           "inStock": true,
           "id": "v_1780601001069",
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "colorHex": "#92400e",
@@ -335,7 +335,7 @@
           "inStock": true,
           "color": "Marron",
           "id": "v_1780601001220",
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "color": "Gris",
@@ -343,7 +343,7 @@
           "id": "v_1780601001364",
           "stock": 999,
           "colorHex": "#718096",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "colorHex": "#d4b896",
@@ -351,7 +351,7 @@
           "id": "v_1780601001584",
           "color": "Beige",
           "inStock": true,
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         }
       ],
       "stockQty": 10989,
@@ -383,7 +383,7 @@
           "stock": 999,
           "colorHex": "#1a1a1a",
           "size": "15mm",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "15mm"
         },
         {
@@ -394,7 +394,7 @@
           "id": "v_1782672027946",
           "colorHex": "#c8ced5",
           "size": "15mm",
-          "colorAr": "Nickel",
+          "colorAr": "نيكل",
           "sizeAr": "15mm"
         }
       ],
@@ -427,7 +427,7 @@
           "color": "Noir",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "stock": 999,
@@ -435,7 +435,7 @@
           "color": "Blanc",
           "id": "v_1781548022360",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#e53e3e",
@@ -443,7 +443,7 @@
           "inStock": true,
           "color": "Rouge",
           "id": "v_1781548022552",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "colorHex": "#3182ce",
@@ -451,7 +451,7 @@
           "color": "Bleu",
           "inStock": true,
           "id": "v_1781548022744",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "stock": 999,
@@ -459,7 +459,7 @@
           "inStock": true,
           "id": "v_1781548022929",
           "colorHex": "#38a169",
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "colorHex": "#d69e2e",
@@ -467,7 +467,7 @@
           "color": "Jaune",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "stock": 999,
@@ -475,7 +475,7 @@
           "inStock": true,
           "id": "v_1781548031681",
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "id": "v_1781548031856",
@@ -483,7 +483,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#d53f8c",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#92400e",
@@ -491,7 +491,7 @@
           "id": "v_1781548032040",
           "color": "Marron",
           "inStock": true,
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "stock": 999,
@@ -499,7 +499,7 @@
           "color": "Gris",
           "id": "v_1781548039705",
           "colorHex": "#718096",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "colorHex": "#a0aec0",
@@ -507,7 +507,7 @@
           "color": "Argenté",
           "inStock": true,
           "id": "v_1781548039976",
-          "colorAr": "Argenté"
+          "colorAr": "فضي"
         },
         {
           "colorHex": "#d4b896",
@@ -515,7 +515,7 @@
           "inStock": true,
           "color": "Beige",
           "id": "v_1781548045209",
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         }
       ],
       "inStock": true,
@@ -561,7 +561,7 @@
           "color": "Noir",
           "inStock": true,
           "id": "v_1781549788978",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "stock": 999,
@@ -569,7 +569,7 @@
           "color": "Blanc",
           "inStock": true,
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#e53e3e",
@@ -577,7 +577,7 @@
           "inStock": true,
           "color": "Rouge",
           "id": "v_1781549789418",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "colorHex": "#3182ce",
@@ -585,7 +585,7 @@
           "color": "Bleu",
           "inStock": true,
           "id": "v_1781549789610",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "colorHex": "#38a169",
@@ -593,7 +593,7 @@
           "inStock": true,
           "id": "v_1781549789778",
           "stock": 999,
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "colorHex": "#d69e2e",
@@ -601,7 +601,7 @@
           "color": "Jaune",
           "id": "v_1781549789970",
           "stock": 999,
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "inStock": true,
@@ -609,7 +609,7 @@
           "id": "v_1781549790162",
           "stock": 999,
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "colorHex": "#d53f8c",
@@ -617,7 +617,7 @@
           "color": "Rose",
           "inStock": true,
           "id": "v_1781549790378",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "stock": 999,
@@ -625,7 +625,7 @@
           "inStock": true,
           "id": "v_1781549801578",
           "colorHex": "#805ad5",
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "colorHex": "#92400e",
@@ -633,7 +633,7 @@
           "inStock": true,
           "id": "v_1781549801746",
           "stock": 999,
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "colorHex": "#718096",
@@ -641,7 +641,7 @@
           "color": "Gris",
           "id": "v_1781549801946",
           "stock": 999,
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "colorHex": "#d4b896",
@@ -649,7 +649,7 @@
           "color": "Beige",
           "inStock": true,
           "id": "v_1781549802106",
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         },
         {
           "inStock": true,
@@ -657,7 +657,7 @@
           "id": "v_1781549807658",
           "stock": 999,
           "colorHex": "#D4A843",
-          "colorAr": "Doré"
+          "colorAr": "ذهبي"
         },
         {
           "colorHex": "#a0aec0",
@@ -665,7 +665,7 @@
           "color": "Argenté",
           "inStock": true,
           "id": "v_1781549807818",
-          "colorAr": "Argenté"
+          "colorAr": "فضي"
         }
       ],
       "isPromo": true,
@@ -731,7 +731,7 @@
           "color": "Noir",
           "inStock": true,
           "id": "v_1781799833480",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "id": "v_1781799833928",
@@ -739,7 +739,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#e53e3e",
@@ -747,7 +747,7 @@
           "color": "Rouge",
           "inStock": true,
           "id": "v_1781799834120",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "id": "v_1781799834312",
@@ -755,7 +755,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#3182ce",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "colorHex": "#38a169",
@@ -763,7 +763,7 @@
           "color": "Vert",
           "id": "v_1781799834472",
           "stock": 999,
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "color": "Jaune",
@@ -771,7 +771,7 @@
           "id": "v_1781799834672",
           "stock": 999,
           "colorHex": "#d69e2e",
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "colorHex": "#dd6b20",
@@ -779,7 +779,7 @@
           "color": "Orange",
           "inStock": true,
           "id": "v_1781799834856",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "colorHex": "#d53f8c",
@@ -787,7 +787,7 @@
           "inStock": true,
           "id": "v_1781799835048",
           "stock": 999,
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#805ad5",
@@ -795,7 +795,7 @@
           "id": "v_1781799844016",
           "color": "Violet",
           "inStock": true,
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "color": "Marron",
@@ -803,7 +803,7 @@
           "id": "v_1781799844192",
           "stock": 999,
           "colorHex": "#92400e",
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "stock": 999,
@@ -811,7 +811,7 @@
           "color": "Gris",
           "inStock": true,
           "colorHex": "#718096",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "stock": 999,
@@ -819,7 +819,7 @@
           "inStock": true,
           "id": "v_1781799844536",
           "colorHex": "#d4b896",
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         },
         {
           "colorHex": "#D4A843",
@@ -827,7 +827,7 @@
           "id": "v_1781799844848",
           "color": "Doré",
           "inStock": true,
-          "colorAr": "Doré"
+          "colorAr": "ذهبي"
         },
         {
           "colorHex": "#a0aec0",
@@ -835,7 +835,7 @@
           "color": "Argenté",
           "inStock": true,
           "id": "v_1781799845032",
-          "colorAr": "Argenté"
+          "colorAr": "فضي"
         }
       ],
       "securite": "",
@@ -906,7 +906,7 @@
           "color": "Blanc",
           "id": "v_1782228234405",
           "stock": 0,
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "inStock": false,
@@ -914,7 +914,7 @@
           "id": "v_1782228246348",
           "stock": 0,
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "price": 25,
@@ -923,7 +923,7 @@
           "color": "Noir",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "colorHex": "#f5f5f5",
@@ -932,7 +932,7 @@
           "color": "Blanc",
           "inStock": true,
           "id": "v_1782228501307",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         }
       ],
       "isPromo": false,
@@ -980,7 +980,7 @@
           "size": "15MM",
           "colorHex": "#a0aec0",
           "price": 30,
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "15MM"
         },
         {
@@ -991,7 +991,7 @@
           "price": 41,
           "colorHex": "#a0aec0",
           "size": "18MM",
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "18MM"
         },
         {
@@ -1002,7 +1002,7 @@
           "price": 51.5,
           "size": "20MM",
           "colorHex": "#a0aec0",
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "20MM"
         },
         {
@@ -1013,7 +1013,7 @@
           "inStock": true,
           "color": "NICKEL",
           "stock": 999,
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "25MM"
         }
       ],
@@ -1044,7 +1044,7 @@
           "price": 0,
           "colorHex": "#f5f5f5",
           "size": "18L",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "18L"
         },
         {
@@ -1055,7 +1055,7 @@
           "colorHex": "#f5f5f5",
           "size": "20L",
           "price": 0,
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "20L"
         },
         {
@@ -1066,7 +1066,7 @@
           "id": "v_1782414979739",
           "inStock": true,
           "color": "Blanc",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "24L"
         },
         {
@@ -1077,7 +1077,7 @@
           "size": "28L",
           "colorHex": "#f5f5f5",
           "price": 0,
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "28L"
         }
       ],
@@ -1095,7 +1095,7 @@
       "nameAr": "10 غروس (1440 قطعة) أزرار راتنج 4 ثقوب",
       "descriptionAr": "أزرار الراتنج 4 ثقوب – الزر المرجعي للخياطة الصناعية\n\nالزر المفضل للمصانع والأعمال الكبيرة. جودة ثابتة وسعر تنافسي.",
       "shortDescriptionAr": "حزمة صناعية 1440 قطعة من أزرار الراتنج 4 ثقوب عالية الجودة.",
-      "categoryNameAr": "Boutons",
+      "categoryNameAr": "أزرار",
       "materialAr": "راتنج",
       "specificationAr": "راتنج – 4 ثقوب",
       "packagingAr": "10 غروس = 1440 قطعة",
@@ -1117,7 +1117,7 @@
           "color": "Blanc",
           "colorHex": "#f5f5f5",
           "size": "75cm",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "75cm"
         },
         {
@@ -1127,7 +1127,7 @@
           "inStock": true,
           "color": "Rouge",
           "id": "v_1782935804799",
-          "colorAr": "Rouge",
+          "colorAr": "أحمر",
           "sizeAr": "75cm"
         },
         {
@@ -1137,7 +1137,7 @@
           "stock": 999,
           "colorHex": "#3182ce",
           "size": "75cm",
-          "colorAr": "Bleu",
+          "colorAr": "أزرق",
           "sizeAr": "75cm"
         },
         {
@@ -1147,7 +1147,7 @@
           "id": "v_1782935805407",
           "inStock": true,
           "color": "Vert",
-          "colorAr": "Vert",
+          "colorAr": "أخضر",
           "sizeAr": "75cm"
         },
         {
@@ -1157,7 +1157,7 @@
           "stock": 999,
           "colorHex": "#d69e2e",
           "size": "75cm",
-          "colorAr": "Jaune",
+          "colorAr": "أصفر",
           "sizeAr": "75cm"
         },
         {
@@ -1167,7 +1167,7 @@
           "id": "v_1782935805758",
           "colorHex": "#d53f8c",
           "size": "75cm",
-          "colorAr": "Rose",
+          "colorAr": "وردي",
           "sizeAr": "75cm"
         },
         {
@@ -1177,7 +1177,7 @@
           "id": "v_1782935805942",
           "inStock": true,
           "color": "Violet",
-          "colorAr": "Violet",
+          "colorAr": "بنفسجي",
           "sizeAr": "75cm"
         },
         {
@@ -1187,7 +1187,7 @@
           "color": "Marron",
           "id": "v_1782935806150",
           "stock": 999,
-          "colorAr": "Marron",
+          "colorAr": "بني",
           "sizeAr": "75cm"
         },
         {
@@ -1197,7 +1197,7 @@
           "stock": 999,
           "colorHex": "#718096",
           "size": "75cm",
-          "colorAr": "Gris",
+          "colorAr": "رمادي",
           "sizeAr": "75cm"
         },
         {
@@ -1207,7 +1207,7 @@
           "id": "v_1782935806333",
           "colorHex": "#d4b896",
           "size": "75cm",
-          "colorAr": "Beige",
+          "colorAr": "بيج",
           "sizeAr": "75cm"
         },
         {
@@ -1217,7 +1217,7 @@
           "id": "v_1782935822439",
           "inStock": true,
           "color": "Doré",
-          "colorAr": "Doré",
+          "colorAr": "ذهبي",
           "sizeAr": "75cm"
         },
         {
@@ -1227,7 +1227,7 @@
           "id": "v_1782935822590",
           "colorHex": "#a0aec0",
           "size": "75cm",
-          "colorAr": "Argenté",
+          "colorAr": "فضي",
           "sizeAr": "75cm"
         }
       ],
@@ -1305,7 +1305,7 @@
           "id": "v_1783768652132",
           "inStock": true,
           "color": "Noir",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "70cm"
         }
       ],
@@ -1376,7 +1376,7 @@
           "inStock": true,
           "id": "v1",
           "colorHex": "#ffffff",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#D4A843",
@@ -1384,7 +1384,7 @@
           "color": "Or",
           "inStock": true,
           "id": "v2",
-          "colorAr": "Or"
+          "colorAr": "ذهبي"
         },
         {
           "color": "Argent",
@@ -1392,7 +1392,7 @@
           "id": "v3",
           "stock": 999,
           "colorHex": "#9ca3af",
-          "colorAr": "Argent"
+          "colorAr": "فضي"
         },
         {
           "colorHex": "#C8102E",
@@ -1400,7 +1400,7 @@
           "inStock": true,
           "id": "v4",
           "stock": 999,
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "stock": 999,
@@ -1408,7 +1408,7 @@
           "color": "Rose",
           "inStock": true,
           "colorHex": "#ec4899",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         }
       ],
       "images": [
@@ -1591,7 +1591,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#718096",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "id": "v_1780496454820",
@@ -1599,7 +1599,7 @@
           "color": "Rouge",
           "inStock": true,
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         }
       ],
       "isPromo": false,
@@ -1608,7 +1608,7 @@
       "nameAr": "خيط خياطة 40/2",
       "descriptionAr": "خيط خياطة 40/2 – المتانة والانتظام والأداء العالي\n\nخيطنا المصنوع من البوليستر 40/2 يجمع بين القوة الاستثنائية والنعومة الممتازة. مثالي للخياطة الصناعية والحرفية على حدٍّ سواء.\n\nالمميزات الرئيسية:\n• مقاومة فائقة للكسر والشد\n• ملمس ناعم لا يؤثر على القماش\n• ألوان ثابتة لا تبهت بعد الغسيل\n• مناسب لجميع أنواع ماكينات الخياطة\n\nمثالي لـ: خياطة الملابس، التطريز الصناعي، ورش الخياطة.",
       "shortDescriptionAr": "خيط خياطة 40/2 عالي الجودة، مصمم لأعمال الخياطة الصناعية والحرفية.",
-      "categoryNameAr": "Bobines de fil",
+      "categoryNameAr": "بكرات الخيط",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 40/2",
       "packagingAr": "10 بكرات في العبوة",
@@ -1683,7 +1683,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         }
       ],
       "isNew": true,
@@ -1692,7 +1692,7 @@
       "nameAr": "خيط المكوك (كانيت)",
       "descriptionAr": "خيط المكوك (كانيت) – دقة لا تتنازل عنها\n\nخيط المكوك المصنوع من البوليستر عالي الجودة يضمن خياطة سلسة وثابتة بدون انقطاع. متوافق مع أغلب ماكينات الخياطة.\n\nالمميزات:\n• قوة شد عالية ومرونة مثالية\n• سطح أملس لتسهيل انزلاق الخيط\n• لا يتعقد أثناء الخياطة",
       "shortDescriptionAr": "خيط مكوك عالي الجودة مناسب لجميع ماكينات الخياطة الصناعية.",
-      "categoryNameAr": "Bobines de fil",
+      "categoryNameAr": "بكرات الخيط",
       "materialAr": "100% بوليستر",
       "specificationAr": "متوافق مع جميع المكوكات القياسية",
       "packagingAr": "علبة متعددة البكرات",
@@ -1753,7 +1753,7 @@
           "price": 120,
           "id": "v_1780503113200",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#1a1a1a",
@@ -1762,7 +1762,7 @@
           "price": 130,
           "color": "Noir",
           "inStock": true,
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         }
       ],
       "description": "La Viseline Nonwoven 1040EF est un entoilage non tissé thermocollant utilisé dans l'industrie de l'habillement pour apporter maintien, structure et durabilité aux vêtements. Fabriquée à partir de fibres de qualité avec revêtement thermocollant, elle garantit une excellente adhérence au tissu et une finition professionnelle.\n\nGrâce à son poids intermédiaire d'environ 40 g/m², la 1040EF est particulièrement adaptée aux chemises, uniformes, vêtements de travail, vêtements traditionnels et articles nécessitant un bon maintien sans rigidité excessive.\n\nElle est largement utilisée pour :\n\nCols de chemises\nPoignets\nPattes de boutonnage\nDevants de vêtements\nRenforts de vestes et uniformes\nArticles de confection textile professionnelle\n\nSon application thermocollante permet une pose rapide et efficace tout en garantissant une excellente tenue après utilisation et entretien.\n\nCaractéristiques\nRéférence : 1040EF\nType : Nonwoven (non tissé)\nThermocollante\nExcellente stabilité dimensionnelle\nBonne adhérence au tissu\nToucher souple et confortable\nConvient aux tissus légers et moyens\nUtilisation industrielle et artisanale",
@@ -1781,7 +1781,7 @@
       "nameAr": "فيزلين 1040EF – قماش حشو حراري لاصق",
       "descriptionAr": "فيزلين 1040EF – الحشو الحراري الاحترافي\n\nفيزلين 1040EF هو قماش حشو حراري لاصق يُستخدم لتقوية وتثبيت الأقمشة في مشاريع الخياطة المختلفة.\n\nالمميزات:\n• يُطبَّق بالحرارة بسهولة تامة\n• يُقوّي القماش ويحافظ على شكله\n• لا يسبب التجعد أو الالتصاق الزائد\n• مناسب لأقمشة متعددة",
       "shortDescriptionAr": "قماش حشو حراري لاصق عالي الجودة مثالي للخياطة الاحترافية وتصميم الملابس.",
-      "categoryNameAr": "Tissu & Doublure",
+      "categoryNameAr": "أقمشة وبطانة",
       "materialAr": "بوليستر مع طبقة لاصقة حرارية",
       "specificationAr": "1040EF",
       "packagingAr": "رول كامل",
@@ -1807,7 +1807,7 @@
           "inStock": true,
           "id": "v_1780595547452",
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "id": "v_1780595548002",
@@ -1815,7 +1815,7 @@
           "inStock": true,
           "color": "Blanc",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#e53e3e",
@@ -1823,7 +1823,7 @@
           "stock": 999,
           "color": "Rouge",
           "inStock": true,
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "id": "v_1780595548352",
@@ -1831,7 +1831,7 @@
           "color": "Bleu",
           "inStock": true,
           "colorHex": "#3182ce",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "colorHex": "#d53f8c",
@@ -1839,7 +1839,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Rose",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#dd6b20",
@@ -1847,7 +1847,7 @@
           "color": "Orange",
           "stock": 999,
           "id": "v_1780595576491",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         }
       ],
       "slug": "doublure-210t-largeur-1m50-tissu-de-doublure-l-ger-et-r-sistant",
@@ -1898,7 +1898,7 @@
       "nameAr": "بطانة 210T عرض 1.50 م – قماش بطانة خفيف",
       "descriptionAr": "بطانة 210T – الرفاهية والإتقان في كل قطعة\n\nبطانة 210T بعرض 1.50 م تُضفي نعومة ومظهراً احترافياً لملابسك. لمسة ناعمة تُريح البشرة وتُحسن تدلّي الملابس.\n\nالمميزات:\n• وزن خفيف للراحة الكاملة\n• سهلة الخياطة والقص\n• أساسية لبطانة الجاكيتات والفساتين والسراويل\n• متوفرة بألوان متعددة",
       "shortDescriptionAr": "قماش بطانة خفيف الوزن بعرض 1.50 م، مثالي للملابس والتصميمات الاحترافية.",
-      "categoryNameAr": "Tissu & Doublure",
+      "categoryNameAr": "أقمشة وبطانة",
       "materialAr": "100% بوليستر",
       "specificationAr": "عرض 150 سم",
       "packagingAr": "رول من 50 متراً",
@@ -1972,7 +1972,7 @@
       "nameAr": "خيط بوليستر 20/3 – حزمة 6 بكرات (3000 م)",
       "descriptionAr": "خيط بوليستر 20/3 – القوة للخياطة الثقيلة\n\nخيطنا 20/3 مصمم للخياطة الثقيلة والاحترافية. سميك ومتين، يُستخدم لخياطة الأحذية والحقائب والمعدات الرياضية وغيرها.\n\nالمميزات:\n• سماكة مثالية للخياطة الثقيلة\n• مقاومة فائقة للشد والكسر\n• ألوان متعددة ثابتة",
       "shortDescriptionAr": "حزمة 6 بكرات خيط بوليستر 20/3 بطول 3000 متر، مثالي للخياطة الصناعية.",
-      "categoryNameAr": "Bobines de fil",
+      "categoryNameAr": "بكرات الخيط",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 20/3",
       "packagingAr": "6 بكرات × 500 متر = 3000 متر",
@@ -2045,7 +2045,7 @@
           "color": "Noir",
           "inStock": true,
           "id": "v_1780600961369",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "colorHex": "#f5f5f5",
@@ -2053,7 +2053,7 @@
           "inStock": true,
           "stock": 999,
           "id": "v_1780600961552",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "color": "Rouge",
@@ -2061,7 +2061,7 @@
           "stock": 999,
           "id": "v_1780600961773",
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "colorHex": "#3182ce",
@@ -2069,7 +2069,7 @@
           "color": "Bleu",
           "stock": 999,
           "id": "v_1780600962188",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "id": "v_1780600962403",
@@ -2077,7 +2077,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#38a169",
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "stock": 999,
@@ -2085,7 +2085,7 @@
           "inStock": true,
           "id": "v_1780600962857",
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "colorHex": "#d53f8c",
@@ -2093,7 +2093,7 @@
           "inStock": true,
           "color": "Rose",
           "id": "v_1780601000913",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#805ad5",
@@ -2101,7 +2101,7 @@
           "color": "Violet",
           "inStock": true,
           "id": "v_1780601001069",
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "colorHex": "#92400e",
@@ -2109,7 +2109,7 @@
           "stock": 999,
           "color": "Marron",
           "inStock": true,
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "colorHex": "#718096",
@@ -2117,7 +2117,7 @@
           "color": "Gris",
           "inStock": true,
           "id": "v_1780601001364",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "colorHex": "#d4b896",
@@ -2125,7 +2125,7 @@
           "color": "Beige",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         }
       ],
       "isNew": true,
@@ -2134,7 +2134,7 @@
       "nameAr": "خيط بوليستر 40/3 – حزمة 12 بكرة",
       "descriptionAr": "خيط بوليستر 40/3 – الاحتراف في كل غرزة\n\nخيط بوليستر 40/3 هو الخيار المفضل للمحترفين. جودة ثابتة، متانة عالية، وألوان لا تبهت مع الغسيل.",
       "shortDescriptionAr": "حزمة 12 بكرة من خيط بوليستر 40/3 عالي الجودة، مناسب للخياطة الصناعية والحرفية.",
-      "categoryNameAr": "Bobines de fil",
+      "categoryNameAr": "بكرات الخيط",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 40/3",
       "packagingAr": "12 بكرة في الحزمة",
@@ -2161,7 +2161,7 @@
           "inStock": true,
           "id": "v_1780932923395",
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "colorHex": "#f5f5f5",
@@ -2169,7 +2169,7 @@
           "stock": 999,
           "color": "Blanc",
           "inStock": true,
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "id": "v_1780932923711",
@@ -2177,7 +2177,7 @@
           "color": "Rouge",
           "inStock": true,
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "color": "Bleu",
@@ -2185,7 +2185,7 @@
           "stock": 999,
           "id": "v_1780932923860",
           "colorHex": "#3182ce",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "stock": 999,
@@ -2193,7 +2193,7 @@
           "inStock": true,
           "id": "v_1780932924015",
           "colorHex": "#38a169",
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "colorHex": "#d69e2e",
@@ -2201,7 +2201,7 @@
           "inStock": true,
           "color": "Jaune",
           "id": "v_1780932924164",
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "id": "v_1780932924381",
@@ -2209,7 +2209,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "colorHex": "#d53f8c",
@@ -2217,7 +2217,7 @@
           "stock": 999,
           "color": "Rose",
           "inStock": true,
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#805ad5",
@@ -2225,7 +2225,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Violet",
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "color": "Marron",
@@ -2233,7 +2233,7 @@
           "stock": 999,
           "id": "v_1780932938403",
           "colorHex": "#92400e",
-          "colorAr": "Marron"
+          "colorAr": "بني"
         }
       ],
       "description": "Description complète\nRuban Satin 25 mm – Élégance et Polyvalence\n\nApportez une finition élégante à vos créations avec notre ruban satin 25 mm. Fabriqué avec des matériaux de qualité, il offre un aspect brillant, un toucher doux et une excellente résistance à l'usure.\n\nChaque pack contient 10 rouleaux de 20 mètres, offrant une solution économique pour les professionnels de la décoration, les fleuristes, les organisateurs d'événements, les boutiques de cadeaux et les ateliers de couture.\n\nGrâce à sa largeur de 25 mm, ce ruban est parfait pour la confection de nœuds, l'emballage de cadeaux, la décoration de mariages, anniversaires, baptêmes et autres événements spéciaux.\n\nCaractéristiques\nLargeur : 25 mm\nLongueur : 20 mètres par rouleau\nConditionnement : Pack de 10 rouleaux\nAspect satiné brillant\nToucher doux et soyeux\nRésistant et durable\nFacile à nouer et à manipuler\nDisponible en plusieurs couleurs\nApplications\nEmballage cadeau\nDécoration événementielle\nMariages et fêtes\nFleuristerie\nCouture et confection\nLoisirs créatifs\nDécoration artisanale\nCréation de nœuds et accessoires",
@@ -2435,7 +2435,7 @@
           "stock": 999,
           "id": "v_1781027816573",
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "colorHex": "#f5f5f5",
@@ -2443,7 +2443,7 @@
           "inStock": true,
           "stock": 999,
           "id": "v_1781027817045",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#3182ce",
@@ -2451,7 +2451,7 @@
           "stock": 999,
           "color": "Bleu",
           "inStock": true,
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "colorHex": "#718096",
@@ -2459,7 +2459,7 @@
           "inStock": true,
           "stock": 999,
           "id": "v_1781027818507",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "colorHex": "#D4A843",
@@ -2467,7 +2467,7 @@
           "color": "Doré",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Doré"
+          "colorAr": "ذهبي"
         }
       ],
       "description": "Notre tissu popeline polyester 100% offre une excellente qualité de finition pour les professionnels du textile et de la confection. Grâce à son tissage fin et régulier, il garantit un rendu élégant tout en restant résistant à l'usure quotidienne.\n\nSa texture douce et légère le rend adapté à de nombreuses applications : vêtements professionnels, chemises, blouses, robes, uniformes scolaires, vêtements de travail, décoration textile et projets de couture.\n\nCaractéristiques :\n\n✔ Composition : 100% Polyester\n✔ Type : Popeline\n✔ Conditionnement : Rouleau de 50 mètres\n✔ Texture : Lisse et légère\n✔ Entretien facile\n✔ Bonne résistance aux plis\n✔ Séchage rapide\n✔ Convient à la confection et à l'industrie textile",
@@ -2539,7 +2539,7 @@
       "nameAr": "قماش بوبلين بوليستر 100% – رول 50 متراً",
       "descriptionAr": "بوبلين بوليستر 100% – الجودة المضمونة لكل استخدام\n\nبوبلين البوليستر يجمع بين المتانة وسهولة العناية. نسيج ناعم مقاوم للتجاعيد ومناسب للاستخدام اليومي.",
       "shortDescriptionAr": "قماش بوبلين بوليستر 100% عالي الجودة، مثالي للملابس والمفروشات. رول كامل 50 متراً.",
-      "categoryNameAr": "Tissu & Doublure",
+      "categoryNameAr": "أقمشة وبطانة",
       "materialAr": "100% بوليستر",
       "specificationAr": "عرض 150 سم",
       "packagingAr": "رول من 50 متراً",
@@ -2588,7 +2588,7 @@
       "nameAr": "دبابيس ضغط زنبركية 15 مم بيضاء – 1000 طقم",
       "descriptionAr": "دبابيس الضغط الزنبركية 15 مم – الإغلاق المثالي\n\nدبابيس الضغط الزنبركية 15 مم توفر إغلاقاً موثوقاً وسريعاً لمختلف المنتجات النسيجية.",
       "shortDescriptionAr": "دبابيس ضغط زنبركية 15 مم بيضاء اللون مصنوعة من الحديد – 1000 طقم كامل.",
-      "categoryNameAr": "Boutons",
+      "categoryNameAr": "أزرار",
       "materialAr": "حديد مطلي",
       "specificationAr": "قطر 15 مم – نوع W",
       "packagingAr": "1000 طقم كامل (1000 قطعة علوية + 1000 قطعة سفلية)",
@@ -2640,7 +2640,7 @@
           "color": "Noir",
           "inStock": true,
           "id": "v_1781548021777",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "colorHex": "#f5f5f5",
@@ -2648,7 +2648,7 @@
           "color": "Blanc",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "colorHex": "#e53e3e",
@@ -2656,7 +2656,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Rouge",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "colorHex": "#3182ce",
@@ -2664,7 +2664,7 @@
           "inStock": true,
           "stock": 999,
           "id": "v_1781548022744",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "colorHex": "#38a169",
@@ -2672,7 +2672,7 @@
           "color": "Vert",
           "inStock": true,
           "id": "v_1781548022929",
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "id": "v_1781548023088",
@@ -2680,7 +2680,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#d69e2e",
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "colorHex": "#dd6b20",
@@ -2688,7 +2688,7 @@
           "color": "Orange",
           "inStock": true,
           "id": "v_1781548031681",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "colorHex": "#d53f8c",
@@ -2696,7 +2696,7 @@
           "inStock": true,
           "stock": 999,
           "id": "v_1781548031856",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "colorHex": "#92400e",
@@ -2704,7 +2704,7 @@
           "inStock": true,
           "stock": 999,
           "id": "v_1781548032040",
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "colorHex": "#718096",
@@ -2712,7 +2712,7 @@
           "color": "Gris",
           "stock": 999,
           "id": "v_1781548039705",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "color": "Argenté",
@@ -2720,7 +2720,7 @@
           "stock": 999,
           "id": "v_1781548039976",
           "colorHex": "#a0aec0",
-          "colorAr": "Argenté"
+          "colorAr": "فضي"
         },
         {
           "id": "v_1781548045209",
@@ -2728,7 +2728,7 @@
           "color": "Beige",
           "inStock": true,
           "colorHex": "#d4b896",
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         }
       ],
       "description": "Notre ruban velours (Moubra) est fabriqué avec une finition douce et luxueuse, garantissant une excellente apparence et une grande durabilité. Grâce à sa texture veloutée et son aspect premium, il est largement utilisé dans l'industrie textile, la confection de vêtements, les accessoires, les emballages cadeaux haut de gamme et les projets de décoration.\n\nCaractéristiques :\n\nMatière : Velvet Ribbon\nTexture douce et élégante\nExcellente résistance à l'usure\nCouleurs riches et durables\nFacile à coudre et à manipuler\nConvient à un usage professionnel et artisanal\nSpécifications\nProduit : Velvet Ribbon (Moubra)\nLongueur : 100 Yards / Roll\nType : Decorative Velvet Ribbon\nUtilisation : Couture, habillement, décoration, emballage cadeau, artisanat",
@@ -2833,7 +2833,7 @@
       "nameAr": "أزرار 2 ثقوب راتنج – 10 غروس",
       "descriptionAr": "أزرار الراتنج 2 ثقوب – المتانة والأناقة\n\nأزرار الراتنج 2 ثقوب مُصممة لتلبية متطلبات الخياطة الاحترافية. متانة استثنائية ومظهر أنيق.\n\nالاستخدامات:\n• قمصان الرجال والنساء\n• البلوزات الكلاسيكية\n• الملابس الرسمية",
       "shortDescriptionAr": "علبة 1440 زر راتنج بثقبين عالي الجودة، مثالي للملابس والتصميمات الاحترافية.",
-      "categoryNameAr": "Boutons",
+      "categoryNameAr": "أزرار",
       "materialAr": "100% راتنج",
       "specificationAr": "أبيض – 2 ثقوب",
       "packagingAr": "1440 قطعة (10 غروس)"
@@ -2857,7 +2857,7 @@
           "color": "Noir",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "inStock": true,
@@ -2865,7 +2865,7 @@
           "stock": 999,
           "id": "v_1781799833928",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         },
         {
           "id": "v_1781799834120",
@@ -2873,7 +2873,7 @@
           "color": "Rouge",
           "stock": 999,
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge"
+          "colorAr": "أحمر"
         },
         {
           "inStock": true,
@@ -2881,7 +2881,7 @@
           "stock": 999,
           "id": "v_1781799834312",
           "colorHex": "#3182ce",
-          "colorAr": "Bleu"
+          "colorAr": "أزرق"
         },
         {
           "id": "v_1781799834472",
@@ -2889,7 +2889,7 @@
           "color": "Vert",
           "inStock": true,
           "colorHex": "#38a169",
-          "colorAr": "Vert"
+          "colorAr": "أخضر"
         },
         {
           "id": "v_1781799834672",
@@ -2897,7 +2897,7 @@
           "color": "Jaune",
           "inStock": true,
           "colorHex": "#d69e2e",
-          "colorAr": "Jaune"
+          "colorAr": "أصفر"
         },
         {
           "id": "v_1781799834856",
@@ -2905,7 +2905,7 @@
           "inStock": true,
           "color": "Orange",
           "colorHex": "#dd6b20",
-          "colorAr": "Orange"
+          "colorAr": "برتقالي"
         },
         {
           "stock": 999,
@@ -2913,7 +2913,7 @@
           "inStock": true,
           "id": "v_1781799835048",
           "colorHex": "#d53f8c",
-          "colorAr": "Rose"
+          "colorAr": "وردي"
         },
         {
           "id": "v_1781799844016",
@@ -2921,7 +2921,7 @@
           "color": "Violet",
           "stock": 999,
           "colorHex": "#805ad5",
-          "colorAr": "Violet"
+          "colorAr": "بنفسجي"
         },
         {
           "id": "v_1781799844192",
@@ -2929,7 +2929,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#92400e",
-          "colorAr": "Marron"
+          "colorAr": "بني"
         },
         {
           "color": "Gris",
@@ -2937,7 +2937,7 @@
           "stock": 999,
           "id": "v_1781799844360",
           "colorHex": "#718096",
-          "colorAr": "Gris"
+          "colorAr": "رمادي"
         },
         {
           "id": "v_1781799844536",
@@ -2945,7 +2945,7 @@
           "color": "Beige",
           "inStock": true,
           "colorHex": "#d4b896",
-          "colorAr": "Beige"
+          "colorAr": "بيج"
         },
         {
           "id": "v_1781799844848",
@@ -2953,7 +2953,7 @@
           "color": "Doré",
           "stock": 999,
           "colorHex": "#D4A843",
-          "colorAr": "Doré"
+          "colorAr": "ذهبي"
         },
         {
           "colorHex": "#a0aec0",
@@ -2961,7 +2961,7 @@
           "inStock": true,
           "color": "Argenté",
           "id": "v_1781799845032",
-          "colorAr": "Argenté"
+          "colorAr": "فضي"
         }
       ],
       "description": "Apportez une finition propre et professionnelle à vos créations avec notre Fermeture à glissière en nylon n°3. Conçue pour un usage quotidien, sa maille en spirale plastique offre une ouverture et une fermeture douces, sans accroc.\n\nCaractéristiques principales :\n\nLongueur de la maille : 20 cm (idéal pour les petits et moyens ouvrages).\n\nTaille de la maille : n°3 (standard pour la couture classique).\n\nMatière : Maille en nylon/plastique souple sur ruban en polyester.\n\nCouleur : Blanc uni, discret et facile à assortir.\n\nCurseur : Métal avec finition assortie, offrant une bonne prise en main.\n\nIdéal pour : Vêtements (jupes, pantalons légers, robes), petite maroquinerie, pochettes, trousses d'école, housses de coussin et loisirs créatifs.\n\nLégère mais robuste, cette fermeture se pique facilement à la machine à coudre et garantit une excellente longévité à tous vos projets de couture.",
@@ -3059,7 +3059,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir"
+          "colorAr": "أسود"
         },
         {
           "inStock": true,
@@ -3067,7 +3067,7 @@
           "stock": 999,
           "id": "v_1781800769307",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc"
+          "colorAr": "أبيض"
         }
       ],
       "isNew": true,
@@ -3243,7 +3243,7 @@
           "stock": 999,
           "color": "Blanc",
           "inStock": true,
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "10mm"
         },
         {
@@ -3253,7 +3253,7 @@
           "stock": 999,
           "size": "10mm",
           "id": "v_1782228246348",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "10mm"
         },
         {
@@ -3264,7 +3264,7 @@
           "price": 25,
           "stock": 999,
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "8mm"
         },
         {
@@ -3275,7 +3275,7 @@
           "color": "Blanc",
           "price": 25,
           "stock": 999,
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "8mm"
         }
       ],
@@ -3332,7 +3332,7 @@
       "nameAr": "رول مطاط مضفر – 100 يارد",
       "descriptionAr": "المطاط المضفر – الشريك المثالي للتشطيبات المتينة\n\nمطاطنا المضفر يجمع بين البوليستر عالي المقاومة ومطاط اللاتكس/الإيلاستين لمرونة مثالية تدوم طويلاً.",
       "shortDescriptionAr": "رول مطاط مضفر عالي الجودة، مناسب لجميع أعمال الخياطة.",
-      "categoryNameAr": "Élastiques",
+      "categoryNameAr": "مطاطات",
       "materialAr": "بوليستر 70% + لاتكس/إيلاستين 30%",
       "specificationAr": "100 يارد",
       "packagingAr": "رول واحد"
@@ -3351,7 +3351,7 @@
           "price": 30,
           "inStock": true,
           "colorHex": "#a0aec0",
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "15MM"
         },
         {
@@ -3362,7 +3362,7 @@
           "color": "NICKEL",
           "inStock": true,
           "stock": 999,
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "18MM"
         },
         {
@@ -3373,7 +3373,7 @@
           "inStock": true,
           "color": "NICKEL",
           "price": 51.5,
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "20MM"
         },
         {
@@ -3384,7 +3384,7 @@
           "price": 62,
           "color": "NICKEL",
           "stock": 999,
-          "colorAr": "NICKEL",
+          "colorAr": "نيكل",
           "sizeAr": "25MM"
         }
       ],
@@ -3450,7 +3450,7 @@
       "nameAr": "1000 طقم قوالب أزرار ألومنيوم قابلة للتغطية",
       "descriptionAr": "قوالب الأزرار القابلة للتغطية – إبداع بلمسة شخصية\n\nأعطِ تصميماتك لمسة مميزة وفريدة بتغطية الأزرار بقماش مطابق.",
       "shortDescriptionAr": "1000 طقم قوالب أزرار ألومنيوم لتغطيتها بقماش مطابق لتصميماتك.",
-      "categoryNameAr": "Tissu & Doublure",
+      "categoryNameAr": "أقمشة وبطانة",
       "materialAr": "100% ألومنيوم",
       "specificationAr": "قوالب ألومنيوم قياسية",
       "packagingAr": "1000 طقم كامل (1000 jزء علوي + 1000 ظهر بحلقة)",
@@ -3471,7 +3471,7 @@
           "inStock": true,
           "id": "v_1782414966539",
           "size": "18L",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "18L"
         },
         {
@@ -3482,7 +3482,7 @@
           "size": "20L",
           "id": "v_1782414974290",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "20L"
         },
         {
@@ -3493,7 +3493,7 @@
           "price": 0,
           "id": "v_1782414979739",
           "size": "24L",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "24L"
         },
         {
@@ -3504,7 +3504,7 @@
           "color": "Blanc",
           "price": 0,
           "stock": 999,
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "28L"
         }
       ],
@@ -3576,7 +3576,7 @@
       "nameAr": "10 غروس (1440 قطعة) أزرار راتنج 4 ثقوب",
       "descriptionAr": "أزرار الراتنج 4 ثقوب – الزر المرجعي للخياطة الصناعية\n\nالزر المفضل للمصانع والأعمال الكبيرة. جودة ثابتة وسعر تنافسي.",
       "shortDescriptionAr": "حزمة صناعية 1440 قطعة من أزرار الراتنج 4 ثقوب عالية الجودة.",
-      "categoryNameAr": "Boutons",
+      "categoryNameAr": "أزرار",
       "materialAr": "راتنج",
       "specificationAr": "راتنج – 4 ثقوب",
       "packagingAr": "10 غروس = 1440 قطعة",
@@ -3641,7 +3641,7 @@
           "stock": 999,
           "size": "75cm",
           "id": "v_1782935802634",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "75cm"
         },
         {
@@ -3651,7 +3651,7 @@
           "size": "75cm",
           "id": "v_1782935804799",
           "colorHex": "#e53e3e",
-          "colorAr": "Rouge",
+          "colorAr": "أحمر",
           "sizeAr": "75cm"
         },
         {
@@ -3661,7 +3661,7 @@
           "color": "Bleu",
           "stock": 999,
           "colorHex": "#3182ce",
-          "colorAr": "Bleu",
+          "colorAr": "أزرق",
           "sizeAr": "75cm"
         },
         {
@@ -3671,7 +3671,7 @@
           "id": "v_1782935805407",
           "size": "75cm",
           "colorHex": "#38a169",
-          "colorAr": "Vert",
+          "colorAr": "أخضر",
           "sizeAr": "75cm"
         },
         {
@@ -3681,7 +3681,7 @@
           "size": "75cm",
           "id": "v_1782935805582",
           "colorHex": "#d69e2e",
-          "colorAr": "Jaune",
+          "colorAr": "أصفر",
           "sizeAr": "75cm"
         },
         {
@@ -3691,7 +3691,7 @@
           "color": "Rose",
           "stock": 999,
           "colorHex": "#d53f8c",
-          "colorAr": "Rose",
+          "colorAr": "وردي",
           "sizeAr": "75cm"
         },
         {
@@ -3701,7 +3701,7 @@
           "id": "v_1782935805942",
           "size": "75cm",
           "colorHex": "#805ad5",
-          "colorAr": "Violet",
+          "colorAr": "بنفسجي",
           "sizeAr": "75cm"
         },
         {
@@ -3711,7 +3711,7 @@
           "size": "75cm",
           "id": "v_1782935806150",
           "colorHex": "#92400e",
-          "colorAr": "Marron",
+          "colorAr": "بني",
           "sizeAr": "75cm"
         },
         {
@@ -3721,7 +3721,7 @@
           "inStock": true,
           "id": "v_1782935806294",
           "size": "75cm",
-          "colorAr": "Gris",
+          "colorAr": "رمادي",
           "sizeAr": "75cm"
         },
         {
@@ -3731,7 +3731,7 @@
           "id": "v_1782935806333",
           "size": "75cm",
           "colorHex": "#d4b896",
-          "colorAr": "Beige",
+          "colorAr": "بيج",
           "sizeAr": "75cm"
         },
         {
@@ -3741,7 +3741,7 @@
           "color": "Doré",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Doré",
+          "colorAr": "ذهبي",
           "sizeAr": "75cm"
         },
         {
@@ -3751,7 +3751,7 @@
           "inStock": true,
           "color": "Argenté",
           "colorHex": "#a0aec0",
-          "colorAr": "Argenté",
+          "colorAr": "فضي",
           "sizeAr": "75cm"
         }
       ],
@@ -3767,7 +3767,7 @@
       "nameAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل",
       "descriptionAr": "سحاب البلاستيك 75 سم القابل للفصل – تصميم قوي واحترافي\n\nهذا اللوت من 50 سحاب بلاستيك مُصمَّم للسترات والجاكيتات الرياضية.",
       "shortDescriptionAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل بتصميم نصف دائرة عالي الجودة.",
-      "categoryNameAr": "Tissu & Doublure",
+      "categoryNameAr": "أقمشة وبطانة",
       "materialAr": "بلاستيك مضغوط (بولي أسيتال/POM)",
       "specificationAr": "مقاس 75 سم – قابل للفصل",
       "packagingAr": "50 قطعة في الحزمة"
@@ -3795,7 +3795,7 @@
           "size": "20cm",
           "id": "v_1783358781896",
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "20cm"
         },
         {
@@ -3805,7 +3805,7 @@
           "id": "v_1783358786543",
           "size": "20cm",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "20cm"
         },
         {
@@ -3815,7 +3815,7 @@
           "color": "Rouge",
           "id": "v_1783358786719",
           "size": "20cm",
-          "colorAr": "Rouge",
+          "colorAr": "أحمر",
           "sizeAr": "20cm"
         },
         {
@@ -3825,7 +3825,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Bleu",
-          "colorAr": "Bleu",
+          "colorAr": "أزرق",
           "sizeAr": "20cm"
         },
         {
@@ -3835,7 +3835,7 @@
           "inStock": true,
           "stock": 999,
           "colorHex": "#38a169",
-          "colorAr": "Vert",
+          "colorAr": "أخضر",
           "sizeAr": "20cm"
         },
         {
@@ -3845,7 +3845,7 @@
           "color": "Jaune",
           "stock": 999,
           "colorHex": "#d69e2e",
-          "colorAr": "Jaune",
+          "colorAr": "أصفر",
           "sizeAr": "20cm"
         },
         {
@@ -3855,7 +3855,7 @@
           "stock": 999,
           "size": "20cm",
           "id": "v_1783358787248",
-          "colorAr": "Orange",
+          "colorAr": "برتقالي",
           "sizeAr": "20cm"
         },
         {
@@ -3865,7 +3865,7 @@
           "color": "Rose",
           "inStock": true,
           "stock": 999,
-          "colorAr": "Rose",
+          "colorAr": "وردي",
           "sizeAr": "20cm"
         },
         {
@@ -3875,7 +3875,7 @@
           "inStock": true,
           "color": "Violet",
           "colorHex": "#805ad5",
-          "colorAr": "Violet",
+          "colorAr": "بنفسجي",
           "sizeAr": "20cm"
         },
         {
@@ -3885,7 +3885,7 @@
           "color": "Marron",
           "id": "v_1783358798488",
           "size": "20cm",
-          "colorAr": "Marron",
+          "colorAr": "بني",
           "sizeAr": "20cm"
         },
         {
@@ -3895,7 +3895,7 @@
           "size": "20cm",
           "id": "v_1783358798623",
           "colorHex": "#718096",
-          "colorAr": "Gris",
+          "colorAr": "رمادي",
           "sizeAr": "20cm"
         },
         {
@@ -3905,7 +3905,7 @@
           "color": "Beige",
           "inStock": true,
           "colorHex": "#d4b896",
-          "colorAr": "Beige",
+          "colorAr": "بيج",
           "sizeAr": "20cm"
         }
       ],
@@ -3980,7 +3980,7 @@
           "color": "Noir",
           "stock": 999,
           "colorHex": "#1a1a1a",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "20cm"
         },
         {
@@ -3990,7 +3990,7 @@
           "id": "v_1783767513988",
           "size": "20cm",
           "colorHex": "#f5f5f5",
-          "colorAr": "Blanc",
+          "colorAr": "أبيض",
           "sizeAr": "20cm"
         },
         {
@@ -4000,7 +4000,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Rouge",
-          "colorAr": "Rouge",
+          "colorAr": "أحمر",
           "sizeAr": "20cm"
         },
         {
@@ -4010,7 +4010,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Gris",
-          "colorAr": "Gris",
+          "colorAr": "رمادي",
           "sizeAr": "20cm"
         }
       ],
@@ -4084,7 +4084,7 @@
           "stock": 999,
           "inStock": true,
           "color": "Noir",
-          "colorAr": "Noir",
+          "colorAr": "أسود",
           "sizeAr": "70cm"
         }
       ],
@@ -4231,7 +4231,7 @@
       "nameAr": "لوت 50 سحاب بلاستيك Delrin مقاس 5 – 70 سم منزلق M832",
       "descriptionAr": "سحاب Delrin مقاس 5 مع منزلق M832 – تكامل الجودة والقوة\n\nلوت اقتصادي 50 قطعة من سحابات البلاستيك الصناعي Delrin، المعروف بمتانته.",
       "shortDescriptionAr": "لوت 50 سحاب بلاستيك Delrin مقاس 5 بطول 70 سم مع منزلق M832 احترافي.",
-      "categoryNameAr": "Tissu & Doublure",
+      "categoryNameAr": "أقمشة وبطانة",
       "materialAr": "بلاستيك ديلرين (بولي أسيتال)",
       "specificationAr": "مقاس 5 – طول 70 سم – منزلق M832",
       "packagingAr": "50 قطعة في الحزمة",
