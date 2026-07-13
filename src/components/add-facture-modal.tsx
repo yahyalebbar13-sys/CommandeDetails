@@ -352,7 +352,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                     }`}
                   >
                     {trackingLoading ? (
-                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>...</span></>
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>~20s</span></>
                     ) : trackingResult?.eta ? (
                       <><CheckCircle2 className="w-3.5 h-3.5" /><span>OK</span></>
                     ) : (
@@ -361,29 +361,41 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
                   </button>
                 )}
               </div>
-              {/* Tracking result badge */}
-              {trackingResult && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex flex-col gap-1">
+              {(trackingResult || trackingLoading) && (
+                <div className={`${trackingLoading ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} border rounded-xl px-3 py-2 flex flex-col gap-1`}>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                    <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wide">
-                      {trackingResult.eta ? `ETA: ${new Date(trackingResult.eta).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'Tracking actif — ETA non encore disponible'}
+                    {trackingLoading ? (
+                      <Loader2 className="w-3 h-3 text-amber-500 shrink-0 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                    )}
+                    <span className={`text-[10px] font-black uppercase tracking-wide ${trackingLoading ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {trackingLoading
+                        ? 'Interrogation de la compagnie maritime...'
+                        : trackingResult?.eta
+                        ? `ETA: ${new Date(trackingResult.eta + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                        : 'Tracking enregistré — ETA pas encore disponible'}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {trackingResult.carrier && (
-                      <span className="text-[9px] font-bold text-stone-500 uppercase">{trackingResult.carrier}</span>
-                    )}
-                    {trackingResult.vessel && (
-                      <span className="text-[9px] font-bold text-stone-500 uppercase">Navire: {trackingResult.vessel}</span>
-                    )}
-                    {trackingResult.pod && (
-                      <span className="text-[9px] font-bold text-stone-500 uppercase">POD: {trackingResult.pod}</span>
-                    )}
-                    {trackingResult.status && (
-                      <span className="text-[9px] font-bold text-blue-600 uppercase bg-blue-50 px-1.5 py-0.5 rounded">{trackingResult.status}</span>
-                    )}
-                  </div>
+                  {!trackingLoading && trackingResult && (
+                    <div className="flex flex-wrap gap-2">
+                      {trackingResult.carrier && (
+                        <span className="text-[9px] font-bold text-stone-500 uppercase">{trackingResult.carrier}</span>
+                      )}
+                      {trackingResult.vessel && (
+                        <span className="text-[9px] font-bold text-stone-500 uppercase">⚓ {trackingResult.vessel}</span>
+                      )}
+                      {trackingResult.pol && (
+                        <span className="text-[9px] font-bold text-stone-400 uppercase">{trackingResult.pol} →</span>
+                      )}
+                      {trackingResult.pod && (
+                        <span className="text-[9px] font-bold text-stone-500 uppercase">POD: {trackingResult.pod}</span>
+                      )}
+                      {trackingResult.status && (
+                        <span className="text-[9px] font-bold text-blue-600 uppercase bg-blue-50 px-1.5 py-0.5 rounded">{trackingResult.status}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {trackingError && (
