@@ -2368,6 +2368,9 @@ function getTrackingInfo(shippingLine: string | null, bl: string | null) {
 }
 
 // ── STATUS GROUP CONFIG ─────────────────────────────────────────────────────
+// Statuts où le suivi maritime est pertinent
+const TRANSIT_STATUSES = new Set(['TRANSIT', 'SHIPPED']);
+
 const STATUS_GROUPS = [
   {
     key: 'STOCK',
@@ -2833,8 +2836,8 @@ function GroupedArticleList({
                               </div>
                             </button>
 
-                            {/* Tracking CTA — always visible */}
-                            {tracking && (
+                            {/* Tracking CTA — uniquement en transit */}
+                            {tracking && TRANSIT_STATUSES.has(group.key) && (
                               <a
                                 href={tracking.url}
                                 target="_blank"

@@ -291,6 +291,25 @@ export default function ClientPortalPage() {
   const { clientName } = state as { status: 'portal'; clientName: string; adminUid: string };
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+  // Compute containers currently in transit
+  const transitContainers = (() => {
+    const TRANSIT_STATUSES = new Set(['TRANSIT', 'SHIPPED']);
+    const seen = new Set<string>();
+    const result: { factureId: string; bl: string | null; shippingLine: string | null }[] = [];
+    articles.forEach((a: any) => {
+      if (!a.factureId || !TRANSIT_STATUSES.has(a.status)) return;
+      if (seen.has(a.factureId)) return;
+      seen.add(a.factureId);
+      const fac = factures.find((f: any) => f.id === a.factureId);
+      result.push({
+        factureId: a.factureId,
+        bl: fac?.noBL || a.factureNoBL || null,
+        shippingLine: fac?.shippingLine || null,
+      });
+    });
+    return result;
+  })();
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f4f5f7' }}>
       {/* ── NAVBAR ─────────────────────────────────────────────────────── */}
@@ -360,27 +379,52 @@ export default function ClientPortalPage() {
         </div>
       </div>
 
-      {/* ── NOUVEAUTÉ NOTIFICATION BANNER ─────────────────────────────── */}
-      {showNewFeature && (
-        <div className="relative overflow-hidden" style={{ background: 'linear-gradient(90deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)' }}>
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-4 -left-4 w-24 h-24 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
-            <div className="absolute -bottom-4 right-20 w-32 h-32 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
+      {/* ── TRANSIT NOTIFICATION BANNER ─────────────────────────────── */}
+      {showNewFeature && transitContainers.length > 0 && (
+        <div className="relative overflow-hidden" style={{ background: 'linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%)' }}>
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-6 -left-6 w-32 h-32 rounded-full opacity-15" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
+            <div className="absolute -bottom-6 right-16 w-40 h-40 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
           </div>
           <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="shrink-0 w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
+            <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+              {/* Icon */}
+              <div className="shrink-0 w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Ship className="w-4.5 h-4.5 text-white" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[8px] font-black text-white/80 uppercase tracking-widest bg-white/15 px-2 py-0.5 rounded-full">Nouveauté</span>
-                  <p className="text-white text-[11px] font-bold">
-                    <span className="hidden sm:inline">🚢 Suivez vos commandes en temps réel ! Cliquez sur </span>
-                    <span className="font-black">"Suivre le B/L"</span>
-                    <span className="hidden sm:inline"> pour accéder au tracking de la compagnie maritime.</span>
-                    <span className="sm:hidden"> — Tracking maritime disponible !</span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[8px] font-black text-white/80 uppercase tracking-widest bg-white/15 px-2 py-0.5 rounded-full shrink-0">
+                    🚢 En Transit
+                  </span>
+                  <p className="text-white text-[11px] font-bold truncate">
+                    {transitContainers.length === 1
+                      ? `${transitContainers.length} conteneur actuellement en mer`
+                      : `${transitContainers.length} conteneurs actuellement en mer`}
                   </p>
+                </div>
+                {/* Container pills scrollable */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+                  {transitContainers.map((c) => (
+                    <div
+                      key={c.factureId}
+                      className="shrink-0 flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-lg px-2.5 py-1"
+                    >
+                      <span className="text-white font-black text-[9px] uppercase tracking-wider">{c.factureId}</span>
+                      {c.bl && (
+                        <>
+                          <span className="text-white/30 text-[8px]">·</span>
+                          <span className="text-blue-200 font-black text-[9px] uppercase">BL: {c.bl}</span>
+                        </>
+                      )}
+                      {c.shippingLine && (
+                        <>
+                          <span className="text-white/30 text-[8px]">·</span>
+                          <span className="text-white/60 font-bold text-[8px] uppercase">{c.shippingLine}</span>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
