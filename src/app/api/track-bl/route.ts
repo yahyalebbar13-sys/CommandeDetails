@@ -4,215 +4,191 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// Carrier detection from B/L prefix
-const BL_CARRIER_MAP: Record<string, string> = {
-  MAEU: 'MAERSK', MRKU: 'MAERSK', MRSK: 'MAERSK', MAERSK: 'MAERSK',
+// SCAC code → Display name
+const SCAC_TO_NAME: Record<string, string> = {
+  MAEU: 'MAERSK', MRKU: 'MAERSK', MRSK: 'MAERSK',
   MSCU: 'MSC', MSDU: 'MSC', MEDU: 'MSC', MSCW: 'MSC',
-  CMAU: 'CMA CGM', CGMU: 'CMA CGM', CGMX: 'CMA CGM', CMDU: 'CMA CGM',
+  CMDU: 'CMA CGM', CMAU: 'CMA CGM', CGMU: 'CMA CGM', CGMX: 'CMA CGM',
   EGLV: 'EVERGREEN', EGHU: 'EVERGREEN',
-  COSU: 'COSCO', COSCOX: 'COSCO', CSNU: 'COSCO',
+  COSU: 'COSCO', CSNU: 'COSCO',
   HLCU: 'HAPAG-LLOYD', HLXU: 'HAPAG-LLOYD',
   OOLU: 'OOCL', OOCU: 'OOCL',
   YMLU: 'YANG MING', YMLP: 'YANG MING',
-  APZU: 'APL', APMU: 'APL',
-  ONEY: 'ONE', ONEU: 'ONE',
-  SNKU: 'SAFMARINE',
-  ZIMU: 'ZIM', ZIME: 'ZIM',
+  APZU: 'APL', APMU: 'APL', APLU: 'APL',
+  ONEY: 'ONE',
+  ZIMU: 'ZIM',
   PILU: 'PIL',
-  WHLC: 'WAN HAI',
-  SMLU: 'SIMATECH',
-  TEXU: 'TEXTAINER',
   SUDU: 'HAMBURG SUD', HDMU: 'HAMBURG SUD',
+  WHLC: 'WAN HAI',
+  SNKU: 'SAFMARINE',
+  SMLU: 'SIMATECH',
 };
 
-function detectCarrier(blNumber: string): string | null {
-  if (!blNumber) return null;
+// Extract SCAC from B/L number (first 4 uppercase letters)
+function extractScac(blNumber: string): string | null {
   const upper = blNumber.toUpperCase().trim();
-  // Try prefixes from longest to shortest
-  for (const prefix of Object.keys(BL_CARRIER_MAP).sort((a, b) => b.length - a.length)) {
-    if (upper.startsWith(prefix)) return BL_CARRIER_MAP[prefix];
-  }
-  return null;
+  // Most B/L numbers start with a 4-letter SCAC followed by digits
+  const match = upper.match(/^([A-Z]{3,4})/);
+  if (!match) return null;
+  const prefix4 = upper.substring(0, 4);
+  const prefix3 = upper.substring(0, 3);
+  // Prefer 4-letter match
+  if (SCAC_TO_NAME[prefix4]) return prefix4;
+  if (SCAC_TO_NAME[prefix3]) return prefix3;
+  // Return raw 4-letter prefix anyway — Terminal49 may still recognize it
+  return prefix4;
 }
-
-// Terminal49 carrier codes for their API
-const CARRIER_T49_CODES: Record<string, string> = {
-  'MAERSK': 'maersk',
-  'MSC': 'msc',
-  'CMA CGM': 'cma-cgm',
-  'EVERGREEN': 'evergreen',
-  'COSCO': 'cosco',
-  'HAPAG-LLOYD': 'hapag-lloyd',
-  'OOCL': 'oocl',
-  'YANG MING': 'yang-ming',
-  'APL': 'apl',
-  'ONE': 'one',
-  'ZIM': 'zim',
-  'PIL': 'pil',
-  'HAMBURG SUD': 'hamburg-sud',
-  'WAN HAI': 'wan-hai-lines',
-};
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const blNumber = searchParams.get('bl')?.trim().toUpperCase();
 
   if (!blNumber) {
-    return NextResponse.json({ error: 'B/L number required' }, { status: 400 });
+    return NextResponse.json({ error: 'N° de B/L requis' }, { status: 400 });
   }
 
   const apiKey = process.env.TERMINAL49_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    return NextResponse.json({ error: 'Clé API non configurée' }, { status: 500 });
   }
 
-  const detectedCarrier = detectCarrier(blNumber);
-  const carrierCode = detectedCarrier ? CARRIER_T49_CODES[detectedCarrier] : null;
+  const scac = extractScac(blNumber);
+  const carrierName = scac ? (SCAC_TO_NAME[scac] || scac) : null;
+
+  const headers = {
+    'Authorization': `Token ${apiKey}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
   try {
-    // Step 1: Create a tracking request on Terminal49
-    const createBody: any = {
+    // Terminal49 API: POST /v2/tracking_requests
+    // Required fields: request_number (B/L) + scac (carrier code)
+    const createBody = {
       data: {
         type: 'tracking_request',
         attributes: {
-          bl_number: blNumber,
-          ...(carrierCode ? { shipping_line_scac: carrierCode } : {}),
+          request_number: blNumber,
+          ...(scac ? { scac } : {}),
         },
       },
     };
 
     const createRes = await fetch('https://api.terminal49.com/v2/tracking_requests', {
       method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers,
       body: JSON.stringify(createBody),
     });
 
-    if (!createRes.ok) {
-      const errText = await createRes.text();
-      console.error('[track-bl] T49 create error:', createRes.status, errText);
-      
-      // Try GET instead (may already be tracked)
-      const getRes = await fetch(
-        `https://api.terminal49.com/v2/tracking_requests?bl_number=${encodeURIComponent(blNumber)}`,
-        {
-          headers: {
-            'Authorization': `Token ${apiKey}`,
-            'Accept': 'application/json',
-          },
-        }
-      );
-      
-      if (!getRes.ok) {
-        return NextResponse.json({
-          error: 'B/L introuvable ou compagnie maritime non supportée',
-          carrier: detectedCarrier,
-        }, { status: 404 });
-      }
-      
-      const getData = await getRes.json();
-      return parseAndRespond(getData, blNumber, detectedCarrier);
-    }
-
     const createData = await createRes.json();
 
-    // If status is pending, poll once more after a short wait (or return what we have)
-    // For immediate response, we parse what's available
-    return parseAndRespond(createData, blNumber, detectedCarrier);
+    // 422 may mean B/L already tracked or format issue — try to GET it
+    if (createRes.status === 422 || createRes.status === 409) {
+      // Try fetching existing tracking
+      const getRes = await fetch(
+        `https://api.terminal49.com/v2/tracking_requests?request_number=${encodeURIComponent(blNumber)}`,
+        { method: 'GET', headers }
+      );
+      if (getRes.ok) {
+        const getData = await getRes.json();
+        return parseResponse(getData, blNumber, carrierName, scac);
+      }
+    }
+
+    if (!createRes.ok) {
+      const detail = createData?.errors?.[0]?.detail || 'B/L introuvable';
+      return NextResponse.json({
+        error: detail,
+        carrier: carrierName,
+        scac,
+      }, { status: 404 });
+    }
+
+    return parseResponse(createData, blNumber, carrierName, scac);
 
   } catch (err: any) {
-    console.error('[track-bl] fetch error:', err);
-    return NextResponse.json({ error: 'Erreur réseau', details: err.message }, { status: 500 });
+    console.error('[track-bl] error:', err);
+    return NextResponse.json({ error: 'Erreur réseau: ' + err.message }, { status: 500 });
   }
 }
 
-function parseAndRespond(data: any, blNumber: string, detectedCarrier: string | null) {
+function parseResponse(data: any, blNumber: string, carrierName: string | null, scac: string | null) {
   try {
-    // Terminal49 returns JSON:API format
     const attrs = data?.data?.attributes || {};
-    const included = data?.included || [];
+    const included: any[] = data?.included || [];
 
-    // Find the shipment in included resources
-    const shipment = included.find((r: any) => r.type === 'shipment') || {};
-    const shipAttrs = shipment?.attributes || {};
+    // Shipment data
+    const shipment = included.find((r: any) => r.type === 'shipment');
+    const sAttrs = shipment?.attributes || {};
 
-    // Find port of discharge event
+    // Port of discharge event for ETA
     const podEvent = included.find((r: any) =>
       r.type === 'transport_event' &&
-      (r.attributes?.event_type === 'arrival' || r.attributes?.event_type === 'discharge')
+      ['arrival', 'discharge', 'pod_arrival'].includes(r.attributes?.event_type || '')
     );
 
-    // Extract ETA
-    const eta: string | null =
-      shipAttrs?.pod_eta ||
-      shipAttrs?.estimated_arrival ||
-      podEvent?.attributes?.estimated_at ||
-      podEvent?.attributes?.actual_at ||
-      attrs?.pod_eta ||
-      null;
-
-    // Extract vessel
-    const vessel: string | null =
-      shipAttrs?.vessel_name ||
-      attrs?.vessel_name ||
-      null;
-
-    // Extract POD name
-    const pod: string | null =
-      shipAttrs?.pod_locode ||
-      shipAttrs?.pod_name ||
-      attrs?.pod_name ||
-      null;
-
-    // Extract ETD
-    const etd: string | null =
-      shipAttrs?.pol_etd ||
-      shipAttrs?.estimated_departure ||
-      attrs?.pol_etd ||
-      null;
-
-    // Status
-    const status: string | null =
-      shipAttrs?.shipping_line_status ||
-      attrs?.status ||
-      null;
-
-    // Format dates to YYYY-MM-DD
-    const fmt = (d: string | null) => {
+    const fmt = (d: string | null | undefined) => {
       if (!d) return null;
       try { return new Date(d).toISOString().split('T')[0]; } catch { return null; }
     };
 
+    const eta = fmt(
+      sAttrs.pod_eta ||
+      sAttrs.estimated_arrival_at ||
+      podEvent?.attributes?.estimated_at ||
+      attrs.pod_eta ||
+      attrs.estimated_arrival_at
+    );
+
+    const etd = fmt(
+      sAttrs.pol_etd ||
+      sAttrs.estimated_departure_at ||
+      attrs.pol_etd
+    );
+
+    const vessel =
+      sAttrs.vessel_name ||
+      sAttrs.vessel?.name ||
+      attrs.vessel_name || null;
+
+    const pod =
+      sAttrs.pod_name ||
+      sAttrs.pod?.name ||
+      sAttrs.pod_locode ||
+      attrs.pod_name || null;
+
     const shippingLine =
-      shipAttrs?.shipping_line_name ||
-      attrs?.shipping_line_name ||
-      detectedCarrier ||
-      null;
+      sAttrs.shipping_line_name ||
+      attrs.shipping_line_name ||
+      carrierName || scac || null;
+
+    const status =
+      sAttrs.shipping_line_status ||
+      sAttrs.status ||
+      attrs.status ||
+      (data?.data?.attributes?.status) || null;
 
     return NextResponse.json({
       bl: blNumber,
       carrier: shippingLine,
-      eta: fmt(eta),
-      etd: fmt(etd),
+      scac,
+      eta,
+      etd,
       vessel,
       pod,
       status,
-      raw_status: attrs?.status,
     });
-  } catch (parseErr: any) {
-    console.error('[track-bl] parse error:', parseErr);
+  } catch (e: any) {
     return NextResponse.json({
       bl: blNumber,
-      carrier: detectedCarrier,
+      carrier: carrierName,
+      scac,
       eta: null,
       etd: null,
       vessel: null,
       pod: null,
       status: null,
-      parse_error: parseErr.message,
+      parse_error: e.message,
     });
   }
 }
