@@ -2288,6 +2288,85 @@ function ManageClientAccessModal({ open, onOpenChange, clientName }: { open: boo
   );
 }
 
+// ── SHIPPING LINE TRACKING URLS ─────────────────────────────────────────────
+const SHIPPING_LINE_TRACKING: Record<string, { name: string; getUrl: (bl: string) => string; logo: string }> = {
+  'MSC': {
+    name: 'MSC',
+    getUrl: (bl) => `https://www.msc.com/track-a-shipment?query=${encodeURIComponent(bl)}`,
+    logo: '🟡',
+  },
+  'CMA CGM': {
+    name: 'CMA CGM',
+    getUrl: (bl) => `https://www.cma-cgm.com/ebusiness/tracking/search?SearchBy=BL&Reference=${encodeURIComponent(bl)}`,
+    logo: '🔵',
+  },
+  'CMA': {
+    name: 'CMA CGM',
+    getUrl: (bl) => `https://www.cma-cgm.com/ebusiness/tracking/search?SearchBy=BL&Reference=${encodeURIComponent(bl)}`,
+    logo: '🔵',
+  },
+  'MAERSK': {
+    name: 'Maersk',
+    getUrl: (bl) => `https://www.maersk.com/tracking/${encodeURIComponent(bl)}`,
+    logo: '🔷',
+  },
+  'HAPAG-LLOYD': {
+    name: 'Hapag-Lloyd',
+    getUrl: (bl) => `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?blno=${encodeURIComponent(bl)}`,
+    logo: '🟠',
+  },
+  'HAPAG': {
+    name: 'Hapag-Lloyd',
+    getUrl: (bl) => `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?blno=${encodeURIComponent(bl)}`,
+    logo: '🟠',
+  },
+  'EVERGREEN': {
+    name: 'Evergreen',
+    getUrl: (bl) => `https://ct.shipmentlink.com/servlet/TDB1_CargoTracking.do?BLNo=${encodeURIComponent(bl)}`,
+    logo: '🟢',
+  },
+  'COSCO': {
+    name: 'COSCO',
+    getUrl: (bl) => `https://elines.coscoshipping.com/ebusiness/cargotracking?trackingType=BOOKING&number=${encodeURIComponent(bl)}`,
+    logo: '🔴',
+  },
+  'ONE': {
+    name: 'ONE',
+    getUrl: (bl) => `https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking?trakNoParam=${encodeURIComponent(bl)}`,
+    logo: '🩷',
+  },
+  'ZIM': {
+    name: 'ZIM',
+    getUrl: (bl) => `https://www.zim.com/tools/track-a-shipment?consnumber=${encodeURIComponent(bl)}`,
+    logo: '🟤',
+  },
+  'YANG MING': {
+    name: 'Yang Ming',
+    getUrl: (bl) => `https://www.yangming.com/e-service/track-trace/track-trace.aspx?rdoquery=BL&txtBL=${encodeURIComponent(bl)}`,
+    logo: '🟡',
+  },
+  'ARKAS': {
+    name: 'Arkas',
+    getUrl: (bl) => `https://www.arkas.com.tr/en/track-trace?type=bl&number=${encodeURIComponent(bl)}`,
+    logo: '🔵',
+  },
+  'MED LINES': {
+    name: 'Med Lines',
+    getUrl: (bl) => `https://www.medlines.ma/`,
+    logo: '🟢',
+  },
+};
+
+function getTrackingInfo(shippingLine: string | null, bl: string | null) {
+  if (!shippingLine || !bl) return null;
+  const key = shippingLine.trim().toUpperCase();
+  // Try exact match first, then partial
+  const entry = SHIPPING_LINE_TRACKING[key] 
+    || Object.values(SHIPPING_LINE_TRACKING).find(e => key.includes(e.name.toUpperCase()) || e.name.toUpperCase().includes(key));
+  if (!entry) return null;
+  return { ...entry, url: entry.getUrl(bl) };
+}
+
 // ── STATUS GROUP CONFIG ─────────────────────────────────────────────────────
 const STATUS_GROUPS = [
   {
@@ -2383,8 +2462,18 @@ function GroupedArticleList({
     return s;
   });
 
+  const [openContainers, setOpenContainers] = useState<Set<string>>(() => new Set(['__all__']));
+
   const toggleGroup = (key: string) => {
     setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleContainer = (key: string) => {
+    setOpenContainers(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
@@ -2399,6 +2488,157 @@ function GroupedArticleList({
     );
   }
 
+  // Helper: compute days until arrival
+  const getDaysUntil = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const target = new Date(dateStr);
+    const now = new Date();
+    const diff = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  // Helper: render a single article card
+  const renderArticleCard = (a: any, group: typeof STATUS_GROUPS[0], isInsideContainer: boolean = false) => {
+    const now = new Date();
+    const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
+    const catName = (a.categoryId || '').trim().toLowerCase();
+    const cat = categories.find((c: any) => {
+      const cName = (c.name || '').trim().toLowerCase();
+      return cName === catName || c.id === a.categoryId;
+    });
+    const displayImage = a.imageUrl || a.designImageUrl || cat?.imageUrl || null;
+
+    return (
+      <div
+        key={a.id}
+        className={`bg-white rounded-xl border border-stone-100 shadow-sm hover:shadow-md transition-all overflow-hidden ${isInsideContainer ? 'border-l-0' : ''}`}
+        style={isInsideContainer ? {} : { borderLeftWidth: 3, borderLeftColor: group.dotColor }}
+      >
+        {/* Desktop layout */}
+        <div className="hidden sm:flex items-center gap-4 px-4 py-3">
+          {displayImage ? (
+            <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-stone-100 bg-stone-50">
+              <img src={displayImage} alt={a.categoryId} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="shrink-0 w-12 h-12 rounded-lg bg-stone-50 border border-stone-100 flex items-center justify-center">
+              <Package className="w-5 h-5 text-stone-200" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
+            <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{a.categoryId || '—'}</p>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {a.size && a.size !== 'various' && (
+                <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.size}</span>
+              )}
+              {a.color && (
+                <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.color}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="shrink-0 text-center px-4 border-l border-stone-100">
+            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
+            <p className="text-lg font-black text-stone-900 leading-none">{Number(a.quantity).toLocaleString('en-US')}</p>
+            <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">{a.unitOfMeasure || ''}</p>
+          </div>
+
+          {/* CBM */}
+          {a.cubicMeasurement != null && Number(a.cubicMeasurement) > 0 && (
+            <div className="shrink-0 text-center px-4 border-l border-stone-100">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">CBM</p>
+              <p className="text-lg font-black text-teal-700 leading-none">{Number(a.cubicMeasurement).toFixed(2)}</p>
+              <p className="text-[9px] font-bold text-teal-500 uppercase mt-0.5">m³</p>
+            </div>
+          )}
+
+          {a.devisConfirmed && a.devisPrixVenteUniteMad && (
+            <div className="shrink-0 text-center px-4 border-l border-emerald-100 bg-emerald-50/50 rounded-lg py-1">
+              <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">🔒 Prix Confirmé</p>
+              <p className="text-sm font-black text-emerald-700">{Number(a.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[8px] font-bold text-emerald-500">MAD/u</p>
+            </div>
+          )}
+
+          <div className="shrink-0 text-center px-4 border-l border-stone-100">
+            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Arrivée Prévue</p>
+            {a.arrivalDate ? (
+              <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                isArrived ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'
+              }`}>
+                {isArrived ? '✅ ' : '📅 '}{a.arrivalDate}
+              </span>
+            ) : (
+              <span className="text-stone-300 text-[10px] font-bold">Non définie</span>
+            )}
+          </div>
+
+          <div className="shrink-0 pl-4 border-l border-stone-100">
+            <button
+              type="button"
+              onClick={() => onSelect(a.id)}
+              className="h-9 px-3 text-white font-black uppercase text-[9px] tracking-widest rounded-lg transition-all flex items-center gap-1.5"
+              style={{ background: group.headerBg }}
+            >
+              <Info className="w-3.5 h-3.5" />
+              Détails
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile layout */}
+        <div className="sm:hidden overflow-hidden">
+          {displayImage && (
+            <div className="w-full h-32 bg-stone-50 border-b border-stone-100">
+              <img src={displayImage} alt={a.categoryId} className="w-full h-full object-contain" />
+            </div>
+          )}
+          <div className="p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
+                <p className="text-sm font-black text-stone-900 uppercase">{a.categoryId || '—'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
+                <p className="text-sm font-black text-stone-900">{Number(a.quantity).toLocaleString('en-US')} <span className="text-[10px] text-stone-400">{a.unitOfMeasure}</span></p>
+                {a.cubicMeasurement != null && Number(a.cubicMeasurement) > 0 && (
+                  <p className="text-[9px] font-bold text-teal-600 mt-0.5">📦 {Number(a.cubicMeasurement).toFixed(2)} m³</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex gap-1 flex-wrap">
+                {a.size && a.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.size}</span>}
+                {a.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.color}</span>}
+              </div>
+              {a.arrivalDate && (
+                <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg ${isArrived ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                  📅 {a.arrivalDate}
+                </span>
+              )}
+            </div>
+            {a.devisConfirmed && a.devisPrixVenteUniteMad && (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                <span className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">🔒 Prix confirmé</span>
+                <span className="text-sm font-black text-emerald-700">{Number(a.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD/u</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onSelect(a.id)}
+              className="w-full h-9 text-white font-black uppercase text-[9px] tracking-widest rounded-lg flex items-center justify-center gap-1.5"
+              style={{ background: group.headerBg }}
+            >
+              <Info className="w-3.5 h-3.5" /> Voir Détails
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
       {STATUS_GROUPS.map(group => {
@@ -2407,7 +2647,21 @@ function GroupedArticleList({
           .sort((a, b) => (a.categoryId || a.name || '').localeCompare(b.categoryId || b.name || '', 'fr', { sensitivity: 'base' }));
         if (groupArticles.length === 0) return null;
         const isOpen = openGroups.has(group.key);
-        const now = new Date();
+
+        // Sub-group by container (factureId)
+        const containerMap = new Map<string, any[]>();
+        const unlinked: any[] = [];
+        groupArticles.forEach(a => {
+          if (a.factureId) {
+            if (!containerMap.has(a.factureId)) containerMap.set(a.factureId, []);
+            containerMap.get(a.factureId)!.push(a);
+          } else {
+            unlinked.push(a);
+          }
+        });
+        const containerEntries = Array.from(containerMap.entries());
+        // Show containers when there are at least 1 container with 2+ articles, or multiple containers
+        const shouldShowContainers = containerEntries.length > 1 || containerEntries.some(([, arts]) => arts.length > 1);
 
         return (
           <div key={group.key} className="rounded-2xl overflow-hidden shadow-sm border border-white/60">
@@ -2426,11 +2680,9 @@ function GroupedArticleList({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {/* Count badge */}
                 <span className="font-black text-xs rounded-full px-3 py-1" style={{ background: group.badgeBg, color: group.badgeText }}>
                   {groupArticles.length} article{groupArticles.length !== 1 ? 's' : ''}
                 </span>
-                {/* Chevron */}
                 <svg
                   width="16" height="16" viewBox="0 0 16 16" fill="none"
                   className="text-white/60 transition-transform duration-200"
@@ -2444,142 +2696,196 @@ function GroupedArticleList({
             {/* Group body */}
             {isOpen && (
               <div className="bg-stone-50 border-t" style={{ borderColor: group.borderColor }}>
-                <div className="p-3 space-y-2">
-                  {groupArticles.map(a => {
-                    const isArrived = a.arrivalDate ? new Date(a.arrivalDate) <= now : false;
-                    // Resolve image: article own image first (incl. designImageUrl for cursors/sliders), then matching category fallback
-                    const catName = (a.categoryId || '').trim().toLowerCase();
-                    const cat = categories.find((c: any) => {
-                      const cName = (c.name || '').trim().toLowerCase();
-                      return cName === catName || c.id === a.categoryId;
-                    });
-                    const displayImage = a.imageUrl || a.designImageUrl || cat?.imageUrl || null;
-                    return (
-                      <div
-                        key={a.id}
-                        className="bg-white rounded-xl border border-stone-100 shadow-sm hover:shadow-md transition-all overflow-hidden"
-                        style={{ borderLeftWidth: 3, borderLeftColor: group.dotColor }}
-                      >
-                        {/* Desktop layout */}
-                        <div className="hidden sm:flex items-center gap-4 px-4 py-3">
-                          {/* Product thumbnail */}
-                          {displayImage ? (
-                            <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-stone-100 bg-stone-50">
-                              <img src={displayImage} alt={a.categoryId} className="w-full h-full object-cover" />
-                            </div>
-                          ) : (
-                            <div className="shrink-0 w-12 h-12 rounded-lg bg-stone-50 border border-stone-100 flex items-center justify-center">
-                              <Package className="w-5 h-5 text-stone-200" />
-                            </div>
-                          )}
-                          {/* Article info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
-                            <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{a.categoryId || '—'}</p>
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {a.size && a.size !== 'various' && (
-                                <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.size}</span>
-                              )}
-                              {a.color && (
-                                <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.color}</span>
-                              )}
-                            </div>
-                          </div>
+                <div className="p-3 space-y-3">
+                  {shouldShowContainers ? (
+                    <>
+                      {/* Container sub-groups */}
+                      {containerEntries.map(([factureId, cArticles]) => {
+                        const firstArt = cArticles[0];
+                        const bl = firstArt?.factureNoBL || null;
+                        const shippingLine = firstArt?.factureShippingLine || null;
+                        const tracking = getTrackingInfo(shippingLine, bl);
+                        const containerKey = `${group.key}__${factureId}`;
+                        const isContainerOpen = openContainers.has('__all__') || openContainers.has(containerKey);
+                        const arrDate = firstArt?.arrivalDate || null;
+                        const daysUntil = getDaysUntil(arrDate);
 
-                          {/* Qty */}
-                          <div className="shrink-0 text-center px-4 border-l border-stone-100">
-                            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
-                            <p className="text-lg font-black text-stone-900 leading-none">{Number(a.quantity).toLocaleString('en-US')}</p>
-                            <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">{a.unitOfMeasure || ''}</p>
-                          </div>
+                        // CBM calculations
+                        const CONTAINER_CAPACITY_CBM = 68;
+                        const totalCbm = cArticles.reduce((s: number, art: any) => s + (Number(art.cubicMeasurement) || 0), 0);
+                        const cbmPercent = CONTAINER_CAPACITY_CBM > 0 ? Math.min(100, Math.round((totalCbm / CONTAINER_CAPACITY_CBM) * 100)) : 0;
 
-                          {/* Prix confirmé */}
-                          {a.devisConfirmed && a.devisPrixVenteUniteMad && (
-                            <div className="shrink-0 text-center px-4 border-l border-emerald-100 bg-emerald-50/50 rounded-lg py-1">
-                              <p className="text-[7px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">🔒 Prix Confirmé</p>
-                              <p className="text-sm font-black text-emerald-700">{Number(a.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                              <p className="text-[8px] font-bold text-emerald-500">MAD/u</p>
-                            </div>
-                          )}
+                        // Temu-style progress: compute % based on status
+                        const STATUS_PROGRESS: Record<string, number> = {
+                          'TO_ORDER': 5, 'PI': 25, 'SHIPPED': 50, 'TRANSIT': 60, 'CUSTOMS': 80, 'STOCK': 100, 'DELIVERED': 100
+                        };
+                        const progress = STATUS_PROGRESS[group.key] || 0;
 
-                          {/* Arrival date */}
-                          <div className="shrink-0 text-center px-4 border-l border-stone-100">
-                            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Arrivée Prévue</p>
-                            {a.arrivalDate ? (
-                              <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black ${
-                                isArrived ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'
-                              }`}>
-                                {isArrived ? '✅ ' : '📅 '}{a.arrivalDate}
-                              </span>
-                            ) : (
-                              <span className="text-stone-300 text-[10px] font-bold">Non définie</span>
-                            )}
-                          </div>
-
-                          {/* Action */}
-                          <div className="shrink-0 pl-4 border-l border-stone-100">
+                        return (
+                          <div key={factureId} className="rounded-xl overflow-hidden border border-stone-200 bg-white shadow-sm">
+                            {/* Container header */}
                             <button
                               type="button"
-                              onClick={() => onSelect(a.id)}
-                              className="h-9 px-3 text-white font-black uppercase text-[9px] tracking-widest rounded-lg transition-all flex items-center gap-1.5"
-                              style={{ background: group.headerBg }}
+                              onClick={() => toggleContainer(containerKey)}
+                              className="w-full text-left"
                             >
-                              <Info className="w-3.5 h-3.5" />
-                              Détails
-                            </button>
-                          </div>
-                        </div>
+                              <div className="px-4 py-3 flex flex-col gap-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(15,23,42,0.06)' }}>
+                                      <Package className="w-4 h-4 text-stone-600" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-[11px] font-black text-stone-900 uppercase tracking-wider">{factureId}</p>
+                                        {bl && (
+                                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full border" style={{ background: '#fef9ef', color: '#c4a062', borderColor: 'rgba(196,160,98,0.3)' }}>
+                                            BL: {bl}
+                                          </span>
+                                        )}
+                                        {shippingLine && (
+                                          <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full uppercase">
+                                            🚢 {shippingLine}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[9px] font-bold text-stone-400 mt-0.5">{cArticles.length} article{cArticles.length !== 1 ? 's' : ''} dans ce conteneur</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {/* CBM gauge */}
+                                    {totalCbm > 0 && (
+                                      <div className="hidden sm:flex items-center gap-3 rounded-2xl px-4 py-2.5 min-w-[160px]" style={{ background: cbmPercent >= 90 ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' : cbmPercent >= 70 ? 'linear-gradient(135deg, #fffbeb, #fef3c7)' : 'linear-gradient(135deg, #f0fdfa, #ccfbf1)', border: `2px solid ${cbmPercent >= 90 ? '#fca5a5' : cbmPercent >= 70 ? '#fcd34d' : '#5eead4'}` }}>
+                                        <div className="flex flex-col items-center justify-center shrink-0">
+                                          <span className="text-2xl font-black leading-none" style={{ color: cbmPercent >= 90 ? '#dc2626' : cbmPercent >= 70 ? '#d97706' : '#0d9488' }}>{cbmPercent}%</span>
+                                          <span className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: cbmPercent >= 90 ? '#ef4444' : cbmPercent >= 70 ? '#f59e0b' : '#14b8a6' }}>rempli</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                                          <div className="flex items-baseline gap-1">
+                                            <span className="text-sm font-black" style={{ color: cbmPercent >= 90 ? '#b91c1c' : cbmPercent >= 70 ? '#b45309' : '#0f766e' }}>{totalCbm.toFixed(1)}</span>
+                                            <span className="text-[9px] font-bold" style={{ color: cbmPercent >= 90 ? '#f87171' : cbmPercent >= 70 ? '#fbbf24' : '#2dd4bf' }}>/ 68 m³</span>
+                                          </div>
+                                          <div className="w-full h-2.5 bg-white/80 rounded-full overflow-hidden shadow-inner">
+                                            <div
+                                              className="h-full rounded-full transition-all duration-500"
+                                              style={{
+                                                width: `${cbmPercent}%`,
+                                                background: cbmPercent >= 90 ? 'linear-gradient(90deg, #ef4444, #dc2626)' : cbmPercent >= 70 ? 'linear-gradient(90deg, #fbbf24, #f59e0b)' : 'linear-gradient(90deg, #2dd4bf, #14b8a6)',
+                                                boxShadow: `0 0 6px ${cbmPercent >= 90 ? 'rgba(239,68,68,0.4)' : cbmPercent >= 70 ? 'rgba(245,158,11,0.4)' : 'rgba(20,184,166,0.4)'}`,
+                                              }}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {/* Temu-style countdown badge */}
+                                    {daysUntil !== null && daysUntil > 0 && (
+                                      <div className="hidden sm:flex flex-col items-center bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl px-3 py-1.5">
+                                        <span className="text-[7px] font-black text-amber-600 uppercase tracking-widest">Arrivée dans</span>
+                                        <span className="text-lg font-black text-amber-700 leading-none">{daysUntil}</span>
+                                        <span className="text-[7px] font-black text-amber-500 uppercase">jour{daysUntil !== 1 ? 's' : ''}</span>
+                                      </div>
+                                    )}
+                                    {daysUntil !== null && daysUntil <= 0 && (
+                                      <div className="hidden sm:flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Arrivé</span>
+                                      </div>
+                                    )}
+                                    <svg
+                                      width="14" height="14" viewBox="0 0 14 14" fill="none"
+                                      className="text-stone-300 transition-transform duration-200"
+                                      style={{ transform: isContainerOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                                    >
+                                      <path d="M2.5 5l4.5 4.5L11.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  </div>
+                                </div>
 
-                        {/* Mobile layout */}
-                        <div className="sm:hidden overflow-hidden">
-                          {/* Image banner on mobile */}
-                          {displayImage && (
-                            <div className="w-full h-32 bg-stone-50 border-b border-stone-100">
-                              <img src={displayImage} alt={a.categoryId} className="w-full h-full object-contain" />
-                            </div>
-                          )}
-                          <div className="p-3 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Type Produit</p>
-                              <p className="text-sm font-black text-stone-900 uppercase">{a.categoryId || '—'}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Quantité</p>
-                              <p className="text-sm font-black text-stone-900">{Number(a.quantity).toLocaleString('en-US')} <span className="text-[10px] text-stone-400">{a.unitOfMeasure}</span></p>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex gap-1 flex-wrap">
-                              {a.size && a.size !== 'various' && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.size}</span>}
-                              {a.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-full uppercase">{a.color}</span>}
-                            </div>
-                            {a.arrivalDate && (
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg ${isArrived ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                                📅 {a.arrivalDate}
-                              </span>
+                                {/* CBM bar — mobile */}
+                                {totalCbm > 0 && (
+                                  <div className="sm:hidden flex items-center gap-2">
+                                    <span className="text-[8px] font-black text-teal-600 uppercase tracking-widest shrink-0">📦 {totalCbm.toFixed(1)} / 68 m³</span>
+                                    <div className="flex-1 h-1.5 bg-teal-100 rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full" style={{ width: `${cbmPercent}%`, background: cbmPercent >= 90 ? '#dc2626' : cbmPercent >= 70 ? '#f59e0b' : '#14b8a6' }} />
+                                    </div>
+                                    <span className="text-[8px] font-black shrink-0" style={{ color: cbmPercent >= 90 ? '#dc2626' : cbmPercent >= 70 ? '#f59e0b' : '#14b8a6' }}>{cbmPercent}%</span>
+                                  </div>
+                                )}
+
+                                {/* Temu-style progress bar */}
+                                <div className="flex items-center gap-2.5">
+                                  <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-700 ease-out"
+                                      style={{
+                                        width: `${progress}%`,
+                                        background: progress === 100
+                                          ? 'linear-gradient(90deg, #10b981, #059669)'
+                                          : progress >= 50
+                                          ? 'linear-gradient(90deg, #6366f1, #4f46e5)'
+                                          : 'linear-gradient(90deg, #f59e0b, #d97706)',
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-[9px] font-black text-stone-400 shrink-0">{progress}%</span>
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Tracking CTA — always visible */}
+                            {tracking && (
+                              <a
+                                href={tracking.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="mx-3 mb-2.5 flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 hover:border-indigo-300 transition-all group"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-white border border-indigo-100 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                                    <Ship className="w-4 h-4 text-indigo-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Suivi en direct — {tracking.name}</p>
+                                    <p className="text-[10px] font-black text-indigo-700 uppercase">{bl}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 text-indigo-500 group-hover:text-indigo-700 transition-colors">
+                                  <span className="text-[8px] font-black uppercase tracking-widest hidden sm:block">Suivre</span>
+                                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="group-hover:translate-x-0.5 transition-transform"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                </div>
+                              </a>
+                            )}
+
+                            {/* Container articles */}
+                            {isContainerOpen && (
+                              <div className="border-t border-stone-100 bg-stone-50/50 p-2.5 space-y-1.5">
+                                {cArticles.map(a => renderArticleCard(a, group, true))}
+                              </div>
                             )}
                           </div>
-                          {/* Prix confirmé mobile */}
-                          {a.devisConfirmed && a.devisPrixVenteUniteMad && (
-                            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                              <span className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">🔒 Prix confirmé</span>
-                              <span className="text-sm font-black text-emerald-700">{Number(a.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD/u</span>
+                        );
+                      })}
+
+                      {/* Unlinked articles (no container) */}
+                      {unlinked.length > 0 && (
+                        <>
+                          {containerEntries.length > 0 && (
+                            <div className="flex items-center gap-2 px-1 pt-1">
+                              <div className="h-px flex-1 bg-stone-200" />
+                              <span className="text-[8px] font-black text-stone-300 uppercase tracking-widest shrink-0">Sans conteneur</span>
+                              <div className="h-px flex-1 bg-stone-200" />
                             </div>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => onSelect(a.id)}
-                            className="w-full h-9 text-white font-black uppercase text-[9px] tracking-widest rounded-lg flex items-center justify-center gap-1.5"
-                            style={{ background: group.headerBg }}
-                          >
-                            <Info className="w-3.5 h-3.5" /> Voir Détails
-                          </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                          {unlinked.map(a => renderArticleCard(a, group, false))}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    // No meaningful container grouping — show flat list
+                    groupArticles.map(a => renderArticleCard(a, group, false))
+                  )}
                 </div>
               </div>
             )}
@@ -2688,6 +2994,8 @@ export function ClientDetailView({
           stockEntryDate,
           orderDate,
           factureNoBL: facture?.noBL || null,
+          factureShippingLine: facture?.shippingLine || null,
+          factureShippingDate: facture?.shippingDate || null,
         };
       })
       .sort((a, b) => {
@@ -3034,20 +3342,55 @@ export function ClientDetailView({
                           </div>
                         </div>
                         {/* Ref dossier footer */}
-                        {selectedArticle.factureId && (
-                          <div className="border-t border-stone-100 bg-stone-50 px-4 py-3 flex items-center justify-between gap-2">
-                            <div>
-                              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° Dossier</p>
-                              <p className="text-[11px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p>
-                            </div>
-                            {selectedArticle.factureNoBL && (
-                              <div className="text-right">
-                                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° BL</p>
-                                <p className="text-[11px] font-black uppercase" style={{ color: '#c4a062' }}>{selectedArticle.factureNoBL}</p>
+                        {selectedArticle.factureId && (() => {
+                          const tracking = getTrackingInfo(selectedArticle.factureShippingLine, selectedArticle.factureNoBL);
+                          return (
+                            <div className="border-t border-stone-100 bg-stone-50">
+                              <div className="px-4 py-3 flex items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° Dossier</p>
+                                  <p className="text-[11px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p>
+                                </div>
+                                {selectedArticle.factureNoBL && (
+                                  <div className="text-right">
+                                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° BL</p>
+                                    <p className="text-[11px] font-black uppercase" style={{ color: '#c4a062' }}>{selectedArticle.factureNoBL}</p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        )}
+                              {/* Tracking link */}
+                              {tracking && (
+                                <a
+                                  href={tracking.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mx-4 mb-3 flex items-center justify-between gap-2 px-4 py-3 rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 hover:border-indigo-300 transition-all group"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-9 h-9 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                                      <Ship className="w-4.5 h-4.5 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Suivre via {tracking.name}</p>
+                                      <p className="text-[11px] font-black text-indigo-700 uppercase">{selectedArticle.factureNoBL}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-indigo-500 group-hover:text-indigo-700 transition-colors">
+                                    <span className="text-[8px] font-black uppercase tracking-widest hidden sm:block">Tracking</span>
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="group-hover:translate-x-0.5 transition-transform"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                  </div>
+                                </a>
+                              )}
+                              {/* Compagnie maritime badge */}
+                              {selectedArticle.factureShippingLine && !tracking && (
+                                <div className="mx-4 mb-3 flex items-center gap-2 bg-stone-100 rounded-xl px-3 py-2">
+                                  <Ship className="w-3.5 h-3.5 text-stone-400" />
+                                  <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{selectedArticle.factureShippingLine}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}

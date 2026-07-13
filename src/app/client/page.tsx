@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Input } from '@/components/ui/input';
-import { Loader2, Lock, LogOut, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
+import { Loader2, Lock, LogOut, ShieldCheck, ArrowRight, RefreshCw, Ship, X, Sparkles } from 'lucide-react';
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -33,6 +33,7 @@ export default function ClientPortalPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState(false);
+  const [showNewFeature, setShowNewFeature] = useState(true);
 
   const authRef = useRef<ReturnType<typeof getAuth> | null>(null);
   const dbRef = useRef<ReturnType<typeof getFirestore> | null>(null);
@@ -358,6 +359,40 @@ export default function ClientPortalPage() {
           </div>
         </div>
       </div>
+
+      {/* ── NOUVEAUTÉ NOTIFICATION BANNER ─────────────────────────────── */}
+      {showNewFeature && (
+        <div className="relative overflow-hidden" style={{ background: 'linear-gradient(90deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)' }}>
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute -top-4 -left-4 w-24 h-24 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
+            <div className="absolute -bottom-4 right-20 w-32 h-32 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
+          </div>
+          <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="shrink-0 w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[8px] font-black text-white/80 uppercase tracking-widest bg-white/15 px-2 py-0.5 rounded-full">Nouveauté</span>
+                  <p className="text-white text-[11px] font-bold">
+                    <span className="hidden sm:inline">🚢 Suivez vos commandes en temps réel ! Cliquez sur </span>
+                    <span className="font-black">"Suivre le B/L"</span>
+                    <span className="hidden sm:inline"> pour accéder au tracking de la compagnie maritime.</span>
+                    <span className="sm:hidden"> — Tracking maritime disponible !</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowNewFeature(false)}
+              className="shrink-0 w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60 hover:text-white transition-all"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── MAIN CONTENT ───────────────────────────────────────────────── */}
       <main className="flex-grow max-w-[1400px] mx-auto px-6 py-8 w-full">
