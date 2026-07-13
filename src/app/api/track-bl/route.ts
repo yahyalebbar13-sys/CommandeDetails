@@ -1,8 +1,8 @@
-// Fix SSL certificate verification on Windows dev environment
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(process.env as any).NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 import { NextRequest, NextResponse } from 'next/server';
+import https from 'https';
+
+// SSL agent that bypasses certificate verification (Windows dev environment)
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // SCAC code → Display name
 const SCAC_TO_NAME: Record<string, string> = {
@@ -33,13 +33,41 @@ function extractScac(blNumber: string): string | null {
   return null;
 }
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+// HTTP request using native https module (bypasses SSL issues on Windows)
+function httpsRequest(url: string, options: { method: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const reqOptions: https.RequestOptions = {
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: options.method,
+      headers: options.headers,
+      agent: httpsAgent,
+    };
 
-const T49_HEADERS = (apiKey: string) => ({
-  'Authorization': `Token ${apiKey}`,
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
-});
+    if (options.body) {
+      reqOptions.headers!['Content-Length'] = Buffer.byteLength(options.body).toString();
+    }
+
+    const req = https.request(reqOptions, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => raw += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode || 0, data: JSON.parse(raw) });
+        } catch {
+          resolve({ status: res.statusCode || 0, data: raw });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    if (options.body) req.write(options.body);
+    req.end();
+  });
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -56,11 +84,16 @@ export async function GET(request: NextRequest) {
 
   const scac = extractScac(blNumber);
   const carrierName = scac ? (SCAC_TO_NAME[scac] || scac) : null;
-  const hdrs = T49_HEADERS(apiKey);
+
+  const headers = {
+    'Authorization': `Token ${apiKey}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
   try {
     // ── STEP 1: Create tracking request ──────────────────────────────────────
-    const createBody = {
+    const createBody = JSON.stringify({
       data: {
         type: 'tracking_request',
         attributes: {
@@ -68,41 +101,34 @@ export async function GET(request: NextRequest) {
           ...(scac ? { scac } : {}),
         },
       },
-    };
-
-    const createRes = await fetch('https://api.terminal49.com/v2/tracking_requests', {
-      method: 'POST',
-      headers: hdrs,
-      body: JSON.stringify(createBody),
     });
 
-    const createData = await createRes.json();
+    const createRes = await httpsRequest(
+      'https://api.terminal49.com/v2/tracking_requests',
+      { method: 'POST', headers, body: createBody }
+    );
 
-    // 409 = already exists — extract existing ID from the error or search by BL
     let trackingRequestId: string | null = null;
 
     if (createRes.status === 201) {
-      trackingRequestId = createData?.data?.id || null;
+      trackingRequestId = createRes.data?.data?.id || null;
     } else if (createRes.status === 409 || createRes.status === 422) {
-      // Search for existing tracking request
-      const searchRes = await fetch(
+      // Already exists — search for it
+      const searchRes = await httpsRequest(
         `https://api.terminal49.com/v2/tracking_requests?request_number=${encodeURIComponent(blNumber)}`,
-        { method: 'GET', headers: hdrs }
+        { method: 'GET', headers }
       );
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        trackingRequestId = searchData?.data?.[0]?.id || null;
+      if (searchRes.status === 200) {
+        trackingRequestId = searchRes.data?.data?.[0]?.id || null;
       }
-    } else {
-      const detail = createData?.errors?.[0]?.detail || 'B/L introuvable ou format invalide';
-      return NextResponse.json({ error: detail, carrier: carrierName }, { status: 404 });
     }
 
     if (!trackingRequestId) {
-      return NextResponse.json({ error: 'Impossible de créer la demande de tracking', carrier: carrierName }, { status: 404 });
+      const errDetail = createRes.data?.errors?.[0]?.detail || 'B/L introuvable ou format invalide';
+      return NextResponse.json({ error: errDetail, carrier: carrierName, scac }, { status: 404 });
     }
 
-    // ── STEP 2: Poll until status ≠ 'pending' (max 20 seconds) ────────────
+    // ── STEP 2: Poll until found (max ~20 seconds) ────────────────────────────
     let shipmentData: any = null;
     let finalStatus = 'pending';
     const MAX_TRIES = 10;
@@ -111,61 +137,53 @@ export async function GET(request: NextRequest) {
     for (let i = 0; i < MAX_TRIES; i++) {
       await sleep(INTERVAL_MS);
 
-      const pollRes = await fetch(
-        `https://api.terminal49.com/v2/tracking_requests/${trackingRequestId}?include=shipment,shipment.transport_events,shipment.transport_events.location`,
-        { method: 'GET', headers: hdrs }
+      const pollRes = await httpsRequest(
+        `https://api.terminal49.com/v2/tracking_requests/${trackingRequestId}?include=shipment`,
+        { method: 'GET', headers }
       );
 
-      if (!pollRes.ok) continue;
+      if (pollRes.status !== 200) continue;
 
-      const pollData = await pollRes.json();
-      finalStatus = pollData?.data?.attributes?.status || 'pending';
+      finalStatus = pollRes.data?.data?.attributes?.status || 'pending';
 
       if (finalStatus === 'found' || finalStatus === 'delivered') {
-        // Extract shipment from included
-        const included: any[] = pollData?.included || [];
+        const included: any[] = pollRes.data?.included || [];
         const shipment = included.find((r: any) => r.type === 'shipment');
-        if (shipment) {
-          shipmentData = shipment;
-          break;
-        }
+        if (shipment) { shipmentData = shipment; break; }
       }
 
-      if (finalStatus === 'not_found' || finalStatus === 'failed') {
-        break;
-      }
-      // 'pending' or 'retrying' → keep polling
+      if (finalStatus === 'not_found' || finalStatus === 'failed') break;
     }
 
-    if (!shipmentData && finalStatus !== 'found') {
-      // Timeout or not found
+    if (!shipmentData) {
       return NextResponse.json({
         error: finalStatus === 'not_found' || finalStatus === 'failed'
           ? 'B/L non trouvé chez la compagnie maritime'
-          : 'Délai dépassé — Terminal49 n\'a pas encore récupéré les données (réessaie dans 1 min)',
+          : 'Délai dépassé — réessaie dans 1 minute',
         carrier: carrierName,
         scac,
         status: finalStatus,
       }, { status: 404 });
     }
 
-    // ── STEP 3: Parse shipment data ───────────────────────────────────────────
+    // ── STEP 3: Parse real shipment data ─────────────────────────────────────
     const sAttrs = shipmentData?.attributes || {};
-
     const fmt = (d: string | null | undefined) => {
       if (!d) return null;
       try { return new Date(d).toISOString().split('T')[0]; } catch { return null; }
     };
 
-    const eta = fmt(sAttrs.pod_eta || sAttrs.estimated_arrival_at);
-    const etd = fmt(sAttrs.pol_etd || sAttrs.estimated_departure_at);
-    const vessel = sAttrs.vessel_name || null;
-    const pod = sAttrs.pod_name || sAttrs.pod_locode || null;
-    const pol = sAttrs.pol_name || sAttrs.pol_locode || null;
-    const shippingLine = sAttrs.shipping_line_name || carrierName || scac || null;
-    const status = sAttrs.shipping_line_status || sAttrs.status || null;
-
-    return NextResponse.json({ bl: blNumber, carrier: shippingLine, scac, eta, etd, vessel, pod, pol, status });
+    return NextResponse.json({
+      bl: blNumber,
+      carrier: sAttrs.shipping_line_name || carrierName || scac,
+      scac,
+      eta: fmt(sAttrs.pod_eta || sAttrs.estimated_arrival_at),
+      etd: fmt(sAttrs.pol_etd || sAttrs.estimated_departure_at),
+      vessel: sAttrs.vessel_name || null,
+      pod: sAttrs.pod_name || sAttrs.pod_locode || null,
+      pol: sAttrs.pol_name || sAttrs.pol_locode || null,
+      status: sAttrs.shipping_line_status || sAttrs.status || null,
+    });
 
   } catch (err: any) {
     console.error('[track-bl] error:', err);
