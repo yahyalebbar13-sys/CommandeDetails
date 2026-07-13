@@ -85,43 +85,41 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
     setWishlisted((prev) => !prev);
   }, []);
 
+  const productUrl = `/shop/produit/${product.id}`;
+
   return (
-    <div
-      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full"
+    <Link
+      href={productUrl}
+      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline"
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <Image
-            src={primaryImage}
-            alt={product.name}
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover"
-            placeholder="blur"
-            blurDataURL={BLUR_DATA_URL}
-            loading="lazy"
-            onLoad={() => setImgLoaded(true)}
-          />
-        </div>
-        
-        {/* Link is placed AFTER image with higher z-index to ensure it's perfectly clickable on all browsers */}
-        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-10" tabIndex={-1} aria-label={product.name}></Link>
+        <Image
+          src={primaryImage}
+          alt={product.name}
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          className="object-cover"
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
+          loading="lazy"
+          onLoad={() => setImgLoaded(true)}
+        />
         
         {/* Skeleton — disparaît quand l'image est chargée */}
         {!imgLoaded && (
-          <div className="absolute inset-0 z-10 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 animate-pulse pointer-events-none" />
         )}
 
         {/* Badge Row */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
         </div>
 
         {/* Wishlist Button */}
         <button
           onClick={handleWishlist}
           aria-label={wishlisted ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-          className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
         >
           <Heart
             className={`w-4 h-4 transition-colors duration-200 ${
@@ -136,7 +134,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             onClick={handleAddToCart}
             disabled={added}
             aria-label="Ajouter au panier"
-            className={`lg:hidden absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all duration-200 active:scale-95 ${
+            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all duration-200 active:scale-95 ${
               added ? 'bg-emerald-500 text-white' : 'bg-white text-[#0F0F0F] active:bg-gray-100'
             }`}
           >
@@ -147,7 +145,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         {/* Desktop Quick-Add Overlay */}
         {showAddToCart && (
           <div
-            className="hidden lg:flex absolute inset-0 items-end justify-center pb-4 z-20 pointer-events-none transition-all duration-300 opacity-0 group-hover:opacity-100"
+            className="hidden lg:flex absolute inset-0 items-end justify-center pb-4 z-10 pointer-events-none transition-all duration-300 opacity-0 group-hover:opacity-100"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 50%)' }}
           >
             <button
@@ -178,7 +176,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
 
         {/* Out of stock overlay */}
         {!product.inStock && (
-          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 pointer-events-none">
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center pointer-events-none">
             <span className="bg-white/95 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5 text-red-400" />
               {language === 'ar' ? 'نفد المخزون' : 'Rupture de stock'}
@@ -188,26 +186,23 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
       </div>
 
       {/* ── Content Section ───────────────────────────────────── */}
-      <div className="p-4 flex flex-col gap-2 flex-grow relative">
-        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" aria-label="Voir le produit" />
+      <div className="p-4 flex flex-col gap-2 flex-grow">
         {/* Category */}
         <span
-          className="text-[11px] font-semibold uppercase tracking-widest relative z-10 pointer-events-none"
+          className="text-[11px] font-semibold uppercase tracking-widest"
           style={{ color: '#D4A843' }}
         >
           {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
         </span>
 
         {/* Product Name */}
-        <Link href={`/shop/produit/${product.id}`} className="relative z-10 w-fit">
-          <h3
-            className={`text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors duration-200 ${language === 'ar' ? 'text-right' : ''}`}
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-            dir={language === 'ar' ? 'rtl' : 'ltr'}
-          >
-            {language === 'ar' && product.nameAr ? product.nameAr : product.name}
-          </h3>
-        </Link>
+        <h3
+          className={`text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors duration-200 ${language === 'ar' ? 'text-right' : ''}`}
+          style={{ fontFamily: 'Outfit, sans-serif' }}
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
+        >
+          {language === 'ar' && product.nameAr ? product.nameAr : product.name}
+        </h3>
 
         {/* Star Rating */}
         {product.rating !== undefined && (
@@ -224,24 +219,10 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
               {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
             </span>
           </div>
-          
-          {/* Mobile quick-add button (only visible on mobile, since desktop has the hover overlay) */}
-          {showAddToCart && product.inStock && (
-            <button
-              onClick={handleAddToCart}
-              disabled={added}
-              className={`sm:hidden flex items-center justify-center w-8 h-8 rounded-full shadow-sm transition-colors relative z-10 ${
-                added ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-[#C8102E] hover:text-white'
-              }`}
-              aria-label="Ajouter au panier"
-            >
-              {added ? <CheckCircle2 className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
-            </button>
-          )}
         </div>
 
         {/* Stock Indicator */}
-        <div className="flex items-center gap-1.5 relative z-10 pointer-events-none">
+        <div className="flex items-center gap-1.5">
           {product.inStock ? (
             <>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
@@ -257,7 +238,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
 
         {/* Min Order Note */}
         {product.minOrderQty && product.minOrderQty > 1 && (
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 relative z-10 pointer-events-none">
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
             <Package className="w-3 h-3" />
             <span>{language === 'ar' ? `الحد الأدنى للطلب : ${product.minOrderQty} قطع` : `Min. commande : ${product.minOrderQty} pcs`}</span>
           </div>
@@ -294,6 +275,6 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           </button>
         </div>
       )}
-    </div>
+    </Link>
   );
 });

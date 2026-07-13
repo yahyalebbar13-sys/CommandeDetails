@@ -14,12 +14,10 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
   const [wished, setWished] = useState(false);
-  const discount = product.comparePrice
-    ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)
-    : 0;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     addItem({
       productId: product.id,
       productName: product.name,
@@ -33,44 +31,39 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl relative group flex flex-col h-full">
+    <Link
+      href={`/shop/produit/${product.id}`}
+      className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl relative group flex flex-col h-full no-underline"
+    >
       <div className="relative aspect-square bg-gray-50 overflow-hidden">
-        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <img
-            src={product.images?.[0] || `https://picsum.photos/400/400?random=${product.id}`}
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          />
-        </div>
+        <img
+          src={product.images?.[0] || `https://picsum.photos/400/400?random=${product.id}`}
+          alt={product.name}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        />
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
           {product.isNew && (
             <span className="bg-[#10B981] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
               Nouveau
             </span>
           )}
-          {product.isPromo && discount > 0 && (
-            <span className="bg-[#C8102E] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-              -{discount}%
-            </span>
-          )}
         </div>
         {/* Wishlist */}
         <button
-          onClick={e => { e.preventDefault(); setWished(!wished); }}
-          className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-20"
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setWished(!wished); }}
+          className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-10"
         >
           <span className={`text-base ${wished ? 'text-red-500' : 'text-gray-400'}`}>
             {wished ? '♥' : '♡'}
           </span>
         </button>
-        {/* Mobile Quick Add (Persistent) */}
+        {/* Mobile Quick Add */}
         {product.inStock && (
           <button
             onClick={handleAdd}
             disabled={added}
-            className={`lg:hidden absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
+            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
               added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
             }`}
           >
@@ -79,7 +72,7 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
         )}
         
         {/* Desktop Quick add overlay */}
-        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
           <button
             onClick={handleAdd}
             className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${
@@ -90,12 +83,12 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
           </button>
         </div>
       </div>
-      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col flex-grow">
+      <div className="p-4 flex flex-col flex-grow">
         <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wide mb-1">
           {product.categoryName}
         </p>
         <h3
-          className="font-semibold text-[#1A1A1A] text-sm leading-tight mb-2 line-clamp-2"
+          className="font-semibold text-[#1A1A1A] text-sm leading-tight mb-2 line-clamp-2 group-hover:text-[#C8102E] transition-colors"
           style={{ fontFamily: 'Outfit, sans-serif' }}
         >
           {product.name}
@@ -115,8 +108,8 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
           <span className={`w-1.5 h-1.5 rounded-full ${product.inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
           <span className="text-xs text-gray-500">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
         </div>
-      </Link>
-    </div>
+      </div>
+    </Link>
   );
 });
 

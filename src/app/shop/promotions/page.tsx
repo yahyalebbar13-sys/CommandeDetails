@@ -16,31 +16,31 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     addItem({ productId: product.id, productName: product.name, productImage: product.images?.[0] || '', price: product.price, quantity: product.minOrderQty || 1, maxStock: product.stockQty ?? 999 });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
 
   return (
-    <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full">
+    <Link
+      href={`/shop/produit/${product.id}`}
+      className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full no-underline"
+    >
       <div className="relative aspect-square bg-gray-50 shop-img-zoom">
-        <Link href={`/shop/produit/${product.id}`} className="absolute inset-0 z-0" tabIndex={-1} aria-label={product.name}></Link>
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-        </div>
-        {/* Promo badge */}
+        <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
 
         {product.isNew && (
-          <div className="absolute top-3 right-3 z-10 pointer-events-none">
+          <div className="absolute top-3 right-3 pointer-events-none">
             <span className="bg-[#10B981] text-white font-black text-xs px-2 py-1 rounded-full">NOUVEAU</span>
           </div>
         )}
-        {/* Mobile Quick Add (Persistent) */}
+        {/* Mobile Quick Add */}
         {product.inStock !== false && (
           <button
             onClick={handleAdd}
             disabled={added}
-            className={`lg:hidden absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
+            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
               added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
             }`}
           >
@@ -48,21 +48,21 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           </button>
         )}
         {/* Desktop Quick add overlay */}
-        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
           <button onClick={handleAdd}
             className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
             {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
           </button>
         </div>
       </div>
-      <Link href={`/shop/produit/${product.id}`} className="p-4 flex flex-col flex-grow">
+      <div className="p-4 flex flex-col flex-grow">
         <p className="text-xs font-semibold text-[#D4A843] uppercase mb-1">{product.categoryName}</p>
-        <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
+        <h3 className="font-semibold text-[#1A1A1A] text-sm line-clamp-2 mb-3 group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: 'Outfit, sans-serif' }}>{product.name}</h3>
         <div className="flex items-center gap-2">
           <span className="font-black text-[#C8102E] text-lg">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
         </div>
-      </Link>
-    </div>
+      </div>
+    </Link>
   );
 });
 
