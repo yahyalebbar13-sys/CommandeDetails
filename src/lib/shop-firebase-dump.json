@@ -1518,10 +1518,13 @@
       "isPromo": false,
       "shortDescription": "Fil à coudre 40/2 de haute qualité, conçu pour les travaux de confection, de couture industrielle et artisanale.",
       "isNew": true,
-      "nameAr": "Fil à Coudre 40/2",
-      "descriptionAr": "Fil à Coudre 40/2 – Résistance, Régularité et Performance\n\nNotre fil à coudre 40/2 est spécialement conçu pour répondre aux exigences des professionnels de la confection, des ateliers de couture et des fabricants de vêtements. Grâce à sa structure composée de deux brins torsadés, il garantit une excellente résistance à la traction, une grande régularité de couture et une finition soignée.\n\nPolyvalent, ce fil convient parfaitement à la couture de nombreux types de tissus, allant des tissus légers aux tissus de poids moyen. Il assure un passage fluide dans les machines à coudre industrielles et domestiques, réduisant les risques de casse et permettant un travail rapide et efficace.\n\nDisponible dans une large gamme de couleurs, le fil 40/2 offre une excellente tenue des couleurs et contribue à la réalisation de coutures esthétiques, durables et professionnelles.",
-      "shortDescriptionAr": "Fil à coudre 40/2 de haute qualité, conçu pour les travaux de confection, de couture industrielle et artisanale.",
-      "categoryNameAr": "Bobines de fil"
+      "nameAr": "خيط خياطة 40/2",
+      "descriptionAr": "خيط خياطة 40/2 – المتانة والانتظام والأداء العالي\n\nخيطنا المصنوع من البوليستر 40/2 يجمع بين القوة الاستثنائية والنعومة الممتازة. مثالي للخياطة الصناعية والحرفية على حدٍّ سواء.\n\nالمميزات الرئيسية:\n• مقاومة فائقة للكسر والشد\n• ملمس ناعم لا يؤثر على القماش\n• ألوان ثابتة لا تبهت بعد الغسيل\n• مناسب لجميع أنواع ماكينات الخياطة\n\nمثالي لـ: خياطة الملابس، التطريز الصناعي، ورش الخياطة.",
+      "shortDescriptionAr": "خيط خياطة 40/2 عالي الجودة، مصمم لأعمال الخياطة الصناعية والحرفية.",
+      "categoryNameAr": "Bobines de fil",
+      "materialAr": "100% بوليستر",
+      "specificationAr": "مقاس 40/2",
+      "packagingAr": "10 بكرات في العبوة"
     },
     {
       "id": "custom_1780502082575_qi5br",
@@ -1596,10 +1599,13 @@
       "isNew": true,
       "isPromo": false,
       "shortDescription": "Fil à coudre canette polyester de qualité industrielle, conçu pour les ateliers de confection et les fabricants de vêtements. Résistant, régulier et économique grâce à sa grande capacité, il garantit des coutures solides et une excellente productivité.",
-      "nameAr": "fil Cannete",
-      "descriptionAr": "Fil à Coudre Canette Polyester – Grande Capacité pour la Confection Industrielle\n\nNotre fil à coudre canette polyester est spécialement conçu pour répondre aux exigences des professionnels du textile, des ateliers de confection et des unités de production industrielle.\n\nFabriqué à partir de fibres polyester de haute qualité, ce fil offre une excellente résistance à la traction, une grande régularité et une performance optimale sur les machines à coudre industrielles à haute vitesse.\n\nGrâce à son format grande capacité sur cône, il réduit les changements de bobines et améliore la productivité en atelier. Il convient parfaitement à la fabrication de vêtements, uniformes, textiles de maison et autres articles de confection.\n\nSa finition soignée permet des coutures propres, durables et résistantes à l'usure quotidienne.\n\nCaractéristiques\nFil polyester haute qualité\nGrande bobine industrielle\nExcellente résistance à la traction\nCoutures régulières et propres\nFaible taux de casse\nCompatible avec les machines industrielles\nDisponible en plusieurs couleurs\nIdéal pour la production en série\nApplications\nConfection textile\nVêtements professionnels\nUniformes\nPrêt-à-porter\nLingerie\nTextile de maison\nAteliers de couture\nIndustrie textile",
-      "shortDescriptionAr": "Fil à coudre canette polyester de qualité industrielle, conçu pour les ateliers de confection et les fabricants de vêtements. Résistant, régulier et économique grâce à sa grande capacité, il garantit des coutures solides et une excellente productivité.",
-      "categoryNameAr": "Bobines de fil"
+      "nameAr": "خيط المكوك (كانيت)",
+      "descriptionAr": "خيط المكوك (كانيت) – دقة لا تتنازل عنها\n\nخيط المكوك المصنوع من البوليستر عالي الجودة يضمن خياطة سلسة وثابتة بدون انقطاع. متوافق مع أغلب ماكينات الخياطة.\n\nالمميزات:\n• قوة شد عالية ومرونة مثالية\n• سطح أملس لتسهيل انزلاق الخيط\n• لا يتعقد أثناء الخياطة",
+      "shortDescriptionAr": "خيط مكوك عالي الجودة مناسب لجميع ماكينات الخياطة الصناعية.",
+      "categoryNameAr": "Bobines de fil",
+      "materialAr": "100% بوليستر",
+      "specificationAr": "متوافق مع جميع المكوكات القياسية",
+      "packagingAr": "علبة متعددة البكرات"
     },
     {
       "id": "custom_1780503129736_5if0z",
@@ -1679,10 +1685,13 @@
       "price": 120,
       "isFeatured": true,
       "categorySlug": "fermetures-invisibles",
-      "nameAr": "Viseline 1040EF (Entoilage ThermocollantThermocollante)",
-      "descriptionAr": "La Viseline Nonwoven 1040EF est un entoilage non tissé thermocollant utilisé dans l'industrie de l'habillement pour apporter maintien, structure et durabilité aux vêtements. Fabriquée à partir de fibres de qualité avec revêtement thermocollant, elle garantit une excellente adhérence au tissu et une finition professionnelle.\n\nGrâce à son poids intermédiaire d'environ 40 g/m², la 1040EF est particulièrement adaptée aux chemises, uniformes, vêtements de travail, vêtements traditionnels et articles nécessitant un bon maintien sans rigidité excessive.\n\nElle est largement utilisée pour :\n\nCols de chemises\nPoignets\nPattes de boutonnage\nDevants de vêtements\nRenforts de vestes et uniformes\nArticles de confection textile professionnelle\n\nSon application thermocollante permet une pose rapide et efficace tout en garantissant une excellente tenue après utilisation et entretien.\n\nCaractéristiques\nRéférence : 1040EF\nType : Nonwoven (non tissé)\nThermocollante\nExcellente stabilité dimensionnelle\nBonne adhérence au tissu\nToucher souple et confortable\nConvient aux tissus légers et moyens\nUtilisation industrielle et artisanale",
-      "shortDescriptionAr": "90yds/rlx , 150cm",
-      "categoryNameAr": "Tissu & Doublure"
+      "nameAr": "فيزلين 1040EF – قماش حشو حراري لاصق",
+      "descriptionAr": "فيزلين 1040EF – الحشو الحراري الاحترافي\n\nفيزلين 1040EF هو قماش حشو حراري لاصق يُستخدم لتقوية وتثبيت الأقمشة في مشاريع الخياطة المختلفة.\n\nالمميزات:\n• يُطبَّق بالحرارة بسهولة تامة\n• يُقوّي القماش ويحافظ على شكله\n• لا يسبب التجعد أو الالتصاق الزائد\n• مناسب لأقمشة متعددة",
+      "shortDescriptionAr": "قماش حشو حراري لاصق عالي الجودة مثالي للخياطة الاحترافية وتصميم الملابس.",
+      "categoryNameAr": "Tissu & Doublure",
+      "materialAr": "بوليستر مع طبقة لاصقة حرارية",
+      "specificationAr": "1040EF",
+      "packagingAr": "رول كامل"
     },
     {
       "id": "custom_1780595583026_yc5ik",
@@ -1790,10 +1799,13 @@
       ],
       "rating": 5,
       "minOrderQty": 1,
-      "nameAr": "Doublure 210T Largeur 1m50 – Tissu de Doublure Léger et Résistant",
-      "descriptionAr": "🧵 La doublure 210T est un tissu technique apprécié pour sa légèreté, sa résistance et son confort. Elle est principalement utilisée pour doubler les vêtements et accessoires afin d'améliorer leur finition, leur durabilité et leur confort d'utilisation.\n\nGrâce à sa texture lisse et agréable au toucher, elle facilite l'enfilage des vêtements tout en apportant un aspect soigné et professionnel aux créations textiles.\n\nAvec une largeur de 1m50, cette doublure convient parfaitement à la fabrication de vestes, manteaux, blousons, sacs, bagages et divers articles de confection.\n\n✅ Légère et confortable\n✅ Résistante à l'usure quotidienne\n✅ Facile à couper et à coudre\n✅ Finition propre et professionnelle\n✅ Adaptée aux vêtements et accessoires textiles\n\nApplications : Vestes, manteaux, blousons, uniformes, sacs, sacs à dos, valises, maroquinerie et confection textile.",
-      "shortDescriptionAr": "1m50 , 100m/rlx",
-      "categoryNameAr": "Tissu & Doublure"
+      "nameAr": "بطانة 210T عرض 1.50 م – قماش بطانة خفيف",
+      "descriptionAr": "بطانة 210T – الرفاهية والإتقان في كل قطعة\n\nبطانة 210T بعرض 1.50 م تُضفي نعومة ومظهراً احترافياً لملابسك. لمسة ناعمة تُريح البشرة وتُحسن تدلّي الملابس.\n\nالمميزات:\n• وزن خفيف للراحة الكاملة\n• سهلة الخياطة والقص\n• أساسية لبطانة الجاكيتات، الفساتين والسراويل\n• متوفرة بألوان متعددة",
+      "shortDescriptionAr": "قماش بطانة خفيف الوزن بعرض 1.50 م، مثالي للملابس والتصميمات الاحترافية.",
+      "categoryNameAr": "Tissu & Doublure",
+      "materialAr": "100% بوليستر",
+      "specificationAr": "عرض 150 سم",
+      "packagingAr": "رول من 50 متراً"
     },
     {
       "id": "custom_1780597564525_qupv8",
@@ -1858,10 +1870,13 @@
       "price": 120,
       "isFeatured": false,
       "categorySlug": "tissu-doublure",
-      "nameAr": "Fil à Coudre Polyester 20/3 – Pack de 6 Bobines (350g)",
-      "descriptionAr": "Le fil à coudre polyester 20/3 est un fil épais et résistant, spécialement conçu pour les coutures soumises à des contraintes importantes. Grâce à sa fabrication en polyester haute ténacité, il offre une excellente résistance à la traction, à l'abrasion et à l'usure quotidienne.\n\nSa structure 20/3 (3 brins) garantit des coutures solides, régulières et durables, ce qui en fait un choix privilégié pour les ateliers de confection, les fabricants de vêtements de travail, de jeans, de sacs et d'articles textiles nécessitant une finition robuste.\n\nLa bobine de 350g permet une utilisation prolongée et une meilleure productivité en atelier.\n\n✔️ Haute résistance\n✔️ Excellente durabilité\n✔️ Finition professionnelle\n✔️ Faible risque de casse\n✔️ Adapté aux coutures exigeantes",
-      "shortDescriptionAr": "Pack de 6 bobines de fil à coudre polyester 20/3 de 350g, offrant une excellente résistance et une qualité professionnelle.",
-      "categoryNameAr": "Bobines de fil"
+      "nameAr": "خيط بوليستر 20/3 – حزمة 6 بكرات (3000 م)",
+      "descriptionAr": "خيط بوليستر 20/3 – القوة للخياطة الثقيلة\n\nخيطنا 20/3 مصمم للخياطة الثقيلة والاحترافية. سميك ومتين، يُستخدم لخياطة الأحذية، الحقائب، المعدات الرياضية وغيرها.\n\nالمميزات:\n• سماكة مثالية للخياطة الثقيلة\n• مقاومة فائقة للشد والكسر\n• ألوان متعددة ثابتة",
+      "shortDescriptionAr": "حزمة 6 بكرات خيط بوليستر 20/3 بطول 3000 متر، مثالي للخياطة الصناعية.",
+      "categoryNameAr": "Bobines de fil",
+      "materialAr": "100% بوليستر",
+      "specificationAr": "مقاس 20/3",
+      "packagingAr": "6 بكرات × 500 متر = 3000 متر"
     },
     {
       "id": "custom_1780601016715_p3t1p",
@@ -2014,10 +2029,13 @@
       "isNew": true,
       "shortDescription": "Pack de 12 bobines de fil à coudre polyester 40/3, conçu pour offrir des coutures fines, solides et régulières. Idéal pour la confection de vêtements, chemises, t-shirts, pantalons, uniformes et travaux de couture professionnels.",
       "isPromo": false,
-      "nameAr": "Fil à Coudre Polyester 40/3 – Pack de 12 Bobines",
-      "descriptionAr": "Le fil à coudre polyester 40/3 est l'un des fils les plus utilisés dans l'industrie de la confection grâce à son excellent équilibre entre finesse et résistance.\n\nFabriqué à partir de polyester de haute qualité, il assure des coutures nettes, régulières et durables sur une large gamme de tissus. Sa résistance à la traction et aux lavages fréquents en fait un choix privilégié pour les ateliers de couture, les fabricants de vêtements et les professionnels du textile.\n\n📦 Conditionné en pack de 12 bobines, il constitue une solution pratique et économique pour les productions régulières et les besoins professionnels.\n\n✅ Caractéristiques\nRéférence : 40/3\nMatière : Polyester\nConditionnement : Pack de 12 bobines\nHaute résistance à l'usure\nCoutures propres et régulières\nCompatible avec les machines industrielles et domestiques\nQualité professionnelle\n🎯 Utilisations\nChemises\nT-shirts\nPantalons\nUniformes\nVêtements de travail\nRetouches et couture générale\nConfection textile professionnelle\n⭐ Avantages\n\n✔️ Excellente résistance\n✔️ Finition soignée\n✔️ Faible risque de casse\n✔️ Adapté à une utilisation intensive\n✔️ Idéal pour les ateliers et professionnels",
-      "shortDescriptionAr": "Pack de 12 bobines de fil à coudre polyester 40/3, conçu pour offrir des coutures fines, solides et régulières. Idéal pour la confection de vêtements, chemises, t-shirts, pantalons, uniformes et travaux de couture professionnels.",
-      "categoryNameAr": "Bobines de fil"
+      "nameAr": "خيط بوليستر 40/3 – حزمة 12 بكرة",
+      "descriptionAr": "خيط بوليستر 40/3 – الاحتراف في كل غرزة\n\nخيط بوليستر 40/3 هو الخيار المفضل للمحترفين. جودة ثابتة، متانة عالية، وألوان لا تبهت مع الغسيل.\n\nالمميزات:\n• جودة صناعية موثوقة\n• متانة عالية مع نعومة في الخياطة\n• مناسب للقمصان، البنطلونات والسترات",
+      "shortDescriptionAr": "حزمة 12 بكرة من خيط بوليستر 40/3 عالي الجودة، مناسب للخياطة الصناعية والحرفية.",
+      "categoryNameAr": "Bobines de fil",
+      "materialAr": "100% بوليستر",
+      "specificationAr": "مقاس 40/3",
+      "packagingAr": "12 بكرة في الحزمة"
     },
     {
       "id": "custom_1780932946065_4li5t",
@@ -2287,10 +2305,13 @@
         "emballage cadeau",
         "couture et événements. Disponible chez Lebtex Maroc."
       ],
-      "nameAr": "Ruban Satin 25 mm – Pack de 10 Pièces",
-      "descriptionAr": "Description complète\nRuban Satin 25 mm – Élégance et Polyvalence\n\nApportez une finition élégante à vos créations avec notre ruban satin 25 mm. Fabriqué avec des matériaux de qualité, il offre un aspect brillant, un toucher doux et une excellente résistance à l'usure.\n\nChaque pack contient 10 rouleaux de 20 mètres, offrant une solution économique pour les professionnels de la décoration, les fleuristes, les organisateurs d'événements, les boutiques de cadeaux et les ateliers de couture.\n\nGrâce à sa largeur de 25 mm, ce ruban est parfait pour la confection de nœuds, l'emballage de cadeaux, la décoration de mariages, anniversaires, baptêmes et autres événements spéciaux.\n\nCaractéristiques\nLargeur : 25 mm\nLongueur : 20 mètres par rouleau\nConditionnement : Pack de 10 rouleaux\nAspect satiné brillant\nToucher doux et soyeux\nRésistant et durable\nFacile à nouer et à manipuler\nDisponible en plusieurs couleurs\nApplications\nEmballage cadeau\nDécoration événementielle\nMariages et fêtes\nFleuristerie\nCouture et confection\nLoisirs créatifs\nDécoration artisanale\nCréation de nœuds et accessoires",
-      "shortDescriptionAr": "Ruban satin 25 mm de haute qualité, vendu en pack de 10 rouleaux de 20 mètres chacun. Souple, brillant et résistant, il est idéal pour la décoration, l'emballage cadeau, les créations artisanales, la couture et les événements.",
-      "categoryNameAr": "Biais & Rubans"
+      "nameAr": "شريط ساتان 25 مم – حزمة 10 قطع",
+      "descriptionAr": "شريط ساتان 25 مم – الأناقة والتنوع\n\nشريط الساتان 25 مم مثالي لإضفاء لمسة أنيقة على هداياك، ملابسك وديكورات الفعاليات.\n\nالاستخدامات:\n• تزيين الهدايا والبالونات\n• حزام خصر للفساتين\n• ديكور حفلات الأعراس والمناسبات\n• صناعة الإكسسوارات اليدوية",
+      "shortDescriptionAr": "شريط ساتان عالي الجودة بعرض 25 مم، يُباع في حزمة 10 بكرات.",
+      "categoryNameAr": "Biais & Rubans",
+      "materialAr": "100% بوليستر ساتان",
+      "specificationAr": "عرض 25 مم",
+      "packagingAr": "10 بكرات في الحزمة"
     },
     {
       "id": "custom_1781027836259_yb000",
@@ -2407,10 +2428,13 @@
         "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781027753821_bz7nym.jpg?alt=media&token=7368dd01-f7bf-4a3c-81e7-0434af7ce6f8",
         "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781027766404_zapr45.jpg?alt=media&token=c3bc0170-52ce-45f7-9cf4-998cb3dafda5"
       ],
-      "nameAr": "Tissu Popeline Polyester 100% – Rouleau de 50 Mètres",
-      "descriptionAr": "Notre tissu popeline polyester 100% offre une excellente qualité de finition pour les professionnels du textile et de la confection. Grâce à son tissage fin et régulier, il garantit un rendu élégant tout en restant résistant à l'usure quotidienne.\n\nSa texture douce et légère le rend adapté à de nombreuses applications : vêtements professionnels, chemises, blouses, robes, uniformes scolaires, vêtements de travail, décoration textile et projets de couture.\n\nCaractéristiques :\n\n✔ Composition : 100% Polyester\n✔ Type : Popeline\n✔ Conditionnement : Rouleau de 50 mètres\n✔ Texture : Lisse et légère\n✔ Entretien facile\n✔ Bonne résistance aux plis\n✔ Séchage rapide\n✔ Convient à la confection et à l'industrie textile",
-      "shortDescriptionAr": "Tissu popeline polyester 100% de haute qualité, idéal pour la confection de vêtements, uniformes, chemises, robes, articles promotionnels et travaux de couture. Léger, résistant et facile d'entretien, vendu en rouleau de 50 mètres.",
-      "categoryNameAr": "Tissu & Doublure"
+      "nameAr": "قماش بوبلين بوليستر 100% – رول 50 متراً",
+      "descriptionAr": "بوبلين بوليستر 100% – الجودة المضمونة لكل استخدام\n\nبوبلين البوليستر يجمع بين المتانة وسهولة العناية. نسيج ناعم، مقاوم للتجاعيد ومناسب للاستخدام اليومي.\n\nالمميزات:\n• لا يتجعد بسهولة\n• سهل الغسيل والكوي\n• متوفر بألوان متعددة\n• مثالي للملابس الموحدة والمدرسية",
+      "shortDescriptionAr": "قماش بوبلين بوليستر 100% عالي الجودة، مثالي للملابس والمفروشات. رول كامل 50 متراً.",
+      "categoryNameAr": "Tissu & Doublure",
+      "materialAr": "100% بوليستر",
+      "specificationAr": "عرض 150 سم",
+      "packagingAr": "رول من 50 متراً"
     },
     {
       "id": "custom_1781213370895_92nbv",
@@ -2450,10 +2474,13 @@
       "stockQty": 500,
       "slug": "bouton-pression-ressort-15-mm-blanc-type-w-en-fer-1000-ensembles-sachet",
       "reviewCount": 0,
-      "nameAr": "Bouton Pression à Ressort 15 mm Blanc Type W en Fer – 1000 Ensembles/Sachet",
-      "descriptionAr": "Le bouton pression à ressort 15 mm Type W est une solution de fermeture pratique, résistante et durable pour l'industrie textile et la confection. Sa conception à ressort assure une excellente tenue et une ouverture/fermeture fluide.\n\nFabriqué en fer robuste avec une finition blanche propre et élégante, ce bouton convient parfaitement aux vêtements, uniformes, accessoires de mode, maroquinerie légère et projets de couture.\n\nCaractéristiques\nProduit : Snap Spring Button\nType : W-Style\nDiamètre : 15 mm\nCouleur : Blanc\nMatière : Fer (Iron Material)\nUtilisation : Couture, confection, textile, maroquinerie\nFermeture solide et durable\nInstallation avec presse à boutons pression",
-      "shortDescriptionAr": "Bouton pression à ressort de 15 mm de couleur blanche, fabriqué en fer de haute qualité. Idéal pour vêtements, uniformes, sacs, articles textiles et travaux de confection professionnels.",
-      "categoryNameAr": "Boutons"
+      "nameAr": "دبابيس ضغط زنبركية 15 مم بيضاء – 1000 طقم",
+      "descriptionAr": "دبابيس الضغط الزنبركية 15 مم – الإغلاق المثالي\n\nدبابيس الضغط الزنبركية 15 مم تُوفر إغلاقاً موثوقاً وسريعاً لمختلف المنتجات النسيجية.\n\nالاستخدامات:\n• ملابس الأطفال والرضع\n• بيجامات وملابس النوم\n• إكسسوارات الملابس\n\nالمميزات:\n• قوة ضغط مثالية – تفتح وتُغلق بسهولة\n• مقاومة للصدأ\n• مثبتة بإحكام لا تسقط",
+      "shortDescriptionAr": "دبابيس ضغط زنبركية 15 مم بيضاء اللون مصنوعة من الحديد – 1000 طقم كامل.",
+      "categoryNameAr": "Boutons",
+      "materialAr": "حديد مطلي",
+      "specificationAr": "قطر 15 مم – نوع W",
+      "packagingAr": "1000 طقم كامل (1000 قطعة علوية + 1000 قطعة سفلية)"
     },
     {
       "id": "custom_1781548051720_mliyd",
@@ -2594,10 +2621,13 @@
       "shortDescription": "Ruban velours de haute qualité offrant une texture douce et élégante. Idéal pour la confection, la décoration, l'emballage cadeau, les accessoires de mode et les travaux de couture professionnels.",
       "isPromo": false,
       "isNew": true,
-      "nameAr": "Velvet Ribbon (Moubra)– 100 Yards/Roll",
-      "descriptionAr": "Notre ruban velours (Moubra) est fabriqué avec une finition douce et luxueuse, garantissant une excellente apparence et une grande durabilité. Grâce à sa texture veloutée et son aspect premium, il est largement utilisé dans l'industrie textile, la confection de vêtements, les accessoires, les emballages cadeaux haut de gamme et les projets de décoration.\n\nCaractéristiques :\n\nMatière : Velvet Ribbon\nTexture douce et élégante\nExcellente résistance à l'usure\nCouleurs riches et durables\nFacile à coudre et à manipuler\nConvient à un usage professionnel et artisanal\nSpécifications\nProduit : Velvet Ribbon (Moubra)\nLongueur : 100 Yards / Roll\nType : Decorative Velvet Ribbon\nUtilisation : Couture, habillement, décoration, emballage cadeau, artisanat",
-      "shortDescriptionAr": "Ruban velours de haute qualité offrant une texture douce et élégante. Idéal pour la confection, la décoration, l'emballage cadeau, les accessoires de mode et les travaux de couture professionnels.",
-      "categoryNameAr": "Biais & Rubans"
+      "nameAr": "شريط مخمل (مُبرة) – 100 يارد/رول",
+      "descriptionAr": "شريط المخمل (المُبرة) – الفخامة في كل لمسة\n\nشريط المخمل بملمسه الناعم المخملي يُضفي لمسة فخامة لا مثيل لها على تصميماتك.\n\nالاستخدامات:\n• تزيين الفساتين والسترات\n• إكسسوارات الشعر\n• حزامات الخصر\n• ديكور المنزل والهدايا",
+      "shortDescriptionAr": "شريط مخمل عالي الجودة بملمس ناعم وفاخر، يُباع في رول 100 يارد.",
+      "categoryNameAr": "Biais & Rubans",
+      "materialAr": "100% بوليستر مخمل",
+      "specificationAr": "طول 100 يارد",
+      "packagingAr": "رول واحد كامل"
     },
     {
       "id": "custom_1781549677899_11okn",
@@ -2642,10 +2672,13 @@
       "slug": "fermeture-clair-nylon-n-5-75-cm-half-tour-100-pi-ces",
       "inStock": true,
       "stockQty": 999,
-      "nameAr": "سحاب نايلون مقاس 5 - 75 سم نصف دائرة - 100 قطعة",
-      "descriptionAr": "هذا السحاب المصنوع من النايلون مقاس 5 بطول 75 سم مزود بمنزلق قفل تلقائي (Auto Lock) يضمن إغلاقاً موثوقاً وآمناً. بفضل مرونته ومقاومته العالية وتشطيبه عالي الجودة، فهو مناسب بشكل خاص لتفصيل الملابس الاحترافية والسترات والكنزات الصوفية والملابس الرياضية وغيرها من المنتجات النسيجية.\n\nيحافظ نظام القفل التلقائي على ثبات المنزلق في مكانه عند عدم استخدامه، مما يمنع الفتح غير المقصود. يُباع في عبوات تحتوي على 100 قطعة، ويعتبر هذا السحاب مثالياً لورش الخياطة ومصنعي الملابس وتجار الجملة.\n\nالمميزات\n- النوع: سحاب نايلون\n- المقاس: رقم 5\n- الطول: 75 سم\n- الموديل: نصف دائرة (Half Tour)\n- المنزلق: قفل تلقائي\n- متين ومرن\n- للاستخدام المهني\n- فتح وإغلاق سلس\n\nالمواصفات\n- المنتج: سحاب نايلون (Nylon Zipper)\n- الحجم: مقاس 5\n- الطول: 75 سم\n- نوع المنزلق: قفل تلقائي\n- التعبئة: 100 قطعة\n- التطبيق: الملابس وتفصيل المنسوجات\n\nالاستخدامات\n- السترات\n- الملابس الرياضية\n- الكنزات\n- ملابس العمل\n- الأزياء\n- التفصيل",
-      "shortDescriptionAr": "سحاب نايلون مقاس 5 بطول 75 سم مع منزلق قفل تلقائي. تصميم نصف دائرة مخصص للملابس والسترات والملابس الرياضية ومنتجات الخياطة. عبوة احترافية تحتوي على 100 قطعة.",
-      "categoryNameAr": "سحابات نايلون"
+      "nameAr": "سحاب نايلون مقاس 5 – 75 سم نصف دائرة – 100 قطعة",
+      "descriptionAr": "سحاب نايلون مقاس 5 – 75 سم نصف دائرة\n\nسحاب نايلون متين ومرن بتصميم نصف دائرة، مثالي للسترات والجاكيتات الرياضية.\n\nالمميزات:\n• نايلون عالي المقاومة\n• منزلق قفل تلقائي لمنع الفتح العرضي\n• خفيف الوزن وسهل الاستخدام\n• ألوان ثابتة",
+      "shortDescriptionAr": "سحاب نايلون مقاس 5 بطول 75 سم مع منزلق قفل تلقائي – حزمة 100 قطعة.",
+      "categoryNameAr": "سحابات نايلون",
+      "materialAr": "نايلون",
+      "specificationAr": "مقاس 5 – طول 75 سم",
+      "packagingAr": "100 قطعة في الحزمة"
     },
     {
       "id": "custom_1781639488186_8gm8s",
@@ -2677,12 +2710,13 @@
       "name": "Bouton 2 Trous en Résine – 10Gross",
       "categoryName": "Boutons",
       "specification": "BLANC",
-      "nameAr": "Bouton 2 Trous en Résine – 10Gross",
-      "descriptionAr": "Le bouton 2 trous en résine est conçu pour répondre aux exigences des ateliers de confection, fabricants de vêtements et couturiers. Fabriqué à partir d'une résine de haute qualité, il offre une excellente résistance à l'usure, aux lavages répétés et à l'utilisation quotidienne.\n\nSon design classique à 2 trous garantit une fixation solide tout en apportant une finition propre et élégante à tous types de vêtements.Applications\nConfection textile\nIndustrie de l'habillement\nRetouches et réparation de vêtements\nArtisanat et loisirs créatifs\nUniformes scolaires et professionnels\nAvantages\n\n✅ Durable et résistant\n✅ Aspect professionnel\n✅ Fixation simple et efficace\n✅ Disponible en plusieurs tailles et couleurs\n✅ Adapté à la production industrielle et artisanale",
-      "shortDescriptionAr": "Boîte de 1440 boutons 2 trous en résine de haute qualité, idéale pour les ateliers de confection, fabricants de vêtements et grossistes.",
+      "nameAr": "أزرار 2 ثقوب راتنج – 10 غروس",
+      "descriptionAr": "أزرار الراتنج 2 ثقوب – المتانة والأناقة\n\nأزرار الراتنج 2 ثقوب مُصممة لتلبية متطلبات الخياطة الاحترافية. متانة استثنائية ومظهر أنيق.\n\nالاستخدامات:\n• قمصان الرجال والنساء\n• البلوزات الكلاسيكية\n• الملابس الرسمية",
+      "shortDescriptionAr": "علبة 1440 زر راتنج بثقبين عالي الجودة، مثالي للملابس والتصميمات الاحترافية.",
       "categoryNameAr": "Boutons",
-      "materialAr": "100% Resine",
-      "specificationAr": "BLANC"
+      "materialAr": "100% راتنج",
+      "specificationAr": "أبيض اللون",
+      "packagingAr": "1440 قطعة (10 غروس)"
     },
     {
       "id": "custom_1781800044807_y5s58",
@@ -2854,12 +2888,13 @@
       "material": "Nylon",
       "width": "20CM",
       "rating": 5,
-      "nameAr": "سحاب نايلون مقاس 3 - 20 سم",
-      "descriptionAr": "أضف لمسة نهائية نظيفة واحترافية إلى إبداعاتك مع سحاب النايلون مقاس 3 الخاص بنا. مصمم للاستخدام اليومي، وتوفر أسنان السحاب البلاستيكية الحلزونية فتحاً وإغلاقاً سلساً دون عقبات.\n\nالميزات الرئيسية:\n- طول السحاب: 20 سم (مثالي للمشاريع الصغيرة والمتوسطة).\n- مقاس السحاب: رقم 3 (قياسي للخياطة الكلاسيكية).\n- المواد: أسنان من النايلون/البلاستيك المرن على شريط بوليستر.\n- اللون: أبيض سادة، أنيق وسهل التنسيق.\n- المنزلق: معدني بتشطيب مطابق، يوفر قبضة جيدة.\n- مثالي لـ: الملابس (التنانير، السراويل الخفيفة، الفساتين)، السلع الجلدية الصغيرة، الحقائب، الحقائب المدرسية، أغطية الوسائد والهوايات الإبداعية.\n\nخفيف ولكنه قوي، يمكن خياطة هذا السحاب بسهولة باستخدام آلة الخياطة ويضمن عمراً طويلاً لجميع مشاريع الخياطة الخاصة بك.",
-      "shortDescriptionAr": "سحاب نايلون أبيض بطول 20 سم (مقاس 3). سلس ومقاوم وسهل الخياطة، وهو من إكسسوارات الخردوات الأساسية لتفصيل وإصلاح التنانير والفساتين والحقائب أو الوسائد الصغيرة.",
+      "nameAr": "سحاب نايلون مقاس 3 – 20 سم",
+      "descriptionAr": "أضف لمسة نهائية نظيفة واحترافية إلى إبداعاتك مع سحاب النايلون مقاس 3 – 20 سم. هذا السحاب مصمم للاستخدامات الخفيفة مثل الفساتين والتنانير والمستلزمات النسيجية.\n\nالمميزات:\n• نايلون عالي الجودة\n• حركة سلسة لا تنحشر\n• مناسب للخياطة اليدوية والآلية\n• لون أبيض كلاسيكي",
+      "shortDescriptionAr": "سحاب نايلون أبيض بطول 20 سم (مقاس 3). سلس ومقاوم وسهل الخياطة. 100 قطعة.",
       "categoryNameAr": "سحابات نايلون",
       "materialAr": "نايلون",
-      "specificationAr": "رقم 3"
+      "specificationAr": "رقم 3 – طول 20 سم",
+      "packagingAr": "100 قطعة في الحزمة"
     },
     {
       "id": "custom_1781800977018_7ht78",
@@ -2928,12 +2963,13 @@
       "price": 19.5,
       "categorySlug": "scratch-velcro",
       "isFeatured": false,
-      "nameAr": "Rouleau de Bande Auto-agrippante(Scratch / Velcro)- 2,5 cm",
-      "descriptionAr": "Apportez une solution de fermeture pratique, rapide et réutilisable à vos créations avec notre Bande Auto-agrippante de 2,5 cm. Ce système classique à \"scratch\" est composé de deux parties complémentaires : la face mâle (crochets rugueux) et la face femelle (velours doux) qui assurent une accroche ferme et résistante à l'usure.",
-      "shortDescriptionAr": "Ruban auto-agrippant de haute qualité, largeur 2,5 cm. Ce système de fermeture composé de deux rubans (crochet et velours) est facile à coudre et offre une fixation solide et ajustable. L'accessoire incontournable pour la confection de vêtements, sacs et équipements professionnels.",
+      "nameAr": "رول شريط فيلكرو (سكراتش) – عرض 2.5 سم",
+      "descriptionAr": "شريط الفيلكرو – الإغلاق الذكي والعملي\n\nشريط الفيلكرو يوفر حلاً لإغلاق سريعاً وقابلاً لإعادة الاستخدام آلاف المرات.\n\nالاستخدامات:\n• ملابس الأطفال والرضع\n• أحذية رياضية وصنادل\n• حقائب ومحافظ\n• التطبيقات الصناعية",
+      "shortDescriptionAr": "شريط فيلكرو عالي الجودة بعرض 2.5 سم. نظام إغلاق سريع وقابل لإعادة الاستخدام.",
       "categoryNameAr": "Scratch / Velcro",
-      "materialAr": "Polyester",
-      "specificationAr": "25yds/rlx"
+      "materialAr": "بوليستر",
+      "specificationAr": "عرض 2.5 سم – 25 يارد/رول",
+      "packagingAr": "رول واحد"
     },
     {
       "id": "custom_1781882828844_wzuoq",
@@ -2990,11 +3026,13 @@
       "isFeatured": false,
       "categorySlug": "accessoires-de-confection",
       "packaging": "12pcs",
-      "nameAr": "Pack de 12 Mètres Ruban – 150 cm",
-      "descriptionAr": "Un standard de l'industrie textile, optimisé pour la durabilité et le confort visuel. Ce pack de 12 mètres ruban professionnels se distingue par sa largeur supérieure de 1,9 cm, offrant une meilleure stabilité à plat et une résistance accrue à l'usure quotidienne.\n\n✨ Caractéristiques principales :\n\nFormat économique (Lot de 12 pièces) : Idéal pour équiper entièrement un atelier de couture, un centre de formation, ou pour la revente.\n\nGrande largeur de 1,9 cm : Plus large que les modèles standards, ce ruban ne se tord pas facilement pendant la manipulation et permet l'affichage de chiffres plus grands pour un confort visuel optimal.\n\nLisibilité maximale : Les graduations millimétrées et les chiffres noirs contrastés sont imprimés de manière très nette, garantissant une lecture rapide et sans erreur.\n\nMatériau professionnel indéformable : Fabriqués dans une matière souple et renforcée qui épouse parfaitement les courbes du corps ou des tissus, sans jamais s'étirer ni se détendre au fil du temps.\n\nEmbouts métalliques robustes : Chaque extrémité est protégée par un collier métallique solide, évitant l'effilochage et assurant un point zéro parfaitement précis.",
-      "shortDescriptionAr": "Le lot idéal et économique pour les professionnels du textile et les ateliers de confection. Cette boîte contient 12 mètres ruban extra-larges (1,9 cm) d'une longueur de 150 cm. Souples, indéformables et hautement lisibles, ils offrent un confort de travail supérieur et une excellente prise en main pour toutes vos mesures.",
+      "nameAr": "حزمة 12 متر شريط – عرض 150 سم",
+      "descriptionAr": "شريط 150 سم – معيار الصناعة النسيجية\n\nشريط نسيجي احترافي بعرض 150 سم مُحسَّن للمتانة واللدونة في بيئة العمل الصناعي.\n\nالاستخدامات:\n• البطانات الداخلية للملابس\n• الأحزمة والأشرطة\n• التعزيزات النسيجية",
+      "shortDescriptionAr": "شريط نسيج عالي الجودة بعرض 150 سم – حزمة 12 قطعة.",
       "categoryNameAr": "Accessoires de Confection",
-      "specificationAr": "150cm"
+      "specificationAr": "عرض 150 سم",
+      "materialAr": "بوليستر",
+      "packagingAr": "12 قطعة في الحزمة"
     },
     {
       "id": "custom_1781885141767_1ok3o",
@@ -3049,10 +3087,13 @@
       "shortDescription": "Ce pack de 12 coupe-fils est idéal pour couper rapidement et proprement les fils lors des travaux de couture, de retouche et de confection. Pratique, économique et indispensable en atelier, il vous aide à gagner du temps tout en gardant une finition nette et professionnelle.",
       "isPromo": false,
       "isNew": true,
-      "nameAr": "Pack de 12 Coupe-fils de couture professionnels",
-      "descriptionAr": "Pensé pour les couturiers, retoucheurs, ateliers de confection et amateurs de couture, ce pack de 12 coupe-fils est un indispensable pour un travail précis et efficace. Son format en lot permet d’équiper plusieurs postes de travail ou de disposer de plusieurs outils à portée de main selon vos besoins.\n\n✨ Caractéristiques principales :\n\nPack économique de 6 pièces : idéal pour un usage professionnel ou intensif\nCoupe nette et rapide : parfait pour enlever les fils avec précision\nOutil pratique et facile à utiliser : adapté aux travaux de couture quotidiens\nIndispensable en atelier : convient pour la confection, les retouches et la finition\nFormat polyvalent : utile pour professionnels, artisans et passionnés de couture\nGain de temps : accélère les petites finitions et améliore la productivité",
-      "shortDescriptionAr": "Ce pack de 12 coupe-fils est idéal pour couper rapidement et proprement les fils lors des travaux de couture, de retouche et de confection. Pratique, économique et indispensable en atelier, il vous aide à gagner du temps tout en gardant une finition nette et professionnelle.",
-      "categoryNameAr": "Accessoires de Confection"
+      "nameAr": "حزمة 12 مقص خيوط احترافي",
+      "descriptionAr": "مقص الخيوط الاحترافي – الدقة والسرعة في كل قطعة\n\nمقص الخيوط المُصمَّم للخياطين والمحترفين يُوفر قطعاً نظيفاً ودقيقاً للخيوط الزائدة دون إتلاف القماش.\n\nالمميزات:\n• حافة حادة للقطع الدقيق\n• مريح للإمساك به\n• متين ومقاوم للاستخدام المكثف",
+      "shortDescriptionAr": "هذه الحزمة من 12 مقص خيوط مثالية لقطع الخيوط بسرعة ودقة في أي ورشة خياطة.",
+      "categoryNameAr": "Accessoires de Confection",
+      "materialAr": "فولاذ مقاوم للصدأ",
+      "specificationAr": "مقص خيوط قياسي",
+      "packagingAr": "12 قطعة في الحزمة"
     },
     {
       "id": "custom_1782228665235_uvyn0",
@@ -3164,12 +3205,13 @@
         "lwazem lkhyata",
         "lastik srawel)."
       ],
-      "nameAr": "Rouleau d'Élastique Tressé– 100 Yards",
-      "descriptionAr": "L'allié parfait pour des finitions durables et professionnelles !\n\nQue vous soyez un tailleur professionnel, un atelier de confection ou un passionné de loisirs créatifs (DIY), notre élastique tressé est conçu pour répondre à toutes vos exigences. Sa conception tressée lui confère une robustesse supérieure : il maintient fermement, ne rétrécit pas lorsqu'il est étiré et retrouve toujours sa forme initiale.\n\nPourquoi choisir notre élastique tressé ?\n\nFormat ultra-économique : Vendu à la pièce (au rouleau), chaque bobine vous offre une longueur très généreuse de 100 yards (plus de 91 mètres). Vous avez de quoi réaliser de grandes séries ou de nombreux projets sans risquer la rupture de stock !\n\nSur-mesure pour vos projets : Disponible en différentes tailles (largeurs). Que ce soit pour des ceintures de pantalons, des jupes, des sous-vêtements, des poignets, des masques ou des draps-housses, sélectionnez simplement la dimension adéquate.\n\nRésistance exceptionnelle : Conçu pour durer, il supporte de multiples lavages en machine et passages au sèche-linge sans perdre sa tension ou s'effilocher.\n\nFacile à travailler : Doux au toucher, il glisse sans accroc dans les ourlets et les coulisses, et peut être cousu directement sur le tissu en toute simplicité.\n\n(Note : N'oubliez pas de sélectionner la largeur souhaitée dans le menu déroulant avant d'ajouter votre rouleau au panier !)",
-      "shortDescriptionAr": "Rouleau d'élastique tressé de haute qualité, vendu à la pièce (1 bobine = 100 yards, soit environ 91,4 mètres). Extensible, indéformable et résistant, c'est l'accessoire de mercerie indispensable pour tous vos travaux de couture et de confection. Disponible en plusieurs largeurs pour s'adapter parfaitement à toutes vos créations !",
+      "nameAr": "رول مطاط مضفر – 100 يارد",
+      "descriptionAr": "المطاط المضفر – الشريك المثالي للتشطيبات المتينة\n\nمطاطنا المضفر يجمع بين البوليستر عالي المقاومة ومطاط اللاتكس/الإيلاستين لمرونة مثالية تدوم طويلاً.\n\nالاستخدامات:\n• أحزمة الخصر للبنطلونات والتنانير\n• الملابس الرياضية\n• أكواع الأطفال\n• البيجامات والملابس المنزلية",
+      "shortDescriptionAr": "رول مطاط مضفر عالي الجودة، يُباع بالقطعة، مناسب لجميع أعمال الخياطة.",
       "categoryNameAr": "Élastiques",
-      "materialAr": "Composition Premium : Mélange optimal de Polyester (environ 70%, pour une excellente résistance aux frottements et une grande durabilité) et de Latex naturel / Élasthanne (environ 30%, pour une flexibilité fluide et un rebond élastique parfait).",
-      "specificationAr": "100yds"
+      "materialAr": "بوليستر 70% + لاتكس/إيلاستين 30%",
+      "specificationAr": "100 يارد",
+      "packagingAr": "رول واحد"
     },
     {
       "id": "custom_1782301687832_m5bv4",
@@ -3281,11 +3323,13 @@
       "price": 30,
       "name": "1000 Sets de Moules (Boutons à Recouvrir en Aluminium)",
       "categoryName": "Tissu & Doublure",
-      "nameAr": "1000 Sets de Moules (Boutons à Recouvrir en Aluminium)",
-      "descriptionAr": "Donnez une finition sur-mesure et parfaite à toutes vos créations !\n\nQue vous soyez un atelier de confection, un tapissier d'ameublement professionnel ou un créateur passionné, notre lot de 1000 sets de moules pour boutons à recouvrir est la fourniture indispensable pour personnaliser vos pièces en grande série.\n\nConçus pour être recouverts de n'importe quel type de tissu (coton, velours, lin, cuir fin, soie...), ces moules s'assemblent facilement à l'aide d'une presse et offrent un maintien parfait et esthétique de la matière.\n\n🌟 Pourquoi choisir nos moules en aluminium ?\n\n🛡️ 100 % Inoxydable (Zéro Rouille) : L'avantage majeur de l'aluminium ! Contrairement au fer ou à l'acier classique, il garantit une résistance totale à l'eau. Vos clients pourront laver leurs vêtements sans jamais craindre l'apparition de taches de rouille autour du bouton.\n\n🪶 Légèreté et Robustesse : Ils n'alourdissent pas les tissus fluides ou délicats, tout en offrant une solidité parfaite pour supporter les fortes tensions (idéal pour le capitonnage).\n\n📏 Différentes tailles disponibles : Choisissez le diamètre parfaitement adapté à votre projet directement dans les options de la page.\n\n💼 Format Économique : Le pack de 1000 sets (1 set = 1 calotte supérieure bombée + 1 dos à coudre avec anneau) est pensé pour vous garantir le meilleur rapport qualité/prix et ne jamais tomber en rupture de stock.\n\n🛠️ Domaines d'application (Idéal pour) :\n\nCouture & Prêt-à-porter : Robes, chemisiers, manteaux, caftans.\n\nAmeublement & Tapisserie : Capitonnage de canapés (Chesterfield), fauteuils, têtes de lit, salons marocains (tlamet) et coussins.\n\nMaroquinerie & Loisirs créatifs (DIY).",
-      "shortDescriptionAr": "Optimisez vos créations avec ce pack professionnel de 1000 sets de moules pour boutons à recouvrir. Fabriqués en aluminium de haute qualité, ils sont ultra-légers, durables et 100 % inoxydables (anti-rouille). Disponibles en plusieurs tailles, ils s'adaptent parfaitement à vos tissus pour des finitions impeccables en haute couture, prêt-à-porter et tapisserie d'ameublement (salons, canapés, têtes de lit). Le choix idéal pour les professionnels, les ateliers et les passionnés !",
+      "nameAr": "1000 طقم قوالب أزرار ألومنيوم قابلة للتغطية",
+      "descriptionAr": "قوالب الأزرار القابلة للتغطية – إبداع بلمسة شخصية\n\nأعطِ تصميماتك لمسة مميزة وفريدة بتغطية الأزرار بقماش مطابق. مثالية للخياطة الراقية والتصميمات المخصصة.\n\nالاستخدامات:\n• الفساتين والسترات المخصصة\n• ملابس العرائس\n• الوسائد والأغطية المنزلية",
+      "shortDescriptionAr": "احترافي 1000 طقم قوالب أزرار ألومنيوم لتغطيتها بقماش مطابق لتصميماتك.",
       "categoryNameAr": "Tissu & Doublure",
-      "materialAr": "100 % Aluminium"
+      "materialAr": "100% ألومنيوم",
+      "specificationAr": "قوالب أزرار قياسية",
+      "packagingAr": "1000 طقم كامل (1000 جزء علوي + 1000 ظهر بحلقة)"
     },
     {
       "id": "custom_1782415355559_rjysz",
@@ -3404,11 +3448,13 @@
       "price": 0,
       "name": "Pack de 10 Grosses (1440 pièces) - Boutons en Résine 4 Trous",
       "categoryName": "Boutons",
-      "nameAr": "Pack de 10 Grosses (1440 pièces) - Boutons en Résine 4 Trous",
-      "descriptionAr": "Le bouton de référence pour la confection à grande échelle !Que vous gériez une usine de confection, un atelier de couture ou une marque de vêtements, le choix d'un bouton fiable est primordial. Ce lot de 1440 boutons en résine a été pensé pour répondre aux besoins des professionnels exigeants, offrant un compromis parfait entre qualité supérieure et prix de gros.Une fixation à 4 trous pour une tenue infaillible :Contrairement aux modèles à 2 trous, le design à 4 trous permet une couture croisée ou parallèle, offrant une résistance maximale à l'arrachement. C'est le format standard exigé pour les vêtements soumis à des tensions quotidiennes ou à un usage intensif (pantalons, vestes, uniformes, chemises, blouses de travail).Un format B2B \"Gros Volume\" ultra-économique :Dans le jargon de la mercerie, une \"grosse\" équivaut à 144 pièces (12 douzaines). En optant pour ce conditionnement industriel de 10 grosses, vous disposez d'un stock de 1440 boutons prêts à l'emploi. Ce format vous permet de réduire drastiquement vos coûts unitaires et d'optimiser vos marges d'approvisionnement sur les grandes séries.  Finition nette et polyvalence :Leur forme classique et épurée s'intègre harmonieusement sur tous types de textiles (coton, lin, denim, matières synthétiques). Chaque bouton est moulé avec précision pour garantir des bords lisses qui ne coupent pas le fil de couture lors du passage en machine.",
-      "shortDescriptionAr": "Optimisez vos coûts de production avec ce pack industriel de 10 grosses (soit 1440 pièces) de boutons classiques en résine. Dotés de 4 trous pour une couture ultra-solide et durable, ils sont le standard incontournable pour la confection de chemises, pantalons, vestes et vêtements de travail. Un essentiel de mercerie combinant résistance, finition soignée et rentabilité maximale ! (Unité de vente : 1 ajout au panier = 1 carton de 10 grosses / 1440 boutons).",
+      "nameAr": "10 غروس (1440 قطعة) أزرار راتنج 4 ثقوب",
+      "descriptionAr": "أزرار الراتنج 4 ثقوب – الزر المرجعي للخياطة الصناعية\n\nالزر المفضل للمصانع والأعمال الكبيرة. جودة ثابتة وسعر تنافسي لحجم الإنتاج الكبير.\n\nالمميزات:\n• 4 ثقوب لثبات أكبر في الخياطة\n• راتنج متين لا يتكسر\n• متوفر بأحجام متعددة",
+      "shortDescriptionAr": "حزمة صناعية 1440 قطعة من أزرار الراتنج 4 ثقوب عالية الجودة.",
       "categoryNameAr": "Boutons",
-      "materialAr": "RésignE"
+      "materialAr": "راتنج",
+      "specificationAr": "أزرار 4 ثقوب",
+      "packagingAr": "10 غروس = 1440 قطعة"
     },
     {
       "id": "custom_1782935835919_kgfc8",
@@ -3592,12 +3638,13 @@
       "width": "Standard N°5 (environ 5 mm)",
       "resistance": "Autobloquant (Auto-Lock / A/L)",
       "conseilsEntretien": "Lavage en machine à 40°C maximum.\n\nToujours remonter le curseur jusqu'en haut avant le lavage pour protéger les dents et la tirette contre les chocs du tambour.\n\nNe jamais repasser directement sur les mailles en plastique (utiliser une pattemouille).",
-      "nameAr": "Lot de 50 Fermetures à Glissière Plastique 75 cm Séparables – Curseur Demi-Cercle (Halftour)",
-      "descriptionAr": "Un design affirmé pour des finitions parfaites\nCe pack de 50 fermetures à glissière en plastique injecté de 75 cm est la fourniture idéale pour les créateurs, ateliers de confection et marques de prêt-à-porter qui cherchent à allier technicité et esthétisme. Le point fort de ce modèle réside dans le design unique de son curseur, apportant une vraie signature visuelle à vos vêtements d'extérieur.\n\nComprendre les caractéristiques : O/E, A/L et Curseur Halftour\n\nCurseur Halftour (Demi-cercle) : Fini la tirette plate classique ! Le modèle Halftour possède une tirette en forme de demi-cercle (ou anneau en D). Très prisée dans le streetwear, la mode hivernale et la maroquinerie, cette forme offre une ergonomie exceptionnelle : elle est facile à attraper, à tirer d'un seul doigt, et reste manipulable même en portant des gants épais.\n\nSéparable (O/E - Open End) : La fermeture s'ouvre et se sépare totalement à sa base. C'est la caractéristique incontournable pour les vestes, gilets, blousons et parkas.\n\nAutobloquant (A/L - Auto-Lock) : Un mécanisme de sécurité intégré bloque automatiquement les mailles dès que la tirette demi-cercle est relâchée. Cela garantit que votre veste ne s'ouvrira pas involontairement lors de vos mouvements.\n\nQualité professionnelle et durabilité\nLes mailles en plastique injecté (Vislon) offrent une glisse extrêmement fluide et une grande résistance aux tractions répétées. Plus léger que le métal et totalement inoxydable (ne rouille pas), le plastique est le choix numéro un pour les vêtements de mi-saison et d'hiver. Le ruban, tissé en polyester haute ténacité, garantit une pose aisée et une tenue impeccable lavage après lavage.\n\nSecteurs d'utilisation multiples\nCette fermeture sublimera le prêt-à-porter urbain, le sportswear (sweats zippés, vestes de survêtement), les vêtements de travail, la mode enfantine (où l'ergonomie de la tirette ronde aide les enfants à s'habiller seuls) ainsi que les accessoires de bagagerie créative.",
-      "shortDescriptionAr": "Démarquez vos créations avec ce lot de 50 fermetures à glissière en plastique de 75 cm. Séparables (Open-End) et dotées d'un système autobloquant (Auto-Lock), elles se distinguent par leur curseur \"Halftour\" avec une tirette en forme de demi-cercle. Parfaites pour les vestes, le sportswear ou la bagagerie, elles offrent une prise en main ultra-ergonomique et une glisse fluide pour un rendu professionnel.",
+      "nameAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل – منزلق نصف دائرة",
+      "descriptionAr": "سحاب البلاستيك 75 سم القابل للفصل – تصميم قوي واحترافي\n\nهذا اللوت من 50 سحاب بلاستيك 75 سم مُصمَّم للسترات والجاكيتات الرياضية التي تحتاج إلى فصل تام.\n\nالمميزات:\n• بلاستيك مضغوط مقاوم للكسر\n• قابل للفصل الكامل للسترات\n• حركة سلسة لا تنحشر\n• متوفر بألوان متعددة",
+      "shortDescriptionAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل بتصميم نصف دائرة (هالف تور) عالي الجودة.",
       "categoryNameAr": "Tissu & Doublure",
-      "materialAr": "Plastique injecté (Polyacétal / POM)",
-      "specificationAr": "75cm"
+      "materialAr": "بلاستيك مضغوط (بولي أسيتال/POM)",
+      "specificationAr": "مقاس 75 سم – قابل للفصل",
+      "packagingAr": "50 قطعة في الحزمة"
     },
     {
       "id": "custom_1783358909721_9avjc",
@@ -3773,10 +3820,13 @@
       "avantages": "Invisibilité parfaite : Ne casse ni le motif ni le tombé du vêtement.\n\nSécurité accrue : Le curseur autobloquant empêche les ouvertures accidentelles.\n\nUltra-rentable : Le format grossiste par 100 réduit drastiquement le coût unitaire.\n\nFluidité : La maille en nylon assure une glisse sans accroc et sans coincement.\n\nDurabilité : Ruban en polyester résistant aux lavages répétés sans rétrécir.",
       "matiereMailles": "100% Nylon (Polyamide)",
       "packaging": "Pack de 100 pièces",
-      "nameAr": "Pack de 100 Fermetures Invisibles en Nylon- 20 cm",
-      "descriptionAr": "L’art de la finition invisible pour vos créations\nLa fermeture à glissière invisible est le secret le mieux gardé des ateliers de confection et des créateurs exigeants. Avec ce pack économique de 100 fermetures en nylon de taille N°3 (20 cm), vous disposez de la fourniture de mercerie idéale pour garantir des finitions impeccables à l'ensemble de vos collections. Une fois montée, la maille disparaît complètement dans la couture, ne laissant visible que la fine tirette du curseur.\n\nQualité professionnelle et sécurité Auto-Lock (A/L)\nFabriquées à partir d'une maille spirale en nylon de haute qualité et d'un ruban en polyester robuste, ces fermetures allient légèreté, souplesse et résistance. Leur véritable atout réside dans le curseur normal doté de la technologie \"Auto-Lock\" (A/L). Ce mécanisme autobloquant assure que la tirette se verrouille automatiquement dès qu'elle est rabattue. Cela empêche toute ouverture intempestive du vêtement lors des mouvements, offrant une sérénité totale à la personne qui le porte.\n\nUne conception \"Closed-End\" pour une polyvalence maximale\nCes fermetures bénéficient d'une base \"Closed-End\" (C/E), signifiant qu'elles sont non-séparables à la base. Les deux pans restent solidement attachés, ce qui est la norme absolue pour les ouvertures partielles.\n\nSecteurs d'utilisation multiples\nCette fermeture polyvalente est un incontournable dans de nombreux domaines :\n\nConfection et Prêt-à-porter : Montage au dos ou sur la hanche pour les jupes ajustées, les robes de mariée, robes de cocktail, et pantalons habillés pour femme.\n\nAmeublement et Décoration : Création de housses de coussins déhoussables où la fermeture ne doit pas casser les motifs du tissu.\n\nMaroquinerie légère : Intégration de poches secrètes à l'intérieur des sacs à main ou pochettes.\n\nConseils d'utilisation de nos experts\nPour une pose parfaite, l'utilisation d'un pied-de-biche spécial pour fermeture invisible est fortement recommandée. Avant la couture, repassez délicatement les dents de la fermeture ouverte, à très basse température, pour les dérouler légèrement. Cela permettra à l'aiguille de votre machine de piquer au plus près de la maille, garantissant un effet 100 % invisible sur l'endroit du tissu. Pensez également à sécuriser la base de votre montage avec un point d'arrêt solide.",
-      "shortDescriptionAr": "Optimisez vos créations textiles avec ce pack économique de 100 fermetures à glissière invisibles en nylon N°3 (20 cm).",
-      "categoryNameAr": "Fermeture en nylon N°3 (10-50cm)"
+      "nameAr": "لوت 100 سحاب نايلون خفي – 20 سم",
+      "descriptionAr": "سحاب النايلون الخفي 20 سم – فن التشطيب الاحترافي\n\nالسحاب الخفي يوفر تشطيبة نظيفة ومخفية تماماً. الحل المثالي للفساتين والتنانير الراقية.\n\nالمميزات:\n• مخفي تماماً من الخارج\n• حركة سلسة وهادئة\n• مقاوم للاستخدام المكثف\n• 100 قطعة بقيمة مضاعفة",
+      "shortDescriptionAr": "لوت 100 سحاب نايلون خفي بطول 20 سم لتشطيبات نظيفة وغير مرئية.",
+      "categoryNameAr": "Fermeture en nylon N°3 (10-50cm)",
+      "materialAr": "نايلون عالي الجودة",
+      "specificationAr": "خفي – طول 20 سم",
+      "packagingAr": "100 قطعة في الحزمة"
     },
     {
       "id": "custom_1783767948587_e8w0r",
@@ -3874,10 +3924,13 @@
       "compatibleAvec": "Tissus légers à moyens, cotonnades, cuirs fins",
       "matiereMailles": "Nylon (Maille spirale)",
       "avantages": "Sécurité anti-ouverture : Curseur autobloquant (Auto-Lock).\n\nGlisse optimale : Le nylon en spirale ne s'accroche pas.\n\nRentabilité : Prix de gros ultra-compétitif grâce au pack de 100.\n\nLégèreté : Ne déforme pas le tombé des tissus fins.\n\nEntretien facile : Pas de rouille, résistance aux détergents.",
-      "nameAr": "Lot de 100 Fermetures Nylon N°3 - 20 cm curseur PU",
-      "descriptionAr": "La fourniture indispensable pour des finitions professionnelles\nDans le domaine de la confection, la qualité des fermetures à glissière est le reflet de votre savoir-faire. Ce lot de 100 fermetures en nylon de taille N°3 et d'une longueur de 20 cm est conçu pour répondre aux exigences élevées des professionnels de la mode, des retoucheurs et des artisans maroquiniers.\n\nL'utilisation du produit\nLa spécification \"C/E\" (Closed-End) indique qu'il s'agit d'une fermeture non séparable. Le bas de la glissière est bloqué par une butée solide, ce qui empêche les deux pans de se détacher complètement. Ce format de 20 cm est le standard incontournable pour créer des ouvertures partielles discrètes sur des vêtements ou de la petite bagagerie.\n\nSes avantages et sa qualité\nL'atout majeur de ce produit est son curseur \"A/L\" (Auto-Lock). Ce mécanisme autobloquant interne garantit que le curseur ne descendra jamais tout seul une fois la tirette rabattue. Fini les ouvertures accidentelles !\nCôté qualité, la maille spirale en nylon offre une glisse silencieuse et fluide. Le ruban, tissé en 100% polyester, garantit une stabilité dimensionnelle parfaite : il ne rétrécit pas au lavage et ne se déforme pas, assurant ainsi une longue durée de vie à vos confections.\n\nLes secteurs d'utilisation\nCette fermeture polyvalente s'adapte à de nombreux projets :\n\nConfection et Couture : Jupes, robes, braguettes de pantalons légers ou vêtements pour enfants.\n\nMaroquinerie : Poches intérieures de sacs à main, trousses de toilette, pochettes ou porte-monnaie.\n\nAmeublement et Décoration : Housses de coussins déhoussables, taies décoratives et rangements en tissu.\n\nTextile médical et de travail : Poches de blouses.\n\nConseils d'utilisation\nPour une pose parfaite et invisible, nous vous conseillons d'utiliser un pied-de-biche spécial fermeture à glissière sur votre machine à coudre. N'hésitez pas à bâtir votre fermeture avant de la piquer pour éviter tout décalage du tissu. Si la fermeture de 20 cm est trop longue pour votre ouvrage (ex: pour une trousse de 15 cm), la maille en nylon a l'avantage de pouvoir être coupée par le haut à l'aide de simples ciseaux ; veillez seulement à recréer un point d'arrêt en fil pour empêcher le curseur de sortir.",
-      "shortDescriptionAr": "Optimisez vos créations avec ce pack économique de 100 fermetures à glissière en nylon N°3 de 20 cm. Dotées d'un curseur autobloquant (Auto-Lock) sécurisé et d'une conception non séparable (Closed-End),",
-      "categoryNameAr": "Fermeture en nylon N°3 (10-50cm)"
+      "nameAr": "لوت 100 سحاب نايلون مقاس 3 – 20 سم منزلق PU",
+      "descriptionAr": "سحاب نايلون مقاس 3 مع منزلق PU – الاحتراف في كل غرزة\n\nلوت اقتصادي 100 قطعة من أرقى السحابات لضمان تشطيبات احترافية. المنزلق البولي يوريتان يضمن حركة سلسة وعمراً طويلاً.\n\nالمميزات:\n• نايلون مقاس 3 خفيف الوزن\n• منزلق PU ذو جودة عالية\n• مقاوم للاستخدام اليومي المكثف",
+      "shortDescriptionAr": "لوت 100 سحاب نايلون مقاس 3 بطول 20 سم مع منزلق PU احترافي.",
+      "categoryNameAr": "Fermeture en nylon N°3 (10-50cm)",
+      "materialAr": "نايلون مع منزلق بولي يوريتان",
+      "specificationAr": "مقاس 3 – طول 20 سم – منزلق PU",
+      "packagingAr": "100 قطعة في الحزمة"
     },
     {
       "id": "custom_1783768966494_93lor",
@@ -4044,10 +4097,13 @@
       "comparePrice": 55,
       "avantages": "Économique : Coût unitaire fortement réduit grâce au conditionnement en lot de 50.\n\nSécurité : Curseur autobloquant empêchant les ouvertures intempestives.\n\nFluidité : Les dents en plastique moulé offrent un glissement sans accroc.\n\nRésistance aux intempéries : Ne craint ni la pluie, ni le gel, ni la rouille.\n\nPratique : Boîtier séparable solide pour un assemblage facile des deux pans du vêtement.",
       "matiereMailles": "Plastique injecté / Résine acétal (Delrin / POM)",
-      "nameAr": "Lot de 50 Fermeturesen Plastique Delrin N°5 – 70 cm avec Curseur M832",
-      "descriptionAr": "L'excellence du plastique moulé pour vos confections professionnelles\nSpécialement pensé pour les ateliers de couture, les créateurs de prêt-à-porter et les professionnels de la retouche, ce lot de 50 fermetures à glissière en plastique injecté (Delrin) de taille N°5 est un incontournable de la mercerie technique. Avec une longueur de 70 cm, ces fermetures sont parfaitement dimensionnées pour s'adapter à la majorité des vêtements d'extérieur nécessitant une ouverture frontale complète.\n\nUne technicité de pointe : Open-End et Auto-Lock\nCes fermetures intègrent deux standards industriels majeurs pour l'habillement. Premièrement, le système O/E (Open-End) signifie qu'il s'agit de fermetures séparables : les deux pans du vêtement peuvent être complètement détachés à la base, un prérequis pour les vestes et les gilets. Deuxièmement, le curseur est de type A/L (Auto-Lock), c'est-à-dire autobloquant. Un mécanisme interne de verrouillage empêche la fermeture de s'ouvrir accidentellement sous la tension du vêtement ; le curseur ne coulisse que lorsque l'utilisateur tire sur la languette.\n\nDes avantages incomparables et une qualité supérieure\nContrairement au métal, la résine technique Delrin (plastique polyacétal) ne s'oxyde pas, ne rouille pas et résiste remarquablement bien au gel. Les mailles injectées directement sur le ruban en polyester tissé offrent une légèreté exceptionnelle et une glisse d'une fluidité parfaite. Elles résistent durablement à l'usure, aux lavages fréquents et aux variations climatiques, assurant ainsi la longévité de vos créations.\n\nLes secteurs d'utilisation\nLa polyvalence de la taille N°5 et la robustesse du Delrin rendent cette fermeture indispensable dans de multiples domaines :\n\nConfection et Prêt-à-porter : Vestes de mi-saison, manteaux d'hiver, parkas, doudounes et gilets.\n\nSportswear et Outdoor : Vestes polaires, blousons de ski, coupe-vents, sacs de couchage (si le modèle est réversible).\n\nWorkwear : Vêtements de travail professionnels, vestes haute visibilité (EPI), combinaisons.\n\nAmeublement : Housses de coussins d'extérieur amovibles, équipements de camping.\n\nConseils d'utilisation\nPour une couture nette et précise, utilisez toujours un pied-de-biche spécial fermeture à glissière sur votre machine. Veillez à piquer près des mailles sans les toucher pour ne pas casser l'aiguille. Si votre projet nécessite une longueur inférieure à 70 cm, sachez que ces fermetures peuvent être raccourcies : coupez le ruban par le haut (jamais par le bas), retirez les dents superflues à l'aide d'une pince, et fixez de nouveaux arrêts métalliques supérieurs",
-      "shortDescriptionAr": "Ce lot économique de 50 fermetures à glissière en plastique moulé (Delrin) N°5 de 70 cm est idéal pour les professionnels de la couture. Dotées d'un curseur autobloquant (Auto-Lock) et d'une base séparable (Open-End)",
-      "categoryNameAr": "Tissu & Doublure"
+      "nameAr": "لوت 50 سحاب بلاستيك Delrin مقاس 5 – 70 سم منزلق M832",
+      "descriptionAr": "سحاب Delrin مقاس 5 مع منزلق M832 – تكامل الجودة والقوة\n\nلوت اقتصادي 50 قطعة من سحابات البلاستيك الصناعي Delrin، المعروف بمتانته ومقاومته للاحتكاك.\n\nالمميزات:\n• Delrin (بولي أسيتال) أقوى من البلاستيك العادي\n• منزلق M832 احترافي بحركة دقيقة\n• مناسب للسترات والحقائب والمعدات الرياضية",
+      "shortDescriptionAr": "لوت 50 سحاب بلاستيك Delrin مقاس 5 بطول 70 سم مع منزلق M832 احترافي.",
+      "categoryNameAr": "Tissu & Doublure",
+      "materialAr": "بلاستيك ديلرين (بولي أسيتال)",
+      "specificationAr": "مقاس 5 – طول 70 سم – منزلق M832",
+      "packagingAr": "50 قطعة في الحزمة"
     }
   ],
   "customCategories": [

@@ -246,9 +246,9 @@ export default function CategoryPage({ params }: { params: any }) {
               >
                 {language === 'ar' && category?.nameAr ? category.nameAr : category?.name}
               </h1>
-              {category?.description && (
+              {(category?.description || category?.descriptionAr) && (
                 <p className="text-white/75 mt-2 max-w-xl text-sm sm:text-base leading-relaxed">
-                  {category.description}
+                  {language === 'ar' && category.descriptionAr ? category.descriptionAr : category.description}
                 </p>
               )}
             </div>

@@ -6,6 +6,7 @@ export interface ShopCategory {
   name: string;
   nameAr?: string;
   description?: string;
+  descriptionAr?: string;
   icon?: string;
   image?: string;
   productCount?: number;

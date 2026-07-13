@@ -387,46 +387,22 @@ export default function ClientPortalPage() {
             <div className="absolute -bottom-6 right-16 w-40 h-40 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white, transparent)' }} />
           </div>
           <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-              {/* Icon */}
+            <div className="flex items-center gap-3 min-w-0">
               <div className="shrink-0 w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Ship className="w-4.5 h-4.5 text-white" />
+                <Ship className="w-4 h-4 text-white" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[8px] font-black text-white/80 uppercase tracking-widest bg-white/15 px-2 py-0.5 rounded-full shrink-0">
-                    🚢 En Transit
-                  </span>
-                  <p className="text-white text-[11px] font-bold truncate">
-                    {transitContainers.length === 1
-                      ? `${transitContainers.length} conteneur actuellement en mer`
-                      : `${transitContainers.length} conteneurs actuellement en mer`}
-                  </p>
-                </div>
-                {/* Container pills scrollable */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
-                  {transitContainers.map((c) => (
-                    <div
-                      key={c.factureId}
-                      className="shrink-0 flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-lg px-2.5 py-1"
-                    >
-                      <span className="text-white font-black text-[9px] uppercase tracking-wider">{c.factureId}</span>
-                      {c.bl && (
-                        <>
-                          <span className="text-white/30 text-[8px]">·</span>
-                          <span className="text-blue-200 font-black text-[9px] uppercase">BL: {c.bl}</span>
-                        </>
-                      )}
-                      {c.shippingLine && (
-                        <>
-                          <span className="text-white/30 text-[8px]">·</span>
-                          <span className="text-white/60 font-bold text-[8px] uppercase">{c.shippingLine}</span>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <p className="text-white text-[11px] font-bold">
+                🚢{' '}
+                <span className="font-black">
+                  {transitContainers.length === 1
+                    ? '1 commande'
+                    : `${transitContainers.length} commandes`}
+                </span>
+                {' '}actuellement en transit —{' '}
+                <span className="hidden sm:inline">Cliquez sur </span>
+                <span className="font-black underline underline-offset-2 decoration-white/40">«&nbsp;Suivre le B/L&nbsp;»</span>
+                <span className="hidden sm:inline"> pour suivre en temps réel.</span>
+              </p>
             </div>
             <button
               onClick={() => setShowNewFeature(false)}
