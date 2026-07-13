@@ -20,46 +20,61 @@ import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
 
 // ── Tracking URL builder per carrier ─────────────────────────────────────────
-function getTrackingUrl(blNumber: string, shippingLine?: string): string {
+function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string; needsCopy: boolean } {
   const bl = encodeURIComponent(blNumber.trim());
   const prefix = blNumber.toUpperCase().substring(0, 4);
   const line = (shippingLine || '').toUpperCase();
 
+  // MSC — direct link supported
   if (line.includes('MSC') || prefix === 'MSCU' || prefix === 'MSDU' || prefix === 'MEDU')
-    return `https://www.msc.com/en/track-a-shipment?trackingNumber=${bl}`;
+    return { url: `https://www.msc.com/en/track-a-shipment?trackingNumber=${bl}`, needsCopy: false };
 
+  // Maersk — direct link supported
   if (line.includes('MAERSK') || prefix === 'MAEU' || prefix === 'MRKU')
-    return `https://www.maersk.com/tracking/${bl}`;
+    return { url: `https://www.maersk.com/tracking/${bl}`, needsCopy: false };
 
+  // CMA CGM — direct link supported
   if (line.includes('CMA') || line.includes('CGM') || prefix === 'CMDU' || prefix === 'CMAU' || prefix === 'CGMU')
-    return `https://www.cma-cgm.com/ebusiness/tracking/search?SearchBy=BL&Reference=${bl}`;
+    return { url: `https://www.cma-cgm.com/ebusiness/tracking/search?SearchBy=BL&Reference=${bl}`, needsCopy: false };
 
-  if (line.includes('EVERGREEN') || prefix === 'EGLV' || prefix === 'EGHU')
-    return `https://www.evergreen-line.com/eservice/Publicb2b/tracking/bookingTracking.aspx?BL=${bl}`;
+  // Hapag-Lloyd — direct link supported
+  if (line.includes('HAPAG') || line.includes('LLOYD') || prefix === 'HLCU' || prefix === 'HLXU')
+    return { url: `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?trackBy=bl&number=${bl}`, needsCopy: false };
 
-  if (line.includes('COSCO') || prefix === 'COSU' || prefix === 'CSNU')
-    return `https://elines.coscoshipping.com/ebusiness/cargotracking?carrierCode=COSU&bl=${bl}`;
-
-  if (line.includes('HAPAG') || line.includes('LLOYD') || prefix === 'HLCU')
-    return `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?trackBy=bl&number=${bl}`;
-
-  if (line.includes('OOCL') || prefix === 'OOLU')
-    return `https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx?bl=${bl}`;
-
-  if (line.includes('YANG MING') || prefix === 'YMLU')
-    return `https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx?bl=${bl}`;
-
-  if (line.includes('ONE') || prefix === 'ONEY')
-    return `https://ecomm.one-line.com/ecom/CUP_HOM_3301GS.do?f_cmd=122&rqst_bl_no=${bl}`;
-
+  // ZIM — direct link supported
   if (line.includes('ZIM') || prefix === 'ZIMU')
-    return `https://www.zim.com/tools/track-a-shipment?trackingNumber=${bl}`;
+    return { url: `https://www.zim.com/tools/track-a-shipment?trackingNumber=${bl}`, needsCopy: false };
 
-  if (line.includes('HAPAG') || prefix === 'HLCU')
-    return `https://www.hapag-lloyd.com/en/online-business/track/track-by-booking-solution.html?trackBy=bl&number=${bl}`;
+  // ONE — direct link supported
+  if (line.includes('ONE') || prefix === 'ONEY')
+    return { url: `https://ecomm.one-line.com/ecom/CUP_HOM_3301GS.do?f_cmd=122&rqst_bl_no=${bl}`, needsCopy: false };
 
-  // Fallback: Google search
-  return `https://www.google.com/search?q=tracking+BL+${bl}`;
+  // Yang Ming — direct link supported
+  if (line.includes('YANG MING') || prefix === 'YMLU')
+    return { url: `https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx?bl=${bl}`, needsCopy: false };
+
+  // Evergreen — no direct URL param, must copy & paste
+  if (line.includes('EVERGREEN') || prefix === 'EGLV' || prefix === 'EGHU')
+    return { url: 'https://www.shipmentlink.com/servlet/TDB1_CargoTracking.do', needsCopy: true };
+
+  // COSCO — no direct URL param, must copy & paste
+  if (line.includes('COSCO') || prefix === 'COSU' || prefix === 'CSNU')
+    return { url: 'https://elines.coscoshipping.com/ebusiness/cargoTracking', needsCopy: true };
+
+  // OOCL — no direct URL param, must copy & paste
+  if (line.includes('OOCL') || prefix === 'OOLU')
+    return { url: 'https://www.oocl.com/eng/ourservices/eservices/cargotracking/Pages/cargotracking.aspx', needsCopy: true };
+
+  // PIL — no direct URL param
+  if (line.includes('PIL') || prefix === 'PILU')
+    return { url: 'https://www.pilship.com/en-tracking-cargo-tracking/114.html', needsCopy: true };
+
+  // Hamburg Sud
+  if (line.includes('HAMBURG') || prefix === 'SUDU')
+    return { url: `https://www.hamburgsud-line.com/linerportal/pages/hsdg/tnt.xhtml?blNo=${bl}`, needsCopy: false };
+
+  // Fallback: open Google
+  return { url: `https://www.google.com/search?q=track+bl+${bl}`, needsCopy: false };
 }
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
@@ -342,18 +357,25 @@ export default function FacturesView({
                       <Building2 className="w-3 h-3 mr-2" /> {selectedFacture.declaringCompany}
                     </Badge>
                   )}
-                  {selectedFacture.noBL && (
-                    <a
-                      href={getTrackingUrl(selectedFacture.noBL, selectedFacture.shippingLine)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className="inline-flex items-center gap-1.5 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/10 hover:text-blue-300 transition-colors"
-                    >
-                      <Hash className="w-3 h-3" /> BL: {selectedFacture.noBL}
-                      <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                    </a>
-                  )}
+                  {selectedFacture.noBL && (() => {
+                    const { url, needsCopy } = getTrackingInfo(selectedFacture.noBL, selectedFacture.shippingLine);
+                    return (
+                      <button
+                        type="button"
+                        title={needsCopy ? 'BL copié — colle-le dans le site qui va s\'ouvrir' : 'Ouvrir le tracking'}
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (needsCopy) navigator.clipboard.writeText(selectedFacture.noBL).catch(() => {});
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="inline-flex items-center gap-1.5 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/10 hover:text-blue-300 transition-colors"
+                      >
+                        <Hash className="w-3 h-3" /> BL: {selectedFacture.noBL}
+                        <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                        {needsCopy && <span className="text-[8px] text-amber-400 normal-case font-bold">(copié)</span>}
+                      </button>
+                    );
+                  })()}
                   {selectedFacture.forwarder && (
                     <Badge variant="outline" className="text-amber-400 border-amber-500/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
                       <Truck className="w-3 h-3 mr-2" /> {selectedFacture.forwarder}
