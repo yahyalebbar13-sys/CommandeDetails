@@ -1,3 +1,7 @@
+// Fix SSL certificate verification on Windows dev environment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(process.env as any).NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 // Carrier detection from B/L prefix
