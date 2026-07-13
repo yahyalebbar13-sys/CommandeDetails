@@ -178,6 +178,7 @@ interface SummaryPanelProps {
   productQtyMap: Record<string, number>;
 }
 function SummaryPanel({ items, subtotal, city, productQtyMap }: SummaryPanelProps) {
+  const { language } = useLanguage();
   const freeShipping = isEligibleForFreeDelivery(subtotal);
   const deliveryFee = city
     ? freeShipping ? 0 : getDeliveryFee(city)
