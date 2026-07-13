@@ -32,10 +32,13 @@ export interface ProductOverride {
   variants?: import('@/lib/shop-types').ProductVariant[];
   // Champs fiche produit
   material?: string;
+  materialAr?: string;
   specification?: string;
+  specificationAr?: string;
   weight?: number;
   width?: string;
   packaging?: string;
+  packagingAr?: string;
   // Metadata additionnelle
   categorySlug?: string;
   categoryName?: string;
@@ -84,18 +87,25 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.inStock !== undefined && { inStock: ov.inStock }),
         ...(ov.stockQty !== undefined && { stockQty: ov.stockQty }),
         ...(ov.name && { name: ov.name }),
+        ...(ov.nameAr && { nameAr: ov.nameAr }),
         ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
+        ...(ov.shortDescriptionAr && { shortDescriptionAr: ov.shortDescriptionAr }),
         ...(ov.description && { description: ov.description }),
+        ...(ov.descriptionAr && { descriptionAr: ov.descriptionAr }),
         ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
         ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
         ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
         ...(ov.material && { material: ov.material }),
+        ...(ov.materialAr && { materialAr: ov.materialAr }),
         ...(ov.specification && { specification: ov.specification }),
+        ...(ov.specificationAr && { specificationAr: ov.specificationAr }),
         ...(ov.weight !== undefined && { weight: ov.weight }),
         ...(ov.width && { width: ov.width }),
         ...(ov.packaging && { packaging: ov.packaging }),
+        ...(ov.packagingAr && { packagingAr: ov.packagingAr }),
         ...(ov.categorySlug && { categorySlug: ov.categorySlug }),
         ...(ov.categoryName && { categoryName: ov.categoryName }),
+        ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -121,17 +131,24 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.isNew !== undefined && { isNew: ov.isNew }),
           ...(ov.isPromo !== undefined && { isPromo: ov.isPromo }),
           ...(ov.name && { name: ov.name }),
+          ...(ov.nameAr && { nameAr: ov.nameAr }),
           ...(ov.shortDescription && { shortDescription: ov.shortDescription }),
+          ...(ov.shortDescriptionAr && { shortDescriptionAr: ov.shortDescriptionAr }),
           ...(ov.description && { description: ov.description }),
+          ...(ov.descriptionAr && { descriptionAr: ov.descriptionAr }),
           ...(ov.wholesalePrice !== undefined && { wholesalePrice: ov.wholesalePrice }),
           ...(ov.minOrderQty !== undefined && { minOrderQty: ov.minOrderQty }),
           ...(ov.variants && ov.variants.length > 0 && { variants: ov.variants }),
           ...(ov.material && { material: ov.material }),
+          ...(ov.materialAr && { materialAr: ov.materialAr }),
           ...(ov.specification && { specification: ov.specification }),
+          ...(ov.specificationAr && { specificationAr: ov.specificationAr }),
           ...(ov.weight !== undefined && { weight: ov.weight }),
           ...(ov.width && { width: ov.width }),
           ...(ov.packaging && { packaging: ov.packaging }),
+          ...(ov.packagingAr && { packagingAr: ov.packagingAr }),
           ...(ov.categoryName && { categoryName: ov.categoryName }),
+          ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];
