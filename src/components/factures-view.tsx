@@ -47,7 +47,7 @@ function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string
 
   // ONE — direct link supported
   if (line.includes('ONE') || prefix === 'ONEY')
-    return { url: `https://ecomm.one-line.com/ecom/CUP_HOM_3301GS.do?f_cmd=122&rqst_bl_no=${bl}`, needsCopy: false };
+    return { url: `https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking?trakNoParam=${bl}`, needsCopy: false };
 
   // Yang Ming — direct link supported
   if (line.includes('YANG MING') || prefix === 'YMLU')
