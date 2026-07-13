@@ -635,7 +635,96 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 </div>
               </Accordion>
             )}
-          </div>
+
+            <Accordion title={language === 'ar' ? 'الوصف المفصل' : 'Description Détaillée'} icon={<ShoppingCart className="w-5 h-5 text-[#C8102E]" />}>
+              <div className="p-6 text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
+                {language === 'ar' && product.descriptionAr ? product.descriptionAr : product.description}
+              </div>
+            </Accordion>
+
+            {((language === 'ar' && product.materialAr) || product.material || (language === 'ar' && product.specificationAr) || product.specification || (language === 'ar' && product.packagingAr) || product.packaging || product.width || product.weight || (product.minOrderQty && product.minOrderQty > 1)) && (
+              <Accordion title={language === 'ar' ? 'المواصفات التقنية' : 'Spécifications Techniques'} icon={<Star className="w-5 h-5 text-[#D4A843]" />}>
+                <div className="p-6 space-y-3 text-sm">
+                  {((language === 'ar' && product.materialAr) || product.material) && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'المواد:' : 'Matériau:'}</span>
+                      <span className="text-[#6B6B6B]">{language === 'ar' && product.materialAr ? product.materialAr : product.material}</span>
+                    </div>
+                  )}
+                  {((language === 'ar' && product.specificationAr) || product.specification) && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'المواصفات:' : 'Spécifications:'}</span>
+                      <span className="text-[#6B6B6B]">{language === 'ar' && product.specificationAr ? product.specificationAr : product.specification}</span>
+                    </div>
+                  )}
+                  {((language === 'ar' && product.packagingAr) || product.packaging) && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'التعبئة والتغليف:' : 'Emballage:'}</span>
+                      <span className="text-[#6B6B6B]">{language === 'ar' && product.packagingAr ? product.packagingAr : product.packaging}</span>
+                    </div>
+                  )}
+                  {product.width && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'العرض:' : 'Largeur:'}</span>
+                      <span className="text-[#6B6B6B]">{product.width}</span>
+                    </div>
+                  )}
+                  {product.weight && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'الوزن:' : 'Poids:'}</span>
+                      <span className="text-[#6B6B6B]">{product.weight} g</span>
+                    </div>
+                  )}
+                  {product.minOrderQty && product.minOrderQty > 1 && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[120px]">{language === 'ar' ? 'الحد الأدنى للكمية:' : 'Quantité min. (MOQ):'}</span>
+                      <span className="text-[#6B6B6B]">{product.minOrderQty} {language === 'ar' ? 'وحدات' : 'unités'}</span>
+                    </div>
+                  )}
+                </div>
+              </Accordion>
+            )}
+
+            {/* ── Informations Complémentaires (Hyper Pro longs textes) ── */}
+            {(product.applications || product.avantages || product.conseilsEntretien || product.informationCommerciale) && (
+              <Accordion title={language === 'ar' ? 'تفاصيل ومعلومات إضافية' : 'Détails & Applications'} icon={<Shield className="w-5 h-5 text-[#8B5CF6]" />}>
+                <div className="p-6 space-y-5 text-sm">
+                  {product.applications && (
+                    <div className="border-b border-[#F3EFE8] pb-4">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'التطبيقات (قطاعات/استخدامات):' : 'Applications (Secteurs/Usages):'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.applications}</p>
+                    </div>
+                  )}
+                  {product.avantages && (
+                    <div className="border-b border-[#F3EFE8] pb-4">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.avantages}</p>
+                    </div>
+                  )}
+                  {product.conseilsEntretien && (
+                    <div className="border-b border-[#F3EFE8] pb-4">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.conseilsEntretien}</p>
+                    </div>
+                  )}
+                  {product.informationCommerciale && (
+                    <div className="pb-2">
+                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'معلومات تجارية (تعبئة، حد أدنى):' : 'Infos commerciales (Conditionnement, MOQ...):'}</span>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.informationCommerciale}</p>
+                    </div>
+                  )}
+                </div>
+              </Accordion>
+            )}
+
+            </div>
+
+
+
+
+
+
+
         </div>
 
         {/* Similar products */}
