@@ -196,7 +196,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 pointer-events-none">
             <span className="bg-white/95 text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-              Rupture de stock
+              {language === 'ar' ? 'نفد المخزون' : 'Rupture de stock'}
             </span>
           </div>
         )}
@@ -305,12 +305,15 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             {added ? (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                ✓ Ajouté au panier
+                {language === 'ar' ? '✓ تمت الإضافة' : '✓ Ajouté au panier'}
               </>
             ) : (
               <>
                 <ShoppingCart className="w-4 h-4" />
-                {product.inStock ? 'Ajouter au panier' : 'Indisponible'}
+                {product.inStock
+                  ? (language === 'ar' ? 'إضافة للسلة' : 'Ajouter au panier')
+                  : (language === 'ar' ? 'غير متوفر' : 'Indisponible')
+                }
               </>
             )}
           </button>

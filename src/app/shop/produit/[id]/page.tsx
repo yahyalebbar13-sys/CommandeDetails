@@ -91,15 +91,8 @@ function MultiVariantSelector({
 
   const visibleVariants = variants.filter(v => (v.size || 'Standard') === selectedSize);
 
-  // Guard: if no variants match the selected size, show nothing
-  if (visibleVariants.length === 0 && variants.length > 0) {
-    // Auto-select the first available size
-    const firstAvailableSize = variants[0]?.size || 'Standard';
-    if (firstAvailableSize !== selectedSize) {
-      // Will re-render with correct size
-      setTimeout(() => setSelectedSize(firstAvailableSize), 0);
-    }
-  }
+  // Guard: if no variants match the selected size, reset to first available
+  const validSelectedSize = visibleVariants.length > 0 ? selectedSize : (variants[0]?.size || 'Standard');
 
   const setQty = (variantId: string, delta: number, max: number | undefined) => {
     setQtys(prev => {
@@ -116,19 +109,20 @@ function MultiVariantSelector({
   const handleAdd = () => {
     const items: CartItem[] = [];
     variants.forEach(v => {
-      const itemPrice = (qtys[v.id] || 0) > 0 ? (v.price ?? basePrice) : 0;
-      if (itemPrice > 0) {
+      const qty = qtys[v.id] || 0;
+      if (qty > 0) {
+        const itemPrice = v.price ?? basePrice;
         items.push({
           productId,
           productName,
-          productNameAr: language === 'ar' && (v.nameAr || productNameAr) ? (v.nameAr || productNameAr) : undefined,
+          productNameAr: productNameAr || undefined,
           productImage: v.image || productImage,
           price: itemPrice,
           originalPrice: v.price ?? basePrice,
           wholesalePrice,
           minOrderQty,
-          quantity: qtys[v.id],
-          variant: { color: v.color, colorAr: v.colorAr, size: v.size, sizeAr: v.sizeAr, variantId: v.id },
+          quantity: qty,
+          variant: { color: v.color, colorAr: v.colorAr, colorHex: v.colorHex, size: v.size, sizeAr: v.sizeAr, variantId: v.id },
           maxStock: v.stock,
         });
       }
@@ -162,11 +156,14 @@ function MultiVariantSelector({
       )}
 
       {(() => {
-        if (visibleVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour cette taille.'}</p>;
-        const isSimpleSize = visibleVariants.length === 1 && (!visibleVariants[0]?.color || visibleVariants[0]?.color?.startsWith('Option')) && !visibleVariants[0]?.image;
+        const displayVariants = validSelectedSize !== selectedSize
+          ? variants.filter(v => (v.size || 'Standard') === validSelectedSize)
+          : visibleVariants;
+        if (displayVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour cette taille.'}</p>;
+        const isSimpleSize = displayVariants.length === 1 && (!displayVariants[0]?.color || displayVariants[0]?.color?.startsWith('Option')) && !displayVariants[0]?.image;
         
         if (isSimpleSize) {
-          const v = visibleVariants[0];
+          const v = displayVariants[0];
           const qty = qtys[v.id] || 0;
           return (
             <div className="flex items-center justify-between bg-gray-50/50 border border-gray-100 p-4 rounded-2xl">
@@ -207,7 +204,7 @@ function MultiVariantSelector({
               {hasSizes ? (language === 'ar' ? `الألوان المتاحة لـ ${selectedSize}` : `Couleurs/Modèles pour ${selectedSize}`) : (language === 'ar' ? 'الخيارات المتاحة' : 'Options disponibles')}
             </p>
             <div className="flex flex-wrap gap-5">
-              {visibleVariants.map(v => {
+              {displayVariants.map(v => {
                 const outOfStock = v.stock === 0;
                 const qty = qtys[v.id] || 0;
                 const isSelected = qty > 0;

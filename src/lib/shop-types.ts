@@ -114,6 +114,7 @@ export interface CartItem {
   variant?: {
     color?: string;
     colorAr?: string;
+    colorHex?: string;
     size?: string;
     sizeAr?: string;
     variantId?: string;

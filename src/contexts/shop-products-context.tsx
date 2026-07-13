@@ -162,7 +162,14 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
       return { ...c, ...ov };
     });
     
-    const combined = [...mergedHardcoded, ...customCategories.filter(c => !existingSlugs.has(c.slug))];
+    // Deduplicate custom categories: if two custom cats have the same slug, only keep the first one
+    const seenCustomSlugs = new Set(existingSlugs);
+    const deduplicatedCustom = customCategories.filter(c => {
+      if (seenCustomSlugs.has(c.slug)) return false;
+      seenCustomSlugs.add(c.slug);
+      return true;
+    });
+    const combined = [...mergedHardcoded, ...deduplicatedCustom];
     
     // Sort categories by priority descending, then by name
     combined.sort((a, b) => {

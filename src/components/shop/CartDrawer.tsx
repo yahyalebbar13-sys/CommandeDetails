@@ -35,7 +35,7 @@ function CartLineItem({
 }) {
   const { language } = useLanguage();
   const isWholesale = item.minOrderQty && totalProductQty >= item.minOrderQty && item.wholesalePrice;
-  const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice || item.price);
+  const effectivePrice = isWholesale ? item.wholesalePrice! : (item.originalPrice ?? item.price);
   const lineTotal = effectivePrice * item.quantity;
   const nameToDisplay = language === 'ar' && item.productNameAr ? item.productNameAr : item.productName;
   const colorToDisplay = language === 'ar' && item.variant?.colorAr ? item.variant.colorAr : item.variant?.color;
@@ -85,7 +85,9 @@ function CartLineItem({
                 <span
                   className="w-2.5 h-2.5 rounded-full border border-gray-200 flex-shrink-0"
                   style={{
-                    backgroundColor: item.variant.color?.startsWith("#")
+                    backgroundColor: item.variant.colorHex
+                      ? item.variant.colorHex
+                      : item.variant?.color?.startsWith('#')
                       ? item.variant.color
                       : undefined,
                   }}
@@ -377,7 +379,7 @@ export default function CartDrawer() {
               <div>
                 {items.map((item) => (
                   <CartLineItem
-                    key={`${item.productId}-${item.variant?.color}-${item.variant?.size}`}
+                    key={`${item.productId}-${item.variant?.variantId ?? 'no-variant'}`}
                     item={item}
                     onUpdateQty={handleUpdateQty}
                     onRemove={removeItem}

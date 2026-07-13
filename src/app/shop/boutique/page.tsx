@@ -91,13 +91,19 @@ function BoutiqueContent() {
   const initCat = searchParams.get('categorie');
   const initSearch = searchParams.get('q');
 
+  const initPromo = searchParams.get('promo') === 'true';
+  const initNew = searchParams.get('nouveautes') === 'true';
+
   const [search, setSearch] = useState(initSearch || '');
   const [sort, setSort] = useState('pertinence');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(initCat ? [initCat] : []);
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([
+    ...(initPromo ? ['isPromo'] : []),
+    ...(initNew ? ['isNew'] : []),
+  ]);
   const [mobileFilters, setMobileFilters] = useState(false);
   const { products: allProducts, categories: allContextCategories } = useShopProducts();
   const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
@@ -115,7 +121,16 @@ function BoutiqueContent() {
     );
   }
   if (selectedCategories.length > 0) {
-    products = products.filter(p => selectedCategories.includes(p.categorySlug));
+    // Also include subcategories when filtering by parent category
+    const allCatsFromContext = allContextCategories;
+    const expandedSlugs = new Set<string>(selectedCategories);
+    // For each selected slug, add its children
+    allCatsFromContext.forEach(cat => {
+      if (cat.parentSlug && selectedCategories.includes(cat.parentSlug)) {
+        expandedSlugs.add(cat.slug);
+      }
+    });
+    products = products.filter(p => expandedSlugs.has(p.categorySlug));
   }
   if (priceMin) products = products.filter(p => p.price >= Number(priceMin));
   if (priceMax) products = products.filter(p => p.price <= Number(priceMax));
@@ -202,7 +217,7 @@ function BoutiqueContent() {
         {hasFilters && (
           <div className="flex flex-wrap gap-2 mb-6">
             {selectedCategories.map(c => {
-              const cat = SHOP_CATEGORIES.find(cat => cat.slug === c);
+              const cat = allContextCategories.find(cat => cat.slug === c);
               return (
                 <span key={c} className="flex items-center gap-1.5 bg-[#C8102E]/10 text-[#C8102E] px-3 py-1 rounded-full text-xs font-semibold">
                   {cat?.name}
