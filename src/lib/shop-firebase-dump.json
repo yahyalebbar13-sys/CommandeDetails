@@ -1524,7 +1524,10 @@
       "categoryNameAr": "Bobines de fil",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 40/2",
-      "packagingAr": "10 بكرات في العبوة"
+      "packagingAr": "10 بكرات في العبوة",
+      "material": "100% Polyester",
+      "specification": "Titre 40/2",
+      "packaging": "10 bobines/lot"
     },
     {
       "id": "custom_1780502082575_qi5br",
@@ -1605,7 +1608,10 @@
       "categoryNameAr": "Bobines de fil",
       "materialAr": "100% بوليستر",
       "specificationAr": "متوافق مع جميع المكوكات القياسية",
-      "packagingAr": "علبة متعددة البكرات"
+      "packagingAr": "علبة متعددة البكرات",
+      "material": "100% Polyester",
+      "specification": "Compatible canettes standards",
+      "packaging": "Boîte multi-bobines"
     },
     {
       "id": "custom_1780503129736_5if0z",
@@ -1691,7 +1697,10 @@
       "categoryNameAr": "Tissu & Doublure",
       "materialAr": "بوليستر مع طبقة لاصقة حرارية",
       "specificationAr": "1040EF",
-      "packagingAr": "رول كامل"
+      "packagingAr": "رول كامل",
+      "material": "Polyester + adhésif thermique",
+      "specification": "1040EF",
+      "packaging": "Rouleau complet"
     },
     {
       "id": "custom_1780595583026_yc5ik",
@@ -1800,12 +1809,15 @@
       "rating": 5,
       "minOrderQty": 1,
       "nameAr": "بطانة 210T عرض 1.50 م – قماش بطانة خفيف",
-      "descriptionAr": "بطانة 210T – الرفاهية والإتقان في كل قطعة\n\nبطانة 210T بعرض 1.50 م تُضفي نعومة ومظهراً احترافياً لملابسك. لمسة ناعمة تُريح البشرة وتُحسن تدلّي الملابس.\n\nالمميزات:\n• وزن خفيف للراحة الكاملة\n• سهلة الخياطة والقص\n• أساسية لبطانة الجاكيتات، الفساتين والسراويل\n• متوفرة بألوان متعددة",
+      "descriptionAr": "بطانة 210T – الرفاهية والإتقان في كل قطعة\n\nبطانة 210T بعرض 1.50 م تُضفي نعومة ومظهراً احترافياً لملابسك. لمسة ناعمة تُريح البشرة وتُحسن تدلّي الملابس.\n\nالمميزات:\n• وزن خفيف للراحة الكاملة\n• سهلة الخياطة والقص\n• أساسية لبطانة الجاكيتات والفساتين والسراويل\n• متوفرة بألوان متعددة",
       "shortDescriptionAr": "قماش بطانة خفيف الوزن بعرض 1.50 م، مثالي للملابس والتصميمات الاحترافية.",
       "categoryNameAr": "Tissu & Doublure",
       "materialAr": "100% بوليستر",
       "specificationAr": "عرض 150 سم",
-      "packagingAr": "رول من 50 متراً"
+      "packagingAr": "رول من 50 متراً",
+      "material": "100% Polyester",
+      "specification": "Largeur 150 cm",
+      "packaging": "Rouleau 50 mètres"
     },
     {
       "id": "custom_1780597564525_qupv8",
@@ -1871,12 +1883,15 @@
       "isFeatured": false,
       "categorySlug": "tissu-doublure",
       "nameAr": "خيط بوليستر 20/3 – حزمة 6 بكرات (3000 م)",
-      "descriptionAr": "خيط بوليستر 20/3 – القوة للخياطة الثقيلة\n\nخيطنا 20/3 مصمم للخياطة الثقيلة والاحترافية. سميك ومتين، يُستخدم لخياطة الأحذية، الحقائب، المعدات الرياضية وغيرها.\n\nالمميزات:\n• سماكة مثالية للخياطة الثقيلة\n• مقاومة فائقة للشد والكسر\n• ألوان متعددة ثابتة",
+      "descriptionAr": "خيط بوليستر 20/3 – القوة للخياطة الثقيلة\n\nخيطنا 20/3 مصمم للخياطة الثقيلة والاحترافية. سميك ومتين، يُستخدم لخياطة الأحذية والحقائب والمعدات الرياضية وغيرها.\n\nالمميزات:\n• سماكة مثالية للخياطة الثقيلة\n• مقاومة فائقة للشد والكسر\n• ألوان متعددة ثابتة",
       "shortDescriptionAr": "حزمة 6 بكرات خيط بوليستر 20/3 بطول 3000 متر، مثالي للخياطة الصناعية.",
       "categoryNameAr": "Bobines de fil",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 20/3",
-      "packagingAr": "6 بكرات × 500 متر = 3000 متر"
+      "packagingAr": "6 بكرات × 500 متر = 3000 متر",
+      "material": "100% Polyester",
+      "specification": "Titre 20/3",
+      "packaging": "6 bobines × 500m = 3000m"
     },
     {
       "id": "custom_1780601016715_p3t1p",
@@ -2030,12 +2045,15 @@
       "shortDescription": "Pack de 12 bobines de fil à coudre polyester 40/3, conçu pour offrir des coutures fines, solides et régulières. Idéal pour la confection de vêtements, chemises, t-shirts, pantalons, uniformes et travaux de couture professionnels.",
       "isPromo": false,
       "nameAr": "خيط بوليستر 40/3 – حزمة 12 بكرة",
-      "descriptionAr": "خيط بوليستر 40/3 – الاحتراف في كل غرزة\n\nخيط بوليستر 40/3 هو الخيار المفضل للمحترفين. جودة ثابتة، متانة عالية، وألوان لا تبهت مع الغسيل.\n\nالمميزات:\n• جودة صناعية موثوقة\n• متانة عالية مع نعومة في الخياطة\n• مناسب للقمصان، البنطلونات والسترات",
+      "descriptionAr": "خيط بوليستر 40/3 – الاحتراف في كل غرزة\n\nخيط بوليستر 40/3 هو الخيار المفضل للمحترفين. جودة ثابتة، متانة عالية، وألوان لا تبهت مع الغسيل.",
       "shortDescriptionAr": "حزمة 12 بكرة من خيط بوليستر 40/3 عالي الجودة، مناسب للخياطة الصناعية والحرفية.",
       "categoryNameAr": "Bobines de fil",
       "materialAr": "100% بوليستر",
       "specificationAr": "مقاس 40/3",
-      "packagingAr": "12 بكرة في الحزمة"
+      "packagingAr": "12 بكرة في الحزمة",
+      "material": "100% Polyester",
+      "specification": "Titre 40/3",
+      "packaging": "12 bobines/lot"
     },
     {
       "id": "custom_1780932946065_4li5t",
@@ -2306,12 +2324,15 @@
         "couture et événements. Disponible chez Lebtex Maroc."
       ],
       "nameAr": "شريط ساتان 25 مم – حزمة 10 قطع",
-      "descriptionAr": "شريط ساتان 25 مم – الأناقة والتنوع\n\nشريط الساتان 25 مم مثالي لإضفاء لمسة أنيقة على هداياك، ملابسك وديكورات الفعاليات.\n\nالاستخدامات:\n• تزيين الهدايا والبالونات\n• حزام خصر للفساتين\n• ديكور حفلات الأعراس والمناسبات\n• صناعة الإكسسوارات اليدوية",
+      "descriptionAr": "شريط ساتان 25 مم – الأناقة والتنوع\n\nشريط الساتان 25 مم مثالي لإضفاء لمسة أنيقة على هداياك وملابسك وديكورات الفعاليات.",
       "shortDescriptionAr": "شريط ساتان عالي الجودة بعرض 25 مم، يُباع في حزمة 10 بكرات.",
       "categoryNameAr": "Biais & Rubans",
       "materialAr": "100% بوليستر ساتان",
       "specificationAr": "عرض 25 مم",
-      "packagingAr": "10 بكرات في الحزمة"
+      "packagingAr": "10 بكرات في الحزمة",
+      "material": "100% Polyester satin",
+      "specification": "Largeur 25 mm",
+      "packaging": "10 rouleaux/lot"
     },
     {
       "id": "custom_1781027836259_yb000",
@@ -2429,12 +2450,15 @@
         "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781027766404_zapr45.jpg?alt=media&token=c3bc0170-52ce-45f7-9cf4-998cb3dafda5"
       ],
       "nameAr": "قماش بوبلين بوليستر 100% – رول 50 متراً",
-      "descriptionAr": "بوبلين بوليستر 100% – الجودة المضمونة لكل استخدام\n\nبوبلين البوليستر يجمع بين المتانة وسهولة العناية. نسيج ناعم، مقاوم للتجاعيد ومناسب للاستخدام اليومي.\n\nالمميزات:\n• لا يتجعد بسهولة\n• سهل الغسيل والكوي\n• متوفر بألوان متعددة\n• مثالي للملابس الموحدة والمدرسية",
+      "descriptionAr": "بوبلين بوليستر 100% – الجودة المضمونة لكل استخدام\n\nبوبلين البوليستر يجمع بين المتانة وسهولة العناية. نسيج ناعم مقاوم للتجاعيد ومناسب للاستخدام اليومي.",
       "shortDescriptionAr": "قماش بوبلين بوليستر 100% عالي الجودة، مثالي للملابس والمفروشات. رول كامل 50 متراً.",
       "categoryNameAr": "Tissu & Doublure",
       "materialAr": "100% بوليستر",
       "specificationAr": "عرض 150 سم",
-      "packagingAr": "رول من 50 متراً"
+      "packagingAr": "رول من 50 متراً",
+      "material": "100% Polyester",
+      "specification": "Largeur 150 cm",
+      "packaging": "Rouleau 50 mètres"
     },
     {
       "id": "custom_1781213370895_92nbv",
@@ -2475,12 +2499,15 @@
       "slug": "bouton-pression-ressort-15-mm-blanc-type-w-en-fer-1000-ensembles-sachet",
       "reviewCount": 0,
       "nameAr": "دبابيس ضغط زنبركية 15 مم بيضاء – 1000 طقم",
-      "descriptionAr": "دبابيس الضغط الزنبركية 15 مم – الإغلاق المثالي\n\nدبابيس الضغط الزنبركية 15 مم تُوفر إغلاقاً موثوقاً وسريعاً لمختلف المنتجات النسيجية.\n\nالاستخدامات:\n• ملابس الأطفال والرضع\n• بيجامات وملابس النوم\n• إكسسوارات الملابس\n\nالمميزات:\n• قوة ضغط مثالية – تفتح وتُغلق بسهولة\n• مقاومة للصدأ\n• مثبتة بإحكام لا تسقط",
+      "descriptionAr": "دبابيس الضغط الزنبركية 15 مم – الإغلاق المثالي\n\nدبابيس الضغط الزنبركية 15 مم توفر إغلاقاً موثوقاً وسريعاً لمختلف المنتجات النسيجية.",
       "shortDescriptionAr": "دبابيس ضغط زنبركية 15 مم بيضاء اللون مصنوعة من الحديد – 1000 طقم كامل.",
       "categoryNameAr": "Boutons",
       "materialAr": "حديد مطلي",
       "specificationAr": "قطر 15 مم – نوع W",
-      "packagingAr": "1000 طقم كامل (1000 قطعة علوية + 1000 قطعة سفلية)"
+      "packagingAr": "1000 طقم كامل (1000 قطعة علوية + 1000 قطعة سفلية)",
+      "material": "Fer galvanisé",
+      "specification": "Ø 15 mm — Type W",
+      "packaging": "1000 ensembles complets"
     },
     {
       "id": "custom_1781548051720_mliyd",
@@ -2622,12 +2649,15 @@
       "isPromo": false,
       "isNew": true,
       "nameAr": "شريط مخمل (مُبرة) – 100 يارد/رول",
-      "descriptionAr": "شريط المخمل (المُبرة) – الفخامة في كل لمسة\n\nشريط المخمل بملمسه الناعم المخملي يُضفي لمسة فخامة لا مثيل لها على تصميماتك.\n\nالاستخدامات:\n• تزيين الفساتين والسترات\n• إكسسوارات الشعر\n• حزامات الخصر\n• ديكور المنزل والهدايا",
+      "descriptionAr": "شريط المخمل (المُبرة) – الفخامة في كل لمسة\n\nشريط المخمل بملمسه الناعم المخملي يُضفي لمسة فخامة لا مثيل لها على تصميماتك.",
       "shortDescriptionAr": "شريط مخمل عالي الجودة بملمس ناعم وفاخر، يُباع في رول 100 يارد.",
       "categoryNameAr": "Biais & Rubans",
       "materialAr": "100% بوليستر مخمل",
       "specificationAr": "طول 100 يارد",
-      "packagingAr": "رول واحد كامل"
+      "packagingAr": "رول واحد كامل",
+      "material": "100% Polyester velours",
+      "specification": "100 yards/rouleau",
+      "packaging": "1 rouleau"
     },
     {
       "id": "custom_1781549677899_11okn",
@@ -2677,8 +2707,11 @@
       "shortDescriptionAr": "سحاب نايلون مقاس 5 بطول 75 سم مع منزلق قفل تلقائي – حزمة 100 قطعة.",
       "categoryNameAr": "سحابات نايلون",
       "materialAr": "نايلون",
-      "specificationAr": "مقاس 5 – طول 75 سم",
-      "packagingAr": "100 قطعة في الحزمة"
+      "specificationAr": "مقاس 5 – طول 75 سم نصف دائرة",
+      "packagingAr": "100 قطعة في الحزمة",
+      "material": "Nylon",
+      "specification": "N°5 — 75 cm demi-tour",
+      "packaging": "100 pièces/lot"
     },
     {
       "id": "custom_1781639488186_8gm8s",
@@ -2697,7 +2730,7 @@
         "https://firebasestorage.googleapis.com/v0/b/studio-9506506653-9b525.firebasestorage.app/o/shop%2Fproducts%2F1781639431418_vdbdtn.jpg?alt=media&token=c62e72cc-ec59-4cb0-beaf-0430abea2d04"
       ],
       "width": "28L",
-      "material": "100% Resine",
+      "material": "100% Résine",
       "minOrderQty": 1,
       "rating": 5,
       "tags": [
@@ -2706,16 +2739,16 @@
       "isFeatured": false,
       "categorySlug": "boutons",
       "price": 56,
-      "packaging": "1440pièces",
+      "packaging": "1440 pièces (10 grosses)",
       "name": "Bouton 2 Trous en Résine – 10Gross",
       "categoryName": "Boutons",
-      "specification": "BLANC",
+      "specification": "Blanc — 2 trous",
       "nameAr": "أزرار 2 ثقوب راتنج – 10 غروس",
       "descriptionAr": "أزرار الراتنج 2 ثقوب – المتانة والأناقة\n\nأزرار الراتنج 2 ثقوب مُصممة لتلبية متطلبات الخياطة الاحترافية. متانة استثنائية ومظهر أنيق.\n\nالاستخدامات:\n• قمصان الرجال والنساء\n• البلوزات الكلاسيكية\n• الملابس الرسمية",
       "shortDescriptionAr": "علبة 1440 زر راتنج بثقبين عالي الجودة، مثالي للملابس والتصميمات الاحترافية.",
       "categoryNameAr": "Boutons",
       "materialAr": "100% راتنج",
-      "specificationAr": "أبيض اللون",
+      "specificationAr": "أبيض – 2 ثقوب",
       "packagingAr": "1440 قطعة (10 غروس)"
     },
     {
@@ -2964,12 +2997,13 @@
       "categorySlug": "scratch-velcro",
       "isFeatured": false,
       "nameAr": "رول شريط فيلكرو (سكراتش) – عرض 2.5 سم",
-      "descriptionAr": "شريط الفيلكرو – الإغلاق الذكي والعملي\n\nشريط الفيلكرو يوفر حلاً لإغلاق سريعاً وقابلاً لإعادة الاستخدام آلاف المرات.\n\nالاستخدامات:\n• ملابس الأطفال والرضع\n• أحذية رياضية وصنادل\n• حقائب ومحافظ\n• التطبيقات الصناعية",
+      "descriptionAr": "شريط الفيلكرو – الإغلاق الذكي والعملي\n\nشريط الفيلكرو يوفر حلاً لإغلاق سريعاً وقابلاً لإعادة الاستخدام آلاف المرات.",
       "shortDescriptionAr": "شريط فيلكرو عالي الجودة بعرض 2.5 سم. نظام إغلاق سريع وقابل لإعادة الاستخدام.",
       "categoryNameAr": "Scratch / Velcro",
       "materialAr": "بوليستر",
       "specificationAr": "عرض 2.5 سم – 25 يارد/رول",
-      "packagingAr": "رول واحد"
+      "packagingAr": "رول واحد",
+      "packaging": "1 rouleau"
     },
     {
       "id": "custom_1781882828844_wzuoq",
@@ -3025,14 +3059,15 @@
       "comparePrice": 25,
       "isFeatured": false,
       "categorySlug": "accessoires-de-confection",
-      "packaging": "12pcs",
+      "packaging": "12 pièces",
       "nameAr": "حزمة 12 متر شريط – عرض 150 سم",
-      "descriptionAr": "شريط 150 سم – معيار الصناعة النسيجية\n\nشريط نسيجي احترافي بعرض 150 سم مُحسَّن للمتانة واللدونة في بيئة العمل الصناعي.\n\nالاستخدامات:\n• البطانات الداخلية للملابس\n• الأحزمة والأشرطة\n• التعزيزات النسيجية",
+      "descriptionAr": "شريط 150 سم – معيار الصناعة النسيجية\n\nشريط نسيجي احترافي بعرض 150 سم مُحسَّن للمتانة واللدونة في بيئة العمل الصناعي.",
       "shortDescriptionAr": "شريط نسيج عالي الجودة بعرض 150 سم – حزمة 12 قطعة.",
       "categoryNameAr": "Accessoires de Confection",
       "specificationAr": "عرض 150 سم",
       "materialAr": "بوليستر",
-      "packagingAr": "12 قطعة في الحزمة"
+      "packagingAr": "12 قطعة في الحزمة",
+      "material": "Polyester"
     },
     {
       "id": "custom_1781885141767_1ok3o",
@@ -3041,7 +3076,7 @@
       "price": 39.99,
       "isFeatured": true,
       "categorySlug": "accessoires-de-confection",
-      "packaging": "12pcs",
+      "packaging": "12 pièces",
       "minOrderQty": 1,
       "rating": 5,
       "images": [
@@ -3088,12 +3123,14 @@
       "isPromo": false,
       "isNew": true,
       "nameAr": "حزمة 12 مقص خيوط احترافي",
-      "descriptionAr": "مقص الخيوط الاحترافي – الدقة والسرعة في كل قطعة\n\nمقص الخيوط المُصمَّم للخياطين والمحترفين يُوفر قطعاً نظيفاً ودقيقاً للخيوط الزائدة دون إتلاف القماش.\n\nالمميزات:\n• حافة حادة للقطع الدقيق\n• مريح للإمساك به\n• متين ومقاوم للاستخدام المكثف",
+      "descriptionAr": "مقص الخيوط الاحترافي – الدقة والسرعة في كل قطعة\n\nمقص الخيوط المُصمَّم للخياطين والمحترفين يُوفر قطعاً نظيفاً ودقيقاً للخيوط الزائدة دون إتلاف القماش.",
       "shortDescriptionAr": "هذه الحزمة من 12 مقص خيوط مثالية لقطع الخيوط بسرعة ودقة في أي ورشة خياطة.",
       "categoryNameAr": "Accessoires de Confection",
       "materialAr": "فولاذ مقاوم للصدأ",
       "specificationAr": "مقص خيوط قياسي",
-      "packagingAr": "12 قطعة في الحزمة"
+      "packagingAr": "12 قطعة في الحزمة",
+      "material": "Acier inoxydable",
+      "specification": "Coupe-fil standard"
     },
     {
       "id": "custom_1782228665235_uvyn0",
@@ -3206,8 +3243,8 @@
         "lastik srawel)."
       ],
       "nameAr": "رول مطاط مضفر – 100 يارد",
-      "descriptionAr": "المطاط المضفر – الشريك المثالي للتشطيبات المتينة\n\nمطاطنا المضفر يجمع بين البوليستر عالي المقاومة ومطاط اللاتكس/الإيلاستين لمرونة مثالية تدوم طويلاً.\n\nالاستخدامات:\n• أحزمة الخصر للبنطلونات والتنانير\n• الملابس الرياضية\n• أكواع الأطفال\n• البيجامات والملابس المنزلية",
-      "shortDescriptionAr": "رول مطاط مضفر عالي الجودة، يُباع بالقطعة، مناسب لجميع أعمال الخياطة.",
+      "descriptionAr": "المطاط المضفر – الشريك المثالي للتشطيبات المتينة\n\nمطاطنا المضفر يجمع بين البوليستر عالي المقاومة ومطاط اللاتكس/الإيلاستين لمرونة مثالية تدوم طويلاً.",
+      "shortDescriptionAr": "رول مطاط مضفر عالي الجودة، مناسب لجميع أعمال الخياطة.",
       "categoryNameAr": "Élastiques",
       "materialAr": "بوليستر 70% + لاتكس/إيلاستين 30%",
       "specificationAr": "100 يارد",
@@ -3317,19 +3354,20 @@
       "minOrderQty": 1,
       "material": "100 % Aluminium",
       "rating": 5,
-      "packaging": "Pack de 1000 sets complets (1000 hauts + 1000 dos à anneau)",
+      "packaging": "1000 sets complets",
       "isFeatured": false,
       "categorySlug": "fermetures-invisibles",
       "price": 30,
       "name": "1000 Sets de Moules (Boutons à Recouvrir en Aluminium)",
       "categoryName": "Tissu & Doublure",
       "nameAr": "1000 طقم قوالب أزرار ألومنيوم قابلة للتغطية",
-      "descriptionAr": "قوالب الأزرار القابلة للتغطية – إبداع بلمسة شخصية\n\nأعطِ تصميماتك لمسة مميزة وفريدة بتغطية الأزرار بقماش مطابق. مثالية للخياطة الراقية والتصميمات المخصصة.\n\nالاستخدامات:\n• الفساتين والسترات المخصصة\n• ملابس العرائس\n• الوسائد والأغطية المنزلية",
-      "shortDescriptionAr": "احترافي 1000 طقم قوالب أزرار ألومنيوم لتغطيتها بقماش مطابق لتصميماتك.",
+      "descriptionAr": "قوالب الأزرار القابلة للتغطية – إبداع بلمسة شخصية\n\nأعطِ تصميماتك لمسة مميزة وفريدة بتغطية الأزرار بقماش مطابق.",
+      "shortDescriptionAr": "1000 طقم قوالب أزرار ألومنيوم لتغطيتها بقماش مطابق لتصميماتك.",
       "categoryNameAr": "Tissu & Doublure",
       "materialAr": "100% ألومنيوم",
-      "specificationAr": "قوالب أزرار قياسية",
-      "packagingAr": "1000 طقم كامل (1000 جزء علوي + 1000 ظهر بحلقة)"
+      "specificationAr": "قوالب ألومنيوم قياسية",
+      "packagingAr": "1000 طقم كامل (1000 jزء علوي + 1000 ظهر بحلقة)",
+      "specification": "Moules aluminium standard"
     },
     {
       "id": "custom_1782415355559_rjysz",
@@ -3442,19 +3480,20 @@
       "rating": 5,
       "minOrderQty": 1,
       "material": "RésignE",
-      "packaging": "Pack de 10 grosses (1440 pièces exactes)",
+      "packaging": "10 grosses = 1440 pièces",
       "categorySlug": "boutons",
       "isFeatured": true,
       "price": 0,
       "name": "Pack de 10 Grosses (1440 pièces) - Boutons en Résine 4 Trous",
       "categoryName": "Boutons",
       "nameAr": "10 غروس (1440 قطعة) أزرار راتنج 4 ثقوب",
-      "descriptionAr": "أزرار الراتنج 4 ثقوب – الزر المرجعي للخياطة الصناعية\n\nالزر المفضل للمصانع والأعمال الكبيرة. جودة ثابتة وسعر تنافسي لحجم الإنتاج الكبير.\n\nالمميزات:\n• 4 ثقوب لثبات أكبر في الخياطة\n• راتنج متين لا يتكسر\n• متوفر بأحجام متعددة",
+      "descriptionAr": "أزرار الراتنج 4 ثقوب – الزر المرجعي للخياطة الصناعية\n\nالزر المفضل للمصانع والأعمال الكبيرة. جودة ثابتة وسعر تنافسي.",
       "shortDescriptionAr": "حزمة صناعية 1440 قطعة من أزرار الراتنج 4 ثقوب عالية الجودة.",
       "categoryNameAr": "Boutons",
       "materialAr": "راتنج",
-      "specificationAr": "أزرار 4 ثقوب",
-      "packagingAr": "10 غروس = 1440 قطعة"
+      "specificationAr": "راتنج – 4 ثقوب",
+      "packagingAr": "10 غروس = 1440 قطعة",
+      "specification": "Résine — 4 trous"
     },
     {
       "id": "custom_1782935835919_kgfc8",
@@ -3463,7 +3502,7 @@
       "compatibleAvec": "Tissus moyens à épais (Polaire, softshell, coton lourd)",
       "avantages": "Esthétisme moderne : La tirette en demi-cercle donne un look premium et original.\n\nErgonomie optimale : Prise en main ultra-facile, idéale pour les enfants ou les conditions hivernales.\n\nSécurité intégrée : Le système Auto-Lock maintient la veste fermée au niveau souhaité.\n\nPraticité : S'ouvre totalement (Open-End).\n\nLongévité : Plastique injecté robuste, fluide et qui ne gèle pas.\n\nTarif grossiste : Vendu en lot de 50 pour optimiser les coûts de production.",
       "matiereMailles": "Plastique injecté (Polyacétal / POM)",
-      "packaging": "Pack de 50 pièces",
+      "packaging": "50 pièces",
       "name": "Lot de 50 Fermetures à Glissière Plastique 75 cm Séparables – Curseur Demi-Cercle (Halftour)",
       "categoryName": "Tissu & Doublure",
       "specification": "75cm",
@@ -3638,9 +3677,9 @@
       "width": "Standard N°5 (environ 5 mm)",
       "resistance": "Autobloquant (Auto-Lock / A/L)",
       "conseilsEntretien": "Lavage en machine à 40°C maximum.\n\nToujours remonter le curseur jusqu'en haut avant le lavage pour protéger les dents et la tirette contre les chocs du tambour.\n\nNe jamais repasser directement sur les mailles en plastique (utiliser une pattemouille).",
-      "nameAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل – منزلق نصف دائرة",
-      "descriptionAr": "سحاب البلاستيك 75 سم القابل للفصل – تصميم قوي واحترافي\n\nهذا اللوت من 50 سحاب بلاستيك 75 سم مُصمَّم للسترات والجاكيتات الرياضية التي تحتاج إلى فصل تام.\n\nالمميزات:\n• بلاستيك مضغوط مقاوم للكسر\n• قابل للفصل الكامل للسترات\n• حركة سلسة لا تنحشر\n• متوفر بألوان متعددة",
-      "shortDescriptionAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل بتصميم نصف دائرة (هالف تور) عالي الجودة.",
+      "nameAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل",
+      "descriptionAr": "سحاب البلاستيك 75 سم القابل للفصل – تصميم قوي واحترافي\n\nهذا اللوت من 50 سحاب بلاستيك مُصمَّم للسترات والجاكيتات الرياضية.",
+      "shortDescriptionAr": "لوت 50 سحاب بلاستيك 75 سم قابل للفصل بتصميم نصف دائرة عالي الجودة.",
       "categoryNameAr": "Tissu & Doublure",
       "materialAr": "بلاستيك مضغوط (بولي أسيتال/POM)",
       "specificationAr": "مقاس 75 سم – قابل للفصل",
@@ -3819,14 +3858,16 @@
       "compatibleAvec": "Tissus fins à moyens : coton, crêpe, soie, viscose, lin",
       "avantages": "Invisibilité parfaite : Ne casse ni le motif ni le tombé du vêtement.\n\nSécurité accrue : Le curseur autobloquant empêche les ouvertures accidentelles.\n\nUltra-rentable : Le format grossiste par 100 réduit drastiquement le coût unitaire.\n\nFluidité : La maille en nylon assure une glisse sans accroc et sans coincement.\n\nDurabilité : Ruban en polyester résistant aux lavages répétés sans rétrécir.",
       "matiereMailles": "100% Nylon (Polyamide)",
-      "packaging": "Pack de 100 pièces",
+      "packaging": "100 pièces",
       "nameAr": "لوت 100 سحاب نايلون خفي – 20 سم",
-      "descriptionAr": "سحاب النايلون الخفي 20 سم – فن التشطيب الاحترافي\n\nالسحاب الخفي يوفر تشطيبة نظيفة ومخفية تماماً. الحل المثالي للفساتين والتنانير الراقية.\n\nالمميزات:\n• مخفي تماماً من الخارج\n• حركة سلسة وهادئة\n• مقاوم للاستخدام المكثف\n• 100 قطعة بقيمة مضاعفة",
+      "descriptionAr": "سحاب النايلون الخفي 20 سم – فن التشطيب الاحترافي\n\nالسحاب الخفي يوفر تشطيبة نظيفة ومخفية تماماً. الحل المثالي للفساتين والتنانير الراقية.",
       "shortDescriptionAr": "لوت 100 سحاب نايلون خفي بطول 20 سم لتشطيبات نظيفة وغير مرئية.",
       "categoryNameAr": "Fermeture en nylon N°3 (10-50cm)",
       "materialAr": "نايلون عالي الجودة",
       "specificationAr": "خفي – طول 20 سم",
-      "packagingAr": "100 قطعة في الحزمة"
+      "packagingAr": "100 قطعة في الحزمة",
+      "material": "Nylon",
+      "specification": "Invisible — 20 cm"
     },
     {
       "id": "custom_1783767948587_e8w0r",
@@ -3925,12 +3966,15 @@
       "matiereMailles": "Nylon (Maille spirale)",
       "avantages": "Sécurité anti-ouverture : Curseur autobloquant (Auto-Lock).\n\nGlisse optimale : Le nylon en spirale ne s'accroche pas.\n\nRentabilité : Prix de gros ultra-compétitif grâce au pack de 100.\n\nLégèreté : Ne déforme pas le tombé des tissus fins.\n\nEntretien facile : Pas de rouille, résistance aux détergents.",
       "nameAr": "لوت 100 سحاب نايلون مقاس 3 – 20 سم منزلق PU",
-      "descriptionAr": "سحاب نايلون مقاس 3 مع منزلق PU – الاحتراف في كل غرزة\n\nلوت اقتصادي 100 قطعة من أرقى السحابات لضمان تشطيبات احترافية. المنزلق البولي يوريتان يضمن حركة سلسة وعمراً طويلاً.\n\nالمميزات:\n• نايلون مقاس 3 خفيف الوزن\n• منزلق PU ذو جودة عالية\n• مقاوم للاستخدام اليومي المكثف",
+      "descriptionAr": "سحاب نايلون مقاس 3 مع منزلق PU – الاحتراف في كل غرزة\n\nلوت اقتصادي 100 قطعة من أرقى السحابات لضمان تشطيبات احترافية.",
       "shortDescriptionAr": "لوت 100 سحاب نايلون مقاس 3 بطول 20 سم مع منزلق PU احترافي.",
       "categoryNameAr": "Fermeture en nylon N°3 (10-50cm)",
       "materialAr": "نايلون مع منزلق بولي يوريتان",
       "specificationAr": "مقاس 3 – طول 20 سم – منزلق PU",
-      "packagingAr": "100 قطعة في الحزمة"
+      "packagingAr": "100 قطعة في الحزمة",
+      "material": "Nylon + curseur PU",
+      "specification": "N°3 — 20 cm — curseur PU",
+      "packaging": "100 pièces"
     },
     {
       "id": "custom_1783768966494_93lor",
@@ -4098,12 +4142,15 @@
       "avantages": "Économique : Coût unitaire fortement réduit grâce au conditionnement en lot de 50.\n\nSécurité : Curseur autobloquant empêchant les ouvertures intempestives.\n\nFluidité : Les dents en plastique moulé offrent un glissement sans accroc.\n\nRésistance aux intempéries : Ne craint ni la pluie, ni le gel, ni la rouille.\n\nPratique : Boîtier séparable solide pour un assemblage facile des deux pans du vêtement.",
       "matiereMailles": "Plastique injecté / Résine acétal (Delrin / POM)",
       "nameAr": "لوت 50 سحاب بلاستيك Delrin مقاس 5 – 70 سم منزلق M832",
-      "descriptionAr": "سحاب Delrin مقاس 5 مع منزلق M832 – تكامل الجودة والقوة\n\nلوت اقتصادي 50 قطعة من سحابات البلاستيك الصناعي Delrin، المعروف بمتانته ومقاومته للاحتكاك.\n\nالمميزات:\n• Delrin (بولي أسيتال) أقوى من البلاستيك العادي\n• منزلق M832 احترافي بحركة دقيقة\n• مناسب للسترات والحقائب والمعدات الرياضية",
+      "descriptionAr": "سحاب Delrin مقاس 5 مع منزلق M832 – تكامل الجودة والقوة\n\nلوت اقتصادي 50 قطعة من سحابات البلاستيك الصناعي Delrin، المعروف بمتانته.",
       "shortDescriptionAr": "لوت 50 سحاب بلاستيك Delrin مقاس 5 بطول 70 سم مع منزلق M832 احترافي.",
       "categoryNameAr": "Tissu & Doublure",
       "materialAr": "بلاستيك ديلرين (بولي أسيتال)",
       "specificationAr": "مقاس 5 – طول 70 سم – منزلق M832",
-      "packagingAr": "50 قطعة في الحزمة"
+      "packagingAr": "50 قطعة في الحزمة",
+      "material": "Plastique Delrin (Polyacétal)",
+      "specification": "N°5 — 70 cm — curseur M832",
+      "packaging": "50 pièces"
     }
   ],
   "customCategories": [
