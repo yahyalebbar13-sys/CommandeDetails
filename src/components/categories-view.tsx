@@ -919,8 +919,8 @@ export default function CategoriesView({
           </div>
         </header>
 
-        {/* ── Design Library — Zipper / Slider / Puller ── */}
-        {currentCategoryObj && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('SLIDER') || (selectedCategory || '').toUpperCase().includes('PULLER')) && (
+        {/* ── Design Library — Zipper / Slider / Puller / Taffeta ── */}
+        {currentCategoryObj && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('SLIDER') || (selectedCategory || '').toUpperCase().includes('PULLER') || (selectedCategory || '').toUpperCase().includes('TAFFETA')) && (
           <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden p-6">
             <DesignLibrary
               categoryId={currentCategoryObj.id}
