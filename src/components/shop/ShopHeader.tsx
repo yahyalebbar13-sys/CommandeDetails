@@ -363,7 +363,7 @@ export default function ShopHeader() {
                         className="absolute top-full right-0 mt-0 w-48 bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-2 z-50 flex flex-col gap-1"
                       >
                         {MORE_LINKS.map(ml => (
-                           <Link prefetch={true} > setIsMoreOpen(false)} className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
+                           <Link prefetch={true} key={ml.labelKey} href={ml.href} onClick={() => setIsMoreOpen(false)} className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-[#C8102E] hover:bg-gray-50 rounded-lg transition-colors">
                              {t(ml.labelKey)}
                            </Link>
                         ))}
