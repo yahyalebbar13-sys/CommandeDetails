@@ -198,9 +198,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   }, [formData?.categoryId]);
 
   const isDesignCategory = useMemo(() => {
-    const upper = (formData.categoryId || '').toUpperCase();
+    const upper = (formData?.categoryId || '').toUpperCase();
     return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
-  }, [isZipper, isSlider, formData.categoryId]);
+  }, [isZipper, isSlider, formData?.categoryId]);
 
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
