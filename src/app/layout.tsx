@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import CopyProtection from '@/components/CopyProtection';
 import AppLoader from '@/components/AppLoader';
+import ProgressBar from '@/components/ProgressBar';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://lebtex.ma'),
@@ -40,6 +41,8 @@ export default function RootLayout({
               for (let reg of registrations) { reg.unregister(); }
             });
           }
+          // Enable :active CSS state on iOS Safari
+          document.addEventListener('touchstart', function() {}, {passive: true});
         `}} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -48,6 +51,7 @@ export default function RootLayout({
       <body className="font-body antialiased select-none">
         {/* Masque le flash de l'ancienne version pendant l'initialisation React */}
         <AppLoader />
+        <ProgressBar />
         <CopyProtection />
         <FirebaseClientProvider>
           {children}
