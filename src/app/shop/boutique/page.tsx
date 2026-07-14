@@ -95,6 +95,7 @@ function BoutiqueContent() {
   const initNew = searchParams.get('nouveautes') === 'true';
 
   const [search, setSearch] = useState(initSearch || '');
+  const deferredSearch = React.useDeferredValue(search);
   const [sort, setSort] = useState('pertinence');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(initCat ? [initCat] : []);
   const [priceMin, setPriceMin] = useState('');
@@ -105,50 +106,77 @@ function BoutiqueContent() {
     ...(initNew ? ['isNew'] : []),
   ]);
   const [mobileFilters, setMobileFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(24);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
   const { products: allProducts, categories: allContextCategories } = useShopProducts();
   const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
 
   // Get unique images for the hero collage (top 12 images)
-  const heroImages = Array.from(new Set(allProducts.flatMap(p => p.images))).filter(Boolean).slice(0, 12);
+  const heroImages = useMemo(() => Array.from(new Set(allProducts.flatMap(p => p.images))).filter(Boolean).slice(0, 12), [allProducts]);
 
-  // Filter & sort
-  let products = [...allProducts];
+  // Filter & sort - Memoized for extreme performance
+  const products = useMemo(() => {
+    let filtered = [...allProducts];
 
-  if (search.trim()) {
-    const q = search.toLowerCase();
-    products = products.filter(p =>
-      p.name.toLowerCase().includes(q) || p.categoryName?.toLowerCase().includes(q) || p.tags.some(t => t.includes(q))
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(q) || p.categoryName?.toLowerCase().includes(q) || p.tags.some(t => t.includes(q))
+      );
+    }
+    if (selectedCategories.length > 0) {
+      const expandedSlugs = new Set<string>(selectedCategories);
+      allContextCategories.forEach(cat => {
+        if (cat.parentSlug && selectedCategories.includes(cat.parentSlug)) {
+          expandedSlugs.add(cat.slug);
+        }
+      });
+      filtered = filtered.filter(p => expandedSlugs.has(p.categorySlug));
+    }
+    if (priceMin) filtered = filtered.filter(p => p.price >= Number(priceMin));
+    if (priceMax) filtered = filtered.filter(p => p.price <= Number(priceMax));
+    if (inStockOnly) filtered = filtered.filter(p => p.inStock);
+    if (tags.includes('isNew')) filtered = filtered.filter(p => p.isNew);
+    if (tags.includes('isPromo')) filtered = filtered.filter(p => p.isPromo);
+    if (tags.includes('isFeatured')) filtered = filtered.filter(p => p.isFeatured);
+
+    if (sort === 'prix-asc') filtered.sort((a, b) => a.price - b.price);
+    else if (sort === 'prix-desc') filtered.sort((a, b) => b.price - a.price);
+    else if (sort === 'nouveautes') filtered.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+    else if (sort === 'ventes') filtered.sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0));
+
+    return filtered;
+  }, [allProducts, allContextCategories, deferredSearch, selectedCategories, priceMin, priceMax, inStockOnly, tags, sort]);
+
+  // Reset infinite scroll count when filters change
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [products.length, deferredSearch, selectedCategories, sort, tags, priceMin, priceMax, inStockOnly]);
+
+  // Infinite Scroll Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(prev => Math.min(prev + 24, products.length));
+        }
+      },
+      { rootMargin: '400px' }
     );
-  }
-  if (selectedCategories.length > 0) {
-    // Also include subcategories when filtering by parent category
-    const allCatsFromContext = allContextCategories;
-    const expandedSlugs = new Set<string>(selectedCategories);
-    // For each selected slug, add its children
-    allCatsFromContext.forEach(cat => {
-      if (cat.parentSlug && selectedCategories.includes(cat.parentSlug)) {
-        expandedSlugs.add(cat.slug);
-      }
-    });
-    products = products.filter(p => expandedSlugs.has(p.categorySlug));
-  }
-  if (priceMin) products = products.filter(p => p.price >= Number(priceMin));
-  if (priceMax) products = products.filter(p => p.price <= Number(priceMax));
-  if (inStockOnly) products = products.filter(p => p.inStock);
-  if (tags.includes('isNew')) products = products.filter(p => p.isNew);
-  if (tags.includes('isPromo')) products = products.filter(p => p.isPromo);
-  if (tags.includes('isFeatured')) products = products.filter(p => p.isFeatured);
-
-  if (sort === 'prix-asc') products.sort((a, b) => a.price - b.price);
-  else if (sort === 'prix-desc') products.sort((a, b) => b.price - a.price);
-  else if (sort === 'nouveautes') products.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
-  else if (sort === 'ventes') products.sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0));
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+    return () => observer.disconnect();
+  }, [products.length]);
 
   const clearFilters = () => {
     setSearch(''); setSelectedCategories([]); setPriceMin(''); setPriceMax('');
     setInStockOnly(false); setTags([]);
   };
   const hasFilters = search || selectedCategories.length > 0 || priceMin || priceMax || inStockOnly || tags.length > 0;
+
+  const visibleProducts = products.slice(0, visibleCount);
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
@@ -160,7 +188,7 @@ function BoutiqueContent() {
             <div className="absolute inset-0 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 transform scale-110 -rotate-2">
               {heroImages.map((img, idx) => (
                 <div key={idx} className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-lg">
-                  <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                  <img src={img as string} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
@@ -177,7 +205,7 @@ function BoutiqueContent() {
         
         <div className="relative z-10 max-w-7xl mx-auto px-6 text-center flex flex-col items-center">
           <nav className="text-xs text-gray-400 mb-4 tracking-widest uppercase flex items-center gap-2">
-            <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
+            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">Accueil</Link>
             <span className="text-gray-600">/</span>
             <span className="text-white font-semibold">Boutique</span>
           </nav>
@@ -208,7 +236,7 @@ function BoutiqueContent() {
             <option value="ventes">Meilleures ventes</option>
           </select>
           <button onClick={() => setMobileFilters(true)}
-            className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-[#0F0F0F] text-white rounded-xl font-semibold text-sm">
+            className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-[#0F0F0F] text-white rounded-xl font-semibold text-sm touch-manipulation active:scale-95 transition-transform">
             <Filter className="w-4 h-4" /> Filtrer
           </button>
         </div>
@@ -221,12 +249,12 @@ function BoutiqueContent() {
               return (
                 <span key={c} className="flex items-center gap-1.5 bg-[#C8102E]/10 text-[#C8102E] px-3 py-1 rounded-full text-xs font-semibold">
                   {cat?.name}
-                  <button onClick={() => setSelectedCategories(prev => prev.filter(x => x !== c))}><X className="w-3 h-3" /></button>
+                  <button onClick={() => setSelectedCategories(prev => prev.filter(x => x !== c))} className="active:scale-90 touch-manipulation"><X className="w-3 h-3" /></button>
                 </span>
               );
             })}
             {hasFilters && (
-              <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-[#C8102E] underline transition-colors">
+              <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-[#C8102E] underline transition-colors active:scale-95 touch-manipulation">
                 Effacer tout
               </button>
             )}
@@ -239,7 +267,7 @@ function BoutiqueContent() {
             <div className="bg-white border border-[#E8E4DF] rounded-2xl p-6 sticky top-24">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-bold text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>Filtres</h2>
-                {hasFilters && <button onClick={clearFilters} className="text-xs text-[#C8102E]">Effacer</button>}
+                {hasFilters && <button onClick={clearFilters} className="text-xs text-[#C8102E] active:scale-95 touch-manipulation">Effacer</button>}
               </div>
               <FilterSidebar
                 categories={SHOP_CATEGORIES}
@@ -257,6 +285,7 @@ function BoutiqueContent() {
           <div className="flex-1">
             <p className="text-sm text-[#6B6B6B] mb-5">
               <strong className="text-[#1A1A1A]">{products.length}</strong> produit{products.length !== 1 ? 's' : ''} trouvé{products.length !== 1 ? 's' : ''}
+              {search !== deferredSearch && <span className="ml-2 text-[#C8102E] animate-pulse">Recherche en cours...</span>}
             </p>
 
             {products.length === 0 ? (
@@ -265,16 +294,24 @@ function BoutiqueContent() {
                 <h3 className="text-xl font-bold text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Aucun produit trouvé</h3>
                 <p className="text-[#6B6B6B] mb-6">Essayez de modifier vos filtres de recherche</p>
                 <button onClick={clearFilters}
-                  className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors">
+                  className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation">
                   Effacer les filtres
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {products.map(product => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {visibleProducts.map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+                {/* Infinite Scroll target */}
+                {visibleCount < products.length && (
+                  <div ref={observerTarget} className="h-24 mt-8 flex items-center justify-center">
+                    <div className="w-8 h-8 border-4 border-[#C8102E]/20 border-t-[#C8102E] rounded-full animate-spin" />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

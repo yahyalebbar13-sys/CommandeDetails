@@ -90,7 +90,8 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   return (
     <Link
       href={productUrl}
-      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline"
+      prefetch={false}
+      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline active:scale-[0.98] transition-transform duration-200 touch-manipulation"
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">

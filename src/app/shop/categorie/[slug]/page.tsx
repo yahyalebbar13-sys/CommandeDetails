@@ -143,13 +143,41 @@ export default function CategoryPage({ params }: { params: any }) {
   );
   const notFound = !isLoading && !category;
 
-  // Sort products
-  const sortedProducts = [...products].sort((a, b) => {
-    if (sort === 'prix-asc') return a.price - b.price;
-    if (sort === 'prix-desc') return b.price - a.price;
-    if (sort === 'nouveautes') return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
-    return 0;
-  });
+  // Sort products - Memoized for extreme performance
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => {
+      if (sort === 'prix-asc') return a.price - b.price;
+      if (sort === 'prix-desc') return b.price - a.price;
+      if (sort === 'nouveautes') return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
+      return 0;
+    });
+  }, [products, sort]);
+
+  const [visibleCount, setVisibleCount] = useState(24);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  // Reset infinite scroll count when sort changes
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [sort, canonicalSlug]);
+
+  // Infinite Scroll Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(prev => Math.min(prev + 24, sortedProducts.length));
+        }
+      },
+      { rootMargin: '400px' }
+    );
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+    return () => observer.disconnect();
+  }, [sortedProducts.length]);
+
+  const visibleProducts = sortedProducts.slice(0, visibleCount);
 
   if (isLoading) {
     return (
@@ -173,7 +201,8 @@ export default function CategoryPage({ params }: { params: any }) {
         </div>
         <Link
           href="/shop/boutique"
-          className="flex items-center gap-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors"
+          prefetch={false}
+          className="flex items-center gap-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
         >
           <ArrowLeft className="w-4 h-4" /> Retour à la boutique
         </Link>
@@ -190,7 +219,7 @@ export default function CategoryPage({ params }: { params: any }) {
         {/* Background image or gradient */}
         {category?.image ? (
           <img
-            src={category.image}
+            src={category.image as string}
             alt={category.name}
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -209,13 +238,13 @@ export default function CategoryPage({ params }: { params: any }) {
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-end pb-10">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-xs text-white/60 mb-4">
-            <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
+            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">Accueil</Link>
             <span>›</span>
-            <Link href="/shop/categories" className="hover:text-white transition-colors">Catégories</Link>
+            <Link href="/shop/categories" prefetch={false} className="hover:text-white transition-colors">Catégories</Link>
             <span>›</span>
             {category?.parentSlug && (
               <>
-                <Link href={`/shop/categorie/${category.parentSlug}`} className="hover:text-white transition-colors">
+                <Link href={`/shop/categorie/${category.parentSlug}`} prefetch={false} className="hover:text-white transition-colors">
                   {allContextCategories.find(c => c.slug === category.parentSlug)?.name || category.parentSlug}
                 </Link>
                 <span>›</span>
@@ -265,7 +294,7 @@ export default function CategoryPage({ params }: { params: any }) {
             onClick={() => window.history.back()}
             aria-label="Retour"
             title="Retour"
-            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E]"
+            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 touch-manipulation"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -302,7 +331,8 @@ export default function CategoryPage({ params }: { params: any }) {
                   <Link
                     key={cat.id}
                     href={`/shop/categorie/${cat.slug}`}
-                    className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                    prefetch={false}
+                    className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col active:scale-95 touch-manipulation"
                   >
                     <div className="relative h-44 overflow-hidden flex-shrink-0">
                       {cat.image ? (
@@ -345,10 +375,16 @@ export default function CategoryPage({ params }: { params: any }) {
               </h2>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-              {sortedProducts.map(product => (
+              {visibleProducts.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
+            {/* Infinite Scroll target */}
+            {visibleCount < sortedProducts.length && (
+              <div ref={observerTarget} className="h-24 mt-8 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-[#C8102E]/20 border-t-[#C8102E] rounded-full animate-spin" />
+              </div>
+            )}
           </>
         ) : subCats.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
@@ -361,7 +397,8 @@ export default function CategoryPage({ params }: { params: any }) {
             <p className="text-gray-400 text-sm">{language === 'ar' ? 'منتجات هذه الفئة ستتوفر قريباً.' : 'Les produits de cette catégorie arrivent bientôt.'}</p>
             <Link
               href="/shop/boutique"
-              className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm"
+              prefetch={false}
+              className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm active:scale-95 touch-manipulation"
             >
               {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
             </Link>

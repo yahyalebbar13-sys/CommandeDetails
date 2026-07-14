@@ -511,7 +511,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
 
           {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
           <ColorBreakdownInput
-            categoryId={currentCategoryObj?.id}
+            categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
             value={colorBreakdown}
             onChange={handleColorBreakdownChange}
             unit={formData.unitOfMeasure}

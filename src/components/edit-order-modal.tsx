@@ -764,7 +764,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
               <div className="md:col-span-2 space-y-4">
                 <ColorBreakdownInput
-                  categoryId={currentCategoryObj?.id}
+                  categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
                   value={colorBreakdown}
                   onChange={handleColorBreakdownChange}
                   unit={formData.unitOfMeasure}
