@@ -205,7 +205,7 @@ function BoutiqueContent() {
         
         <div className="relative z-10 max-w-7xl mx-auto px-6 text-center flex flex-col items-center">
           <nav className="text-xs text-gray-400 mb-4 tracking-widest uppercase flex items-center gap-2">
-            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">Accueil</Link>
+            <Link href="/shop" prefetch={true} className="hover:text-white transition-colors">Accueil</Link>
             <span className="text-gray-600">/</span>
             <span className="text-white font-semibold">Boutique</span>
           </nav>

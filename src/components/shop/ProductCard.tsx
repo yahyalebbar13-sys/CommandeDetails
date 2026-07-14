@@ -90,7 +90,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   return (
     <Link
       href={productUrl}
-      prefetch={false}
+      prefetch={true}
       className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline active:scale-[0.98] transition-transform duration-200 touch-manipulation"
     >
       {/* ── Image Section ─────────────────────────────────────── */}
@@ -189,7 +189,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
       {/* ── Content Section ───────────────────────────────────── */}
       <div className="p-4 flex flex-col gap-2 flex-grow">
         {/* Category */}
-        <Link href={`/shop/produit/${product.id}`}>
+        <Link prefetch={true} >
           <span
             className="text-[11px] font-semibold uppercase tracking-widest hover:text-[#C8102E] transition-colors"
             style={{ color: '#D4A843' }}
@@ -199,7 +199,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         </Link>
 
         {/* Product Name */}
-        <Link href={`/shop/produit/${product.id}`}>
+        <Link prefetch={true} >
           <h3
             className={`text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors duration-200 ${language === 'ar' ? 'text-right' : ''}`}
             style={{ fontFamily: 'Outfit, sans-serif' }}

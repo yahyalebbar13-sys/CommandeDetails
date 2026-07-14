@@ -41,7 +41,7 @@ function Accordion({ title, icon, defaultOpen = false, children }: { title: stri
 
 function SimilarProductCard({ product }: { product: any }) {
   return (
-    <Link href={`/shop/produit/${product.id}`} className="block bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all">
+    <Link prefetch={true} >
       <div className="aspect-square overflow-hidden bg-gray-50 relative">
         <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
       </div>
@@ -397,7 +397,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <p className="text-6xl mb-4">😕</p>
           <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>{language === 'ar' ? 'المنتج غير موجود' : 'Produit introuvable'}</h1>
           <p className="text-[#6B6B6B] mb-6">{language === 'ar' ? 'هذا المنتج غير موجود أو تم حذفه.' : 'Ce produit n\'existe pas ou a été supprimé.'}</p>
-          <Link href="/shop/categories" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors">
+          <Link prefetch={true} >
             {language === 'ar' ? 'العودة للمتجر' : 'Retour à la boutique'}
           </Link>
         </div>
@@ -455,11 +455,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </button>
           <div className="hidden sm:block w-px h-5 bg-[#E8E4DF]"></div>
           <nav className="flex items-center flex-wrap gap-1.5 text-xs text-[#6B6B6B]">
-            <Link href="/shop" className="hover:text-[#C8102E] transition-colors">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
+            <Link prefetch={true} >{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href="/shop/categories" className="hover:text-[#C8102E] transition-colors">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
+            <Link prefetch={true} >{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
             <ChevronRight className="w-3 h-3" />
-            <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-[#C8102E] transition-colors">
+            <Link prefetch={true} >
               {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
             </Link>
             <ChevronRight className="w-3 h-3" />
@@ -734,8 +734,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           <div className="mt-12">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>{similarTitle}</h2>
-              <Link href={similarLink}
-                className="text-sm text-[#C8102E] font-semibold hover:underline">Voir tout →</Link>
+              <Link prefetch={true} >Voir tout →</Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {similar.map(p => <SimilarProductCard key={p.id} product={p} />)}

@@ -42,7 +42,7 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
           <p className="text-5xl mb-4">😕</p>
           <h1 className="text-2xl font-black text-[#1A1A1A] mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Commande introuvable</h1>
           <p className="text-[#6B6B6B] mb-6">Nous n'avons pas trouvé cette commande.</p>
-          <Link href="/shop/boutique" className="px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors inline-block">
+          <Link prefetch={true} >
             Retour à la boutique
           </Link>
         </div>
@@ -154,12 +154,10 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-4">
-          <Link href="/shop/boutique"
-            className="flex items-center justify-center gap-2 py-3 bg-white border border-[#E8E4DF] rounded-xl font-semibold text-[#1A1A1A] hover:border-[#C8102E] hover:text-[#C8102E] transition-all text-sm">
+          <Link prefetch={true} >
             <ShoppingBag className="w-4 h-4" /> Continuer les achats
           </Link>
-          <Link href="/shop/suivi"
-            className="flex items-center justify-center gap-2 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm">
+          <Link prefetch={true} >
             Suivre ma commande <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

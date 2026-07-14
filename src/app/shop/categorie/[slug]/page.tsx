@@ -201,7 +201,7 @@ export default function CategoryPage({ params }: { params: any }) {
         </div>
         <Link
           href="/shop/boutique"
-          prefetch={false}
+          prefetch={true}
           className="flex items-center gap-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
         >
           <ArrowLeft className="w-4 h-4" /> Retour à la boutique
@@ -238,13 +238,13 @@ export default function CategoryPage({ params }: { params: any }) {
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-end pb-10">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-2 text-xs text-white/60 mb-4">
-            <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">Accueil</Link>
+            <Link href="/shop" prefetch={true} className="hover:text-white transition-colors">Accueil</Link>
             <span>›</span>
-            <Link href="/shop/categories" prefetch={false} className="hover:text-white transition-colors">Catégories</Link>
+            <Link href="/shop/categories" prefetch={true} className="hover:text-white transition-colors">Catégories</Link>
             <span>›</span>
             {category?.parentSlug && (
               <>
-                <Link href={`/shop/categorie/${category.parentSlug}`} prefetch={false} className="hover:text-white transition-colors">
+                <Link href={`/shop/categorie/${category.parentSlug}`} prefetch={true} className="hover:text-white transition-colors">
                   {allContextCategories.find(c => c.slug === category.parentSlug)?.name || category.parentSlug}
                 </Link>
                 <span>›</span>
@@ -331,7 +331,7 @@ export default function CategoryPage({ params }: { params: any }) {
                   <Link
                     key={cat.id}
                     href={`/shop/categorie/${cat.slug}`}
-                    prefetch={false}
+                    prefetch={true}
                     className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col active:scale-95 touch-manipulation"
                   >
                     <div className="relative h-44 overflow-hidden flex-shrink-0">
@@ -397,7 +397,7 @@ export default function CategoryPage({ params }: { params: any }) {
             <p className="text-gray-400 text-sm">{language === 'ar' ? 'منتجات هذه الفئة ستتوفر قريباً.' : 'Les produits de cette catégorie arrivent bientôt.'}</p>
             <Link
               href="/shop/boutique"
-              prefetch={false}
+              prefetch={true}
               className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm active:scale-95 touch-manipulation"
             >
               {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
