@@ -36,7 +36,8 @@ import {
   ArrowRightLeft,
   ArrowDownToLine,
   ArrowUpFromLine,
-  ShieldAlert
+  ShieldAlert,
+  Calculator
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
@@ -49,7 +50,7 @@ import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBloc
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { doc } from 'firebase/firestore';
+import { doc, collection, getDocs } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
@@ -289,6 +290,18 @@ export default function CategoriesView({
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [historyArticles, setHistoryArticles] = useState<any[]>([]);
   const [historyEntries, setHistoryEntries] = useState<any[]>([]);
+
+  const [declarations, setDeclarations] = useState<Record<string, any>>({});
+  
+  useEffect(() => {
+    if (!firestore || !user || !selectedCategory) return;
+    getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
+      .then(snap => {
+        const decls: Record<string, any> = {};
+        snap.forEach(d => { decls[d.id] = d.data(); });
+        setDeclarations(decls);
+      });
+  }, [firestore, user, selectedCategory]);
 
   const toggleStockExpand = (articleId: string) => {
     setExpandedStockItems(prev => {
@@ -652,6 +665,112 @@ export default function CategoriesView({
 
     return { statusValue, quantityData, priceData, uniqueProducts, supplierDistribution };
   }, [selectedCategory, currentArticles, groupedData, todayStr]);
+
+  const costHistoryData = useMemo(() => {
+    if (!selectedCategory || !factures || !articles) return [];
+    
+    // Group all articles by facture
+    const articlesByFacture = articles.reduce((acc, a) => {
+      if (!acc[a.factureId]) acc[a.factureId] = [];
+      acc[a.factureId].push(a);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const result: any[] = [];
+
+    for (const facture of factures) {
+      const dossierArticles = articlesByFacture[facture.id] || [];
+      if (dossierArticles.length === 0) continue;
+
+      const factureDecl = declarations[facture.id] || {};
+      const overrides = factureDecl.overrides || {};
+
+      const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
+      const declaredValue = Number(facture.declaredValue) || 0;
+      const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
+
+      const exchange = Number(facture.exchangeInvoiceAmount) || 0;
+      const transitaire = Number(facture.supplierInvoiceAmount) || 0;
+      const fraisSupp = Number(facture.additionalCostsAmount) || 0;
+      const fretMad = (Number(facture.freightCost) || 0) * tauxChange;
+      const mtFraisTotal = (exchange + transitaire + fraisSupp + fretMad) / 1.20;
+
+      const cbmTotal = dossierArticles.reduce((s: number, a: any) => s + (Number(a.cubicMeasurement) || 0), 0);
+
+      const catArticles = dossierArticles.filter(a => a.categoryId === selectedCategory);
+      if (catArticles.length === 0) continue;
+
+      catArticles.forEach(a => {
+        const ov = overrides[a.id] || {};
+        const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(a.cubicMeasurement)) || 0;
+        const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(a.netWeight)) || 0;
+        const qty = (ov.quantity != null ? Number(ov.quantity) : Number(a.quantity)) || 0;
+
+        const fraisCmd = cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
+
+        const cat = subCategories.find(c => c.name === a.categoryId);
+        const customsValuePerKg = ov.customsValuePerKg != null
+          ? Number(ov.customsValuePerKg)
+          : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null);
+        const importDutyRate = ov.importDutyRate != null
+          ? Number(ov.importDutyRate) / 100
+          : (cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : null);
+        const tpiRate = ov.tpiRate != null
+          ? Number(ov.tpiRate) / 100
+          : (cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : null);
+        const ticRate = ov.ticRate != null
+          ? Number(ov.ticRate) / 100
+          : (cat?.ticRate != null ? Number(cat.ticRate) / 100 : null);
+        const tvaRate = ov.tvaRate != null
+          ? Number(ov.tvaRate) / 100
+          : (cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : null);
+        const hasCustData = customsValuePerKg !== null;
+
+        const valDouane = hasCustData ? nw * customsValuePerKg! : 0;
+        const di = importDutyRate != null ? valDouane * importDutyRate : 0;
+        const tpi = tpiRate != null ? valDouane * tpiRate : 0;
+        const tic = ticRate != null ? valDouane * ticRate : 0;
+        const tva = tvaRate != null ? (valDouane + di + tpi + tic) * tvaRate : 0;
+        const totalDouane = di + tpi + tic + tva;
+
+        const pauDollar = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(a.purchasePricePerUnit)) || 0;
+        const valAchatMad = qty * pauDollar * tauxChange;
+
+        const mtTotal = hasCustData ? (valAchatMad + fraisCmd + totalDouane) : 0;
+        const pauTtc = (hasCustData && qty > 0) ? mtTotal / qty : 0;
+
+        if (facture.arrivalDate || a.arrivalDate) {
+            result.push({
+            ...a,
+            factureName: facture.id,
+            factureDate: facture.arrivalDate || a.arrivalDate,
+            qty,
+            valAchatMad,
+            fraisCmd,
+            totalDouane,
+            pauTtc
+            });
+        }
+      });
+    }
+
+    const aggregatedByFacture = result.reduce((acc, curr) => {
+      if (!acc[curr.factureName]) {
+        acc[curr.factureName] = { ...curr, count: 1, sumTtc: curr.pauTtc };
+      } else {
+        acc[curr.factureName].count += 1;
+        acc[curr.factureName].sumTtc += curr.pauTtc;
+        acc[curr.factureName].qty += curr.qty;
+        acc[curr.factureName].valAchatMad += curr.valAchatMad;
+        acc[curr.factureName].fraisCmd += curr.fraisCmd;
+        acc[curr.factureName].totalDouane += curr.totalDouane;
+        acc[curr.factureName].pauTtc = acc[curr.factureName].sumTtc / acc[curr.factureName].count;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+
+    return Object.values(aggregatedByFacture).sort((a: any, b: any) => new Date(a.factureDate).getTime() - new Date(b.factureDate).getTime());
+  }, [selectedCategory, factures, articles, declarations, subCategories]);
 
   const organizedCategories = useMemo(() => {
     const structure = [
@@ -1286,6 +1405,71 @@ export default function CategoriesView({
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
                 </PieChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden col-span-full">
+            <div className="h-1.5 w-full bg-emerald-500" />
+            <CardHeader className="py-4 border-b border-stone-50 flex flex-row items-center justify-between">
+              <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                <Calculator className="w-3 h-3 text-emerald-500" /> Historique & Évolution du Coût de Revient par Dossier
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {costHistoryData.length > 0 ? (
+                <>
+                  <div className="h-[250px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={costHistoryData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
+                        <XAxis dataKey="factureDate" axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900' }} />
+                        <YAxis axisLine={false} tickLine={false} domain={['auto', 'auto']} tickFormatter={(v) => v.toLocaleString('fr-MA', { maximumFractionDigits: 1 })} style={{ fontSize: '9px', fontWeight: '900' }} />
+                        <RechartsTooltip
+                          formatter={(val: number) => [`${val.toLocaleString('fr-MA', { maximumFractionDigits: 2 })} MAD`, 'PAU TTC']}
+                          labelFormatter={(label) => `Date: ${label}`}
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
+                        />
+                        <Line type="monotone" dataKey="pauTtc" name="PAU TTC" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  <div className="rounded-xl overflow-hidden border border-stone-100">
+                    <Table>
+                      <TableHeader className="bg-stone-50">
+                        <TableRow>
+                          <TableHead className="text-[9px] uppercase font-black text-stone-500 py-3">Date</TableHead>
+                          <TableHead className="text-[9px] uppercase font-black text-stone-500 py-3">Dossier</TableHead>
+                          <TableHead className="text-right text-[9px] uppercase font-black text-stone-500 py-3">Qté Totale</TableHead>
+                          <TableHead className="text-right text-[9px] uppercase font-black text-sky-500 py-3">Val. Achat (MAD)</TableHead>
+                          <TableHead className="text-right text-[9px] uppercase font-black text-indigo-400 py-3">Frais Log. (MAD)</TableHead>
+                          <TableHead className="text-right text-[9px] uppercase font-black text-orange-400 py-3">Total Douane (MAD)</TableHead>
+                          <TableHead className="text-right text-[9px] uppercase font-black text-emerald-600 py-3 px-4">P.A.U TTC (MAD)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {costHistoryData.slice().reverse().map((row: any, i: number) => (
+                          <TableRow key={i} className="hover:bg-stone-50/50 transition-colors">
+                            <TableCell className="font-bold text-[10px] text-stone-400 py-3">{row.factureDate}</TableCell>
+                            <TableCell className="font-black text-[11px] uppercase text-stone-900 py-3">{row.factureName}</TableCell>
+                            <TableCell className="text-right font-black text-[11px] py-3">{row.qty.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-black text-[11px] text-sky-700 py-3">{row.valAchatMad > 0 ? row.valAchatMad.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '-'}</TableCell>
+                            <TableCell className="text-right font-black text-[11px] text-indigo-700 py-3">{row.fraisCmd > 0 ? row.fraisCmd.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '-'}</TableCell>
+                            <TableCell className="text-right font-black text-[11px] text-orange-700 py-3">{row.totalDouane > 0 ? row.totalDouane.toLocaleString('fr-MA', { maximumFractionDigits: 2 }) : '-'}</TableCell>
+                            <TableCell className="text-right font-black text-[11px] text-emerald-700 bg-emerald-50/30 py-3 px-4">
+                              {row.pauTtc > 0 ? row.pauTtc.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : 'Manquant'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-10">
+                  <p className="text-[10px] font-black uppercase text-stone-300 tracking-widest">Aucun historique de revient</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
