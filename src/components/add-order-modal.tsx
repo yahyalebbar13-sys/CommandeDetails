@@ -22,6 +22,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
+import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import DesignPicker from './design-picker';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
@@ -71,6 +72,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
   const [sizeBreakdown, setSizeBreakdown] = useState<SizeBreakdownRow[] | null>(null);
+  const [designBreakdown, setDesignBreakdown] = useState<DesignBreakdownRow[] | null>(null);
   const [isFullContainer, setIsFullContainer] = useState(false);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
 
@@ -92,6 +94,13 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     setSizeBreakdown(rows);
     if (rows && rows.length > 0) {
       setFormData((p: any) => ({ ...p, quantity: total, size: 'various' }));
+    }
+  }, []);
+
+  const handleDesignBreakdownChange = useCallback((rows: DesignBreakdownRow[] | null, total: number) => {
+    setDesignBreakdown(rows);
+    if (rows && rows.length > 0) {
+      setFormData((p: any) => ({ ...p, quantity: total, designRef: 'various' }));
     }
   }, []);
 
@@ -138,10 +147,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     const e: Record<string, string> = {};
     if (!selectedGenCatId) e.genCat = 'Requis';
     if (!formData.categoryId) e.category = 'Requis';
-    if (!colorBreakdown?.length && !sizeBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
+    if (!colorBreakdown?.length && !sizeBreakdown?.length && !designBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
       e.quantity = 'Quantité requise';
     return e;
-  }, [selectedGenCatId, formData.categoryId, formData.quantity, colorBreakdown, sizeBreakdown]);
+  }, [selectedGenCatId, formData.categoryId, formData.quantity, colorBreakdown, sizeBreakdown, designBreakdown]);
 
   const isValid = Object.keys(errors).length === 0;
   const priorityConf = PRIORITY_CONFIG.find(p => p.value === formData.priority) || PRIORITY_CONFIG[2];
@@ -149,6 +158,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   const resetForm = () => {
     setColorBreakdown(null);
     setSizeBreakdown(null);
+    setDesignBreakdown(null);
     setIsFullContainer(false);
     setFormData({ ...EMPTY_FORM });
     setSelectedGenCatId('');
@@ -178,36 +188,25 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       tvaRate: selectedSubCat?.tvaRate ?? null,
     };
 
-    // ── Color split ──
-    if (!colorBreakdown || colorBreakdown.length === 0) {
-      // ── Size split ──
-      if (!sizeBreakdown || sizeBreakdown.length === 0) {
+    if (designBreakdown && designBreakdown.length > 0) {
+      const groups = new Map<number, DesignBreakdownRow[]>();
+      for (const row of designBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
+          ? Number(row.priceOverride)
+          : Number(formData.purchasePricePerUnit || 0);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+      groups.forEach((rows, price) => {
         const id = crypto.randomUUID();
+        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
         setDocumentNonBlocking(
           doc(firestore, 'users', user.uid, 'articles', id),
-          { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null },
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null },
           { merge: true }
         );
-      } else {
-        const sizeGroups = new Map<number, SizeBreakdownRow[]>();
-        for (const row of sizeBreakdown) {
-          const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
-            ? Number(row.priceOverride)
-            : Number(formData.purchasePricePerUnit || 0);
-          if (!sizeGroups.has(price)) sizeGroups.set(price, []);
-          sizeGroups.get(price)!.push(row);
-        }
-        sizeGroups.forEach((rows, price) => {
-          const id = crypto.randomUUID();
-          const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
-          setDocumentNonBlocking(
-            doc(firestore, 'users', user.uid, 'articles', id),
-            { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null },
-            { merge: true }
-          );
-        });
-      }
-    } else {
+      });
+    } else if (colorBreakdown && colorBreakdown.length > 0) {
       const groups = new Map<number, ColorBreakdownRow[]>();
       for (const row of colorBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
@@ -221,19 +220,41 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
         const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
         setDocumentNonBlocking(
           doc(firestore, 'users', user.uid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null },
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null },
           { merge: true }
         );
       });
+    } else if (sizeBreakdown && sizeBreakdown.length > 0) {
+      const sizeGroups = new Map<number, SizeBreakdownRow[]>();
+      for (const row of sizeBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
+          ? Number(row.priceOverride)
+          : Number(formData.purchasePricePerUnit || 0);
+        if (!sizeGroups.has(price)) sizeGroups.set(price, []);
+        sizeGroups.get(price)!.push(row);
+      }
+      sizeGroups.forEach((rows, price) => {
+        const id = crypto.randomUUID();
+        const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+        setDocumentNonBlocking(
+          doc(firestore, 'users', user.uid, 'articles', id),
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null },
+          { merge: true }
+        );
+      });
+    } else {
+      const id = crypto.randomUUID();
+      setDocumentNonBlocking(
+        doc(firestore, 'users', user.uid, 'articles', id),
+        { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null },
+        { merge: true }
+      );
     }
 
-    const colorSplitCount = colorBreakdown
-      ? new Set(colorBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size
-      : 1;
-    const sizeSplitCount = sizeBreakdown
-      ? new Set(sizeBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size
-      : 1;
-    const splitCount = Math.max(colorSplitCount, sizeSplitCount);
+    const designSplitCount = designBreakdown ? new Set(designBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
+    const colorSplitCount = colorBreakdown ? new Set(colorBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
+    const sizeSplitCount = sizeBreakdown ? new Set(sizeBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
+    const splitCount = Math.max(designSplitCount, colorSplitCount, sizeSplitCount);
 
     toast({
       title: "✅ Besoin enregistré",
@@ -511,11 +532,20 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
 
           {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
           <ColorBreakdownInput
-            categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
             value={colorBreakdown}
             onChange={handleColorBreakdownChange}
             unit={formData.unitOfMeasure}
           />
+
+          {/* ── Section 3c: Modèles Multi ─────────────────────────────────── */}
+          {isDesignCategory && formData.categoryId && (
+            <DesignBreakdownInput
+              categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
+              value={designBreakdown}
+              onChange={handleDesignBreakdownChange}
+              unit={formData.unitOfMeasure}
+            />
+          )}
 
           {/* ── Section 4: Commande ───────────────────────────────────────── */}
           <SectionLabel icon={<Ruler className="w-3 h-3" />} label="Commande & Prix" />
@@ -542,7 +572,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 Quantité
                 {errors.quantity && <AlertCircle className="w-3 h-3 text-red-400 ml-auto" />}
               </Label>
-              {colorBreakdown && colorBreakdown.length > 0 ? (
+              {((colorBreakdown && colorBreakdown.length > 0) || (sizeBreakdown && sizeBreakdown.length > 0) || (designBreakdown && designBreakdown.length > 0)) ? (
                 <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
                   <span className="text-[10px] font-black text-violet-700">{Number(formData.quantity).toLocaleString()}</span>
                   <span className="text-[8px] font-bold text-violet-400 uppercase">auto</span>

@@ -6,34 +6,37 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Palette, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-react';
+import { BookImage, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-react';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
-export interface ColorBreakdownRow {
-  colorCode: string;
+export interface DesignBreakdownRow {
+  designRef: string;
   rolls: number;
   priceOverride?: string | number; // Prix optionnel pour séparer automatiquement
 }
 
-interface ColorBreakdownInputProps {
-  value: ColorBreakdownRow[] | null;
-  onChange: (rows: ColorBreakdownRow[] | null, total: number) => void;
+interface DesignBreakdownInputProps {
+  value: DesignBreakdownRow[] | null;
+  onChange: (rows: DesignBreakdownRow[] | null, total: number) => void;
   unit?: string;
+  categoryId?: string;
 }
 
 /**
  * Parse a pasted table string into color breakdown rows.
  * Supports TSV (Excel copy), multiple spaces, or semicolons as separators.
- * Each line = "colorCode[sep]quantity[optional sep]price"
+ * Each line = "designRef[sep]quantity[optional sep]price"
  */
-function parsePastedTable(raw: string): ColorBreakdownRow[] {
+function parsePastedTable(raw: string): DesignBreakdownRow[] {
   const lines = raw.split(/\r?\n/).filter(l => l.trim() !== '');
-  const rows: ColorBreakdownRow[] = [];
+  const rows: DesignBreakdownRow[] = [];
 
   for (const line of lines) {
     const parts = line.trim().split(/\t|;|,|\s{2,}|\s+/);
     if (parts.length < 2) continue;
 
-    const colorCode = parts[0].trim();
+    const designRef = parts[0].trim();
     // Assuming quantity is either the last or second to last
     let rolls = 0;
     let priceOverride: number | undefined = undefined;
@@ -49,19 +52,29 @@ function parsePastedTable(raw: string): ColorBreakdownRow[] {
       rolls = parseFloat(parts[parts.length - 1].replace(',', '.'));
     }
 
-    if (!colorCode || isNaN(rolls) || rolls < 0) continue;
-    rows.push({ colorCode, rolls, priceOverride: priceOverride || '' });
+    if (!designRef || isNaN(rolls) || rolls < 0) continue;
+    rows.push({ designRef, rolls, priceOverride: priceOverride || '' });
   }
   return rows;
 }
 
-export default function ColorBreakdownInput({ value, onChange, unit }: ColorBreakdownInputProps) {
+export default function DesignBreakdownInput({ value, onChange, unit, categoryId }: DesignBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
-  const [rows, setRows] = useState<ColorBreakdownRow[]>(value || []);
+  const [rows, setRows] = useState<DesignBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
   // rawInputs holds intermediate string values while user is typing (e.g. "1," or "1.5")
   const [rawInputs, setRawInputs] = useState<Record<number, string>>({});
+
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const designsRef = useMemoFirebase(
+    () => user && categoryId ? collection(firestore, 'users', user.uid, 'categories', categoryId, 'designs') : null,
+    [firestore, user, categoryId]
+  );
+  const { data: rawDesigns } = useCollection(designsRef);
+  const designs = rawDesigns || [];
 
   // Sync from parent when value changes externally (e.g. loading an existing article)
   useEffect(() => {
@@ -73,7 +86,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
 
   const total = rows.reduce((sum, r) => sum + (Number(r.rolls) || 0), 0);
 
-  const notifyParent = useCallback((newRows: ColorBreakdownRow[], isEnabled: boolean) => {
+  const notifyParent = useCallback((newRows: DesignBreakdownRow[], isEnabled: boolean) => {
     if (!isEnabled || newRows.length === 0) {
       onChange(null, 0);
     } else {
@@ -134,7 +147,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
     notifyParent(next, enabled);
   };
 
-  const handleRowChange = (index: number, field: keyof ColorBreakdownRow, val: string) => {
+  const handleRowChange = (index: number, field: keyof DesignBreakdownRow, val: string) => {
     if (field === 'rolls') { handleRollsChange(index, val); return; }
     if (field === 'priceOverride') { handlePriceOverrideChange(index, val); return; }
     const next = rows.map((r, i) => {
@@ -153,23 +166,23 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
   };
 
   const handleAddRow = () => {
-    const next = [...rows, { colorCode: '', rolls: 0, priceOverride: '' }];
+    const next = [...rows, { designRef: '', rolls: 0, priceOverride: '' }];
     setRows(next);
     notifyParent(next, enabled);
   };
 
   return (
-    <div className={`rounded-xl border transition-all duration-300 ${enabled ? 'bg-violet-50 border-violet-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
+    <div className={`rounded-xl border transition-all duration-300 ${enabled ? 'bg-amber-50 border-amber-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
       {/* Toggle Header */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-2">
-          <Palette className={`w-4 h-4 ${enabled ? 'text-violet-600' : 'text-stone-400'}`} />
-          <span className={`text-[10px] font-black uppercase tracking-widest ${enabled ? 'text-violet-700' : 'text-stone-500'}`}>
-            Commande Multi-Couleurs
+          <BookImage className={`w-4 h-4 ${enabled ? 'text-amber-600' : 'text-stone-400'}`} />
+          <span className={`text-[10px] font-black uppercase tracking-widest ${enabled ? 'text-amber-700' : 'text-stone-500'}`}>
+            Commande Multi-Modèles
           </span>
           {enabled && rows.length > 0 && (
-            <span className="text-[9px] font-bold bg-violet-200 text-violet-800 px-2 py-0.5 rounded-full">
-              {rows.length} couleurs · {total.toLocaleString()} {unit || 'rolls'}
+            <span className="text-[9px] font-bold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">
+              {rows.length} modèles · {total.toLocaleString()} {unit || 'rolls'}
             </span>
           )}
         </div>
@@ -181,7 +194,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
 
       {!enabled && (
         <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic px-4">
-          Activer pour saisir les couleurs et quantités par {unit || 'unité'}
+          Activer pour saisir les modèles et quantités par {unit || 'unité'}
         </p>
       )}
 
@@ -193,7 +206,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
             variant="outline"
             size="sm"
             onClick={() => setShowPasteArea(v => !v)}
-            className="h-8 text-[9px] font-black uppercase tracking-widest border-violet-200 text-violet-600 hover:bg-violet-100 rounded-lg gap-1.5 w-full"
+            className="h-8 text-[9px] font-black uppercase tracking-widest border-amber-200 text-amber-600 hover:bg-amber-100 rounded-lg gap-1.5 w-full"
           >
             <ClipboardPaste className="w-3.5 h-3.5" />
             {showPasteArea ? 'Masquer la zone de collage' : 'Coller un tableau (Excel / Texte)'}
@@ -201,11 +214,11 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
 
           {showPasteArea && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-              <Label className="text-[9px] font-black text-violet-500 uppercase tracking-widest">
+              <Label className="text-[9px] font-black text-amber-500 uppercase tracking-widest">
                 Coller ici (format : N°Couleur[TAB]Quantité[TAB]Prix optionnel)
               </Label>
               <textarea
-                className="w-full h-28 text-[11px] font-mono border border-violet-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white placeholder:text-stone-300"
+                className="w-full h-28 text-[11px] font-mono border border-amber-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white placeholder:text-stone-300"
                 placeholder={"312\t50\n458\t30\nBLACK\t20\t1.60\n..."}
                 value={pasteText}
                 onChange={e => setPasteText(e.target.value)}
@@ -232,7 +245,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
                   type="button"
                   size="sm"
                   onClick={handleParse}
-                  className="flex-1 h-8 bg-violet-600 hover:bg-violet-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg"
+                  className="flex-1 h-8 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg"
                 >
                   Analyser et Importer
                 </Button>
@@ -251,32 +264,40 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
 
           {/* Table */}
           {rows.length > 0 && (
-            <div className="rounded-xl overflow-hidden border border-violet-100 bg-white">
+            <div className="rounded-xl overflow-hidden border border-amber-100 bg-white">
               {/* Header */}
-              <div className="grid grid-cols-[1fr_90px_90px_36px] gap-0 bg-violet-100/60">
-                <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest flex items-center gap-1">
-                  <Hash className="w-2.5 h-2.5" /> N° Couleur
+              <div className="grid grid-cols-[1fr_90px_90px_36px] gap-0 bg-amber-100/60">
+                <div className="py-2 px-3 text-[9px] font-black uppercase text-amber-600 tracking-widest flex items-center gap-1">
+                  <Hash className="w-2.5 h-2.5" /> N° Modèle / Design
                 </div>
-                <div className="py-2 px-1 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right">
+                <div className="py-2 px-1 text-[9px] font-black uppercase text-amber-600 tracking-widest text-right">
                   Prix Opt ($)
                 </div>
-                <div className="py-2 px-3 text-[9px] font-black uppercase text-violet-600 tracking-widest text-right flex items-center justify-end gap-1">
+                <div className="py-2 px-3 text-[9px] font-black uppercase text-amber-600 tracking-widest text-right flex items-center justify-end gap-1">
                   <Package className="w-2.5 h-2.5" /> {unit || 'Qté'}
                 </div>
                 <div />
               </div>
 
               {/* Rows */}
-              <div className="divide-y divide-violet-50">
+              <div className="divide-y divide-amber-50">
                 {rows.map((row, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-violet-50/30 transition-colors">
-                    <div className="px-2 py-1">
+                  <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-amber-50/30 transition-colors">
+                    <div className="px-2 py-1 relative">
                       <Input
-                        value={row.colorCode}
-                        onChange={e => handleRowChange(i, 'colorCode', e.target.value)}
+                        list={categoryId ? `color-designs-${categoryId}` : undefined}
+                        value={row.designRef}
+                        onChange={e => handleRowChange(i, 'designRef', e.target.value)}
                         className="h-8 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
-                        placeholder="Couleur..."
+                        placeholder="Modèle / Design..."
                       />
+                      {categoryId && designs.length > 0 && (
+                        <datalist id={`color-designs-${categoryId}`}>
+                          {designs.map((d: any) => (
+                            <option key={d.id} value={d.ref} />
+                          ))}
+                        </datalist>
+                      )}
                     </div>
                     <div className="px-2 py-1">
                       <Input
@@ -284,7 +305,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
                         inputMode="decimal"
                         value={row.priceOverride === '' ? '' : row.priceOverride}
                         onChange={e => handleRowChange(i, 'priceOverride', e.target.value)}
-                        className="h-8 border border-transparent hover:border-violet-200 focus:border-violet-400 bg-transparent font-bold text-[10px] text-violet-700 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-2 rounded placeholder:text-violet-200 transition-colors"
+                        className="h-8 border border-transparent hover:border-amber-200 focus:border-amber-400 bg-transparent font-bold text-[10px] text-amber-700 text-right focus-visible:ring-0 focus-visible:ring-offset-0 px-2 rounded placeholder:text-amber-200 transition-colors"
                         placeholder="Normal"
                         title="Prix spécifique si différent du prix global (ex: 1.6 ou 1,6)"
                       />
@@ -315,7 +336,7 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
               </div>
 
               {/* Total footer */}
-              <div className="grid grid-cols-[1fr_90px_90px_36px] bg-violet-600 text-white">
+              <div className="grid grid-cols-[1fr_90px_90px_36px] bg-amber-600 text-white">
                 <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest col-span-2">
                   TOTAL
                 </div>
@@ -333,13 +354,13 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
             variant="outline"
             size="sm"
             onClick={handleAddRow}
-            className="h-8 text-[9px] font-black uppercase tracking-widest border-violet-200 text-violet-600 hover:bg-violet-100 rounded-lg gap-1.5"
+            className="h-8 text-[9px] font-black uppercase tracking-widest border-amber-200 text-amber-600 hover:bg-amber-100 rounded-lg gap-1.5"
           >
-            <Plus className="w-3 h-3" /> Ajouter une couleur
+            <Plus className="w-3 h-3" /> Ajouter un modèle
           </Button>
 
           {rows.length > 0 && (
-            <p className="text-[9px] font-bold text-violet-600 uppercase bg-violet-100 px-3 py-2 rounded-lg">
+            <p className="text-[9px] font-bold text-amber-600 uppercase bg-amber-100 px-3 py-2 rounded-lg">
               ✓ Quantité totale calculée : <span className="font-black">{total.toLocaleString('en-US')} {unit || 'rolls'}</span> — sera enregistrée dans le champ Quantité
             </p>
           )}

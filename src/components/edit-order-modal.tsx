@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { Check, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
+import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import DesignPicker from './design-picker';
 
 const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
@@ -58,6 +59,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
   const [sizeBreakdown, setSizeBreakdown] = useState<any[] | null>(null);
+  const [designBreakdown, setDesignBreakdown] = useState<DesignBreakdownRow[] | null>(null);
   const [colorOpen, setColorOpen] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
@@ -73,6 +75,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     setSizeBreakdown(rows);
     if (rows && rows.length > 0) {
       setFormData((p: any) => p ? { ...p, quantity: total, size: 'various' } : p);
+    }
+  };
+
+  const handleDesignBreakdownChange = (rows: DesignBreakdownRow[] | null, total: number) => {
+    setDesignBreakdown(rows);
+    if (rows && rows.length > 0) {
+      setFormData((p: any) => p ? { ...p, quantity: total, designRef: 'various' } : p);
     }
   };
 
@@ -99,10 +108,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       setSelectedGenCatId(article.generalCategoryId || '');
       setColorBreakdown(article.colorBreakdown || null);
       setSizeBreakdown(Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : null);
+      setDesignBreakdown(article.designBreakdown || null);
     } else {
       setFormData(null);
       setColorBreakdown(null);
       setSizeBreakdown(null);
+      setDesignBreakdown(null);
     }
   }, [article]);
 
@@ -239,12 +250,27 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     let isSplit = false;
     let splitCount = 1;
 
-    const groups = new Map<number, ColorBreakdownRow[]>();
-    if (colorBreakdown && colorBreakdown.length > 0) {
+    const groups = new Map<number, any[]>();
+    let splitType = '';
+
+    if (designBreakdown && designBreakdown.length > 0) {
+      splitType = 'design';
+      for (const row of designBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(formData.purchasePricePerUnit || 0);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+    } else if (colorBreakdown && colorBreakdown.length > 0) {
+      splitType = 'color';
       for (const row of colorBreakdown) {
-        const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
-          ? Number(row.priceOverride)
-          : Number(formData.purchasePricePerUnit || 0);
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(formData.purchasePricePerUnit || 0);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+    } else if (sizeBreakdown && sizeBreakdown.length > 0) {
+      splitType = 'size';
+      for (const row of sizeBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(formData.purchasePricePerUnit || 0);
         if (!groups.has(price)) groups.set(price, []);
         groups.get(price)!.push(row);
       }
@@ -255,7 +281,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       splitCount = groups.size;
       let isFirst = true;
       groups.forEach((rows, price) => {
-        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
+        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls || r.quantity) || 0), 0);
+        const splitData = {
+          designBreakdown: splitType === 'design' ? rows : (designBreakdown && designBreakdown.length > 0 ? designBreakdown : null),
+          colorBreakdown: splitType === 'color' ? rows : (colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null),
+          sizeBreakdown: splitType === 'size' ? rows : (sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null),
+        };
         if (isFirst) {
           // Update the original document
           const finalData = {
@@ -266,8 +297,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             status: statusToSave,
             purchasePricePerUnit: price,
             quantity: groupQty,
-            colorBreakdown: rows,
-            sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
+            ...splitData,
           };
           updateDocumentNonBlocking(docRef, finalData);
           isFirst = false;
@@ -284,8 +314,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             status: statusToSave,
             purchasePricePerUnit: price,
             quantity: groupQty,
-            colorBreakdown: rows,
-            sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
+            ...splitData,
             createdAt: serverTimestamp(),
           };
           setDocumentNonBlocking(newDocRef, finalData, { merge: true });
@@ -298,6 +327,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         generalCategoryId: selectedGenCatId,
         factureId: finalFactureId,
         status: statusToSave,
+        designBreakdown: designBreakdown && designBreakdown.length > 0 ? designBreakdown : null,
         colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
         sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
       };
@@ -769,6 +799,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   onChange={handleColorBreakdownChange}
                   unit={formData.unitOfMeasure}
                 />
+                {isDesignCategory && formData.categoryId && (
+                  <DesignBreakdownInput
+                    categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
+                    value={designBreakdown}
+                    onChange={handleDesignBreakdownChange}
+                    unit={formData.unitOfMeasure}
+                  />
+                )}
                 <SizeBreakdownInput
                   value={sizeBreakdown}
                   onChange={handleSizeBreakdownChange}
