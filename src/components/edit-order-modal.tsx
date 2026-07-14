@@ -197,7 +197,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return upper.includes('SLIDER') || upper.includes('PULLER');
   }, [formData?.categoryId]);
 
-  const isDesignCategory = isZipper || isSlider;
+  const isDesignCategory = useMemo(() => {
+    const upper = (formData.categoryId || '').toUpperCase();
+    return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
+  }, [isZipper, isSlider, formData.categoryId]);
 
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
@@ -761,6 +764,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
               <div className="md:col-span-2 space-y-4">
                 <ColorBreakdownInput
+                  categoryId={currentCategoryObj?.id}
                   value={colorBreakdown}
                   onChange={handleColorBreakdownChange}
                   unit={formData.unitOfMeasure}

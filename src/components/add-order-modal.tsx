@@ -128,7 +128,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     return upper.includes('SLIDER') || upper.includes('PULLER');
   }, [formData.categoryId]);
 
-  const isDesignCategory = isZipper || isSlider;
+  const isDesignCategory = useMemo(() => {
+    const upper = (formData.categoryId || '').toUpperCase();
+    return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
+  }, [isZipper, isSlider, formData.categoryId]);
 
   // Validation
   const errors = useMemo(() => {
@@ -507,7 +510,12 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} />
 
           {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
-          <ColorBreakdownInput value={colorBreakdown} onChange={handleColorBreakdownChange} unit={formData.unitOfMeasure} />
+          <ColorBreakdownInput
+            categoryId={currentCategoryObj?.id}
+            value={colorBreakdown}
+            onChange={handleColorBreakdownChange}
+            unit={formData.unitOfMeasure}
+          />
 
           {/* ── Section 4: Commande ───────────────────────────────────────── */}
           <SectionLabel icon={<Ruler className="w-3 h-3" />} label="Commande & Prix" />

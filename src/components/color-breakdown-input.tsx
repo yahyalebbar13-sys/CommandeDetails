@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Palette, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-react';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 export interface ColorBreakdownRow {
   colorCode: string;
@@ -18,6 +20,7 @@ interface ColorBreakdownInputProps {
   value: ColorBreakdownRow[] | null;
   onChange: (rows: ColorBreakdownRow[] | null, total: number) => void;
   unit?: string;
+  categoryId?: string;
 }
 
 /**
@@ -55,13 +58,23 @@ function parsePastedTable(raw: string): ColorBreakdownRow[] {
   return rows;
 }
 
-export default function ColorBreakdownInput({ value, onChange, unit }: ColorBreakdownInputProps) {
+export default function ColorBreakdownInput({ value, onChange, unit, categoryId }: ColorBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<ColorBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
   const [showPasteArea, setShowPasteArea] = useState(false);
   // rawInputs holds intermediate string values while user is typing (e.g. "1," or "1.5")
   const [rawInputs, setRawInputs] = useState<Record<number, string>>({});
+
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const designsRef = useMemoFirebase(
+    () => user && categoryId ? collection(firestore, 'users', user.uid, 'categories', categoryId, 'designs') : null,
+    [firestore, user, categoryId]
+  );
+  const { data: rawDesigns } = useCollection(designsRef);
+  const designs = rawDesigns || [];
 
   // Sync from parent when value changes externally (e.g. loading an existing article)
   useEffect(() => {
@@ -270,13 +283,21 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
               <div className="divide-y divide-violet-50">
                 {rows.map((row, i) => (
                   <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-violet-50/30 transition-colors">
-                    <div className="px-2 py-1">
+                    <div className="px-2 py-1 relative">
                       <Input
+                        list={categoryId ? `color-designs-${categoryId}` : undefined}
                         value={row.colorCode}
                         onChange={e => handleRowChange(i, 'colorCode', e.target.value)}
                         className="h-8 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
-                        placeholder="Couleur..."
+                        placeholder="Couleur / Modèle..."
                       />
+                      {categoryId && designs.length > 0 && (
+                        <datalist id={`color-designs-${categoryId}`}>
+                          {designs.map((d: any) => (
+                            <option key={d.id} value={d.ref} />
+                          ))}
+                        </datalist>
+                      )}
                     </div>
                     <div className="px-2 py-1">
                       <Input
