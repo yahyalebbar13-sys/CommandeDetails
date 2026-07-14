@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
