@@ -141,7 +141,7 @@ export default function PromotionsPage() {
             <p className="font-bold text-[#1A1A1A]">Livraison GRATUITE dès 500 MAD</p>
             <p className="text-sm text-[#6B6B6B]">Profitez-en en combinant plusieurs articles en promotion</p>
           </div>
-          <Link prefetch={true} >
+          <Link href="/shop/boutique" className="ml-auto shrink-0 px-4 py-2 bg-[#D4A843] text-white text-sm font-bold rounded-xl hover:bg-[#b8922e] transition-colors">
             Voir tout
           </Link>
         </div>
@@ -163,7 +163,8 @@ export default function PromotionsPage() {
         <div className="mt-12 bg-[#0F0F0F] rounded-2xl p-8 text-center text-white">
           <h3 className="text-2xl font-black mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>Voir tous nos produits</h3>
           <p className="text-gray-400 mb-5">Découvrez notre catalogue complet de mercerie et accessoires textiles</p>
-          <Link prefetch={true} >
+          <Link href="/shop/boutique"
+            className="inline-flex items-center gap-2 bg-[#C8102E] hover:bg-[#a00d25] text-white px-8 py-3 rounded-xl font-bold transition-colors">
             <ShoppingBag className="w-5 h-5" /> Accéder à la boutique
           </Link>
         </div>

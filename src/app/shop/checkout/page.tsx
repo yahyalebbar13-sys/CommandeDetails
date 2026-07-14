@@ -686,11 +686,11 @@ export default function CheckoutPage() {
                   </div>
                   <span className={`text-sm leading-relaxed ${errors.acceptTerms ? "text-red-600" : "text-[#6B6B6B]"}`}>
                     J&apos;accepte les{" "}
-                    <Link prefetch={true} >
+                    <Link href="/shop/conditions" className="text-[#C8102E] underline hover:no-underline">
                       conditions générales de vente
                     </Link>{" "}
                     et la{" "}
-                    <Link prefetch={true} >
+                    <Link href="/shop/confidentialite" className="text-[#C8102E] underline hover:no-underline">
                       politique de confidentialité
                     </Link>{" "}
                     de LEBTEX.

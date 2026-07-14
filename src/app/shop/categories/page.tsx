@@ -37,7 +37,7 @@ export default function CategoriesPage() {
         <div className="relative h-full flex flex-col justify-center px-6 sm:px-12 max-w-6xl mx-auto">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-[11px] text-white/50 mb-2">
-            <Link prefetch={true} >Accueil</Link>
+            <Link href="/shop" className="hover:text-white transition-colors">Accueil</Link>
             <span>›</span>
             <span className="text-white/80">Catégories</span>
           </nav>
