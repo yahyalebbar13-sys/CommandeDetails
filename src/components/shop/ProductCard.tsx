@@ -189,21 +189,25 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
       {/* ── Content Section ───────────────────────────────────── */}
       <div className="p-4 flex flex-col gap-2 flex-grow">
         {/* Category */}
-        <span
-          className="text-[11px] font-semibold uppercase tracking-widest"
-          style={{ color: '#D4A843' }}
-        >
-          {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
-        </span>
+        <Link href={`/shop/produit/${product.id}`}>
+          <span
+            className="text-[11px] font-semibold uppercase tracking-widest hover:text-[#C8102E] transition-colors"
+            style={{ color: '#D4A843' }}
+          >
+            {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
+          </span>
+        </Link>
 
         {/* Product Name */}
-        <h3
-          className={`text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors duration-200 ${language === 'ar' ? 'text-right' : ''}`}
-          style={{ fontFamily: 'Outfit, sans-serif' }}
-          dir={language === 'ar' ? 'rtl' : 'ltr'}
-        >
-          {language === 'ar' && product.nameAr ? product.nameAr : product.name}
-        </h3>
+        <Link href={`/shop/produit/${product.id}`}>
+          <h3
+            className={`text-[#0F0F0F] font-bold text-sm leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors duration-200 ${language === 'ar' ? 'text-right' : ''}`}
+            style={{ fontFamily: 'Outfit, sans-serif' }}
+            dir={language === 'ar' ? 'rtl' : 'ltr'}
+          >
+            {language === 'ar' && product.nameAr ? product.nameAr : product.name}
+          </h3>
+        </Link>
 
         {/* Star Rating */}
         {product.rating !== undefined && (

@@ -79,15 +79,17 @@ function MultiVariantSelector({
   const { language } = useLanguage();
   const [qtys, setQtys] = useState<Record<string, number>>({});
 
+  const safeVariants = React.useMemo(() => variants.map((v, i) => ({ ...v, _safeId: v.id ? `${v.id}-${i}` : `v-${i}` })), [variants]);
+
   // Size selection logic
-  const uniqueSizes = Array.from(new Set(variants.map(v => v.size || 'Standard')));
+  const uniqueSizes = Array.from(new Set(safeVariants.map(v => v.size || 'Standard')));
   const hasSizes = uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
   const [selectedSize, setSelectedSize] = useState<string>(uniqueSizes[0] || 'Standard');
 
-  const visibleVariants = variants.filter(v => (v.size || 'Standard') === selectedSize);
+  const visibleVariants = safeVariants.filter(v => (v.size || 'Standard') === selectedSize);
 
   // Guard: if no variants match the selected size, reset to first available
-  const validSelectedSize = visibleVariants.length > 0 ? selectedSize : (variants[0]?.size || 'Standard');
+  const validSelectedSize = visibleVariants.length > 0 ? selectedSize : (safeVariants[0]?.size || 'Standard');
 
   const setQty = (variantId: string, delta: number, max: number | undefined) => {
     setQtys(prev => {
@@ -99,12 +101,12 @@ function MultiVariantSelector({
   };
 
   const totalQty = Object.values(qtys).reduce((s, q) => s + q, 0);
-  const totalPrice = variants.reduce((s, v) => s + (v.price ?? basePrice) * (qtys[v.id] || 0), 0);
+  const totalPrice = safeVariants.reduce((s, v) => s + (v.price ?? basePrice) * (qtys[v._safeId] || 0), 0);
 
   const handleAdd = () => {
     const items: CartItem[] = [];
-    variants.forEach(v => {
-      const qty = qtys[v.id] || 0;
+    safeVariants.forEach(v => {
+      const qty = qtys[v._safeId] || 0;
       if (qty > 0) {
         const itemPrice = v.price ?? basePrice;
         items.push({
@@ -159,7 +161,7 @@ function MultiVariantSelector({
         
         if (isSimpleSize) {
           const v = displayVariants[0];
-          const qty = qtys[v.id] || 0;
+          const qty = qtys[v._safeId] || 0;
           return (
             <div className="flex items-center justify-between bg-gray-50/50 border border-gray-100 p-4 rounded-2xl">
               <div>
@@ -175,12 +177,12 @@ function MultiVariantSelector({
               </div>
               {v.stock > 0 ? (
                 <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-1.5 py-1.5 shadow-sm">
-                  <button onClick={() => setQty(v.id, -1, v.stock)}
+                  <button onClick={() => setQty(v._safeId, -1, v.stock)}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 transition-all">
                     <Minus className="w-4 h-4" />
                   </button>
                   <span className="w-6 text-center font-black text-lg text-[#C8102E]">{qty}</span>
-                  <button onClick={() => setQty(v.id, 1, v.stock)}
+                  <button onClick={() => setQty(v._safeId, 1, v.stock)}
                     disabled={qty >= v.stock}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 transition-all disabled:opacity-30">
                     <Plus className="w-4 h-4" />
@@ -201,19 +203,19 @@ function MultiVariantSelector({
             <div className="flex flex-wrap gap-5">
               {displayVariants.map(v => {
                 const outOfStock = v.stock === 0;
-                const qty = qtys[v.id] || 0;
+                const qty = qtys[v._safeId] || 0;
                 const isSelected = qty > 0;
 
                 return (
-                  <div key={v.id} className="flex flex-col items-center gap-2">
+                  <div key={v._safeId} className="flex flex-col items-center gap-2">
                     <div className="relative">
                       <button
                         onClick={() => {
                           if (outOfStock) return;
                           if (isSelected) {
-                            setQty(v.id, -qty, v.stock);
+                            setQty(v._safeId, -qty, v.stock);
                           } else {
-                            setQty(v.id, 1, v.stock);
+                            setQty(v._safeId, 1, v.stock);
                           }
                         }}
                         disabled={outOfStock}
@@ -242,7 +244,7 @@ function MultiVariantSelector({
                         )}
                       </button>
                       {isSelected && (
-                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20">
+                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20 pointer-events-none">
                           <span className="text-white text-[9px] font-black leading-none">✓</span>
                         </div>
                       )}
@@ -257,12 +259,12 @@ function MultiVariantSelector({
                     <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-8' : 'opacity-0 h-0 overflow-hidden'}`}>
                       {isSelected && (
                         <>
-                          <button onClick={() => setQty(v.id, -1, v.stock)}
+                          <button onClick={() => setQty(v._safeId, -1, v.stock)}
                             className="w-8 h-8 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
                             <Minus className="w-3.5 h-3.5" />
                           </button>
                           <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
-                          <button onClick={() => setQty(v.id, 1, v.stock)}
+                          <button onClick={() => setQty(v._safeId, 1, v.stock)}
                             disabled={qty >= v.stock}
                             className="w-8 h-8 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
                             <Plus className="w-3.5 h-3.5" />
