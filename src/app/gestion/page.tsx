@@ -17,6 +17,7 @@ import EditOrderModal from '@/components/edit-order-modal';
 import PassToStockModal from '@/components/pass-to-stock-modal';
 import AuthView from '@/components/auth-view';
 import CostAnalysisView from '@/components/cost-analysis-view';
+import HistoryRevientView from '@/components/history-revient-view';
 import CostSaleView from '@/components/cost-sale-view';
 import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
@@ -29,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -472,6 +473,7 @@ function AdminApp() {
     ],
     [
       { id: 'cost-analysis',  label: 'Coût Revient', icon: Calculator },
+      { id: 'history-revient', label: 'Hist. Revient', icon: History },
       { id: 'cost-sale',      label: 'Coût Vente',   icon: ShoppingCart },
       { id: 'dp',             label: 'Déc. Prov.',   icon: FileCheck },
       { id: 'reconciliation', label: 'Réconcil.',    icon: TrendingUp },
@@ -597,6 +599,9 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'cost-analysis' ? 'block animate-in fade-in' : 'hidden'}>
               <CostAnalysisView articles={articles} factures={factures} subCategories={subCategories} />
+            </div>
+            <div className={activeTab === 'history-revient' ? 'block animate-in fade-in' : 'hidden'}>
+              <HistoryRevientView articles={articles} factures={factures} subCategories={subCategories} />
             </div>
             <div className={activeTab === 'cost-sale' ? 'block animate-in fade-in' : 'hidden'}>
               <CostSaleView articles={articles} factures={factures} subCategories={subCategories} generalCategories={generalCategories} />

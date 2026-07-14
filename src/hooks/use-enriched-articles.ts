@@ -20,8 +20,8 @@ export function useEnrichedArticles(articles: any[], factures: any[]): any[] {
       // Facture (dossier) is the source of truth for dates.
       // When an article belongs to a dossier, always use the dossier's dates.
       // Fall back to the article's own dates only when there is no linked dossier.
-      const arrivalDate = facture?.arrivalDate || a.arrivalDate || null;
-      const stockEntryDate = facture?.stockEntryDate || a.stockEntryDate || null;
+      const arrivalDate = facture ? (facture.arrivalDate || null) : (a.arrivalDate || null);
+      const stockEntryDate = facture ? (facture.stockEntryDate || null) : (a.stockEntryDate || null);
 
       // ─── STATUS SYSTEM ─────────────────────────────────────────────────────
       // Manual statuses — always respected, NEVER overridden by dates:
