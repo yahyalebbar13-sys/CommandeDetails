@@ -20,6 +20,7 @@ import {
   Loader2,
   ArrowLeft,
   Package,
+  ShieldCheck,
 } from "lucide-react";
 
 import { initializeApp, getApps, getApp } from "firebase/app";

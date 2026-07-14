@@ -80,8 +80,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return { ...state, isOpen: true };
     case 'CLOSE_CART':
       return { ...state, isOpen: false };
-    case 'LOAD_CART':
-      return { ...state, items: action.payload };
+    case 'LOAD_CART': {
+      const safeItems = Array.isArray(action.payload) ? action.payload.filter(i => i && typeof i === 'object') : [];
+      return { ...state, items: safeItems };
+    }
     default:
       return state;
   }
