@@ -208,12 +208,24 @@ export default function PrecommandePage() {
                   ))}
                 </ul>
               </div>
-              <div className="flex-1 w-full max-w-md lg:max-w-none mx-auto">
-                <div className="relative aspect-square md:aspect-video lg:aspect-square rounded-3xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200 shadow-2xl flex items-center justify-center">
-                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20" />
-                  <Smartphone className="w-32 h-32 text-gray-300" />
-                  <div className="absolute inset-x-0 bottom-10 text-center">
-                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Aperçu de l'Application</p>
+              <div className="flex-1 w-full max-w-md lg:max-w-none mx-auto relative group">
+                <div className="relative aspect-square md:aspect-video lg:aspect-square rounded-3xl overflow-hidden bg-gradient-to-br from-[#0F172A] to-[#020617] border border-gray-800 shadow-2xl flex items-center justify-center">
+                  
+                  {/* Dashboard Photo (Back) */}
+                  <div className="absolute w-[85%] h-auto aspect-video rounded-xl md:rounded-2xl overflow-hidden shadow-2xl top-10 md:top-12 left-4 md:left-6 transform transition-all duration-700 group-hover:-translate-y-2 group-hover:-translate-x-2 border border-white/10 opacity-70 group-hover:opacity-100">
+                    <img src="/app-preview-dashboard.png" alt="App Dashboard" className="w-full h-full object-cover" />
+                  </div>
+                  
+                  {/* Login Photo (Front) */}
+                  <div className="absolute w-[85%] h-auto aspect-video rounded-xl md:rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] bottom-16 md:bottom-20 right-4 md:right-6 transform transition-all duration-700 group-hover:translate-y-2 group-hover:translate-x-2 border border-white/20 z-10 group-hover:z-30">
+                    <img src="/app-preview-login.png" alt="App Login" className="w-full h-full object-cover" />
+                  </div>
+
+                  {/* Fade at bottom */}
+                  <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#020617] to-transparent pointer-events-none z-20" />
+                  
+                  <div className="absolute inset-x-0 bottom-6 md:bottom-8 text-center z-30">
+                    <p className="text-sm font-bold text-white uppercase tracking-widest drop-shadow-lg shadow-black">Portail Client Exclusif</p>
                   </div>
                 </div>
               </div>
