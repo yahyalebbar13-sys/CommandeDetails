@@ -306,6 +306,34 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
     return { ...facture, categorySummary: Object.entries(summary).map(([name, data]) => ({ name, ...data })), daysUntil };
   }, [safeFactures, safeArticles]);
 
+  // ── Conteneurs en douane ───────────────────────────────────────────────────
+  const customsFactures = useMemo(() => {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const inCustoms: any[] = [];
+    
+    safeFactures.forEach(facture => {
+      if (!facture.arrivalDate) return;
+      if (new Date(facture.arrivalDate) > now) return; // not arrived yet
+      if (facture.stockEntryDate && new Date(facture.stockEntryDate) <= now) return; // already in stock
+      
+      const items = safeArticles.filter(a => a.factureId === facture.id);
+      if (items.length === 0) return;
+      
+      const notInStock = items.some(a => a.status !== 'STOCK' && a.status !== 'DELIVERED');
+      if (notInStock) {
+        const summary: Record<string, { qty: number; unit: string }> = {};
+        items.forEach(item => {
+          const cat = item.categoryId || 'DIVERS';
+          if (!summary[cat]) summary[cat] = { qty: 0, unit: item.unitOfMeasure || '' };
+          summary[cat].qty += Number(item.quantity) || 0;
+        });
+        const daysSince = Math.floor((now.getTime() - new Date(facture.arrivalDate).getTime()) / 86400000);
+        inCustoms.push({ ...facture, categorySummary: Object.entries(summary).map(([name, data]) => ({ name, ...data })), daysSince });
+      }
+    });
+    return inCustoms.sort((a, b) => new Date(b.arrivalDate).getTime() - new Date(a.arrivalDate).getTime());
+  }, [safeFactures, safeArticles]);
+
   // ── Analytics ──────────────────────────────────────────────────────────────
   const analyticsData = useMemo(() => {
     const groupMap: Record<string, number> = {};
@@ -456,59 +484,62 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
         />
       </div>
 
-      {/* ── Coût Revient vs Coût Vente — par Société ──────────────────────── */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-stone-900 rounded-xl"><Percent className="w-4 h-4 text-emerald-400" /></div>
-          <div>
-            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Arrivages avec DP remplie uniquement</p>
-            <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Coût Revient vs Coût de Vente — par Société</h3>
+      {/* ── Conteneurs en Douanes ────────────────────────────────────────────── */}
+      {customsFactures.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/20 rounded-xl"><Ship className="w-4 h-4 text-purple-400" /></div>
+            <div>
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">En Attente de Dédouanement</p>
+              <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Conteneurs en Douane</h3>
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {marginData.byCompany.map(({ company, dossiers, totalRevient, totalVente, diff }) => (
-            <div key={company} className="relative rounded-2xl overflow-hidden bg-stone-900 shadow-xl">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
-              <div className="relative p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-[10px] font-black text-white uppercase tracking-tight">{company}</p>
-                  <span className="text-[8px] font-black text-stone-500 uppercase">{dossiers.length} dossier{dossiers.length > 1 ? 's' : ''}</span>
-                </div>
-                <div className="space-y-2 mb-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Coût Revient</span>
-                    <span className="text-[11px] font-black text-white">{(totalRevient / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Coût Vente</span>
-                    <span className="text-[11px] font-black text-sky-300">{(totalVente / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K MAD</span>
-                  </div>
-                  <div className={`flex justify-between items-center pt-2 border-t border-white/10`}>
-                    <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Différence</span>
-                    <span className={`text-base font-black ${diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {diff >= 0 ? '+' : ''}{(diff / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {customsFactures.map((cf) => (
+              <div key={cf.id} className="relative rounded-2xl overflow-hidden bg-stone-950 text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform" onClick={() => onNavigateToFacture ? onNavigateToFacture(cf.id) : onNavigate('factures')}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+                <div className="relative p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black text-white uppercase tracking-tight">N° {cf.id}</p>
+                    <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full text-[8px] font-black uppercase">
+                      Depuis {cf.daysSince} jour{cf.daysSince > 1 ? 's' : ''}
                     </span>
                   </div>
-                </div>
-                {dossiers.length > 0 && (
-                  <div className="pt-2 border-t border-white/5">
-                    <div className="flex flex-wrap gap-1">
-                      {dossiers.map(d => (
-                        <span key={d.id} className={`text-[8px] font-black px-2 py-0.5 rounded-full ${
-                          d.diff >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
-                        }`}>{d.id}</span>
-                      ))}
+                  <div className="space-y-2 mb-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Fournisseur</span>
+                      <span className="text-[11px] font-black text-white uppercase">{cf.supplierId || cf.supplier || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Date Arrivée</span>
+                      <span className="text-[11px] font-black text-sky-300">{cf.arrivalDate}</span>
                     </div>
                   </div>
-                )}
-                {dossiers.length === 0 && (
-                  <p className="text-[9px] text-stone-600 font-bold uppercase">Aucun arrivage avec DP remplie</p>
-                )}
+                  {cf.categorySummary.length > 0 && (
+                    <div className="pt-3 border-t border-white/5">
+                      <div className="flex flex-wrap gap-2">
+                        {cf.categorySummary.slice(0, 3).map((item: any, idx: number) => (
+                          <div key={idx} className="bg-white/5 border border-white/10 px-2 py-1 rounded-md">
+                            <p className="text-[7px] font-black text-stone-400 uppercase truncate max-w-[60px]">{item.name}</p>
+                            <p className="text-[10px] font-black text-white">
+                              {Number(item.qty).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                            </p>
+                          </div>
+                        ))}
+                        {cf.categorySummary.length > 3 && (
+                          <div className="bg-white/5 border border-white/10 px-2 py-1 rounded-md flex items-center justify-center">
+                            <p className="text-[10px] font-black text-stone-400">+{cf.categorySummary.length - 3}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Incoming Shipment Alert ────────────────────────────────────────── */}
       {nextArrivingFacture && (
