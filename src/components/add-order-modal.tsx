@@ -186,6 +186,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       tpiRate: selectedSubCat?.tpiRate ?? null,
       ticRate: selectedSubCat?.ticRate ?? null,
       tvaRate: selectedSubCat?.tvaRate ?? null,
+      pcsPerCtn: selectedSubCat?.defaultPcsPerCtn ?? null,
     };
 
     if (designBreakdown && designBreakdown.length > 0) {

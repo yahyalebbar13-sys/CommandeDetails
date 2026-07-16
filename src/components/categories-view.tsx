@@ -330,7 +330,8 @@ export default function CategoriesView({
     importDutyRate: '',
     tpiRate: '',
     ticRate: '',
-    tvaRate: ''
+    tvaRate: '',
+    defaultPcsPerCtn: '',
   });
 
   useEffect(() => {
@@ -341,7 +342,8 @@ export default function CategoriesView({
         importDutyRate: currentCategoryObj.importDutyRate ?? '',
         tpiRate: currentCategoryObj.tpiRate ?? '',
         ticRate: currentCategoryObj.ticRate ?? '',
-        tvaRate: currentCategoryObj.tvaRate ?? ''
+        tvaRate: currentCategoryObj.tvaRate ?? '',
+        defaultPcsPerCtn: currentCategoryObj.defaultPcsPerCtn ?? '',
       });
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
@@ -356,6 +358,7 @@ export default function CategoriesView({
       tpiRate: customsForm.tpiRate === '' ? null : Number(customsForm.tpiRate),
       ticRate: customsForm.ticRate === '' ? null : Number(customsForm.ticRate),
       tvaRate: customsForm.tvaRate === '' ? null : Number(customsForm.tvaRate),
+      defaultPcsPerCtn: customsForm.defaultPcsPerCtn === '' ? null : Number(customsForm.defaultPcsPerCtn),
     });
     toast({ title: 'Données douanières mises à jour' });
     setIsCustomsModalOpen(false);
@@ -1515,7 +1518,7 @@ export default function CategoriesView({
         <Dialog open={isCustomsModalOpen} onOpenChange={setIsCustomsModalOpen}>
           <DialogContent className="max-w-md rounded-[1.5rem] p-0 border-none overflow-hidden">
             <div className="bg-amber-600 p-6 text-white">
-              <DialogTitle className="text-lg font-black uppercase tracking-tight">Informations Douanières</DialogTitle>
+              <DialogTitle className="text-lg font-black uppercase tracking-tight">Configuration & Douane</DialogTitle>
               <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">Audit Analytique Produit — {selectedCategory}</p>
             </div>
             <div className="p-6 space-y-4">
@@ -1545,6 +1548,10 @@ export default function CategoriesView({
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">TVA (%)</Label>
                   <Input type="number" step="0.1" placeholder="0.0" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.tvaRate} onChange={e => setCustomsForm(p => ({ ...p, tvaRate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Pièces par CTN/SAC (Par Défaut)</Label>
+                  <Input type="number" step="1" placeholder="Ex: 50" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.defaultPcsPerCtn} onChange={e => setCustomsForm(p => ({ ...p, defaultPcsPerCtn: e.target.value }))} />
                 </div>
               </div>
             </div>
