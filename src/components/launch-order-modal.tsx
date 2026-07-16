@@ -28,6 +28,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
     orderDate: new Date().toISOString().split('T')[0],
     cubicMeasurement: 0,
     netWeight: 0,
+    pcsPerCtn: 0,
     purchasePricePerUnit: 0,
     containerRef: '',
   });
@@ -40,6 +41,7 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
         orderDate: new Date().toISOString().split('T')[0],
         cubicMeasurement: article.cubicMeasurement || 0,
         netWeight: article.netWeight || 0,
+        pcsPerCtn: article.pcsPerCtn || 0,
         purchasePricePerUnit: article.purchasePricePerUnit || 0,
         containerRef: '',
       });
@@ -187,6 +189,18 @@ export default function LaunchOrderModal({ open, onOpenChange, article }: Launch
                 className="bg-blue-50 border-blue-200"
                 value={formData.netWeight}
                 onChange={e => setFormData(p => ({ ...p, netWeight: parseFloat(e.target.value) || 0 }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-bold flex items-center gap-1">
+                <Cuboid className="w-4 h-4 text-purple-500" /> Pièces / CTN
+              </Label>
+              <Input
+                type="number"
+                step="1"
+                className="bg-purple-50 border-purple-200"
+                value={formData.pcsPerCtn || ''}
+                onChange={e => setFormData(p => ({ ...p, pcsPerCtn: parseInt(e.target.value) || 0 }))}
               />
             </div>
             <div className="space-y-1">

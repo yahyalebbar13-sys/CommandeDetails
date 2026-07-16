@@ -896,6 +896,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       onChange={e => setFormData((prev: any) => ({ ...prev, netWeight: parseFloat(e.target.value) || 0 }))}
                       className="h-12 border-stone-200 font-bold rounded-xl"
                     />
+                    <Input
+                      type="number"
+                      step="1"
+                      placeholder="Pièces / CTN"
+                      value={formData.pcsPerCtn || ''}
+                      onChange={e => setFormData((prev: any) => ({ ...prev, pcsPerCtn: parseInt(e.target.value) || 0 }))}
+                      className="h-12 border-stone-200 font-bold rounded-xl"
+                    />
                   </>
                 )}
               </div>

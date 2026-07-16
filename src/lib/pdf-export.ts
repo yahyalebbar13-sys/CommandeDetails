@@ -1,4 +1,4 @@
-﻿// Utility functions for PDF export using jsPDF + jspdf-autotable
+// Utility functions for PDF export using jsPDF + jspdf-autotable
 // Dynamically imported to avoid SSR issues
 
 // ── Shared logo helper ─────────────────────────────────────────────────────
@@ -3263,7 +3263,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
   type BreakRow = { label: string; qty: number; color?: [number, number, number] };
   type ArticleGroup = {
     name: string; unit: string; size: string; supplierId: string;
-    specs: string; cbmTotal: number; nwTotal: number;
+    specs: string; cbmTotal: number; nwTotal: number; pcsPerCtn: number;
     rows: BreakRow[]; breakLabel: string; totalQty: number;
   };
 
@@ -3301,6 +3301,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
         specs: art.specs || (art.zipperType ? `${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})` : ''),
         cbmTotal: Number(art.cubicMeasurement || 0),
         nwTotal: Number(art.netWeight || 0),
+        pcsPerCtn: Number(art.pcsPerCtn || 0),
         rows: [...rows],
         breakLabel,
         totalQty: artQty,
@@ -3320,6 +3321,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
   const groups = Array.from(groupMap.values());
   let curY = 44;
   let grandTotalQty = 0;
+  let grandTotalCtns = 0;
   const grandTotalCBM = articles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
   const grandTotalNW  = articles.reduce((s, a) => s + (Number(a.netWeight) || 0), 0);
 
@@ -3364,6 +3366,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
       ['Taille', g.size],
       ['CBM', `${g.cbmTotal.toFixed(3)} m³`],
       ['N.W.', `${g.nwTotal.toFixed(2)} kg`],
+      ['PCS/CTN', g.pcsPerCtn ? String(g.pcsPerCtn) : '—'],
     ];
     doc.setFontSize(5.5);
     let sx = pageW - MX - 2;
@@ -3385,17 +3388,24 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
 
     curY += 18;
 
+    const sortedRows = [...g.rows].sort((a, b) => b.qty - a.qty);
+    if (g.pcsPerCtn > 0) {
+      grandTotalCtns += (g.totalQty / g.pcsPerCtn);
+    }
+
     autoTable(doc, {
       startY: curY,
-      head: [[g.breakLabel, `Quantité (${g.unit})`, '% du total']],
-      body: g.rows.map(r => [
+      head: [[g.breakLabel, `Quantité (${g.unit})`, 'CTNS/SACS', '% du total']],
+      body: sortedRows.map(r => [
         { content: r.label, styles: { fontStyle: 'bold', textColor: r.color || NAVY } },
         { content: r.qty.toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold' } },
+        { content: g.pcsPerCtn > 0 ? (r.qty / g.pcsPerCtn).toFixed(1) : '—', styles: { halign: 'right' as const, fontStyle: 'bold', textColor: AMBER } },
         { content: g.totalQty > 0 ? `${((r.qty / g.totalQty) * 100).toFixed(1)} %` : '—', styles: { halign: 'right' as const, textColor: MUTED } },
       ]),
       foot: [[
         { content: `TOTAL  —  ${g.rows.length} ligne${g.rows.length > 1 ? 's' : ''}`, styles: { fontStyle: 'bold', fillColor: STONE as any, textColor: NAVY as any } },
         { content: `${g.totalQty.toLocaleString('fr-MA')} ${g.unit}`, styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: GOLD as any, textColor: NAVY as any } },
+        { content: g.pcsPerCtn > 0 ? (g.totalQty / g.pcsPerCtn).toFixed(1) : '—', styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: STONE as any, textColor: AMBER as any } },
         { content: '100 %', styles: { halign: 'right' as const, fillColor: STONE as any, textColor: MUTED as any } },
       ]],
       headStyles: { fillColor: [50, 47, 45] as any, textColor: WHITE as any, fontStyle: 'bold', fontSize: 7, cellPadding: 2.5 },
@@ -3424,7 +3434,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
 
   autoTable(doc, {
     startY: curY,
-    head: [['Désignation', 'Fournisseur', 'Taille', 'Couleur / Type', 'Quantité', 'Unité', 'CBM (m³)', 'N.W. (kg)']],
+    head: [['Désignation', 'Fournisseur', 'Taille', 'Couleur / Type', 'Quantité', 'Unité', 'PCS/CTN', 'CTNS/SACS', 'CBM (m³)', 'N.W. (kg)']],
     body: groups.map(g => [
       g.name,
       g.supplierId,
@@ -3432,6 +3442,8 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
       g.rows.length > 1 ? `VARIOUS (${g.rows.length})` : (g.rows[0]?.label || '—'),
       { content: g.totalQty.toLocaleString('fr-MA'), styles: { halign: 'right', fontStyle: 'bold' } },
       g.unit,
+      { content: g.pcsPerCtn ? String(g.pcsPerCtn) : '—', styles: { halign: 'center' } },
+      { content: g.pcsPerCtn > 0 ? (g.totalQty / g.pcsPerCtn).toFixed(1) : '—', styles: { halign: 'right', fontStyle: 'bold', textColor: AMBER } },
       { content: g.cbmTotal.toFixed(3), styles: { halign: 'right' } },
       { content: g.nwTotal.toFixed(2), styles: { halign: 'right' } },
     ]),
@@ -3439,8 +3451,10 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
       { content: `TOTAL GÉNÉRAL  —  ${groups.length} désignation${groups.length > 1 ? 's' : ''}`, colSpan: 4, styles: { fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
       { content: grandTotalQty.toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: GOLD as any, textColor: NAVY as any } },
       { content: '', styles: { fillColor: NAVY as any } },
+      { content: '', styles: { fillColor: NAVY as any } },
+      { content: grandTotalCtns > 0 ? grandTotalCtns.toFixed(1) : '—', styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: AMBER as any } },
       { content: grandTotalCBM.toFixed(3) + ' m³', styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
-      { content: grandTotalNW.toFixed(2) + ' kg', styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
+      { content: grandTotalNW.toFixed(0), styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
     ]],
     headStyles: { fillColor: NAVY as any, textColor: WHITE as any, fontStyle: 'bold', fontSize: 7, cellPadding: 2.5 },
     bodyStyles: { fontSize: 7, cellPadding: 2 },

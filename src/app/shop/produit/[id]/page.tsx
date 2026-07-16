@@ -220,25 +220,25 @@ function MultiVariantSelector({
                         }}
                         disabled={outOfStock}
                         title={outOfStock ? (language === 'ar' ? 'نفد' : 'Épuisé') : (v.size ? `${v.size} - ${language === 'ar' && v.colorAr ? v.colorAr : v.color}` : (language === 'ar' && v.colorAr ? v.colorAr : v.color))}
-                        className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative
+                        className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative cursor-pointer
                           ${v.image 
                             ? 'w-20 h-20 rounded-xl border-2' 
                             : 'w-14 h-14 rounded-full border-4'}
                           ${outOfStock
                             ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
                             : isSelected
-                              ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-10'
-                              : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white'}
+                              ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-20'
+                              : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white z-10'}
                         `}
                       >
                         {v.image ? (
-                          <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                          <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover pointer-events-none" />
                         ) : (
-                          <div className="w-full h-full" style={{ background: v.colorHex || '#ccc' }} />
+                          <div className="w-full h-full pointer-events-none" style={{ background: v.colorHex || '#ccc' }} />
                         )}
 
                         {outOfStock && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-inherit">
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ borderRadius: 'inherit' }}>
                             <div className="w-[150%] h-[2px] bg-red-400/50 -rotate-12" />
                           </div>
                         )}
