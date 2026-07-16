@@ -288,22 +288,27 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
   }, [safeArticles, safeFactures]);
 
   // ── Next arriving shipment ─────────────────────────────────────────────────
-  const nextArrivingFacture = useMemo(() => {
+  const imminentFactures = useMemo(() => {
     const now = new Date(); now.setHours(0, 0, 0, 0);
-    const futureFactures = [...safeFactures]
+    const future = safeFactures
       .filter(f => f.arrivalDate && new Date(f.arrivalDate) >= now)
-      .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
-    if (futureFactures.length === 0) return null;
-    const facture = futureFactures[0];
-    const items = safeArticles.filter(a => a.factureId === facture.id);
-    const daysUntil = Math.ceil((new Date(facture.arrivalDate).getTime() - now.getTime()) / 86400000);
-    const summary: Record<string, { qty: number; unit: string }> = {};
-    items.forEach(item => {
-      const cat = item.categoryId || 'DIVERS';
-      if (!summary[cat]) summary[cat] = { qty: 0, unit: item.unitOfMeasure || '' };
-      summary[cat].qty += Number(item.quantity) || 0;
+      .map(facture => {
+         const daysUntil = Math.ceil((new Date(facture.arrivalDate).getTime() - now.getTime()) / 86400000);
+         return { facture, daysUntil };
+      })
+      .filter(({ daysUntil }) => daysUntil <= 15)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    return future.map(({ facture, daysUntil }) => {
+      const items = safeArticles.filter(a => a.factureId === facture.id);
+      const summary: Record<string, { qty: number; unit: string }> = {};
+      items.forEach(item => {
+        const cat = item.categoryId || 'DIVERS';
+        if (!summary[cat]) summary[cat] = { qty: 0, unit: item.unitOfMeasure || '' };
+        summary[cat].qty += Number(item.quantity) || 0;
+      });
+      return { ...facture, categorySummary: Object.entries(summary).map(([name, data]) => ({ name, ...data })), daysUntil };
     });
-    return { ...facture, categorySummary: Object.entries(summary).map(([name, data]) => ({ name, ...data })), daysUntil };
   }, [safeFactures, safeArticles]);
 
   // ── Conteneurs en douane ───────────────────────────────────────────────────
@@ -542,84 +547,97 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       )}
 
       {/* ── Incoming Shipment Alert ────────────────────────────────────────── */}
-      {nextArrivingFacture && (
-        <div className="relative rounded-3xl overflow-hidden bg-stone-950 text-white shadow-2xl">
-          {/* Background glows */}
-          <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 w-48 h-48 bg-blue-500/10 rounded-full translate-y-1/2 blur-2xl pointer-events-none" />
-
-          <div className="relative p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/20 rounded-xl">
-                  <Ship className="w-5 h-5 text-amber-400" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.2em]">Arrivage Imminent</p>
-                  <p className="text-sm font-black text-white uppercase tracking-tight">Prochain Flux Entrant</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {nextArrivingFacture.daysUntil <= 7 && (
-                  <Badge className="bg-red-500/20 text-red-300 border border-red-500/30 font-black text-[9px] uppercase tracking-widest animate-pulse">
-                    <AlertTriangle className="w-3 h-3 mr-1" />
-                    J-{nextArrivingFacture.daysUntil}
-                  </Badge>
-                )}
-                <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/30 font-black text-[9px] uppercase tracking-widest">
-                  FLUX ENTRANT
-                </Badge>
-              </div>
+      {imminentFactures.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/20 rounded-xl"><CalendarDays className="w-4 h-4 text-amber-400" /></div>
+            <div>
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Arrivages {'<'} 15 jours</p>
+              <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Arrivages Imminents</h3>
             </div>
+          </div>
+          <div className="space-y-6">
+            {imminentFactures.map((facture) => (
+              <div key={facture.id} className="relative rounded-3xl overflow-hidden bg-stone-950 text-white shadow-2xl">
+                {/* Background glows */}
+                <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-1/3 w-48 h-48 bg-blue-500/10 rounded-full translate-y-1/2 blur-2xl pointer-events-none" />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div>
-                <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">N° Dossier</p>
-                <p className="text-3xl font-black tracking-tighter uppercase">{nextArrivingFacture.id}</p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Date d'Arrivée Port</p>
-                <p className="text-2xl font-black text-blue-400 flex items-center gap-2">
-                  <CalendarDays className="w-5 h-5" />
-                  {nextArrivingFacture.arrivalDate}
-                </p>
-                <p className="text-[10px] text-stone-500 font-bold mt-1">
-                  Dans {nextArrivingFacture.daysUntil} jour{nextArrivingFacture.daysUntil > 1 ? 's' : ''}
-                </p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Fournisseur</p>
-                <p className="text-2xl font-black text-stone-200 uppercase leading-tight">
-                  {nextArrivingFacture.supplierId || nextArrivingFacture.supplier || '—'}
-                </p>
-              </div>
-            </div>
+                <div className="relative p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-amber-500/20 rounded-xl">
+                        <Ship className="w-5 h-5 text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.2em]">Arrivage Imminent</p>
+                        <p className="text-sm font-black text-white uppercase tracking-tight">Flux Entrant</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {facture.daysUntil <= 7 && (
+                        <Badge className="bg-red-500/20 text-red-300 border border-red-500/30 font-black text-[9px] uppercase tracking-widest animate-pulse">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          J-{facture.daysUntil}
+                        </Badge>
+                      )}
+                      <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/30 font-black text-[9px] uppercase tracking-widest">
+                        FLUX ENTRANT
+                      </Badge>
+                    </div>
+                  </div>
 
-            {nextArrivingFacture.categorySummary.length > 0 && (
-              <div className="border-t border-white/5 pt-6">
-                <p className="text-[8px] font-black text-stone-500 uppercase tracking-[0.2em] mb-4">Contenu Manifeste</p>
-                <div className="flex flex-wrap gap-2">
-                  {nextArrivingFacture.categorySummary.map((item: { name: string; qty: number; unit: string }, idx: number) => (
-                    <div key={idx} className="bg-white/5 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/10 transition-colors">
-                      <p className="text-[8px] font-black text-stone-400 uppercase truncate max-w-[80px] mb-0.5">{item.name}</p>
-                      <p className="text-sm font-black text-white">
-                        {Number(item.qty).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
-                        <span className="text-[9px] text-stone-500 font-bold ml-1">{item.unit}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div>
+                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">N° Dossier</p>
+                      <p className="text-3xl font-black tracking-tighter uppercase">{facture.id}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Date d'Arrivée Port</p>
+                      <p className="text-2xl font-black text-blue-400 flex items-center gap-2">
+                        <CalendarDays className="w-5 h-5" />
+                        {facture.arrivalDate}
+                      </p>
+                      <p className="text-[10px] text-stone-500 font-bold mt-1">
+                        Dans {facture.daysUntil} jour{facture.daysUntil > 1 ? 's' : ''}
                       </p>
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Fournisseur</p>
+                      <p className="text-2xl font-black text-stone-200 uppercase leading-tight">
+                        {facture.supplierId || facture.supplier || '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {facture.categorySummary.length > 0 && (
+                    <div className="border-t border-white/5 pt-6">
+                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-[0.2em] mb-4">Contenu Manifeste</p>
+                      <div className="flex flex-wrap gap-2">
+                        {facture.categorySummary.map((item: { name: string; qty: number; unit: string }, idx: number) => (
+                          <div key={idx} className="bg-white/5 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/10 transition-colors">
+                            <p className="text-[8px] font-black text-stone-400 uppercase truncate max-w-[80px] mb-0.5">{item.name}</p>
+                            <p className="text-sm font-black text-white">
+                              {Number(item.qty).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                              <span className="text-[9px] text-stone-500 font-bold ml-1">{item.unit}</span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end mt-6">
+                    <Button
+                      onClick={() => onNavigateToFacture ? onNavigateToFacture(facture.id) : onNavigate('factures')}
+                      className="bg-amber-500 hover:bg-amber-400 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl px-6 h-10 transition-all hover:shadow-lg hover:shadow-amber-500/25"
+                    >
+                      Voir le Dossier <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            )}
-
-            <div className="flex justify-end mt-6">
-              <Button
-                onClick={() => onNavigateToFacture ? onNavigateToFacture(nextArrivingFacture.id) : onNavigate('factures')}
-                className="bg-amber-500 hover:bg-amber-400 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl px-6 h-10 transition-all hover:shadow-lg hover:shadow-amber-500/25"
-              >
-                Voir le Dossier <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
+            ))}
           </div>
         </div>
       )}
