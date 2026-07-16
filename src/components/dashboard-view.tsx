@@ -556,85 +556,46 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
               <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight">Arrivages Imminents</h3>
             </div>
           </div>
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {imminentFactures.map((facture) => (
-              <div key={facture.id} className="relative rounded-3xl overflow-hidden bg-stone-950 text-white shadow-2xl">
-                {/* Background glows */}
-                <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl pointer-events-none" />
-                <div className="absolute bottom-0 left-1/3 w-48 h-48 bg-blue-500/10 rounded-full translate-y-1/2 blur-2xl pointer-events-none" />
-
-                <div className="relative p-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-amber-500/20 rounded-xl">
-                        <Ship className="w-5 h-5 text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.2em]">Arrivage Imminent</p>
-                        <p className="text-sm font-black text-white uppercase tracking-tight">Flux Entrant</p>
-                      </div>
+              <div key={facture.id} className="relative rounded-2xl overflow-hidden bg-stone-950 text-white shadow-xl cursor-pointer hover:scale-[1.02] transition-transform" onClick={() => onNavigateToFacture ? onNavigateToFacture(facture.id) : onNavigate('factures')}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+                <div className="relative p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black text-white uppercase tracking-tight">N° {facture.id}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase border ${facture.daysUntil <= 7 ? 'bg-red-500/20 text-red-300 border-red-500/30 animate-pulse' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
+                      {facture.daysUntil === 0 ? "Aujourd'hui" : `Dans ${facture.daysUntil} j`}
+                    </span>
+                  </div>
+                  <div className="space-y-2 mb-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Fournisseur</span>
+                      <span className="text-[11px] font-black text-white uppercase">{facture.supplierId || facture.supplier || '—'}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {facture.daysUntil <= 7 && (
-                        <Badge className="bg-red-500/20 text-red-300 border border-red-500/30 font-black text-[9px] uppercase tracking-widest animate-pulse">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          J-{facture.daysUntil}
-                        </Badge>
-                      )}
-                      <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/30 font-black text-[9px] uppercase tracking-widest">
-                        FLUX ENTRANT
-                      </Badge>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Date Arrivée</span>
+                      <span className="text-[11px] font-black text-sky-300">{facture.arrivalDate}</span>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div>
-                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">N° Dossier</p>
-                      <p className="text-3xl font-black tracking-tighter uppercase">{facture.id}</p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Date d'Arrivée Port</p>
-                      <p className="text-2xl font-black text-blue-400 flex items-center gap-2">
-                        <CalendarDays className="w-5 h-5" />
-                        {facture.arrivalDate}
-                      </p>
-                      <p className="text-[10px] text-stone-500 font-bold mt-1">
-                        Dans {facture.daysUntil} jour{facture.daysUntil > 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-2">Fournisseur</p>
-                      <p className="text-2xl font-black text-stone-200 uppercase leading-tight">
-                        {facture.supplierId || facture.supplier || '—'}
-                      </p>
-                    </div>
-                  </div>
-
                   {facture.categorySummary.length > 0 && (
-                    <div className="border-t border-white/5 pt-6">
-                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-[0.2em] mb-4">Contenu Manifeste</p>
+                    <div className="pt-3 border-t border-white/5">
                       <div className="flex flex-wrap gap-2">
-                        {facture.categorySummary.map((item: { name: string; qty: number; unit: string }, idx: number) => (
-                          <div key={idx} className="bg-white/5 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/10 transition-colors">
-                            <p className="text-[8px] font-black text-stone-400 uppercase truncate max-w-[80px] mb-0.5">{item.name}</p>
-                            <p className="text-sm font-black text-white">
+                        {facture.categorySummary.slice(0, 3).map((item: any, idx: number) => (
+                          <div key={idx} className="bg-white/5 border border-white/10 px-2 py-1 rounded-md">
+                            <p className="text-[7px] font-black text-stone-400 uppercase truncate max-w-[60px]">{item.name}</p>
+                            <p className="text-[10px] font-black text-white">
                               {Number(item.qty).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
-                              <span className="text-[9px] text-stone-500 font-bold ml-1">{item.unit}</span>
                             </p>
                           </div>
                         ))}
+                        {facture.categorySummary.length > 3 && (
+                          <div className="bg-white/5 border border-white/10 px-2 py-1 rounded-md flex items-center justify-center">
+                            <p className="text-[10px] font-black text-stone-400">+{facture.categorySummary.length - 3}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
-
-                  <div className="flex justify-end mt-6">
-                    <Button
-                      onClick={() => onNavigateToFacture ? onNavigateToFacture(facture.id) : onNavigate('factures')}
-                      className="bg-amber-500 hover:bg-amber-400 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl px-6 h-10 transition-all hover:shadow-lg hover:shadow-amber-500/25"
-                    >
-                      Voir le Dossier <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </div>
                 </div>
               </div>
             ))}
