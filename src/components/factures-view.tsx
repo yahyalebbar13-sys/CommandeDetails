@@ -10,7 +10,7 @@ import {
   AlertCircle, CheckCircle2, FileText, Box, Truck,
   ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink
 } from 'lucide-react';
-import { exportFacturePDF } from '@/lib/pdf-export';
+import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
 import { isZipperCategory } from '@/lib/constants';
 import { Badge } from '@/components/ui/badge';
@@ -577,6 +577,13 @@ export default function FacturesView({
             className="h-10 text-[10px] font-black uppercase tracking-widest border-stone-200 rounded-xl px-6 gap-2 text-red-600 border-red-200 hover:bg-red-50"
           >
             <FileDown className="w-4 h-4" /> Exporter PDF
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportPackingDetailsPDF(selectedFacture, selectedFactureArticles)}
+            className="h-10 text-[10px] font-black uppercase tracking-widest border-blue-200 rounded-xl px-6 gap-2 text-blue-700 hover:bg-blue-50"
+          >
+            <Archive className="w-4 h-4" /> Packing Details PDF
           </Button>
           <Button
             variant="outline"
