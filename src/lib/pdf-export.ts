@@ -1,4 +1,4 @@
-// Utility functions for PDF export using jsPDF + jspdf-autotable
+﻿// Utility functions for PDF export using jsPDF + jspdf-autotable
 // Dynamically imported to avoid SSR issues
 
 // ── Shared logo helper ─────────────────────────────────────────────────────
@@ -3197,18 +3197,16 @@ export async function exportBaseOrderPDF(order: any) {
 }
 
 // ── Packing Details PDF ─────────────────────────────────────────────────────
-// Per-product layout: each article gets its own breakdown table.
+// Per-product layout, grouped by designation. No P.A. displayed.
 export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
-  // Portrait A4 for readability
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const MX = 12; // margin x
+  const MX = 12;
 
-  // ── Palette ──
   const NAVY  = [28, 25, 23]    as [number, number, number];
   const GOLD  = [251, 191, 36]  as [number, number, number];
   const WHITE = [255, 255, 255] as [number, number, number];
@@ -3220,44 +3218,34 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
 
   const dateStr = new Date().toLocaleDateString('fr-FR');
 
-  // ── Helper: draw page header on every new page ──────────────────────────
   const drawPageHeader = async (isFirst: boolean) => {
     doc.setFillColor(...NAVY);
     doc.rect(0, 0, pageW, isFirst ? 38 : 18, 'F');
-
     if (isFirst) {
       await addPdfLogoHeader(doc, MX, 5, 32, 16, true);
-
       doc.setTextColor(...GOLD);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.text('PACKING DETAILS', MX + 36, 10);
-
       doc.setTextColor(...WHITE);
       doc.setFontSize(16);
       doc.text(String(facture.id || '—').toUpperCase(), MX + 36, 20);
-
-      // meta right
       const metaLines = [
-        facture.supplierId   ? `Fournisseur : ${facture.supplierId}`      : null,
-        facture.arrivalDate  ? `ETA : ${facture.arrivalDate}`             : null,
-        facture.shippingDate ? `ETD : ${facture.shippingDate}`            : null,
-        facture.noBL         ? `N° BL : ${facture.noBL}`                 : null,
-        facture.forwarder    ? `Transitaire : ${facture.forwarder}`       : null,
-        facture.shippingLine ? `Armateur : ${facture.shippingLine}`       : null,
+        facture.supplierId   ? `Fournisseur : ${facture.supplierId}`  : null,
+        facture.arrivalDate  ? `ETA : ${facture.arrivalDate}`         : null,
+        facture.shippingDate ? `ETD : ${facture.shippingDate}`        : null,
+        facture.noBL         ? `N° BL : ${facture.noBL}`             : null,
+        facture.forwarder    ? `Transitaire : ${facture.forwarder}`   : null,
+        facture.shippingLine ? `Armateur : ${facture.shippingLine}`   : null,
       ].filter(Boolean) as string[];
-
       doc.setTextColor(...MUTED);
       doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
       let my = 8;
       metaLines.forEach(l => { doc.text(l, pageW - MX, my, { align: 'right' }); my += 3.8; });
-
-      doc.setTextColor(...MUTED);
       doc.setFontSize(6);
       doc.text(`Exporté le ${dateStr}`, pageW - MX, 37, { align: 'right' });
     } else {
-      // compact header for continuation pages
       doc.setTextColor(...GOLD);
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
@@ -3269,18 +3257,72 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
     }
   };
 
-  // Draw first page header
   await drawPageHeader(true);
 
-  // ── Global totals ──────────────────────────────────────────────────────
+  // ── Group articles by designation ────────────────────────────────────────
+  type BreakRow = { label: string; qty: number; color?: [number, number, number] };
+  type ArticleGroup = {
+    name: string; unit: string; size: string; supplierId: string;
+    specs: string; cbmTotal: number; nwTotal: number;
+    rows: BreakRow[]; breakLabel: string; totalQty: number;
+  };
+
+  const groupMap = new Map<string, ArticleGroup>();
+
+  for (const art of articles) {
+    const key = (art.name || art.categoryId || '—').toUpperCase();
+    const cb = Array.isArray(art.colorBreakdown)  ? art.colorBreakdown  : [];
+    const sb = Array.isArray(art.sizeBreakdown)   ? art.sizeBreakdown   : [];
+    const db = Array.isArray(art.designBreakdown) ? art.designBreakdown : [];
+    let rows: BreakRow[] = [];
+    let breakLabel = 'Couleur';
+
+    if (cb.length > 0) {
+      breakLabel = 'Couleur';
+      rows = cb.map((r: any) => ({ label: (r.colorCode || r.color || '?').toUpperCase(), qty: Number(r.rolls) || Number(r.quantity) || 0, color: VIOLET }));
+    } else if (sb.length > 0) {
+      breakLabel = 'Taille';
+      rows = sb.map((r: any) => ({ label: (r.size || '?').toUpperCase(), qty: Number(r.quantity) || 0, color: BLUE }));
+    } else if (db.length > 0) {
+      breakLabel = 'Modèle / Design';
+      rows = db.map((r: any) => ({ label: (r.designRef || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
+    } else {
+      rows = [{ label: (art.color || '—').toUpperCase(), qty: Number(art.quantity) || 0 }];
+    }
+
+    const artQty = rows.reduce((s, r) => s + r.qty, 0);
+
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        name: key,
+        unit: (art.unitOfMeasure || 'pcs').toUpperCase(),
+        size: art.size || '—',
+        supplierId: (art.supplierId || '—').toUpperCase(),
+        specs: art.specs || (art.zipperType ? `${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})` : ''),
+        cbmTotal: Number(art.cubicMeasurement || 0),
+        nwTotal: Number(art.netWeight || 0),
+        rows: [...rows],
+        breakLabel,
+        totalQty: artQty,
+      });
+    } else {
+      const g = groupMap.get(key)!;
+      g.cbmTotal += Number(art.cubicMeasurement || 0);
+      g.nwTotal  += Number(art.netWeight || 0);
+      g.totalQty += artQty;
+      for (const r of rows) {
+        const existing = g.rows.find(x => x.label === r.label);
+        if (existing) { existing.qty += r.qty; } else { g.rows.push({ ...r }); }
+      }
+    }
+  }
+
+  const groups = Array.from(groupMap.values());
+  let curY = 44;
   let grandTotalQty = 0;
   const grandTotalCBM = articles.reduce((s, a) => s + (Number(a.cubicMeasurement) || 0), 0);
   const grandTotalNW  = articles.reduce((s, a) => s + (Number(a.netWeight) || 0), 0);
 
-  // ── Track Y position ──────────────────────────────────────────────────
-  let curY = 44;
-
-  // helper: ensure we have enough space, else new page
   const ensureSpace = async (needed: number) => {
     if (curY + needed > pageH - 14) {
       doc.addPage();
@@ -3289,151 +3331,74 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
     }
   };
 
-  // ── Per-article sections ───────────────────────────────────────────────
-  for (let ai = 0; ai < articles.length; ai++) {
-    const art = articles[ai];
-    const cb = Array.isArray(art.colorBreakdown)  ? art.colorBreakdown  : [];
-    const sb = Array.isArray(art.sizeBreakdown)   ? art.sizeBreakdown   : [];
-    const db = Array.isArray(art.designBreakdown) ? art.designBreakdown : [];
+  // ── Draw each group ──────────────────────────────────────────────────────
+  for (let gi = 0; gi < groups.length; gi++) {
+    const g = groups[gi];
+    grandTotalQty += g.totalQty;
 
-    // Determine rows and type
-    type BreakRow = { label: string; qty: number; color?: [number,number,number] };
-    let rows: BreakRow[] = [];
-    let breakLabel = 'Couleur';
+    await ensureSpace(16 + 7 + g.rows.length * 5.5 + 7 + 6);
 
-    if (cb.length > 0) {
-      breakLabel = 'Couleur';
-      rows = cb.map((r: any) => ({
-        label: (r.colorCode || r.color || '?').toUpperCase(),
-        qty: Number(r.rolls) || Number(r.quantity) || 0,
-        color: VIOLET,
-      }));
-    } else if (sb.length > 0) {
-      breakLabel = 'Taille';
-      rows = sb.map((r: any) => ({
-        label: (r.size || '?').toUpperCase(),
-        qty: Number(r.quantity) || 0,
-        color: BLUE,
-      }));
-    } else if (db.length > 0) {
-      breakLabel = 'Modèle / Design';
-      rows = db.map((r: any) => ({
-        label: (r.designRef || '?').toUpperCase(),
-        qty: Number(r.rolls) || 0,
-        color: AMBER,
-      }));
-    } else {
-      breakLabel = 'Couleur';
-      rows = [{
-        label: (art.color || '—').toUpperCase(),
-        qty: Number(art.quantity) || 0,
-      }];
-    }
-
-    const artTotalQty = rows.reduce((s, r) => s + r.qty, 0);
-    grandTotalQty += artTotalQty;
-
-    const artName    = (art.name || art.categoryId || '—').toUpperCase();
-    const unit       = (art.unitOfMeasure || 'pcs').toUpperCase();
-    const pa         = Number(art.purchasePricePerUnit || 0);
-    const cbmVal     = Number(art.cubicMeasurement || 0).toFixed(3);
-    const nwVal      = Number(art.netWeight || 0).toFixed(2);
-    const supplierId = (art.supplierId || '—').toUpperCase();
-    const specs      = art.specs || (art.zipperType ? `${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})` : '');
-
-    // Estimate height: product card ~16mm + table header ~6mm + rows ~5mm each + total row ~6mm + gap ~4mm
-    const estimatedH = 16 + 7 + rows.length * 5.5 + 6 + 6;
-    await ensureSpace(estimatedH);
-
-    // ── Product card ──────────────────────────────────────────────────
-    // Background
+    // Product card
     doc.setFillColor(...NAVY);
     doc.roundedRect(MX, curY, pageW - MX * 2, 16, 2, 2, 'F');
-
-    // Article number badge
     doc.setFillColor(...GOLD);
     doc.roundedRect(MX + 2, curY + 3, 8, 10, 1.5, 1.5, 'F');
     doc.setTextColor(...NAVY);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text(String(ai + 1), MX + 6, curY + 9.5, { align: 'center' });
-
-    // Article name
+    doc.text(String(gi + 1), MX + 6, curY + 9.5, { align: 'center' });
     doc.setTextColor(...WHITE);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text(artName, MX + 13, curY + 7);
-
-    // Specs / details
-    if (specs) {
+    doc.text(g.name, MX + 13, curY + 7);
+    if (g.specs) {
       doc.setTextColor(...MUTED);
       doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(specs, MX + 13, curY + 13);
+      doc.text(g.specs, MX + 13, curY + 13);
     }
 
-    // Right-side mini stats
-    const statsX = pageW - MX - 2;
+    // Right stats — no P.A.
     const statsItems: [string, string][] = [
-      ['Fournisseur', supplierId],
-      ['Taille', art.size || '—'],
-      ['CBM', `${cbmVal} m³`],
-      ['N.W.', `${nwVal} kg`],
-      ['P.A.', `${pa.toFixed(4)} $`],
-    ].filter(([, v]) => v && v !== '—' || true);
-
+      ['Fournisseur', g.supplierId],
+      ['Taille', g.size],
+      ['CBM', `${g.cbmTotal.toFixed(3)} m³`],
+      ['N.W.', `${g.nwTotal.toFixed(2)} kg`],
+    ];
     doc.setFontSize(5.5);
-    doc.setFont('helvetica', 'bold');
-    let sx = statsX;
+    let sx = pageW - MX - 2;
     [...statsItems].reverse().forEach(([label, value]) => {
-      const valW = doc.getTextWidth(value) + 2;
-      const lblW = doc.getTextWidth(label.toUpperCase()) + 2;
-      const blockW = Math.max(valW, lblW) + 4;
-
+      const blockW = Math.max(doc.getTextWidth(value) + 2, doc.getTextWidth(label.toUpperCase()) + 2) + 4;
       doc.setTextColor(...GOLD);
+      doc.setFont('helvetica', 'bold');
       doc.text(label.toUpperCase(), sx - blockW / 2, curY + 6, { align: 'center' });
       doc.setTextColor(...WHITE);
-      doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
       doc.text(value, sx - blockW / 2, curY + 12, { align: 'center' });
       doc.setFontSize(5.5);
-
-      // vertical separator
-      if (sx !== statsX) {
-        doc.setDrawColor(...MUTED);
-        doc.setLineWidth(0.1);
+      if (sx !== pageW - MX - 2) {
+        doc.setDrawColor(...MUTED); doc.setLineWidth(0.1);
         doc.line(sx, curY + 4, sx, curY + 14);
       }
-
       sx -= blockW + 4;
     });
 
     curY += 18;
 
-    // ── Breakdown table for this article ──────────────────────────────
     autoTable(doc, {
       startY: curY,
-      head: [[breakLabel, `Quantité (${unit})`, '% du total']],
-      body: rows.map(r => [
+      head: [[g.breakLabel, `Quantité (${g.unit})`, '% du total']],
+      body: g.rows.map(r => [
         { content: r.label, styles: { fontStyle: 'bold', textColor: r.color || NAVY } },
         { content: r.qty.toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold' } },
-        {
-          content: artTotalQty > 0 ? `${((r.qty / artTotalQty) * 100).toFixed(1)} %` : '—',
-          styles: { halign: 'right' as const, textColor: MUTED },
-        },
+        { content: g.totalQty > 0 ? `${((r.qty / g.totalQty) * 100).toFixed(1)} %` : '—', styles: { halign: 'right' as const, textColor: MUTED } },
       ]),
       foot: [[
-        { content: `TOTAL  —  ${rows.length} ligne${rows.length > 1 ? 's' : ''}`, styles: { fontStyle: 'bold', fillColor: STONE as any, textColor: NAVY as any } },
-        { content: `${artTotalQty.toLocaleString('fr-MA')} ${unit}`, styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: GOLD as any, textColor: NAVY as any } },
+        { content: `TOTAL  —  ${g.rows.length} ligne${g.rows.length > 1 ? 's' : ''}`, styles: { fontStyle: 'bold', fillColor: STONE as any, textColor: NAVY as any } },
+        { content: `${g.totalQty.toLocaleString('fr-MA')} ${g.unit}`, styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: GOLD as any, textColor: NAVY as any } },
         { content: '100 %', styles: { halign: 'right' as const, fillColor: STONE as any, textColor: MUTED as any } },
       ]],
-      headStyles: {
-        fillColor: [50, 47, 45] as any,
-        textColor: WHITE as any,
-        fontStyle: 'bold',
-        fontSize: 7,
-        cellPadding: 2.5,
-      },
+      headStyles: { fillColor: [50, 47, 45] as any, textColor: WHITE as any, fontStyle: 'bold', fontSize: 7, cellPadding: 2.5 },
       bodyStyles: { fontSize: 7.5, cellPadding: 2.5 },
       alternateRowStyles: { fillColor: STONE as any },
       theme: 'grid',
@@ -3446,10 +3411,9 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
     curY = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  // ── Grand summary table ────────────────────────────────────────────────
+  // ── Récapitulatif (no P.A., no Valeur) ──────────────────────────────────
   await ensureSpace(40);
 
-  // Section title
   doc.setFillColor(...GOLD);
   doc.rect(MX, curY, pageW - MX * 2, 8, 'F');
   doc.setTextColor(...NAVY);
@@ -3460,53 +3424,26 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
 
   autoTable(doc, {
     startY: curY,
-    head: [['Désignation', 'Fournisseur', 'Taille', 'Couleur / Type', 'Quantité', 'Unité', 'CBM (m³)', 'N.W. (kg)', 'P.A. ($)', 'Valeur ($)']],
-    body: articles.map(art => {
-      const cb2 = Array.isArray(art.colorBreakdown)  ? art.colorBreakdown  : [];
-      const sb2 = Array.isArray(art.sizeBreakdown)   ? art.sizeBreakdown   : [];
-      const db2 = Array.isArray(art.designBreakdown) ? art.designBreakdown : [];
-      let qty = Number(art.quantity) || 0;
-      let colorLabel = art.color || '—';
-      if (cb2.length > 0) { qty = cb2.reduce((s: number, r: any) => s + (Number(r.rolls) || Number(r.quantity) || 0), 0); colorLabel = `VARIOUS (${cb2.length})`; }
-      else if (sb2.length > 0) { qty = sb2.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0); colorLabel = `MULTI-TAILLES (${sb2.length})`; }
-      else if (db2.length > 0) { qty = db2.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0); colorLabel = `MULTI-MODÈLES (${db2.length})`; }
-      const pa2 = Number(art.purchasePricePerUnit || 0);
-      return [
-        (art.name || art.categoryId || '—').toUpperCase(),
-        (art.supplierId || '—').toUpperCase(),
-        art.size || '—',
-        colorLabel,
-        { content: qty.toLocaleString('fr-MA'), styles: { halign: 'right', fontStyle: 'bold' } },
-        (art.unitOfMeasure || '').toUpperCase(),
-        { content: Number(art.cubicMeasurement || 0).toFixed(3), styles: { halign: 'right' } },
-        { content: Number(art.netWeight || 0).toFixed(2), styles: { halign: 'right' } },
-        { content: pa2.toFixed(4), styles: { halign: 'right', textColor: AMBER } },
-        { content: (qty * pa2).toLocaleString('fr-MA', { maximumFractionDigits: 2 }), styles: { halign: 'right', fontStyle: 'bold' } },
-      ];
-    }),
+    head: [['Désignation', 'Fournisseur', 'Taille', 'Couleur / Type', 'Quantité', 'Unité', 'CBM (m³)', 'N.W. (kg)']],
+    body: groups.map(g => [
+      g.name,
+      g.supplierId,
+      g.size,
+      g.rows.length > 1 ? `VARIOUS (${g.rows.length})` : (g.rows[0]?.label || '—'),
+      { content: g.totalQty.toLocaleString('fr-MA'), styles: { halign: 'right', fontStyle: 'bold' } },
+      g.unit,
+      { content: g.cbmTotal.toFixed(3), styles: { halign: 'right' } },
+      { content: g.nwTotal.toFixed(2), styles: { halign: 'right' } },
+    ]),
     foot: [[
-      { content: `TOTAL GÉNÉRAL  —  ${articles.length} article${articles.length > 1 ? 's' : ''}`, colSpan: 4, styles: { fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
-      { content: grandTotalQty.toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: GOLD as any } },
+      { content: `TOTAL GÉNÉRAL  —  ${groups.length} désignation${groups.length > 1 ? 's' : ''}`, colSpan: 4, styles: { fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
+      { content: grandTotalQty.toLocaleString('fr-MA'), styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: GOLD as any, textColor: NAVY as any } },
       { content: '', styles: { fillColor: NAVY as any } },
       { content: grandTotalCBM.toFixed(3) + ' m³', styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
       { content: grandTotalNW.toFixed(2) + ' kg', styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: NAVY as any, textColor: WHITE as any } },
-      { content: '', styles: { fillColor: NAVY as any } },
-      {
-        content: articles.reduce((s, a) => {
-          const cb2 = Array.isArray(a.colorBreakdown) ? a.colorBreakdown : [];
-          const sb2 = Array.isArray(a.sizeBreakdown) ? a.sizeBreakdown : [];
-          const db2 = Array.isArray(a.designBreakdown) ? a.designBreakdown : [];
-          let q = Number(a.quantity) || 0;
-          if (cb2.length > 0) q = cb2.reduce((ss: number, r: any) => ss + (Number(r.rolls) || Number(r.quantity) || 0), 0);
-          else if (sb2.length > 0) q = sb2.reduce((ss: number, r: any) => ss + (Number(r.quantity) || 0), 0);
-          else if (db2.length > 0) q = db2.reduce((ss: number, r: any) => ss + (Number(r.rolls) || 0), 0);
-          return s + q * (Number(a.purchasePricePerUnit) || 0);
-        }, 0).toLocaleString('fr-MA', { maximumFractionDigits: 2 }) + ' $',
-        styles: { halign: 'right' as const, fontStyle: 'bold', fillColor: GOLD as any, textColor: NAVY as any },
-      },
     ]],
-    headStyles: { fillColor: NAVY as any, textColor: WHITE as any, fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.5 },
-    bodyStyles: { fontSize: 6.5, cellPadding: 2 },
+    headStyles: { fillColor: NAVY as any, textColor: WHITE as any, fontStyle: 'bold', fontSize: 7, cellPadding: 2.5 },
+    bodyStyles: { fontSize: 7, cellPadding: 2 },
     alternateRowStyles: { fillColor: STONE as any },
     theme: 'grid',
     margin: { left: MX, right: MX },
@@ -3514,17 +3451,14 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
     tableLineWidth: 0.15,
   });
 
-  // ── Page footers ──────────────────────────────────────────────────────
+  // ── Page footers ─────────────────────────────────────────────────────────
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MUTED);
-    doc.text(
-      `Packing Details  |  Dossier ${facture.id || '—'}  |  ${dateStr}  |  LEBTEX TEXTILE IMPORT`,
-      pageW / 2, pageH - 5, { align: 'center' }
-    );
+    doc.text(`Packing Details  |  Dossier ${facture.id || '—'}  |  ${dateStr}  |  LEBTEX TEXTILE IMPORT`, pageW / 2, pageH - 5, { align: 'center' });
     doc.text(`Page ${i} / ${pageCount}`, pageW - MX, pageH - 5, { align: 'right' });
   }
 
