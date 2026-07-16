@@ -3198,7 +3198,7 @@ export async function exportBaseOrderPDF(order: any) {
 
 // ── Packing Details PDF ─────────────────────────────────────────────────────
 // Per-product layout, grouped by designation. No P.A. displayed.
-export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
+export async function exportPackingDetailsPDF(facture: any, articles: any[], subCategories?: any[]) {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
@@ -3293,15 +3293,17 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[]) {
     const artQty = rows.reduce((s, r) => s + r.qty, 0);
 
     if (!groupMap.has(key)) {
-      groupMap.set(key, {
-        name: key,
-        unit: (art.unitOfMeasure || 'pcs').toUpperCase(),
-        size: art.size || '—',
-        supplierId: (art.supplierId || '—').toUpperCase(),
-        specs: art.specs || (art.zipperType ? `${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})` : ''),
-        cbmTotal: Number(art.cubicMeasurement || 0),
-        nwTotal: Number(art.netWeight || 0),
-        pcsPerCtn: Number(art.pcsPerCtn || 0),
+        const cat = (subCategories || []).find((c: any) => c.name === art.categoryId);
+        const defaultPcs = cat?.defaultPcsPerCtn || 0;
+        groupMap.set(key, {
+          name: key,
+          unit: (art.unitOfMeasure || 'pcs').toUpperCase(),
+          size: art.size || '—',
+          supplierId: (art.supplierId || '—').toUpperCase(),
+          specs: art.specs || (art.zipperType ? `${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})` : ''),
+          cbmTotal: Number(art.cubicMeasurement || 0),
+          nwTotal: Number(art.netWeight || 0),
+          pcsPerCtn: Number(art.pcsPerCtn) > 0 ? Number(art.pcsPerCtn) : Number(defaultPcs),
         rows: [...rows],
         breakLabel,
         totalQty: artQty,

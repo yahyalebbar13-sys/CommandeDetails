@@ -580,7 +580,7 @@ export default function FacturesView({
           </Button>
           <Button
             variant="outline"
-            onClick={() => exportPackingDetailsPDF(selectedFacture, selectedFactureArticles)}
+            onClick={() => exportPackingDetailsPDF(selectedFacture, selectedFactureArticles, subCategories)}
             className="h-10 text-[10px] font-black uppercase tracking-widest border-blue-200 rounded-xl px-6 gap-2 text-blue-700 hover:bg-blue-50"
           >
             <Archive className="w-4 h-4" /> Packing Details PDF
