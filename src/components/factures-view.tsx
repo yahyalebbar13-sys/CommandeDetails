@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler
 } from 'lucide-react';
 import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -109,6 +109,7 @@ export default function FacturesView({
   const [modalInitialData, setModalInitialData] = useState<any>(null);
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
+  const [sizeDetailArticle, setSizeDetailArticle] = useState<any>(null);
   const [checklistFacture, setChecklistFacture] = useState<any>(null);
   const [factureToDelete, setFactureToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -561,7 +562,21 @@ export default function FacturesView({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-3 text-[10px]">{o.size || '-'}</TableCell>
+                      <TableCell className="py-3 text-[10px]">
+                        {o.sizeBreakdown && o.sizeBreakdown.length > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-blue-700 font-black uppercase text-[9px]">VARIOUS ({o.sizeBreakdown.length})</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSizeDetailArticle(o); }}
+                              className="flex items-center gap-1 text-[8px] font-black uppercase bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-0.5 rounded-full transition-colors"
+                            >
+                              <Ruler className="w-2.5 h-2.5" /> Détail
+                            </button>
+                          </div>
+                        ) : (
+                          o.size || '-'
+                        )}
+                      </TableCell>
                       <TableCell className="py-3 text-[10px]">
                         {o.colorBreakdown && o.colorBreakdown.length > 0 ? (
                           <div className="flex items-center gap-2">
@@ -760,6 +775,53 @@ export default function FacturesView({
                     <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest">TOTAL</div>
                     <div className="py-2.5 px-3 text-right text-[11px] font-black">
                       {(colorDetailArticle.colorBreakdown || []).reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString('en-US')} rolls
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Size Breakdown Detail Dialog */}
+        {sizeDetailArticle && (
+          <Dialog open={!!sizeDetailArticle} onOpenChange={(open) => !open && setSizeDetailArticle(null)}>
+            <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
+              <div className="bg-blue-700 p-5 flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <Ruler className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
+                    Détail Multi-Tailles
+                  </DialogTitle>
+                  <p className="text-[9px] font-bold text-blue-300 uppercase tracking-widest mt-0.5">
+                    {sizeDetailArticle.name} · {sizeDetailArticle.color || ''}
+                  </p>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="rounded-xl overflow-hidden border border-blue-100">
+                  <div className="grid grid-cols-[1fr_100px] bg-blue-100/60">
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-blue-600 tracking-widest flex items-center gap-1">
+                      <Hash className="w-2.5 h-2.5" /> Taille
+                    </div>
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-blue-600 tracking-widest text-right">
+                      Quantité
+                    </div>
+                  </div>
+                  <div className="divide-y divide-blue-50 max-h-64 overflow-y-auto">
+                    {(sizeDetailArticle.sizeBreakdown || []).map((row: any, i: number) => (
+                      <div key={i} className="grid grid-cols-[1fr_100px] hover:bg-blue-50/30 transition-colors">
+                        <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
+                        <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-[1fr_100px] bg-blue-600 text-white">
+                    <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest">TOTAL</div>
+                    <div className="py-2.5 px-3 text-right text-[11px] font-black">
+                      {(sizeDetailArticle.sizeBreakdown || []).reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString('en-US')}
                     </div>
                   </div>
                 </div>
