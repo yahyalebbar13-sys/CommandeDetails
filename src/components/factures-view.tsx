@@ -776,6 +776,47 @@ export default function FacturesView({
           factures={factures}
           categories={subCategories}
         />
+
+        {/* Confirmation suppression article */}
+        <Dialog open={!!articleToDelete} onOpenChange={(open) => !open && setArticleToDelete(null)}>
+          <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
+            <div className="bg-red-600 p-5 flex items-center gap-3 text-white">
+              <div className="p-2 bg-white/10 rounded-lg shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
+                  Supprimer l'Article
+                </DialogTitle>
+                <p className="text-[9px] font-bold text-red-200 uppercase tracking-widest mt-0.5">
+                  action irréversible
+                </p>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-[10px] text-stone-500 font-medium">
+                Voulez-vous vraiment supprimer définitivement cet article du dossier d'arrivage ? Cette action ne peut pas être annulée.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setArticleToDelete(null)}
+                  className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl border-stone-200"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => articleToDelete && handleDeleteArticle(articleToDelete)}
+                  disabled={isDeletingArticle}
+                  className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-red-600 hover:bg-red-700 text-white gap-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {isDeletingArticle ? 'Suppression...' : 'Confirmer'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -1048,46 +1089,6 @@ export default function FacturesView({
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation suppression article */}
-      <Dialog open={!!articleToDelete} onOpenChange={(open) => !open && setArticleToDelete(null)}>
-        <DialogContent className="max-w-sm border-stone-200 rounded-2xl p-0 overflow-hidden">
-          <div className="bg-red-600 p-5 flex items-center gap-3 text-white">
-            <div className="p-2 bg-white/10 rounded-lg shrink-0">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">
-                Supprimer l'Article
-              </DialogTitle>
-              <p className="text-[9px] font-bold text-red-200 uppercase tracking-widest mt-0.5">
-                action irréversible
-              </p>
-            </div>
-          </div>
-          <div className="p-5 space-y-4">
-            <p className="text-[10px] text-stone-500 font-medium">
-              Voulez-vous vraiment supprimer définitivement cet article du dossier d'arrivage ? Cette action ne peut pas être annulée.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setArticleToDelete(null)}
-                className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl border-stone-200"
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={() => articleToDelete && handleDeleteArticle(articleToDelete)}
-                disabled={isDeletingArticle}
-                className="flex-1 h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-red-600 hover:bg-red-700 text-white gap-2"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {isDeletingArticle ? 'Suppression...' : 'Confirmer'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
