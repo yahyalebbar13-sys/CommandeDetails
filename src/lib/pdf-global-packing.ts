@@ -69,7 +69,7 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
         art.sizeBreakdown.forEach((sb: any) => {
           tableBody.push([
             art.color || '-',
-            sb.size || '-',
+            (sb.size || '-') + (sb.description ? `\n${sb.description}` : ''),
             `${sb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
           ]);
         });

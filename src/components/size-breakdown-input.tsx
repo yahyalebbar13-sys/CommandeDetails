@@ -11,6 +11,7 @@ export interface SizeBreakdownRow {
   size: string;
   quantity: number;
   priceOverride?: string | number;
+  description?: string;
 }
 
 interface SizeBreakdownInputProps {
@@ -223,12 +224,18 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
               <div className="divide-y divide-teal-50">
                 {rows.map((row, i) => (
                   <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-teal-50/30 transition-colors">
-                    <div className="px-2 py-1">
+                    <div className="px-2 py-1 flex flex-col gap-1">
                       <Input
                         value={row.size}
                         onChange={e => handleRowChange(i, 'size', e.target.value)}
-                        className="h-8 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
+                        className="h-7 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
                         placeholder="No.5..."
+                      />
+                      <Input
+                        value={row.description || ''}
+                        onChange={e => handleRowChange(i, 'description', e.target.value)}
+                        className="h-6 border-0 bg-teal-50 rounded font-medium text-[9px] text-teal-800 focus-visible:ring-1 focus-visible:ring-teal-200 px-1.5"
+                        placeholder="Description (optionnel)..."
                       />
                     </div>
                     <div className="px-2 py-1">

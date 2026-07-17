@@ -813,7 +813,10 @@ export default function FacturesView({
                   <div className="divide-y divide-blue-50 max-h-64 overflow-y-auto">
                     {(sizeDetailArticle.sizeBreakdown || []).map((row: any, i: number) => (
                       <div key={i} className="grid grid-cols-[1fr_100px] hover:bg-blue-50/30 transition-colors">
-                        <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
+                        <div className="py-2.5 px-3 flex flex-col">
+                          <span className="text-[11px] font-black text-stone-800 uppercase leading-none">{row.size}</span>
+                          {row.description && <span className="text-[9px] font-medium text-stone-500 mt-1">{row.description}</span>}
+                        </div>
                         <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
                       </div>
                     ))}

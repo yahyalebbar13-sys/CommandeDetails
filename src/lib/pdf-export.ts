@@ -3282,7 +3282,11 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       rows = cb.map((r: any) => ({ label: (r.colorCode || r.color || '?').toUpperCase(), qty: Number(r.rolls) || Number(r.quantity) || 0, color: VIOLET }));
     } else if (sb.length > 0) {
       breakLabel = 'Taille';
-      rows = sb.map((r: any) => ({ label: (r.size || '?').toUpperCase(), qty: Number(r.quantity) || 0, color: BLUE }));
+      rows = sb.map((r: any) => ({ 
+        label: (r.size || '?').toUpperCase() + (r.description ? `\n${r.description}` : ''), 
+        qty: Number(r.quantity) || 0, 
+        color: BLUE 
+      }));
     } else if (db.length > 0) {
       breakLabel = 'Modèle / Design';
       rows = db.map((r: any) => ({ label: (r.designRef || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
