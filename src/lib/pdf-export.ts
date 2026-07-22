@@ -3291,15 +3291,19 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       breakLabel = 'Modèle / Design';
       rows = db.map((r: any) => ({ label: (r.designRef || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
     } else {
-      // Si l'article a une taille définie, on l'utilise comme label
-      // pour que plusieurs articles du même PTD avec des tailles différentes
-      // apparaissent chacun sur leur propre ligne
-      if (art.size && art.size.trim() !== '') {
+      const sizeLabel  = art.size  && art.size.trim()  !== '' ? art.size.toUpperCase()  : null;
+      const colorLabel = art.color && art.color.trim() !== '' ? art.color.toUpperCase() : null;
+
+      if (sizeLabel && colorLabel) {
+        // Les deux renseignés : on les combine pour avoir une ligne unique par combinaison
+        breakLabel = 'Taille  •  Couleur';
+        rows = [{ label: `${sizeLabel}  •  ${colorLabel}`, qty: Number(art.quantity) || 0, color: BLUE }];
+      } else if (sizeLabel) {
         breakLabel = 'Taille';
-        rows = [{ label: art.size.toUpperCase(), qty: Number(art.quantity) || 0, color: BLUE }];
+        rows = [{ label: sizeLabel, qty: Number(art.quantity) || 0, color: BLUE }];
       } else {
         breakLabel = 'Couleur';
-        rows = [{ label: (art.color || '—').toUpperCase(), qty: Number(art.quantity) || 0 }];
+        rows = [{ label: colorLabel || '—', qty: Number(art.quantity) || 0 }];
       }
     }
 
