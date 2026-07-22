@@ -3344,7 +3344,11 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     const g = groups[gi];
     grandTotalQty += g.totalQty;
 
-    await ensureSpace(16 + 7 + g.rows.length * 5.5 + 7 + 6);
+    // Estimate space: header card (16) + table head (7) + rows + foot (7) + gap (6)
+    // Be generous: assume at least 8mm per row to avoid underestimates
+    const estimatedRowH = 8;
+    const estimatedH = 16 + 7 + g.rows.length * estimatedRowH + 7 + 6;
+    await ensureSpace(estimatedH);
 
     // Product card
     doc.setFillColor(...NAVY);
@@ -3422,6 +3426,11 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       tableLineColor: [220, 220, 220],
       tableLineWidth: 0.15,
       showFoot: 'lastPage',
+      // Draw our custom header on every new page created by autoTable
+      didAddPage: () => {
+        drawPageHeader(false).then(() => {});
+        curY = 24;
+      },
     });
 
     curY = (doc as any).lastAutoTable.finalY + 8;
