@@ -21,13 +21,14 @@ import CostSaleView from '@/components/cost-sale-view';
 import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
+import EmailsView from '@/components/emails-view';
 
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, ChevronDown
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, ChevronDown, Mail
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -476,6 +477,7 @@ function AdminApp() {
     [
       { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
       { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
+      { id: 'emails',    label: 'Emails',       icon: Mail },
       { id: 'data',      label: 'Data Lab',     icon: Database },
     ],
   ] as const;
@@ -653,6 +655,9 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'data' ? 'block animate-in fade-in' : 'hidden'}>
               <DataView articles={articles} onEdit={setEditingArticle} />
+            </div>
+            <div className={activeTab === 'emails' ? 'block animate-in fade-in' : 'hidden'}>
+              <EmailsView />
             </div>
           </div>
         )}
