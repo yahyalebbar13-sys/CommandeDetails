@@ -116,15 +116,22 @@ export default function FacturesView({
   const [articleToDelete, setArticleToDelete] = useState<any>(null);
   const [isDeletingArticle, setIsDeletingArticle] = useState(false);
   const [dpDeclarations, setDpDeclarations] = useState<Record<string, Record<string, string>>>({});
+  const [overridesPerFacture, setOverridesPerFacture] = useState<Record<string, Record<string, any>>>({});
   const [isCommercialModalOpen, setIsCommercialModalOpen] = useState(false);;
 
   useEffect(() => {
     if (!firestore || !user) return;
     getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
       .then(snap => {
-        const result: Record<string, Record<string, string>> = {};
-        snap.docs.forEach(d => { if (d.data().puMap) result[d.id] = d.data().puMap; });
-        setDpDeclarations(result);
+        const puResult: Record<string, Record<string, string>> = {};
+        const ovResult: Record<string, Record<string, any>> = {};
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (data.puMap) puResult[d.id] = data.puMap;
+          if (data.overrides) ovResult[d.id] = data.overrides;
+        });
+        setDpDeclarations(puResult);
+        setOverridesPerFacture(ovResult);
       }).catch(() => {});
   }, [firestore, user]);
 
@@ -242,6 +249,7 @@ export default function FacturesView({
   }, [articles, selectedFactureId]);
 
   // Calcul automatique du total droits payés (DI+TPI+TVA) pour le dossier sélectionné
+  // Prend en compte les overrides de la vue Coût de Revient si présents
   const calculatedDroitsPayes = useMemo(() => {
     if (!selectedFactureId) return 0;
     const factureArticles = articles.filter(a => a.factureId === selectedFactureId);
@@ -250,23 +258,36 @@ export default function FacturesView({
     const invoicePaidDhs = Number(facture.invoicePaidDhs) || 0;
     const declaredValue = Number(facture.declaredValue) || 0;
     const tauxChange = declaredValue > 0 ? invoicePaidDhs / declaredValue : 0;
+    const dossiersOverrides = overridesPerFacture[selectedFactureId] || {};
     return factureArticles.reduce((total, a) => {
-      const nw = Number(a.netWeight) || 0;
+      const ov = dossiersOverrides[a.id] || {};
+      const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(a.netWeight)) || 0;
       const cat = subCategories.find(c => c.name === a.categoryId);
-      if (!cat || cat.customsValuePerKg == null) return total;
-      const customsValuePerKg = Number(cat.customsValuePerKg);
-      const importDutyRate = cat.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0;
-      const tpiRate = cat.tpiRate != null ? Number(cat.tpiRate) / 100 : 0;
-      const ticRate = cat.ticRate != null ? Number(cat.ticRate) / 100 : 0;
-      const tvaRate = cat.tvaRate != null ? Number(cat.tvaRate) / 100 : 0;
+      // Prend l'override si présent, sinon la valeur de catégorie
+      const customsValuePerKg = ov.customsValuePerKg != null
+        ? Number(ov.customsValuePerKg)
+        : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : null);
+      if (customsValuePerKg == null) return total;
+      const importDutyRate = ov.importDutyRate != null
+        ? Number(ov.importDutyRate) / 100
+        : (cat?.importDutyRate != null ? Number(cat.importDutyRate) / 100 : 0);
+      const tpiRate = ov.tpiRate != null
+        ? Number(ov.tpiRate) / 100
+        : (cat?.tpiRate != null ? Number(cat.tpiRate) / 100 : 0);
+      const ticRate = ov.ticRate != null
+        ? Number(ov.ticRate) / 100
+        : (cat?.ticRate != null ? Number(cat.ticRate) / 100 : 0);
+      const tvaRate = ov.tvaRate != null
+        ? Number(ov.tvaRate) / 100
+        : (cat?.tvaRate != null ? Number(cat.tvaRate) / 100 : 0);
       const valDouane = nw * customsValuePerKg;
       const di = valDouane * importDutyRate;
       const tpi = valDouane * tpiRate;
       const tic = valDouane * ticRate;
-      const tva = (valDouane + di + tpi) * tvaRate;
+      const tva = (valDouane + di + tpi + tic) * tvaRate;
       return total + di + tpi + tic + tva;
     }, 0);
-  }, [selectedFactureId, articles, declaredFactures, subCategories]);
+  }, [selectedFactureId, articles, declaredFactures, subCategories, overridesPerFacture]);
 
   const handleAddFacture = (initialId?: string) => {
     if (initialId) {
