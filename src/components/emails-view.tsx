@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Inbox, RefreshCw, Mail, MailOpen, Paperclip,
-  ChevronLeft, Building2, AlertCircle, Loader2, Search
+  ChevronLeft, Building2, AlertCircle, Loader2, Search,
+  Sparkles, Brain, CheckCircle2
 } from 'lucide-react';
 
 interface EmailAttachment {
@@ -64,6 +65,8 @@ export default function EmailsView() {
   const [error, setError] = useState('');
   const [accountLabel, setAccountLabel] = useState('');
   const [search, setSearch] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
 
   const fetchEmails = useCallback(async (account: string) => {
     setLoading(true);
@@ -81,7 +84,34 @@ export default function EmailsView() {
     }
   }, []);
 
+  const analyzeEmail = async () => {
+    if (!selected) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const res = await fetch('/api/analyze-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: selected.subject,
+          text: selected.text,
+          from: selected.from,
+        }),
+      });
+      const data = await res.json();
+      setAiResult(data);
+    } catch (err) {
+      console.error(err);
+      setAiResult({ error: 'Erreur lors de l\'analyse IA' });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   useEffect(() => { fetchEmails(activeAccount); }, [activeAccount, fetchEmails]);
+
+  // Réinitialiser l'IA quand on change d'email
+  useEffect(() => { setAiResult(null); }, [selected]);
 
   const filtered = emails.filter(e =>
     !search || e.subject.toLowerCase().includes(search.toLowerCase()) ||
@@ -165,7 +195,62 @@ export default function EmailsView() {
                   <span className="text-[10px] font-bold">{selected.attachments.length}</span>
                 </div>
               )}
+              <Button
+                onClick={analyzeEmail}
+                disabled={aiLoading}
+                className="ml-4 h-8 gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-violet-200" />}
+                Analyser (IA)
+              </Button>
             </div>
+
+            {/* AI Result Card */}
+            {aiResult && (
+              <div className="mx-6 mt-4 p-4 rounded-xl bg-violet-50 border border-violet-100 flex gap-4 animate-in fade-in zoom-in-95">
+                <div className="mt-1"><Brain className="w-5 h-5 text-violet-500" /></div>
+                <div className="flex-1 space-y-2">
+                  <h4 className="text-[11px] font-black text-violet-900 uppercase tracking-widest">
+                    Analyse Intelligente
+                  </h4>
+                  {aiResult.error ? (
+                    <p className="text-sm text-red-600">{aiResult.error}</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-violet-800 font-medium">{aiResult.resume}</p>
+                      <div className="flex flex-wrap gap-3 mt-2">
+                        {aiResult.dossierId && (
+                          <Badge variant="outline" className="bg-white border-violet-200 text-violet-700 font-bold">
+                            Dossier: {aiResult.dossierId}
+                          </Badge>
+                        )}
+                        {aiResult.typeAction && (
+                          <Badge variant="outline" className="bg-white border-violet-200 text-violet-700 font-bold">
+                            {aiResult.typeAction.replace(/_/g, ' ')}
+                          </Badge>
+                        )}
+                        {aiResult.dateAction && (
+                          <Badge variant="outline" className="bg-white border-violet-200 text-violet-700 font-bold">
+                            Date: {aiResult.dateAction}
+                          </Badge>
+                        )}
+                      </div>
+                      {aiResult.actionSuggeree && (
+                        <div className="mt-3 pt-3 border-t border-violet-100 flex items-center justify-between">
+                          <p className="text-xs font-semibold text-violet-900">
+                            Action à faire : {aiResult.actionSuggeree}
+                          </p>
+                          <Button size="sm" className="h-7 text-[10px] bg-violet-600 hover:bg-violet-700 gap-1.5" disabled>
+                            <CheckCircle2 className="w-3 h-3" />
+                            Appliquer (Bientôt)
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Attachments */}
             {selected.hasAttachments && (
