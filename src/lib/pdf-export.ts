@@ -3291,7 +3291,16 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       breakLabel = 'Modèle / Design';
       rows = db.map((r: any) => ({ label: (r.designRef || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
     } else {
-      rows = [{ label: (art.color || '—').toUpperCase(), qty: Number(art.quantity) || 0 }];
+      // Si l'article a une taille définie, on l'utilise comme label
+      // pour que plusieurs articles du même PTD avec des tailles différentes
+      // apparaissent chacun sur leur propre ligne
+      if (art.size && art.size.trim() !== '') {
+        breakLabel = 'Taille';
+        rows = [{ label: art.size.toUpperCase(), qty: Number(art.quantity) || 0, color: BLUE }];
+      } else {
+        breakLabel = 'Couleur';
+        rows = [{ label: (art.color || '—').toUpperCase(), qty: Number(art.quantity) || 0 }];
+      }
     }
 
     const artQty = rows.reduce((s, r) => s + r.qty, 0);
@@ -3317,6 +3326,8 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       g.cbmTotal += Number(art.cubicMeasurement || 0);
       g.nwTotal  += Number(art.netWeight || 0);
       g.totalQty += artQty;
+      // Si ce nouvel article apporte des tailles, mettre à jour le label de colonne
+      if (breakLabel === 'Taille' && g.breakLabel !== 'Taille') g.breakLabel = 'Taille';
       for (const r of rows) {
         const existing = g.rows.find(x => x.label === r.label);
         if (existing) { existing.qty += r.qty; } else { g.rows.push({ ...r }); }
