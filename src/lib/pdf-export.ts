@@ -3262,7 +3262,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
   // ── Group articles by designation ────────────────────────────────────────
   type BreakRow = { label: string; qty: number; color?: [number, number, number] };
   type ArticleGroup = {
-    name: string; unit: string; size: string; supplierId: string;
+    name: string; displayName: string; colorLabel: string; unit: string; size: string; supplierId: string;
     specs: string; cbmTotal: number; nwTotal: number; pcsPerCtn: number;
     rows: BreakRow[]; breakLabel: string; totalQty: number;
   };
@@ -3270,13 +3270,16 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
   const groupMap = new Map<string, ArticleGroup>();
 
   for (const art of articles) {
-    const key = (art.name || art.categoryId || '—').toUpperCase();
+    const artName  = (art.name || art.categoryId || '—').toUpperCase();
+    const artColor = art.color && art.color.trim() !== '' ? art.color.trim().toUpperCase() : '';
     const cb = Array.isArray(art.colorBreakdown)  ? art.colorBreakdown  : [];
     const sb = Array.isArray(art.sizeBreakdown)   ? art.sizeBreakdown   : [];
     const db = Array.isArray(art.designBreakdown) ? art.designBreakdown : [];
+
     let rows: BreakRow[] = [];
     let breakLabel = 'Couleur';
 
+    // Si l'article a des breakdowns structurés, on les utilise
     if (cb.length > 0) {
       breakLabel = 'Couleur';
       rows = cb.map((r: any) => ({ label: (r.colorCode || r.color || '?').toUpperCase(), qty: Number(r.rolls) || Number(r.quantity) || 0, color: VIOLET }));
@@ -3291,21 +3294,20 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
       breakLabel = 'Modèle / Design';
       rows = db.map((r: any) => ({ label: (r.designRef || '?').toUpperCase(), qty: Number(r.rolls) || 0, color: AMBER }));
     } else {
-      const sizeLabel  = art.size  && art.size.trim()  !== '' ? art.size.toUpperCase()  : null;
-      const colorLabel = art.color && art.color.trim() !== '' ? art.color.toUpperCase() : null;
-
-      if (sizeLabel && colorLabel) {
-        // Les deux renseignés : on les combine pour avoir une ligne unique par combinaison
-        breakLabel = 'Taille  •  Couleur';
-        rows = [{ label: `${sizeLabel}  •  ${colorLabel}`, qty: Number(art.quantity) || 0, color: BLUE }];
-      } else if (sizeLabel) {
+      // Pas de breakdown : utiliser la taille comme label de ligne
+      const sizeLabel = art.size && art.size.trim() !== '' ? art.size.toUpperCase() : null;
+      if (sizeLabel) {
         breakLabel = 'Taille';
         rows = [{ label: sizeLabel, qty: Number(art.quantity) || 0, color: BLUE }];
       } else {
         breakLabel = 'Couleur';
-        rows = [{ label: colorLabel || '—', qty: Number(art.quantity) || 0 }];
+        rows = [{ label: artColor || '—', qty: Number(art.quantity) || 0 }];
       }
     }
+
+    // Clé de groupe : nom + couleur si couleur présente (et pas de colorBreakdown), sinon nom seul
+    // Cela crée un tableau séparé par couleur, chaque tableau montrant les tailles
+    const key = (cb.length === 0 && artColor) ? `${artName}||${artColor}` : artName;
 
     const artQty = rows.reduce((s, r) => s + r.qty, 0);
 
@@ -3313,7 +3315,9 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
         const cat = (subCategories || []).find((c: any) => c.name === art.categoryId);
         const defaultPcs = cat?.defaultPcsPerCtn || 0;
         groupMap.set(key, {
-          name: key,
+          name: artName,
+          displayName: artColor ? `${artName}  —  ${artColor}` : artName,
+          colorLabel: artColor,
           unit: (art.unitOfMeasure || 'pcs').toUpperCase(),
           size: art.size || '—',
           supplierId: (art.supplierId || '—').toUpperCase(),
@@ -3377,7 +3381,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     doc.setTextColor(...WHITE);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text(g.name, MX + 13, curY + 7);
+    doc.text(g.displayName, MX + 13, curY + 7);
     if (g.specs) {
       doc.setTextColor(...MUTED);
       doc.setFontSize(6.5);
@@ -3388,7 +3392,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     // Right stats — no P.A.
     const statsItems: [string, string][] = [
       ['Fournisseur', g.supplierId],
-      ['Taille', g.size],
+      g.colorLabel ? ['Couleur', g.colorLabel] : ['Taille', g.size],
       ['CBM', `${g.cbmTotal.toFixed(3)} m³`],
       ['N.W.', `${g.nwTotal.toFixed(2)} kg`],
       ['PCS/CTN', g.pcsPerCtn ? String(g.pcsPerCtn) : '—'],
