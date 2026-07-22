@@ -256,11 +256,17 @@ export default function EmailsView() {
             {selected.hasAttachments && (
               <div className="flex gap-2 px-6 py-3 bg-stone-50 border-b border-stone-100 flex-wrap">
                 {selected.attachments.map((a, i) => (
-                  <span key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg border border-stone-200 text-[10px] font-bold text-stone-600">
+                  <a 
+                    key={i} 
+                    href={`/api/email-attachment?account=${activeAccount}&uid=${selected.uid}&filename=${encodeURIComponent(a.filename)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-lg border border-stone-200 text-[10px] font-bold text-stone-600 hover:border-violet-300 hover:text-violet-700 transition-colors"
+                  >
                     <Paperclip className="w-3 h-3" />
                     {a.filename || 'Pièce jointe'}
                     <span className="text-stone-400">· {(a.size / 1024).toFixed(0)} Ko</span>
-                  </span>
+                  </a>
                 ))}
               </div>
             )}

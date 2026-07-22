@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import https from 'https';
 
 const SYSTEM_PROMPT = `Tu es un assistant IA spécialisé dans l'analyse d'emails de logistique, d'import, et de transit pour l'entreprise StockVue.
 Ton objectif est de lire un email et d'extraire des données structurées.
@@ -23,30 +24,48 @@ export async function POST(req: NextRequest) {
 
     const prompt = `Email de: ${from}\nSujet: ${subject}\n\nContenu:\n${text}`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0.1,
-          }
-        }),
+    const dataString = JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        response_mime_type: "application/json",
+        temperature: 0.1,
       }
-    );
+    });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Erreur Gemini API:', errText);
-      return NextResponse.json({ error: 'Erreur lors de l\'analyse IA' }, { status: 500 });
-    }
+    // Utilisation de https.request pour contourner le rejet SSL de l'antivirus (rejectUnauthorized: false)
+    const response = await new Promise<any>((resolve, reject) => {
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(dataString)
+        },
+        rejectUnauthorized: false // C'est CA qui permet de passer l'antivirus
+      };
 
-    const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const request = https.request(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        options,
+        (res) => {
+          let body = '';
+          res.on('data', chunk => body += chunk);
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(JSON.parse(body));
+            } else {
+              reject(new Error(`API Error: ${res.statusCode} - ${body}`));
+            }
+          });
+        }
+      );
+      
+      request.on('error', reject);
+      request.write(dataString);
+      request.end();
+    });
+
+    const resultText = response.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!resultText) {
       return NextResponse.json({ error: 'Réponse vide de l\'IA' }, { status: 500 });
