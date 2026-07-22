@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, FileDown, History, ChevronDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -41,6 +41,9 @@ import { firebaseConfig } from '@/firebase/config';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger
 } from '@/components/ui/sheet';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { useEnrichedArticles } from '@/hooks/use-enriched-articles';
 import { useAutoStatusNotifier } from '@/hooks/use-auto-status-notifier';
 
@@ -472,23 +475,25 @@ function AdminApp() {
       { id: 'general-categories', label: 'Groupes', icon: Layers },
     ],
     [
-      { id: 'cost-analysis',  label: 'Coût Revient', icon: Calculator },
-      { id: 'history-revient', label: 'Hist. Revient', icon: History },
-      { id: 'cost-sale',      label: 'Coût Vente',   icon: ShoppingCart },
-      { id: 'dp',             label: 'Déc. Prov.',   icon: FileCheck },
-      { id: 'reconciliation', label: 'Réconcil.',    icon: TrendingUp },
-    ],
-    [
       { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
       { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
       { id: 'data',      label: 'Data Lab',     icon: Database },
     ],
   ] as const;
-  const navItems = navGroups.flat();
+
+  const financeSubItems = [
+    { id: 'cost-analysis'   as const, label: 'Coût Revient',  icon: Calculator },
+    { id: 'history-revient' as const, label: 'Hist. Revient', icon: History },
+    { id: 'cost-sale'       as const, label: 'Coût Vente',    icon: ShoppingCart },
+    { id: 'dp'              as const, label: 'Déc. Prov.',    icon: FileCheck },
+    { id: 'reconciliation'  as const, label: 'Réconcil.',     icon: TrendingUp },
+  ];
+  const isFinanceTab = financeSubItems.some(f => f.id === activeTab);
+  const navItems = [...navGroups.flat(), ...financeSubItems];
 
 
   const NavButtons = ({ vertical = false }: { vertical?: boolean }) => (
-    <div className={`flex ${vertical ? 'flex-col space-y-1' : 'flex-row space-x-1'}`}>
+    <div className={`flex ${vertical ? 'flex-col space-y-1' : 'flex-row space-x-1 items-center'}`}>
       {navGroups.map((group, gi) => (
         <React.Fragment key={gi}>
           {gi > 0 && (
@@ -506,6 +511,52 @@ function AdminApp() {
           ))}
         </React.Fragment>
       ))}
+
+      {/* Finance dropdown */}
+      {vertical ? (
+        <>
+          <div className="my-1 h-px bg-stone-100 mx-2" />
+          <p className="px-3 text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Finance</p>
+          {financeSubItems.map(({ id, label, icon: Icon }) => (
+            <Button key={id} variant={activeTab === id ? 'secondary' : 'ghost'}
+              className={`flex items-center gap-2 justify-start rounded-xl transition-all px-3 w-full h-11 ${
+                activeTab === id ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
+              }`}
+              onClick={() => { setPreviousTab(null); setActiveTab(id); setIsMobileMenuOpen(false); }}>
+              <Icon className="w-4 h-4" />
+              <span className="truncate uppercase font-black tracking-wider text-[11px]">{label}</span>
+            </Button>
+          ))}
+        </>
+      ) : (
+        <>
+          <div className="mx-1 h-5 w-px bg-stone-200 self-center" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost"
+                className={`flex items-center gap-1.5 rounded-xl transition-all px-3 py-1.5 h-9 ${
+                  isFinanceTab ? 'bg-amber-500 text-white font-black shadow-md shadow-amber-500/10' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
+                }`}>
+                <Calculator className="w-3.5 h-3.5" />
+                <span className="uppercase font-black tracking-wider text-[10px]">Finance</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44 rounded-xl shadow-xl border-stone-100">
+              {financeSubItems.map(({ id, label, icon: Icon }) => (
+                <DropdownMenuItem key={id}
+                  onClick={() => { setPreviousTab(null); setActiveTab(id); }}
+                  className={`flex items-center gap-2 rounded-lg cursor-pointer text-[11px] font-black uppercase tracking-wide ${
+                    activeTab === id ? 'bg-amber-50 text-amber-700' : ''
+                  }`}>
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
     </div>
   );
 
