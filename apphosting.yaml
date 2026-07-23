@@ -3,7 +3,6 @@
 
 runConfig:
   maxInstances: 1
-  # Désactiver le cache CDN de Firebase pour toujours servir la version la plus récente
   cpu: 1
   memoryMiB: 512
   concurrency: 80
@@ -19,5 +18,21 @@ env:
       - RUNTIME
   - variable: GMAIL_APP_PASSWORD
     value: goaqptrilxzeznvy
+    availability:
+      - RUNTIME
+  - variable: IMAP_USER_LEBTEX
+    value: lebtexsarlau@gmail.com
+    availability:
+      - RUNTIME
+  - variable: IMAP_PASS_LEBTEX
+    value: rwaxlewkvyosjdnn
+    availability:
+      - RUNTIME
+  - variable: IMAP_USER_ROBEINBOX
+    value: robeinbox@gmail.com
+    availability:
+      - RUNTIME
+  - variable: IMAP_PASS_ROBEINBOX
+    value: lwcienvaobcimdtf
     availability:
       - RUNTIME
