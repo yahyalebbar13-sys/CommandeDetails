@@ -374,10 +374,13 @@ export default function CheckoutPage() {
           ...(form.postalCode.trim() ? { postalCode: form.postalCode.trim() } : {}),
         };
 
+        // Sanitize phone: remove spaces and dashes for consistent lookup
+        const cleanPhone = form.phone.trim().replace(/[\s\-]/g, '');
+
         const docRef = await addDoc(collection(db, "shop_orders"), {
           orderNumber,
           customerName: shippingAddress.fullName,
-          customerPhone: form.phone.trim(),
+          customerPhone: cleanPhone,
           customerEmail: form.email.trim() || null,
           shippingAddress,
           items: items.map((item) => ({
@@ -400,9 +403,12 @@ export default function CheckoutPage() {
         });
 
         // Save customer info for auto-tracking on suivi page
-        localStorage.setItem('lebtex_customer_phone', form.phone.trim());
-        localStorage.setItem('lebtex_last_order_id', docRef.id);
-        localStorage.setItem('lebtex_last_order_number', orderNumber);
+        // Isolated try/catch: localStorage failure must NOT crash the checkout
+        try {
+          localStorage.setItem('lebtex_customer_phone', cleanPhone);
+          localStorage.setItem('lebtex_last_order_id', docRef.id);
+          localStorage.setItem('lebtex_last_order_number', orderNumber);
+        } catch { /* ignore localStorage errors (private browsing, quota) */ }
 
         // IMPORTANT: redirect FIRST, then clear cart
         // If we clearCart first, items.length === 0 causes the component to unmount before navigation

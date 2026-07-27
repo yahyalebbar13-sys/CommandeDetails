@@ -22,6 +22,7 @@ import {
   limit,
   where,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import {
   getStorage,
@@ -3489,29 +3490,25 @@ export default function AdminShopPage() {
     return () => unsub();
   }, []);
 
-  const fetchOrders = useCallback(async () => {
+  // Real-time listener for orders — new orders appear automatically
+  useEffect(() => {
+    if (!user || user.email !== ADMIN_EMAIL) return;
     setLoadingOrders(true);
-    try {
-      const q = query(
-        collection(db, 'shop_orders'),
-        orderBy('createdAt', 'desc')
-      );
-      const snap = await getDocs(q);
+    const q = query(
+      collection(db, 'shop_orders'),
+      orderBy('createdAt', 'desc')
+    );
+    const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ShopOrder));
       setOrders(data);
       setLastRefreshed(new Date());
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-    } finally {
       setLoadingOrders(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (user && user.email === ADMIN_EMAIL) {
-      fetchOrders();
-    }
-  }, [user, fetchOrders]);
+    }, (err) => {
+      console.error('Error listening to orders:', err);
+      setLoadingOrders(false);
+    });
+    return () => unsub();
+  }, [user]);
 
   // Loading
   if (authLoading) {
@@ -3568,15 +3565,14 @@ export default function AdminShopPage() {
               </div>
             )}
 
-            {/* Refresh */}
-            <button
-              onClick={fetchOrders}
-              disabled={loadingOrders}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all text-xs font-medium disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingOrders ? 'animate-spin' : ''}`} />
-              Actualiser
-            </button>
+            {/* Live indicator */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-500/20 text-green-400 text-xs font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              En direct
+            </div>
 
             {/* User info + logout */}
             <div className="flex items-center gap-3 pl-3 border-l border-white/10">
