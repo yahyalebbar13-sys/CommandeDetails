@@ -1,0 +1,26 @@
+{
+  "name": "System Console",
+  "short_name": "SysConsole",
+  "description": "System monitoring and analytics",
+  "start_url": "/y-console",
+  "scope": "/y-console",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0a0a0f",
+  "background_color": "#0a0a0f",
+  "categories": ["utilities"],
+  "icons": [
+    {
+      "src": "/y-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/y-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
