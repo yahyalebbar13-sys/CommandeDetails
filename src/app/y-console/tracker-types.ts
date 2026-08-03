@@ -16,14 +16,17 @@ export interface GymExercise {
 
 export interface GymSession {
   type: GymSessionType;
-  completed: boolean;
-  exercises?: GymExercise[];
+  intensity: 1 | 2 | 3 | 4 | 5; // 1-5 stars
 }
 
-export interface ProteinEntry {
-  source: string;
-  grams: number;
-  time: string; // HH:mm
+export interface Meal {
+  id: string;
+  name: string;
+  proteins: number; // grams
+  sugar: number;    // grams
+  oil: number;      // tablespoons
+  isFastFood: boolean;
+  time: string;     // HH:mm
 }
 
 export interface SkinEntry {
@@ -34,10 +37,7 @@ export interface SkinEntry {
 
 export interface DailyEntry {
   date: string; // YYYY-MM-DD
-  proteins: ProteinEntry[];
-  sugar: number; // grams
-  oil: number; // tablespoons
-  fastFood: boolean;
+  meals: Meal[];
   water: number; // glasses
   gym: GymSession | null;
   skin: SkinEntry;
@@ -69,6 +69,7 @@ export interface TrackerData {
   entries: Record<string, DailyEntry>; // key = YYYY-MM-DD
   goals: UserGoals;
   notifications: NotificationSettings;
+  savedMeals: Meal[]; // Meal templates
   version: number;
 }
 
@@ -89,13 +90,13 @@ export const PROTEIN_SOURCES = [
   { name: 'Dinde (100g)', grams: 29, emoji: '🍗' },
 ] as const;
 
-export const GYM_SCHEDULE: Record<number, { type: GymSessionType; label: string; emoji: string; color: string }> = {
-  1: { type: 'pecs-triceps', label: 'Pecs + Triceps', emoji: '🔴', color: '#ef4444' },
-  2: { type: 'dos-biceps', label: 'Dos + Biceps', emoji: '🔵', color: '#3b82f6' },
-  3: { type: 'epaules-avbras', label: 'Épaules + Avant-bras', emoji: '🟡', color: '#eab308' },
-  4: { type: 'jambes', label: 'Jambes', emoji: '🟢', color: '#22c55e' },
-  5: { type: 'cardio-foot', label: 'Cardio (Foot)', emoji: '⚽', color: '#f97316' },
-};
+export const GYM_SESSIONS: { type: GymSessionType; label: string; emoji: string; color: string }[] = [
+  { type: 'pecs-triceps', label: 'Pecs + Triceps', emoji: '🔴', color: '#ef4444' },
+  { type: 'dos-biceps', label: 'Dos + Biceps', emoji: '🔵', color: '#3b82f6' },
+  { type: 'epaules-avbras', label: 'Épaules + Avant-bras', emoji: '🟡', color: '#eab308' },
+  { type: 'jambes', label: 'Jambes', emoji: '🟢', color: '#22c55e' },
+  { type: 'cardio-foot', label: 'Cardio (Foot)', emoji: '⚽', color: '#f97316' },
+];
 
 export const SKIN_ROUTINE_ITEMS = [
   { id: 'cleanser', label: 'Nettoyant', emoji: '🧼' },

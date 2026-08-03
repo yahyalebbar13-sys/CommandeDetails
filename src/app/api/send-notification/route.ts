@@ -14,7 +14,7 @@ const STATUS_LABELS: Record<string, { label: string; emoji: string; color: strin
 };
 
 // Per-status contextual message block
-function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, transitArrivalDate?: string, transitDuration?: string): string {
+function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, transitArrivalDate?: string, transitDuration?: string, noBL?: string | null): string {
   switch (newStatus) {
     case 'TO_ORDER':
       return `
@@ -43,6 +43,20 @@ function getStatusBlock(newStatus: string, estimatedProductionDelay?: string, tr
         </div>`;
     case 'SHIPPED':
     case 'TRANSIT':
+      if (!noBL) {
+        // Pas encore de B/L — message sans date ni tracking
+        return `
+          <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-left:4px solid #3B82F6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
+            <p style="margin:0 0 6px;font-size:13px;color:#1E40AF;font-weight:800;display:flex;align-items:center;gap:6px">
+              🚢 <strong>Votre commande est en transit maritime !</strong>
+            </p>
+            <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.7">
+              Le conteneur est actuellement en mer, en cours d'acheminement vers le Maroc.<br/><br/>
+              ⏳ <strong>Le B/L (connaissement) est en cours de dépôt.</strong><br/>
+              Vous recevrez automatiquement une mise à jour dès que le numéro de B/L est enregistré et que le suivi en ligne est disponible.
+            </p>
+          </div>`;
+      }
       return `
         <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe;border-left:4px solid #3B82F6;border-radius:12px;padding:18px 20px;margin-bottom:24px">
           <p style="margin:0 0 6px;font-size:13px;color:#1E40AF;font-weight:800;display:flex;align-items:center;gap:6px">
@@ -115,6 +129,7 @@ export async function POST(req: NextRequest) {
       imageUrl,
       transitArrivalDate,
       transitDuration,
+      noBL,
     } = body;
 
     if (!clientEmail || !newStatus) {
@@ -155,7 +170,7 @@ export async function POST(req: NextRequest) {
       quantity  && `<tr><td style="padding:8px 14px;color:#6B7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:#f9fafb">Quantité</td><td style="padding:8px 14px;font-weight:700;font-size:13px;color:#111827">${Number(quantity).toLocaleString('fr-FR')} ${unitOfMeasure || ''}</td></tr>`,
     ].filter(Boolean).join('');
 
-    const statusBlock = getStatusBlock(newStatus, estimatedProductionDelay, transitArrivalDate, transitDuration);
+    const statusBlock = getStatusBlock(newStatus, estimatedProductionDelay, transitArrivalDate, transitDuration, noBL);
 
     // Subject line varies per status
     const subjectMap: Record<string, string> = {

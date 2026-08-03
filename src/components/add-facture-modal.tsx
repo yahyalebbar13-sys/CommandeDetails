@@ -198,6 +198,7 @@ export default function AddFactureModal({ open, onOpenChange, editFacture, assoc
           imageUrl: article.imageUrl || undefined,
           transitArrivalDate,
           transitDuration,
+          noBL: formData.noBL?.trim() || null,
         }).then(result => {
           if (result.ok) {
             console.log(`[Facture] ✅ Email envoyé → ${clientName} (${result.email})`);

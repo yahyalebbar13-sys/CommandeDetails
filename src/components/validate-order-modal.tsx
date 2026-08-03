@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { sendStatusNotification } from '@/lib/send-status-notification';
-import { Ship, CalendarDays, CheckCircle2, Loader2 } from 'lucide-react';
+import { Ship, CalendarDays, CheckCircle2, Loader2, Scissors, Package } from 'lucide-react';
 
 interface ValidateOrderModalProps {
   open: boolean;
@@ -31,11 +31,19 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
   });
   const [autofillVisible, setAutofillVisible] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  
+  // Split state
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitColorQtys, setSplitColorQtys] = useState<Record<string, number>>({});
+  const [splitQty, setSplitQty] = useState<number>(0);
 
   useEffect(() => {
     if (open) {
       setFormData({ factureId: '', arrivalDate: '' });
       setAutofillVisible(false);
+      setSplitMode(false);
+      setSplitColorQtys({});
+      setSplitQty(0);
     }
   }, [open]);
 
@@ -56,24 +64,130 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     if (!user || !firestore || !order || !formData.factureId || !formData.arrivalDate) return;
 
     setIsSending(true);
-
-    const docRef = doc(firestore, 'users', user.uid, 'articles', order.id);
     
-    updateDocumentNonBlocking(docRef, {
-      factureId: formData.factureId,
-      status: 'SHIPPED',
-      validatedAt: serverTimestamp()
-    });
+    const docRef = doc(firestore, 'users', user.uid, 'articles', order.id);
+
+    const hasBreakdown = Array.isArray(order.colorBreakdown) && order.colorBreakdown.length > 1;
+
+    let notificationQuantity = order.quantity;
+    let notificationColor = order.color;
+    let notificationColorBreakdown = order.colorBreakdown;
+
+    if (splitMode) {
+      //  LOGIQUE DE FRACTIONNEMENT 
+      if (hasBreakdown) {
+        const selectedColorCodes = Object.keys(splitColorQtys).filter(k => splitColorQtys[k] > 0);
+        
+        if (selectedColorCodes.length === 0) {
+          toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez saisir une quantit pour au moins une couleur.' });
+          setIsSending(false);
+          return;
+        }
+
+        let allColorsCompletelySent = true;
+        for (const row of order.colorBreakdown) {
+          if ((splitColorQtys[row.colorCode] || 0) < Number(row.rolls)) {
+            allColorsCompletelySent = false;
+            break;
+          }
+        }
+        
+        if (allColorsCompletelySent) {
+          toast({ variant: 'destructive', title: 'Erreur', description: 'Vous avez slectionn toute la commande. Dsactivez le fractionnement pour expdier toute la commande.' });
+          setIsSending(false);
+          return;
+        }
+        
+        const splitRows: any[] = [];
+        const remainRows: any[] = [];
+        
+        for (const row of order.colorBreakdown) {
+          const sentQty = splitColorQtys[row.colorCode] || 0;
+          const origQty = Number(row.rolls) || 0;
+          if (sentQty > 0) {
+            splitRows.push({ ...row, rolls: sentQty });
+          }
+          if (origQty - sentQty > 0) {
+            remainRows.push({ ...row, rolls: origQty - sentQty });
+          }
+        }
+
+        const splitTotal = splitRows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+        const remainTotal = remainRows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+        
+        notificationQuantity = splitTotal;
+        notificationColor = splitRows.length === 1 ? splitRows[0].colorCode : 'various';
+        notificationColorBreakdown = splitRows.length > 1 ? splitRows : null;
+
+        // Nouvel article (partie en transit)
+        const newId = crypto.randomUUID();
+        const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+        setDocumentNonBlocking(newRef, {
+          ...order,
+          id: newId,
+          factureId: formData.factureId,
+          status: 'SHIPPED',
+          arrivalDate: formData.arrivalDate,
+          validatedAt: serverTimestamp(),
+          quantity: splitTotal,
+          color: notificationColor,
+          colorBreakdown: notificationColorBreakdown,
+        }, { merge: true });
+
+        // Original rduit (reste en PI, sans facture)
+        updateDocumentNonBlocking(docRef, {
+          quantity: remainTotal,
+          color: remainRows.length === 1 ? remainRows[0].colorCode : 'various',
+          colorBreakdown: remainRows.length > 1 ? remainRows : null,
+        });
+
+      } else {
+        const qty = Number(splitQty);
+        const origQty = Number(order.quantity) || 0;
+        if (!qty || qty <= 0 || qty >= origQty) {
+          toast({ variant: 'destructive', title: 'Erreur', description: 'Quantit  expdier invalide.' });
+          setIsSending(false);
+          return;
+        }
+
+        notificationQuantity = qty;
+
+        // Nouvel article
+        const newId = crypto.randomUUID();
+        const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+        setDocumentNonBlocking(newRef, {
+          ...order,
+          id: newId,
+          factureId: formData.factureId,
+          status: 'SHIPPED',
+          arrivalDate: formData.arrivalDate,
+          validatedAt: serverTimestamp(),
+          quantity: qty,
+          colorBreakdown: null,
+        }, { merge: true });
+
+        // Original rduit
+        updateDocumentNonBlocking(docRef, { quantity: origQty - qty });
+      }
+    } else {
+      //  NORMAL (Toute la commande) 
+      updateDocumentNonBlocking(docRef, {
+        factureId: formData.factureId,
+        status: 'SHIPPED',
+        arrivalDate: formData.arrivalDate,
+        validatedAt: serverTimestamp()
+      });
+    }
 
     toast({ 
-      title: "Commande expédiée !", 
-      description: `L'article ${order.name} est associé à la facture ${formData.factureId}.` 
+      title: "Commande expdie !", 
+      description: `L'article ${order.name} est associ  la facture ${formData.factureId}.` 
     });
 
-    // ── Send notification if article has a clientName ──
+    //  Send notification if article has a clientName 
     const clientName = (order.clientName || '').trim();
     if (clientName) {
-      toast({ title: '📧 Envoi en cours...', description: `Notification client → ${clientName}` });
+      toast({ title: ' Envoi en cours...', description: `Notification client  ${clientName}` });
       
       let transitDuration: string | undefined;
       const transitArrivalDate = formData.arrivalDate;
@@ -98,10 +212,10 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         articleName: order.categoryId || order.name,
         oldStatus: 'PI',
         newStatus: 'SHIPPED',
-        quantity: order.quantity,
+        quantity: notificationQuantity,
         unitOfMeasure: order.unitOfMeasure,
         specs: order.specs,
-        color: order.color,
+        color: notificationColor,
         size: order.size,
         estimatedProductionDelay: order.estimatedProductionDelay,
         imageUrl: order.imageUrl || undefined,
@@ -109,9 +223,9 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         transitDuration,
       });
       if (result.ok) {
-        toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email}` });
+        toast({ title: ' Notification envoye', description: `Email envoy  ${result.email}` });
       } else if (result.error) {
-        toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
+        toast({ title: ' Erreur notification', description: result.error, variant: 'destructive' });
       }
     }
 
@@ -123,30 +237,138 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-blue-700 flex items-center gap-2">
-            <Ship className="w-6 h-6" /> Validation d'Expédition
+            <Ship className="w-6 h-6" /> Validation d'Expdition
           </DialogTitle>
           <DialogDescription className="text-stone-500">
-            Assignez un numéro de facture et une date d'arrivée pour confirmer l'expédition.
+            Assignez un numro de facture et une date d'arrive pour confirmer l'expdition.
           </DialogDescription>
         </DialogHeader>
 
         <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 mb-2">
           <div className="text-[10px] text-stone-500 uppercase font-bold mb-1">Article en cours</div>
           <div className="font-bold text-stone-800">{order.name}</div>
-          <div className="text-sm text-stone-600">{order.quantity?.toLocaleString()} {order.unitOfMeasure} • {order.supplierId}</div>
+          <div className="text-sm text-stone-600">{order.quantity?.toLocaleString()} {order.unitOfMeasure}  {order.supplierId}</div>
           {order.isPreorder && order.clientName && (
             <div className="mt-1 text-[11px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-flex items-center gap-1">
-              📧 Notification client : {order.clientName}
+               Notification client : {order.clientName}
             </div>
           )}
         </div>
 
+        {/* Choix d'expdition */}
+        <div className="flex gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => setSplitMode(false)}
+            className={`flex-1 p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+              !splitMode ? 'bg-blue-50 border-blue-400 text-blue-800 shadow-sm' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'
+            }`}
+          >
+            <Package className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-black uppercase">Toute la cde</span>
+            <span className="text-[9px] font-bold opacity-70">Part entier</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setSplitMode(true)}
+            className={`flex-1 p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+              splitMode ? 'bg-orange-50 border-orange-400 text-orange-800 shadow-sm' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'
+            }`}
+          >
+            <Scissors className="w-5 h-5 mb-1" />
+            <span className="text-[11px] font-black uppercase">Fractionner</span>
+            <span className="text-[9px] font-bold opacity-70">Une partie part</span>
+          </button>
+        </div>
+
+        {/* UI Fractionnement */}
+        {splitMode && (
+          <div className="bg-orange-50 p-4 rounded-xl border-2 border-dashed border-orange-300 space-y-3 mb-2">
+            {Array.isArray(order.colorBreakdown) && order.colorBreakdown.length > 1 ? (
+              <div className="space-y-2">
+                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Saisissez la quantit  expdier par couleur :</p>
+                <div className="space-y-1.5">
+                  {order.colorBreakdown.map((row: any) => {
+                    const rowMax = Number(row.rolls) || 0;
+                    const val = splitColorQtys[row.colorCode] || '';
+                    const isSelected = !!val && val > 0;
+                    return (
+                      <div key={row.colorCode} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
+                        isSelected ? 'bg-orange-100 border-orange-400' : 'bg-white border-stone-200'
+                      }`}>
+                        <span className="text-[10px] font-black uppercase w-20 truncate">{row.colorCode}</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={rowMax}
+                          value={val}
+                          onChange={e => {
+                            let n = Number(e.target.value);
+                            if (n > rowMax) n = rowMax;
+                            if (n < 0) n = 0;
+                            setSplitColorQtys(prev => ({ ...prev, [row.colorCode]: n }));
+                          }}
+                          placeholder="0"
+                          className="h-8 border-orange-200 bg-white font-bold rounded-lg flex-1 text-right"
+                        />
+                        <span className="text-[9px] text-stone-400 font-bold w-14 text-right">/ {rowMax}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Rcapitulatif auto */}
+                {Object.values(splitColorQtys).some(v => v > 0) && (() => {
+                  const transitQty = Object.values(splitColorQtys).reduce((s, v) => s + (v || 0), 0);
+                  const remainQty = Number(order.quantity) - transitQty;
+                  return (
+                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-orange-200">
+                      <div className="text-[10px]">
+                        <span className="font-black text-blue-700 uppercase"> Transit :</span> <span className="font-bold">{transitQty} {order.unitOfMeasure}</span>
+                      </div>
+                      <div className="text-[10px]">
+                        <span className="font-black text-amber-700 uppercase"> Reste :</span> <span className="font-bold">{remainQty} {order.unitOfMeasure}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Quantit  expdier (sur {order.quantity}) :</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={(Number(order.quantity) || 1) - 1}
+                    value={splitQty || ''}
+                    onChange={e => setSplitQty(Number(e.target.value))}
+                    placeholder="Ex: 500"
+                    className="h-11 border-orange-200 bg-white font-bold rounded-xl flex-1"
+                  />
+                  <span className="text-[10px] font-bold text-orange-700">{order.unitOfMeasure}</span>
+                </div>
+                {splitQty > 0 && Number(order.quantity) > splitQty && (
+                  <div className="flex gap-4 mt-2 pt-2 border-t border-orange-200">
+                    <div className="text-[10px]">
+                      <span className="font-black text-blue-700 uppercase"> Transit :</span> <span className="font-bold">{splitQty} {order.unitOfMeasure}</span>
+                    </div>
+                    <div className="text-[10px]">
+                      <span className="font-black text-amber-700 uppercase"> Reste :</span> <span className="font-bold">{Number(order.quantity) - splitQty} {order.unitOfMeasure}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-1">
-            <Label className="font-bold text-stone-800">N° de Facture / Conteneur</Label>
+            <Label className="font-bold text-stone-800">N de Facture / Conteneur</Label>
             <div className="relative">
               <Input 
                 value={formData.factureId}
@@ -166,14 +388,14 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
             {autofillVisible && (
               <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 mt-2 animate-pulse">
                 <CheckCircle2 className="w-3 h-3" />
-                Date récupérée de la facture !
+                Date rcupre de la facture !
               </div>
             )}
           </div>
 
           <div className="space-y-1">
             <Label className="text-blue-700 font-bold flex items-center gap-1">
-              <CalendarDays className="w-4 h-4" /> Date d'Arrivée prévue
+              <CalendarDays className="w-4 h-4" /> Date d'Arrive prvue
             </Label>
             <Input 
               type="date"
@@ -194,7 +416,7 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"
           >
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ship className="w-4 h-4" />}
-            Confirmer l'expédition
+            Confirmer l'expdition
           </Button>
         </DialogFooter>
       </DialogContent>

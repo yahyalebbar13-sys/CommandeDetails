@@ -33,6 +33,8 @@ import {
   ArrowUpRight,
   ChevronRight,
   Percent,
+  ExternalLink,
+  Hash,
 } from 'lucide-react';
 import { ViewType, GeneralCategory } from '@/lib/types';
 import RecentEmailsWidget from '@/components/recent-emails-widget';
@@ -410,6 +412,25 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [safeFactures]);
 
+  // -- Factures sans BL -----------------------------------------------------------
+  const facturesSansBL = useMemo(() => {
+    return safeFactures.filter(f => {
+      return !f.noBL || f.noBL.trim() === '';
+    });
+  }, [safeFactures]);
+
+  // -- Factures sans DP -----------------------------------------------------------
+  const facturesSansDP = useMemo(() => {
+    return safeFactures.filter(f => {
+      // Only arrived factures that don't have a DP declaration yet
+      if (!f.arrivalDate) return false;
+      const puMap = dpDeclarations[f.id];
+      if (!puMap) return true;
+      // DP exists but no PU filled in
+      return !Object.values(puMap).some(v => parseFloat(v as string) > 0);
+    });
+  }, [safeFactures, dpDeclarations]);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
 
@@ -603,6 +624,165 @@ const DashboardView: React.FC<DashboardViewProps> = ({ articles = [], factures =
           </div>
         </div>
       )}
+
+      {/* -- RAPPELS: Factures sans BL / sans DP -------------------------------- */}
+      {(facturesSansBL.length > 0 || facturesSansDP.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Sans BL */}
+          {facturesSansBL.length > 0 && (
+            <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-red-100 rounded-xl">
+                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-red-400 uppercase tracking-widest">Attention</p>
+                  <p className="text-sm font-black text-red-700 uppercase tracking-tight">{facturesSansBL.length} Facture{facturesSansBL.length > 1 ? 's' : ''} sans BL</p>
+                </div>
+              </div>
+              <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+                {facturesSansBL.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => onNavigateToFacture ? onNavigateToFacture(f.id) : onNavigate('factures')}
+                    className="w-full flex items-center justify-between bg-white/70 hover:bg-white border border-red-100 rounded-xl px-3 py-2 transition-all group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Hash className="w-3 h-3 text-red-300" />
+                      <span className="text-[10px] font-black text-stone-700 uppercase">{f.id}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold text-stone-400">{f.supplierId || f.supplier || ''}</span>
+                      <ChevronRight className="w-3 h-3 text-red-300 group-hover:text-red-500 transition-colors" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Sans DP */}
+          {facturesSansDP.length > 0 && (
+            <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 bg-amber-100 rounded-xl">
+                  <FileText className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Attention</p>
+                  <p className="text-sm font-black text-amber-700 uppercase tracking-tight">{facturesSansDP.length} Facture{facturesSansDP.length > 1 ? 's' : ''} sans DP</p>
+                </div>
+              </div>
+              <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+                {facturesSansDP.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => onNavigateToFacture ? onNavigateToFacture(f.id) : onNavigate('factures')}
+                    className="w-full flex items-center justify-between bg-white/70 hover:bg-white border border-amber-100 rounded-xl px-3 py-2 transition-all group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Hash className="w-3 h-3 text-amber-300" />
+                      <span className="text-[10px] font-black text-stone-700 uppercase">{f.id}</span>
+                      <span className="text-[8px] font-bold text-stone-400">({f.supplierId || f.supplier || ''})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="w-3 h-3 text-amber-300" />
+                      <span className="text-[9px] font-bold text-amber-600">{f.arrivalDate || '—'}</span>
+                      <ChevronRight className="w-3 h-3 text-amber-300 group-hover:text-amber-500 transition-colors" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* -- LIENS PORTNET -------------------------------------------------------- */}
+      <div className="bg-gradient-to-r from-stone-900 to-stone-800 rounded-2xl p-5 shadow-xl">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="p-2 bg-sky-500/20 rounded-xl">
+            <Anchor className="w-4 h-4 text-sky-400" />
+          </div>
+          <div>
+            <p className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Acces Rapide</p>
+            <p className="text-sm font-black text-white uppercase tracking-tight">Portnet</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* LEBTEX */}
+          <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-sky-500/20 flex items-center justify-center font-black text-sky-400 text-xs">LB</div>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-white uppercase tracking-widest">LEBTEX</p>
+                <p className="text-[8px] font-bold text-stone-500">Portnet - Espace Importateur</p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <button
+                onClick={() => { navigator.clipboard.writeText('BW54599_704617'); }}
+                className="w-full flex items-center justify-between bg-white/5 hover:bg-white/10 rounded-lg px-2.5 py-1.5 transition-all group"
+              >
+                <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">ID</span>
+                <span className="text-[10px] font-black text-sky-300 group-hover:text-sky-200 transition-colors">BW54599_704617</span>
+              </button>
+              <button
+                onClick={() => { navigator.clipboard.writeText('Robeinbox@2026'); }}
+                className="w-full flex items-center justify-between bg-white/5 hover:bg-white/10 rounded-lg px-2.5 py-1.5 transition-all group"
+              >
+                <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">MDP</span>
+                <span className="text-[10px] font-black text-sky-300 group-hover:text-sky-200 transition-colors">Robeinbox@2026</span>
+              </button>
+            </div>
+            <a
+              href="https://www.portnet.ma"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => { navigator.clipboard.writeText('BW54599_704617'); }}
+              className="flex items-center justify-center gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 rounded-lg px-3 py-2 transition-all group"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-[9px] font-black text-sky-300 uppercase tracking-widest">Ouvrir Portnet</span>
+            </a>
+          </div>
+          {/* ROBE IN BOX */}
+          <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center font-black text-purple-400 text-xs">RB</div>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-white uppercase tracking-widest">ROBE IN BOX</p>
+                <p className="text-[8px] font-bold text-stone-500">Portnet - Espace Importateur</p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <button
+                onClick={() => { navigator.clipboard.writeText('BE20399_704775'); }}
+                className="w-full flex items-center justify-between bg-white/5 hover:bg-white/10 rounded-lg px-2.5 py-1.5 transition-all group"
+              >
+                <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">ID</span>
+                <span className="text-[10px] font-black text-purple-300 group-hover:text-purple-200 transition-colors">BE20399_704775</span>
+              </button>
+              <button
+                onClick={() => { navigator.clipboard.writeText('Robeinbox@2026'); }}
+                className="w-full flex items-center justify-between bg-white/5 hover:bg-white/10 rounded-lg px-2.5 py-1.5 transition-all group"
+              >
+                <span className="text-[8px] font-black text-stone-500 uppercase tracking-widest">MDP</span>
+                <span className="text-[10px] font-black text-purple-300 group-hover:text-purple-200 transition-colors">Robeinbox@2026</span>
+              </button>
+            </div>
+            <a
+              href="https://www.portnet.ma"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => { navigator.clipboard.writeText('BE20399_704775'); }}
+              className="flex items-center justify-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg px-3 py-2 transition-all group"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-purple-400" />
+              <span className="text-[9px] font-black text-purple-300 uppercase tracking-widest">Ouvrir Portnet</span>
+            </a>
+          </div>
+        </div>
+      </div>
 
       {/* RAPPEL DES EMAILS */}
       <RecentEmailsWidget onNavigate={onNavigate} />

@@ -25,7 +25,7 @@ import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import DesignPicker from './design-picker';
 
-const UNITS = ["pièces", "doz", "m", "rolls", "kg", "bag", "yds"];
+const UNITS = ["pices", "doz", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
 const ZIPPER_TYPES = ["O/E", "C/E"];
 const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
@@ -58,6 +58,19 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [formData, setFormData] = useState<any>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitColorQtys, setSplitColorQtys] = useState<Record<string, number>>({});
+  const [splitQty, setSplitQty] = useState<number>(0);
+  
+  const handleOpenChange = (o: boolean) => {
+    if (!o) {
+      setSplitOpen(false);
+      setSplitColorQtys({});
+      setSplitQty(0);
+    }
+    onOpenChange(o);
+  };
+
   const [sizeBreakdown, setSizeBreakdown] = useState<any[] | null>(null);
   const [designBreakdown, setDesignBreakdown] = useState<DesignBreakdownRow[] | null>(null);
   const [colorOpen, setColorOpen] = useState(false);
@@ -65,16 +78,26 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
 
   const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
-    setColorBreakdown(rows);
-    if (rows && rows.length > 0) {
+    if (rows && rows.length === 1) {
+      setColorBreakdown(null);
+      setFormData((p: any) => p ? { ...p, quantity: total, color: rows[0].colorCode || '' } : p);
+    } else if (rows && rows.length > 1) {
+      setColorBreakdown(rows);
       setFormData((p: any) => p ? { ...p, quantity: total, color: 'various' } : p);
+    } else {
+      setColorBreakdown(null);
     }
   };
 
   const handleSizeBreakdownChange = (rows: SizeBreakdownRow[] | null, total: number) => {
-    setSizeBreakdown(rows);
-    if (rows && rows.length > 0) {
+    if (rows && rows.length === 1) {
+      setSizeBreakdown(null);
+      setFormData((p: any) => p ? { ...p, quantity: total, size: rows[0].size || '' } : p);
+    } else if (rows && rows.length > 1) {
+      setSizeBreakdown(rows);
       setFormData((p: any) => p ? { ...p, quantity: total, size: 'various' } : p);
+    } else {
+      setSizeBreakdown(null);
     }
   };
 
@@ -89,8 +112,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (article) {
       setFormData({
         ...article,
-        // Use rawStatus (real Firestore status) if article was enriched,
-        // otherwise fall back to article.status
         status: article.rawStatus || article.status,
         factureId: article.factureId || 'NONE',
         size: article.size || '',
@@ -117,12 +138,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     }
   }, [article]);
 
-  // ── Upload product image to Firebase Storage ──
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !article) return;
     if (!file.type.startsWith('image/')) {
-      toast({ variant: 'destructive', title: 'Format invalide', description: 'Sélectionnez une image (JPG, PNG, WEBP...)' });
+      toast({ variant: 'destructive', title: 'Format invalide', description: 'Slectionnez une image (JPG, PNG, WEBP...)' });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -148,7 +168,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           }
         );
       });
-      toast({ title: '📸 Photo ajoutée', description: 'La photo du produit a été uploadée.' });
+      toast({ title: ' Photo ajoute', description: 'La photo du produit a t uploade.' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur upload', description: err.message });
     } finally {
@@ -161,9 +181,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     try {
       const storage = getStorage(getApp());
       const path = `users/${user.uid}/articles/${article.id}/product-image`;
-      await deleteObject(storageRef(storage, path)).catch(() => {}); // ignore if already deleted
+      await deleteObject(storageRef(storage, path)).catch(() => {});
       setFormData((prev: any) => ({ ...prev, imageUrl: '' }));
-      toast({ title: 'Photo supprimée' });
+      toast({ title: 'Photo supprime' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err.message });
     }
@@ -175,7 +195,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     
     const getGroupIndex = (name: string) => {
       const catName = (name || '').toLowerCase().trim();
-      
       const fabricKeywords = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
       const sliderKeywords = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
       const zipperKeywords = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
@@ -237,9 +256,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
     const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
 
-    // When article has a dossier, NEVER write dates into the article document.
-    // The dossier (facture) is the single source of truth for arrivalDate & stockEntryDate.
-    // Only save 'DELIVERED' if admin explicitly marked it, otherwise keep 'SHIPPED' as base.
     const statusToSave = finalFactureId
       ? (formData.status === 'DELIVERED' ? 'DELIVERED' : 'SHIPPED')
       : formData.status;
@@ -288,7 +304,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           sizeBreakdown: splitType === 'size' ? rows : (sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null),
         };
         if (isFirst) {
-          // Update the original document
           const finalData = {
             ...cleanFormData,
             name: formData.categoryId,
@@ -302,7 +317,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           updateDocumentNonBlocking(docRef, finalData);
           isFirst = false;
         } else {
-          // Create new document for other price groups
           const newId = crypto.randomUUID();
           const newDocRef = doc(firestore, 'users', user.uid, 'articles', newId);
           const finalData = {
@@ -334,41 +348,35 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       updateDocumentNonBlocking(docRef, finalData);
     }
 
-    // ── Send Gmail notification if status changed and client is a preorder ──
-    // article.rawStatus = real Firestore status (SHIPPED/PI/etc)
-    // article.status   = enriched effective status (TRANSIT/CUSTOMS/STOCK)
-    const storedOldStatus = article.rawStatus || article.status; // true Firestore value before edit
-    const storedNewStatus = formData.status;                      // what admin chose in the form
+    const storedOldStatus = article.rawStatus || article.status;
+    const storedNewStatus = formData.status;
     const clientName = (formData.clientName || '').trim();
 
     if (clientName) {
-      // Compute effective status for old state (before this save)
       const effectiveOld = computeEffectiveStatus({
         status: storedOldStatus,
         arrivalDate: article.arrivalDate,
         stockEntryDate: article.stockEntryDate,
       });
-      // Compute effective status for new state (after this save)
       const effectiveNew = computeEffectiveStatus({
         status: storedNewStatus,
-        arrivalDate: arrivalDate,
-        stockEntryDate: stockEntryDate,
+        arrivalDate: article.arrivalDate,
+        stockEntryDate: article.stockEntryDate,
       });
 
-      const oldDisplayStatus = article.effectiveStatus || effectiveOld; // use pre-enriched value if available
+      const oldDisplayStatus = article.effectiveStatus || effectiveOld;
 
       if (oldDisplayStatus !== effectiveNew) {
-        toast({ title: '📧 Envoi en cours...', description: `Notification → ${clientName} (${effectiveNew})` });
+        toast({ title: ' Envoi en cours...', description: `Notification  ${clientName} (${effectiveNew})` });
 
-        // Compute transit info from the linked facture
         let transitArrivalDate: string | undefined;
         let transitDuration: string | undefined;
 
-        if (arrivalDate) {
-          transitArrivalDate = arrivalDate;
+        if (article.arrivalDate) {
+          transitArrivalDate = article.arrivalDate;
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          const eta = new Date(arrivalDate);
+          const eta = new Date(article.arrivalDate);
           eta.setHours(0, 0, 0, 0);
           const diffMs = eta.getTime() - today.getTime();
           const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -377,8 +385,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           } else if (diffDays === 0) {
             transitDuration = "aujourd'hui";
           }
-        } else if (effectiveNew === 'STOCK' && stockEntryDate) {
-          transitArrivalDate = stockEntryDate;
+        } else if (effectiveNew === 'STOCK' && article.stockEntryDate) {
+          transitArrivalDate = article.stockEntryDate;
         }
 
         const result = await sendStatusNotification({
@@ -399,18 +407,18 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           transitDuration,
         });
         if (result.ok) {
-          toast({ title: '✅ Notification envoyée', description: `Email envoyé à ${result.email} — ${effectiveNew}` });
+          toast({ title: ' Notification envoye', description: `Email envoy  ${result.email}  ${effectiveNew}` });
         } else if (result.error) {
-          toast({ title: '⚠️ Erreur notification', description: result.error, variant: 'destructive' });
+          toast({ title: ' Erreur notification', description: result.error, variant: 'destructive' });
         }
       }
     }
 
     toast({ 
-      title: 'Modifié !', 
+      title: 'Modifi !', 
       description: isSplit 
-        ? `L'article a été mis à jour et séparé en ${splitCount} articles (prix différents).` 
-        : `L'article a été mis à jour.` 
+        ? `L'article a t mis  jour et spar en ${splitCount} articles (prix diffrents).` 
+        : `L'article a t mis  jour.` 
     });
     onOpenChange(false);
   };
@@ -418,7 +426,6 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const handleDuplicate = () => {
     if (!user || !firestore || !article || !formData) return;
     
-    // Auto-save logic like handleSubmit but inserting a new document
     let arrivalDate = formData.arrivalDate || '';
     let stockEntryDate = formData.stockEntryDate || '';
     const finalFactureId = formData.factureId === 'NONE' ? '' : formData.factureId;
@@ -442,12 +449,120 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       factureId: finalFactureId,
       arrivalDate,
       stockEntryDate,
-      createdAt: serverTimestamp(), // reset creation date
+      createdAt: serverTimestamp(),
       colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
     };
     
     setDocumentNonBlocking(docRef, duplicateData, { merge: true });
-    toast({ title: "Article Dupliqué", description: `Un nouvel article a été créé à l'identique.` });
+    toast({ title: "Article Dupliqu", description: `Un nouvel article a t cr  l'identique.` });
+    onOpenChange(false);
+  };
+
+  const handleSplit = () => {
+    if (!user || !firestore || !article || !colorBreakdown) return;
+
+    if (Array.isArray(colorBreakdown) && colorBreakdown.length > 1) {
+      const selectedColorCodes = Object.keys(splitColorQtys).filter(k => splitColorQtys[k] > 0);
+      
+      if (selectedColorCodes.length === 0) {
+        toast({ variant: 'destructive', title: 'Aucune slection', description: 'Veuillez saisir une quantit pour au moins une couleur.' });
+        return;
+      }
+
+      let allColorsCompletelySent = true;
+      for (const row of colorBreakdown) {
+        if ((splitColorQtys[row.colorCode] || 0) < Number(row.rolls)) {
+          allColorsCompletelySent = false;
+          break;
+        }
+      }
+      
+      if (allColorsCompletelySent) {
+        toast({ variant: 'destructive', title: 'Toute la commande slectionne', description: 'Vous avez slectionn toute la quantit de toutes les couleurs. Utilisez simplement la sauvegarde normale.' });
+        return;
+      }
+
+      const splitRows: any[] = [];
+      const remainRows: any[] = [];
+      
+      for (const row of colorBreakdown) {
+        const sentQty = splitColorQtys[row.colorCode] || 0;
+        const origQty = Number(row.rolls) || 0;
+        if (sentQty > 0) {
+          splitRows.push({ ...row, rolls: sentQty });
+        }
+        if (origQty - sentQty > 0) {
+          remainRows.push({ ...row, rolls: origQty - sentQty });
+        }
+      }
+
+      const splitTotal = splitRows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+      const remainTotal = remainRows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+
+      const newId = crypto.randomUUID();
+      const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+      setDocumentNonBlocking(newRef, {
+        ...formData,
+        id: newId,
+        name: formData.categoryId,
+        generalCategoryId: selectedGenCatId,
+        factureId: '',
+        status: 'TRANSIT',
+        arrivalDate: '',
+        stockEntryDate: '',
+        createdAt: serverTimestamp(),
+        quantity: splitTotal,
+        color: splitRows.length === 1 ? splitRows[0].colorCode : 'various',
+        colorBreakdown: splitRows.length > 1 ? splitRows : null,
+      }, { merge: true });
+
+      const originalRef = doc(firestore, 'users', user.uid, 'articles', article.id);
+      updateDocumentNonBlocking(originalRef, {
+        quantity: remainTotal,
+        color: remainRows.length === 1 ? remainRows[0].colorCode : 'various',
+        colorBreakdown: remainRows.length > 1 ? remainRows : null,
+      });
+
+      toast({ title: ' Fractionn !', description: `Une partie a t dplace vers un nouvel article en TRANSIT.` });
+    } else {
+      const qty = Number(splitQty);
+      const origQty = Number(formData.quantity) || 0;
+      if (!qty || qty <= 0) {
+        toast({ variant: 'destructive', title: 'Quantit invalide', description: 'Entrez une quantit  fractionner.' });
+        return;
+      }
+      if (qty >= origQty) {
+        toast({ variant: 'destructive', title: 'Quantit trop grande', description: `La quantit fractionne doit tre infrieure  ${origQty}.` });
+        return;
+      }
+
+      // Nouvel article
+      const newId = crypto.randomUUID();
+      const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+      setDocumentNonBlocking(newRef, {
+        ...formData,
+        id: newId,
+        name: formData.categoryId,
+        generalCategoryId: selectedGenCatId,
+        factureId: '',
+        status: 'TRANSIT',
+        arrivalDate: '',
+        stockEntryDate: '',
+        createdAt: serverTimestamp(),
+        quantity: qty,
+        colorBreakdown: null,
+      }, { merge: true });
+
+      // Original rduit
+      const originalRef = doc(firestore, 'users', user.uid, 'articles', article.id);
+      updateDocumentNonBlocking(originalRef, { quantity: origQty - qty });
+
+      toast({ title: ' Fractionn !', description: `${qty} units dplaces vers un nouvel article en TRANSIT.` });
+    }
+
+    setSplitOpen(false);
+    setSplitSelectedColors(new Set());
+    setSplitQty(0);
     onOpenChange(false);
   };
 
@@ -461,8 +576,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             <Package className="w-6 h-6" />
           </div>
           <div>
-            <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none">Paramétrage Article</DialogTitle>
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Mise à jour des données logistiques</p>
+            <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none">Paramtrage Article</DialogTitle>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Mise  jour des donnes logistiques</p>
           </div>
         </div>
 
@@ -470,7 +585,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Layers className="w-3 h-3" /> Pôle Logistique
+                <Layers className="w-3 h-3" /> Ple Logistique
               </Label>
               <Select value={selectedGenCatId} onValueChange={setSelectedGenCatId}>
                 <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
@@ -588,7 +703,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Détails Techniques / Spécifications'}
+                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Dtails Techniques / Spcifications'}
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -611,7 +726,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
 
-            {/* ── Design Picker — zipper & slider ── */}
+            {/*  Design Picker  zipper & slider  */}
             {isDesignCategory && formData.categoryId && (
               <div className="md:col-span-2">
                 <DesignPicker
@@ -629,43 +744,42 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Palette className="w-3 h-3" /> Couleur
               </Label>
-              {colorBreakdown && colorBreakdown.length > 0 ? (
-                <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
-                  <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
+              {colorBreakdown && colorBreakdown.length > 1 ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                    <span className="text-[10px] font-black text-violet-700 uppercase">VARIOUS (multi-couleurs)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setColorBreakdown(null);
+                      setFormData((p: any) => ({ ...p, color: '', colorBreakdown: null }));
+                    }}
+                    className="shrink-0 h-12 px-3 rounded-xl border border-stone-200 bg-white text-[9px] font-black text-stone-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all uppercase tracking-wide"
+                    title="Passer  une couleur unique"
+                  >
+                    Couleur unique
+                  </button>
                 </div>
               ) : (
-                <Popover open={colorOpen} onOpenChange={setColorOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="h-12 w-full border border-stone-200 bg-white font-bold rounded-xl px-3 flex items-center justify-between text-sm hover:border-stone-400 transition-colors"
-                    >
-                      <span className="uppercase font-bold text-stone-800">{formData.color || 'Choisir...'}</span>
-                      <ChevronDownIcon className="w-4 h-4 text-stone-400" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-1 max-h-60 overflow-y-auto" align="start" sideOffset={4}>
+                <Select
+                  value={formData.color || ''}
+                  onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}
+                >
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl uppercase">
+                    <SelectValue placeholder="Choisir..." />
+                  </SelectTrigger>
+                  <SelectContent>
                     {COLORS.map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => { setFormData((p: any) => ({ ...p, color: c })); setColorOpen(false); }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-100 transition-colors text-left ${
-                          formData.color === c ? 'bg-stone-100 font-black' : 'font-bold'
-                        }`}
-                      >
-                        {formData.color === c && <Check className="w-3.5 h-3.5 text-stone-700 shrink-0" />}
-                        {formData.color !== c && <span className="w-3.5 shrink-0" />}
-                        <span className="text-sm uppercase text-stone-800">{c}</span>
-                      </button>
+                      <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>
                     ))}
-                  </PopoverContent>
-                </Popover>
+                  </SelectContent>
+                </Select>
               )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Ruler className="w-3 h-3" /> Unité
+                <Ruler className="w-3 h-3" /> Unit
               </Label>
               <Select
                 value={formData.unitOfMeasure}
@@ -682,11 +796,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
             <div className="grid grid-cols-2 gap-4 md:col-span-2">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantité</Label>
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantit</Label>
                 {colorBreakdown && colorBreakdown.length > 0 ? (
                   <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
                     <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} {formData.unitOfMeasure}</span>
-                    <span className="text-[9px] font-bold text-violet-400 uppercase">calculé auto</span>
+                    <span className="text-[9px] font-bold text-violet-400 uppercase">calcul auto</span>
                   </div>
                 ) : (
                   <Input
@@ -710,7 +824,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <SelectContent>
                     <SelectItem value="urgent" className="font-bold text-red-600 uppercase">Urgent</SelectItem>
                     <SelectItem value="important" className="font-bold text-amber-600 uppercase">Important</SelectItem>
-                    <SelectItem value="todo" className="font-bold text-stone-600 uppercase">À faire</SelectItem>
+                    <SelectItem value="todo" className="font-bold text-stone-600 uppercase"> faire</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -727,10 +841,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
 
-            {/* Délai de production estimé — dans le formulaire principal */}
+            {/* Dlai de production estim  dans le formulaire principal */}
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Délai de production estimé
+                <Clock className="w-3 h-3" /> Dlai de production estim
               </Label>
               <Input
                 placeholder="Ex: 30 jours, 6 semaines..."
@@ -740,7 +854,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               />
             </div>
 
-            {/* ── Photo du Produit ─────────────────────────────────────────── */}
+            {/*  Photo du Produit  */}
             <div className="space-y-2 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <ImagePlus className="w-3 h-3" /> Photo du Produit
@@ -776,7 +890,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     <>
                       <ImagePlus className="w-6 h-6 text-stone-300 mb-1.5" />
                       <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Cliquer pour uploader</span>
-                      <span className="text-[9px] text-stone-300 mt-0.5">JPG, PNG, WEBP — max 5 MB</span>
+                      <span className="text-[9px] text-stone-300 mt-0.5">JPG, PNG, WEBP  max 5 MB</span>
                     </>
                   )}
                   <input
@@ -813,16 +927,16 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   unit={formData.unitOfMeasure}
                 />
               </div>
-              <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">État & Logistique</Label>
+              <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">tat & Logistique</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* If article has a dossier → status is automatic (TRANSIT/CUSTOMS/STOCK) */}
+                {/* If article has a dossier  status is automatic (TRANSIT/CUSTOMS/STOCK) */}
                 {formData.factureId && formData.factureId !== 'NONE' ? (
                   <div className="md:col-span-2 space-y-2">
                     {/* Auto status display */}
                     <div className="h-12 border border-stone-200 bg-stone-50 rounded-xl px-4 flex items-center gap-3">
                       <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Statut logistique :</span>
                       <span className="text-[11px] font-black text-stone-900 uppercase">{article?.status || formData.status}</span>
-                      <span className="ml-auto text-[9px] text-stone-400 font-medium italic">🔄 Calculé depuis le dossier {formData.factureId}</span>
+                      <span className="ml-auto text-[9px] text-stone-400 font-medium italic"> Calcul depuis le dossier {formData.factureId}</span>
                     </div>
                     {/* Only manual action possible at this stage: mark as delivered */}
                     {formData.isPreorder && formData.clientName && (
@@ -835,7 +949,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                             : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
                         }`}
                       >
-                        {formData.status === 'DELIVERED' ? '✅ Livré au client (cliquer pour annuler)' : '📦 Marquer comme Livré au Client'}
+                        {formData.status === 'DELIVERED' ? ' Livr au client (cliquer pour annuler)' : ' Marquer comme Livr au Client'}
                       </button>
                     )}
                   </div>
@@ -845,14 +959,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TO_ORDER" className="font-bold uppercase">📋 À Commander</SelectItem>
-                      <SelectItem value="PI" className="font-bold text-amber-600 uppercase">🏭 Production Lancée (PI)</SelectItem>
+                      <SelectItem value="TO_ORDER" className="font-bold uppercase">  Commander</SelectItem>
+                      <SelectItem value="PI" className="font-bold text-amber-600 uppercase"> Production Lance (PI)</SelectItem>
                       <SelectItem
                         value="DELIVERED"
                         className="font-bold text-emerald-600 uppercase"
                         disabled={!formData.isPreorder || !formData.clientName}
                       >
-                        📦 Livré au Client {!formData.isPreorder || !formData.clientName ? '(Req. Client)' : ''}
+                         Livr au Client {!formData.isPreorder || !formData.clientName ? '(Req. Client)' : ''}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -899,7 +1013,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     <Input
                       type="number"
                       step="1"
-                      placeholder="Pièces / CTN"
+                      placeholder="Pices / CTN"
                       value={formData.pcsPerCtn || ''}
                       onChange={e => setFormData((prev: any) => ({ ...prev, pcsPerCtn: parseInt(e.target.value) || 0 }))}
                       className="h-12 border-stone-200 font-bold rounded-xl"
@@ -909,13 +1023,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
 
-            {/* Précommande client */}
+            {/* Prcommande client */}
             <div className={`p-4 rounded-xl border transition-all md:col-span-2 ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <UserCircle2 className={`w-4 h-4 ${formData.isPreorder ? 'text-indigo-600' : 'text-stone-400'}`} />
                   <span className={`text-[10px] font-black uppercase tracking-widest ${formData.isPreorder ? 'text-indigo-700' : 'text-stone-500'}`}>
-                    Précommande Client
+                    Prcommande Client
                   </span>
                 </div>
                 <Switch
@@ -935,25 +1049,137 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
                   />
                   <p className="text-[9px] text-indigo-400 font-bold mt-1">
-                    📧 L&apos;email du client est récupéré automatiquement depuis son accès portail.
+                     L&apos;email du client est rcupr automatiquement depuis son accs portail.
                   </p>
                 </div>
               )}
               {!formData.isPreorder && (
                 <p className="text-[9px] font-bold text-stone-400 uppercase mt-2 text-center italic">
-                  Activer si cet article est précommandé par un client
+                  Activer si cet article est prcommand par un client
                 </p>
               )}
             </div>
           </div>
+          {/*  Fractionner  */}
+          {splitOpen && (
+            <div className="rounded-2xl border-2 border-dashed border-orange-300 bg-orange-50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-black text-orange-700 uppercase tracking-widest flex items-center gap-1.5"><Scissors className="w-3.5 h-3.5" /> Fractionner la commande</p>
+                  <p className="text-[9px] text-orange-500 font-bold mt-0.5">Sparez une partie en un nouvel article  l&apos;original sera rduit en consquence.</p>
+                </div>
+                <button type="button" onClick={() => setSplitOpen(false)} className="text-orange-400 hover:text-orange-700"><XIcon className="w-4 h-4" /></button>
+              </div>
+
+              {Array.isArray(colorBreakdown) && colorBreakdown.length > 1 ? (
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black text-orange-600 uppercase">Saisissez la quantit  fractionner par couleur :</p>
+                  <div className="space-y-1.5">
+                    {colorBreakdown.map(row => {
+                      const rowMax = Number(row.rolls) || 0;
+                      const val = splitColorQtys[row.colorCode] || '';
+                      const isSelected = !!val && val > 0;
+                      return (
+                        <div key={row.colorCode} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
+                          isSelected ? 'bg-orange-100 border-orange-400' : 'bg-white border-stone-200'
+                        }`}>
+                          <span className="text-[10px] font-black uppercase w-20 truncate text-stone-700">{row.colorCode}</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={rowMax}
+                            value={val}
+                            onChange={e => {
+                              let n = Number(e.target.value);
+                              if (n > rowMax) n = rowMax;
+                              if (n < 0) n = 0;
+                              setSplitColorQtys(prev => ({ ...prev, [row.colorCode]: n }));
+                            }}
+                            placeholder="0"
+                            className="h-9 border-orange-200 bg-white font-bold rounded-lg flex-1 text-right text-[11px]"
+                          />
+                          <span className="text-[9px] text-stone-400 font-bold w-16 text-right">/ {rowMax} {formData.unitOfMeasure}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Rcapitulatif automatique */}
+                  {Object.values(splitColorQtys).some(v => v > 0) && (() => {
+                    const transitQty = Object.values(splitColorQtys).reduce((s, v) => s + (v || 0), 0);
+                    const remainQty = Number(formData.quantity) - transitQty;
+                    return (
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                          <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1"> Nouvel article  Transit</p>
+                          <p className="text-[12px] font-black text-blue-800">{transitQty} {formData.unitOfMeasure}</p>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                          <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1"> Article original  Production</p>
+                          <p className="text-[12px] font-black text-amber-800">{remainQty} {formData.unitOfMeasure}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black text-orange-600 uppercase">Quantit  fractionner (max {formData.quantity}) :</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={(Number(formData.quantity) || 1) - 1}
+                      value={splitQty || ''}
+                      onChange={e => setSplitQty(Number(e.target.value))}
+                      placeholder="Ex: 500"
+                      className="h-11 border-orange-200 bg-white font-bold rounded-xl flex-1"
+                    />
+                    <span className="text-[10px] font-bold text-orange-600">{formData.unitOfMeasure}</span>
+                  </div>
+                  {splitQty > 0 && Number(formData.quantity) > splitQty && (
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                        <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1"> Nouvel article  Transit</p>
+                        <p className="text-[11px] font-black text-blue-800">{splitQty} {formData.unitOfMeasure}</p>
+                        <p className="text-[9px] text-blue-500 font-bold uppercase">{formData.color || ''}</p>
+                      </div>
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-1"> Article original  Production</p>
+                        <p className="text-[11px] font-black text-amber-800">{Number(formData.quantity) - splitQty} {formData.unitOfMeasure}</p>
+                        <p className="text-[9px] text-amber-500 font-bold uppercase">{formData.color || ''}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                onClick={handleSplit}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black uppercase text-[10px] tracking-widest h-12 rounded-xl gap-2"
+              >
+                <Scissors className="w-4 h-4" /> Confirmer le fractionnement
+              </Button>
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row gap-3 pt-2">
+            <Button
+              type="button"
+              onClick={() => { setSplitOpen(s => !s); setSplitColorQtys({}); setSplitQty(0); }}
+              variant="outline"
+              className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700 font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 transition-colors"
+            >
+              <Scissors className="w-4 h-4" /> Fractionner
+            </Button>
             <Button 
               type="button" 
               onClick={handleDuplicate}
               variant="outline"
               className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 font-black uppercase text-[10px] tracking-widest h-14 rounded-xl gap-2 transition-colors"
             >
-              <Copy className="w-4 h-4" /> Dupliquer cet article
+              <Copy className="w-4 h-4" /> Dupliquer
             </Button>
             <Button 
               type="submit" 

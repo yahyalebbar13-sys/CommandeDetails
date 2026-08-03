@@ -68,6 +68,10 @@ export default function ColorBreakdownInput({ value, onChange, unit }: ColorBrea
     if (value && value.length > 0) {
       setEnabled(true);
       setRows(value);
+    } else if (!value || value.length === 0) {
+      // Parent a réinitialisé (ex: "Couleur unique") → on désactive le toggle
+      setEnabled(false);
+      setRows([]);
     }
   }, [value]);
 

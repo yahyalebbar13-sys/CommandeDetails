@@ -84,16 +84,26 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   }, [allArticles]);
 
   const handleColorBreakdownChange = useCallback((rows: ColorBreakdownRow[] | null, total: number) => {
-    setColorBreakdown(rows);
-    if (rows && rows.length > 0) {
+    if (rows && rows.length === 1) {
+      setColorBreakdown(null);
+      setFormData((p: any) => ({ ...p, quantity: total, color: rows[0].colorCode || '' }));
+    } else if (rows && rows.length > 1) {
+      setColorBreakdown(rows);
       setFormData((p: any) => ({ ...p, quantity: total, color: 'various' }));
+    } else {
+      setColorBreakdown(null);
     }
   }, []);
 
   const handleSizeBreakdownChange = useCallback((rows: SizeBreakdownRow[] | null, total: number) => {
-    setSizeBreakdown(rows);
-    if (rows && rows.length > 0) {
+    if (rows && rows.length === 1) {
+      setSizeBreakdown(null);
+      setFormData((p: any) => ({ ...p, quantity: total, size: rows[0].size || '' }));
+    } else if (rows && rows.length > 1) {
+      setSizeBreakdown(rows);
       setFormData((p: any) => ({ ...p, quantity: total, size: 'various' }));
+    } else {
+      setSizeBreakdown(null);
     }
   }, []);
 

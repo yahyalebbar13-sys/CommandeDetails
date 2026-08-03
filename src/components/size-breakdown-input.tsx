@@ -52,6 +52,9 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
     if (value && value.length > 0) {
       setEnabled(true);
       setRows(value);
+    } else if (!value || value.length === 0) {
+      setEnabled(false);
+      setRows([]);
     }
   }, [value]);
 

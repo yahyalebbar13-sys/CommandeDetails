@@ -21,6 +21,7 @@ interface NotifyParams {
   imageUrl?: string;
   transitArrivalDate?: string;
   transitDuration?: string;
+  noBL?: string | null;          // Bill of Lading — absent si pas encore déposé
 }
 
 /**
@@ -90,8 +91,20 @@ function buildWhatsAppMessage(params: NotifyParams, newStatusLabel: string): str
   if (params.color) lines.push(`Coloris : ${params.color}`);
   if (params.size) lines.push(`Taille : ${params.size}`);
   if (params.estimatedProductionDelay) lines.push(`Délai estimé : ${params.estimatedProductionDelay}`);
-  if (params.transitArrivalDate) lines.push(`Arrivée prévue : ${params.transitArrivalDate}`);
-  lines.push(``, `Cordialement,`, `L'équipe LEBTEX`);
+
+  // Transit-specific lines
+  if ((params.newStatus === 'TRANSIT' || params.newStatus === 'SHIPPED')) {
+    if (params.noBL) {
+      lines.push(`📋 N° B/L : *${params.noBL}*`);
+      if (params.transitArrivalDate) lines.push(`📅 Arrivée prévue : ${params.transitArrivalDate}`);
+    } else {
+      lines.push(`⏳ Le B/L est en cours de dépôt — vous recevrez une mise à jour dès qu'il est disponible.`);
+    }
+  } else {
+    if (params.transitArrivalDate) lines.push(`Arrivée prévue : ${params.transitArrivalDate}`);
+  }
+
+  lines.push(``, `Cordialement,`, `L’équipe LEBTEX`);
   return lines.join('\n');
 }
 
@@ -117,6 +130,7 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
     oldStatus, newStatus, quantity, unitOfMeasure,
     specs, color, size, estimatedProductionDelay,
     imageUrl, transitArrivalDate, transitDuration,
+    noBL,
     channel: explicitChannel,
   } = params;
 
@@ -156,6 +170,7 @@ export async function sendStatusNotification(params: NotifyParams & { channel?: 
           oldStatus, newStatus, quantity, unitOfMeasure,
           specs, color, size, estimatedProductionDelay,
           imageUrl, transitArrivalDate, transitDuration,
+          noBL: noBL || null,
         }),
       });
       console.log(`[Notification] Email API response: ${res.status}`);

@@ -2724,6 +2724,18 @@ function GroupedArticleList({
                         };
                         const progress = STATUS_PROGRESS[group.key] || 0;
 
+                        // Days in transit (from shippingDate when no BL yet)
+                        const shippingDate = firstArt?.factureShippingDate || null;
+                        const daysInTransit = (() => {
+                          if (!shippingDate || !TRANSIT_STATUSES.has(group.key)) return null;
+                          const dep = new Date(shippingDate);
+                          const now = new Date();
+                          const diff = Math.floor((now.getTime() - dep.getTime()) / (1000 * 60 * 60 * 24));
+                          return diff >= 0 ? diff : null;
+                        })();
+
+                        const isTransitNoBL = TRANSIT_STATUSES.has(group.key) && !bl;
+
                         return (
                           <div key={factureId} className="rounded-xl overflow-hidden border border-stone-200 bg-white shadow-sm">
                             {/* Container header */}
@@ -2752,6 +2764,12 @@ function GroupedArticleList({
                                           </span>
                                         )}
                                       </div>
+                                      {/* BL pending note */}
+                                      {isTransitNoBL && (
+                                        <p className="text-[8px] font-bold text-amber-500 mt-0.5 flex items-center gap-1">
+                                          <span>⏳</span> B/L en attente de dépôt
+                                        </p>
+                                      )}
                                       <p className="text-[9px] font-bold text-stone-400 mt-0.5">{cArticles.length} article{cArticles.length !== 1 ? 's' : ''} dans ce conteneur</p>
                                     </div>
                                   </div>
@@ -2781,7 +2799,15 @@ function GroupedArticleList({
                                         </div>
                                       </div>
                                     )}
-                                    {/* Temu-style countdown badge */}
+                                    {/* Days in transit badge — shown when in transit with no BL or no arrival date */}
+                                    {daysInTransit !== null && !arrDate && (
+                                      <div className="hidden sm:flex flex-col items-center bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl px-3 py-1.5 min-w-[76px]">
+                                        <span className="text-[7px] font-black text-blue-500 uppercase tracking-widest">En mer depuis</span>
+                                        <span className="text-xl font-black text-blue-700 leading-none">{daysInTransit}</span>
+                                        <span className="text-[7px] font-black text-blue-400 uppercase">jour{daysInTransit !== 1 ? 's' : ''}</span>
+                                      </div>
+                                    )}
+                                    {/* Temu-style countdown badge — shown when arrival date known */}
                                     {daysUntil !== null && daysUntil > 0 && (
                                       <div className="hidden sm:flex flex-col items-center bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl px-3 py-1.5">
                                         <span className="text-[7px] font-black text-amber-600 uppercase tracking-widest">Arrivée dans</span>
@@ -2804,6 +2830,13 @@ function GroupedArticleList({
                                     </svg>
                                   </div>
                                 </div>
+
+                                {/* Days in transit — mobile */}
+                                {daysInTransit !== null && !arrDate && (
+                                  <div className="sm:hidden flex items-center gap-2 text-blue-600">
+                                    <span className="text-[9px] font-black uppercase tracking-widest">🌊 En mer depuis <span className="text-blue-700 font-black">{daysInTransit} jour{daysInTransit !== 1 ? 's' : ''}</span></span>
+                                  </div>
+                                )}
 
                                 {/* CBM bar — mobile */}
                                 {totalCbm > 0 && (
