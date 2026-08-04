@@ -2955,10 +2955,10 @@ export function ClientDetailView({
   // This makes the data available to the client portal which can only read articles
   useEffect(() => {
     if (isPortal || !user || !firestore || categories.length === 0 || articles.length === 0) return;
-    const nameLower = (clientName || '').trim().toLowerCase();
+    const nameLower = (clientName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const clientArts = articles.filter(a => {
       if (!a.clientName) return false;
-      const aName = (a.clientName || '').trim().toLowerCase();
+      const aName = (a.clientName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
     });
     clientArts.forEach(a => {
@@ -2987,13 +2987,16 @@ export function ClientDetailView({
   // on ne synchonise que les articles qui n'ont réellement pas encore de données douanières.
   // Le guard `if (a.hsCode !== undefined && a.importDutyRate !== undefined) return;` s'en charge.
   const clientArticles = useMemo(() => {
-    const nameLower = (clientName || '').trim().toLowerCase();
+    const nameLower = (clientName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const todayStr = new Date().toISOString().split('T')[0];
     return articles
       .filter(a => {
-        // Show all articles belonging to this client (isPreorder is not required)
-        const aName = (a.clientName || '').trim().toLowerCase();
-        return aName !== '' && aName === nameLower;
+        // Show all articles belonging to this client — tolerant matching
+        if (!a.clientName) return false;
+        const aName = (a.clientName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (aName === '') return false;
+        // Exact match, or one contains the other (handles partial names, extra spaces, suffixes, etc.)
+        return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
       })
       .map(a => {
         const facture = factures.find((f: any) => f.id === a.factureId);
@@ -3093,6 +3096,27 @@ export function ClientDetailView({
   const inTransitCount = clientArticles.filter(a => ['TRANSIT','SHIPPED','CUSTOMS'].includes(computeEffectiveStatus(a))).length;
   const inProductionCount = clientArticles.filter(a => ['PI','TO_ORDER'].includes(computeEffectiveStatus(a))).length;
 
+  const freightStats = useMemo(() => {
+    let totalEfficiency = 0;
+    let count = 0;
+    
+    // Calculate average freight efficiency ($/m³) for this client's containers
+    const clientNameNorm = (clientName || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    const uniqueFactureIds = new Set(clientArticles.map(a => a.factureId).filter(Boolean));
+    
+    uniqueFactureIds.forEach(fid => {
+      const f = factures.find(fac => fac.id === fid);
+      if (f && f.efficiency && Number(f.efficiency) > 0) {
+        totalEfficiency += Number(f.efficiency);
+        count++;
+      }
+    });
+
+    const averageEfficiency = count > 0 ? totalEfficiency / count : null;
+    return { averageEfficiency };
+  }, [clientArticles, factures, clientName]);
+
   return (
     <div className="space-y-6 fade-in">
       {!isPortal && onBack && (
@@ -3112,6 +3136,45 @@ export function ClientDetailView({
           >
             <Download className="w-3.5 h-3.5" /> Exporter PDF
           </Button>
+        </div>
+      )}
+
+      {/* ── HERO SECTION (Client Portal) ── */}
+      {isPortal && (
+        <div className="relative overflow-hidden rounded-[2rem] bg-stone-900 p-8 shadow-2xl mb-8">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-20 bg-indigo-500 blur-3xl transform translate-x-1/3 -translate-y-1/3"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-20 bg-emerald-500 blur-3xl transform -translate-x-1/3 translate-y-1/3"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 p-1 shadow-lg shadow-indigo-500/30 shrink-0">
+                <div className="w-full h-full bg-stone-900 rounded-full flex items-center justify-center border-2 border-stone-800">
+                  <span className="text-2xl font-black text-white tracking-widest uppercase">
+                    {(clientName || 'C').substring(0, 2)}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <p className="text-indigo-300 font-bold uppercase text-[10px] tracking-widest mb-1">Espace Client Exclusif</p>
+                <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-none mb-2">
+                  {clientName}
+                </h1>
+                <p className="text-stone-400 text-sm font-medium">Suivi de vos commandes en temps réel</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2 bg-stone-800/50 backdrop-blur-md border border-stone-700/50 rounded-2xl p-4 md:text-right">
+              <p className="text-stone-400 font-bold uppercase text-[9px] tracking-widest">Dernière mise à jour</p>
+              <p className="text-emerald-400 font-black text-sm flex items-center md:justify-end gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                À l'instant
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -3182,6 +3245,7 @@ export function ClientDetailView({
 
       <Dialog open={!!selectedArticleId} onOpenChange={(o) => { if (!o) setSelectedArticleId(null); }}>
         <DialogContent className="max-w-md rounded-[2rem] p-0 border-transparent overflow-hidden shadow-2xl bg-stone-50">
+          <DialogTitle className="sr-only">Détails de l'article</DialogTitle>
           {selectedArticle && (() => {
             // Safely parse breakdown data which might be stored as Array or Object in Firestore
             const safeSizeBreakdown = Array.isArray(selectedArticle.sizeBreakdown) 
@@ -3253,6 +3317,72 @@ export function ClientDetailView({
                         <span className="text-sm font-black text-stone-900">{spec.value}</span>
                       </div>
                     ))}
+
+                    {/* Fret indicator (if applicable) */}
+                    {(() => {
+                      if (!selectedArticle.factureId || !freightStats.averageEfficiency) return null;
+                      const fac = factures.find(f => f.id === selectedArticle.factureId);
+                      if (!fac || !fac.efficiency) return null;
+                      
+                      const efficiency = Number(fac.efficiency);
+                      const avg = freightStats.averageEfficiency;
+                      const diffPercent = ((efficiency - avg) / avg) * 100;
+                      
+                      let statusText = "Normal";
+                      let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                      let textColor = "text-emerald-600";
+                      let icon = "✅";
+                      
+                      if (diffPercent > 20) {
+                        statusText = "Élevé";
+                        badgeColor = "bg-red-50 text-red-700 border-red-200";
+                        textColor = "text-red-600";
+                        icon = "⚠️";
+                      } else if (diffPercent > 5) {
+                        statusText = "Légèrement élevé";
+                        badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
+                        textColor = "text-amber-600";
+                        icon = "📈";
+                      } else if (diffPercent < -15) {
+                        statusText = "Très bon";
+                        badgeColor = "bg-blue-50 text-blue-700 border-blue-200";
+                        textColor = "text-blue-600";
+                        icon = "📉";
+                      }
+
+                      return (
+                        <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 col-span-2 flex flex-col items-center text-center">
+                          <div className="flex items-center justify-between w-full mb-2">
+                            <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                              <Ship className="w-2.5 h-2.5" /> Fret Maritime (Dossier)
+                            </span>
+                            <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest border ${badgeColor}`}>
+                              {icon} {statusText}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-end gap-3 w-full">
+                            <div className="flex-1 text-left">
+                              <span className="text-xl font-black text-stone-900">{efficiency.toFixed(0)}$<span className="text-[10px] text-stone-400 ml-0.5">/m³</span></span>
+                            </div>
+                            <div className="flex-1 text-right border-l border-stone-100 pl-3">
+                              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest block mb-0.5">Moyenne Globale</span>
+                              <span className="text-sm font-black text-stone-600">{avg.toFixed(0)}$<span className="text-[9px] text-stone-400 ml-0.5">/m³</span></span>
+                            </div>
+                          </div>
+                          
+                          <div className="w-full bg-stone-100 rounded-full h-1.5 mt-3 overflow-hidden">
+                            <div 
+                              className={`h-full ${diffPercent > 20 ? 'bg-red-500' : diffPercent > 5 ? 'bg-amber-500' : 'bg-emerald-500'} rounded-full`} 
+                              style={{ width: `${Math.min(100, Math.max(10, 50 + (diffPercent / 2)))}%` }}
+                            />
+                          </div>
+                          <p className={`text-[8px] font-bold uppercase tracking-widest mt-1.5 ${textColor}`}>
+                            {diffPercent > 0 ? '+' : ''}{diffPercent.toFixed(1)}% vs Moyenne
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                     {/* Taille — compact badges if sizeBreakdown */}
                     <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">

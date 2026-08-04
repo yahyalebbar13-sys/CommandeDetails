@@ -35,6 +35,13 @@ export default function ClientPortalPage() {
   const [dataError, setDataError] = useState(false);
   const [showNewFeature, setShowNewFeature] = useState(true);
 
+  // PWA states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const prevArticlesRef = useRef<any[]>([]);
+
   const authRef = useRef<ReturnType<typeof getAuth> | null>(null);
   const dbRef = useRef<ReturnType<typeof getFirestore> | null>(null);
 
@@ -66,6 +73,31 @@ export default function ClientPortalPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      setIsIOS(ios);
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+      setIsStandalone(standalone);
+
+      if (ios && !standalone) {
+        setShowInstallBanner(true);
+      }
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+        setShowInstallBanner(true);
+      });
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/client-sw.js')
+          .then(reg => console.log('Client SW registered'))
+          .catch(err => console.error('SW init error', err));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (state.status !== 'portal' || !dbRef.current) return;
     const { adminUid } = state as { status: 'portal'; clientName: string; adminUid: string };
     const db = dbRef.current;
@@ -82,7 +114,32 @@ export default function ClientPortalPage() {
 
     const unsubArt = onSnapshot(
       collection(db, 'users', adminUid, 'articles'),
-      (snap) => { setArticles(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))); artLoaded = true; checkDone(); },
+      (snap) => { 
+        const newArticles = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        
+        // Notifications push
+        if (artLoaded && 'serviceWorker' in navigator && Notification.permission === 'granted') {
+          newArticles.forEach(na => {
+            const oa = prevArticlesRef.current.find(a => a.id === na.id);
+            if (oa && oa.status !== na.status) {
+              navigator.serviceWorker.ready.then(reg => {
+                reg.active?.postMessage({
+                  type: 'SHOW_NOTIFICATION',
+                  payload: {
+                    title: `Mise à jour : ${na.name || na.categoryId || 'Commande'}`,
+                    body: `Le statut est passé à : ${na.status}`,
+                  }
+                });
+              });
+            }
+          });
+        }
+        
+        prevArticlesRef.current = newArticles;
+        setArticles(newArticles); 
+        artLoaded = true; 
+        checkDone(); 
+      },
       () => { setDataLoading(false); setDataError(true); }
     );
     const unsubFac = onSnapshot(
@@ -114,6 +171,30 @@ export default function ClientPortalPage() {
   };
 
   const handleLogout = () => { if (authRef.current) signOut(authRef.current); };
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setShowInstallBanner(false);
+      }
+      setDeferredPrompt(null);
+    }
+  };
+
+  const requestNotificationPermission = () => {
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  };
+
+  // Request notification permission once portal is loaded
+  useEffect(() => {
+    if (state.status === 'portal' && isStandalone) {
+      requestNotificationPermission();
+    }
+  }, [state.status, isStandalone]);
 
   // ── LOADING ────────────────────────────────────────────────────────────────
   if (state.status === 'loading' || state.status === 'checking') {
@@ -378,6 +459,43 @@ export default function ClientPortalPage() {
           </div>
         </div>
       </div>
+
+      {/* ── INSTALL APP BANNER ─────────────────────────────── */}
+      {showInstallBanner && !isStandalone && (
+        <div className="bg-emerald-600 border-b border-emerald-700 p-3 sm:p-4 text-white">
+          <div className="max-w-[1400px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-emerald-100" />
+              </div>
+              <div>
+                <p className="font-bold text-sm">Installez l'application LEBTEX</p>
+                <p className="text-xs text-emerald-100 mt-0.5">
+                  {isIOS 
+                    ? "Appuyez sur 'Partager' puis 'Sur l'écran d'accueil' pour recevoir les notifications de vos commandes."
+                    : "Accédez rapidement à vos commandes et recevez des notifications push en direct."}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {!isIOS && (
+                <button
+                  onClick={handleInstallClick}
+                  className="flex-1 sm:flex-none bg-white text-emerald-700 hover:bg-emerald-50 font-black text-xs uppercase px-5 py-2.5 rounded-lg transition-colors shadow-sm"
+                >
+                  Installer
+                </button>
+              )}
+              <button
+                onClick={() => setShowInstallBanner(false)}
+                className="p-2.5 rounded-lg hover:bg-emerald-700/50 transition-colors"
+              >
+                <X className="w-4 h-4 text-emerald-200" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── TRANSIT NOTIFICATION BANNER ─────────────────────────────── */}
       {showNewFeature && transitContainers.length > 0 && (

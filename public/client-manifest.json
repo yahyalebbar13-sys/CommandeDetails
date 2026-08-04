@@ -1,0 +1,26 @@
+{
+  "name": "LEBTEX Client",
+  "short_name": "LEBTEX",
+  "description": "Portail client exclusif LEBTEX pour le suivi des précommandes",
+  "start_url": "/client",
+  "scope": "/client",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/y-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/y-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

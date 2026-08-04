@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
-import { doc, serverTimestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { sendStatusNotification } from '@/lib/send-status-notification';
@@ -73,6 +73,20 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     let notificationColor = order.color;
     let notificationColorBreakdown = order.colorBreakdown;
 
+    // Chercher si l'article existe déjà dans ce conteneur pour les fusionner
+    const articlesRef = collection(firestore, 'users', user.uid, 'articles');
+    const q = query(articlesRef, where('factureId', '==', formData.factureId));
+    const snap = await getDocs(q);
+    const existingArticlesInFacture = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const originalOrderId = order.originalOrderId || order.id;
+
+    const existingMergeTarget = existingArticlesInFacture.find((a: any) => 
+      (a.originalOrderId === originalOrderId) || 
+      (a.id === originalOrderId) || 
+      (a.name === order.name && a.categoryId === order.categoryId && a.clientName === order.clientName && a.supplierId === order.supplierId)
+    );
+
     if (splitMode) {
       //  LOGIQUE DE FRACTIONNEMENT 
       if (hasBreakdown) {
@@ -119,24 +133,51 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         notificationColor = splitRows.length === 1 ? splitRows[0].colorCode : 'various';
         notificationColorBreakdown = splitRows.length > 1 ? splitRows : null;
 
-        // Nouvel article (partie en transit)
-        const newId = crypto.randomUUID();
-        const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
-        setDocumentNonBlocking(newRef, {
-          ...order,
-          id: newId,
-          factureId: formData.factureId,
-          status: 'SHIPPED',
-          arrivalDate: formData.arrivalDate,
-          validatedAt: serverTimestamp(),
-          quantity: splitTotal,
-          color: notificationColor,
-          colorBreakdown: notificationColorBreakdown,
-        }, { merge: true });
+        // Fusion ou Nouvel article (partie en transit)
+        if (existingMergeTarget) {
+          let mergedBreakdown = existingMergeTarget.colorBreakdown || [];
+          if (!Array.isArray(mergedBreakdown)) mergedBreakdown = [];
+          
+          const newBreakdown = [...mergedBreakdown];
+          for (const row of splitRows) {
+            const existingRowIndex = newBreakdown.findIndex((r: any) => r.colorCode === row.colorCode);
+            if (existingRowIndex >= 0) {
+              newBreakdown[existingRowIndex] = {
+                ...newBreakdown[existingRowIndex],
+                rolls: Number(newBreakdown[existingRowIndex].rolls || 0) + Number(row.rolls || 0)
+              };
+            } else {
+              newBreakdown.push({ ...row });
+            }
+          }
+
+          const existingRef = doc(firestore, 'users', user.uid, 'articles', existingMergeTarget.id);
+          updateDocumentNonBlocking(existingRef, {
+            quantity: Number(existingMergeTarget.quantity || 0) + splitTotal,
+            colorBreakdown: newBreakdown.length > 1 ? newBreakdown : null,
+            color: newBreakdown.length === 1 ? newBreakdown[0].colorCode : 'various'
+          });
+        } else {
+          const newId = crypto.randomUUID();
+          const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+          setDocumentNonBlocking(newRef, {
+            ...order,
+            id: newId,
+            originalOrderId: originalOrderId,
+            factureId: formData.factureId,
+            status: 'SHIPPED',
+            arrivalDate: formData.arrivalDate,
+            validatedAt: serverTimestamp(),
+            quantity: splitTotal,
+            color: notificationColor,
+            colorBreakdown: notificationColorBreakdown,
+          }, { merge: true });
+        }
 
         // Original rduit (reste en PI, sans facture)
         updateDocumentNonBlocking(docRef, {
           quantity: remainTotal,
+          originalOrderId: originalOrderId,
           color: remainRows.length === 1 ? remainRows[0].colorCode : 'various',
           colorBreakdown: remainRows.length > 1 ? remainRows : null,
         });
@@ -152,22 +193,30 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
 
         notificationQuantity = qty;
 
-        // Nouvel article
-        const newId = crypto.randomUUID();
-        const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
-        setDocumentNonBlocking(newRef, {
-          ...order,
-          id: newId,
-          factureId: formData.factureId,
-          status: 'SHIPPED',
-          arrivalDate: formData.arrivalDate,
-          validatedAt: serverTimestamp(),
-          quantity: qty,
-          colorBreakdown: null,
-        }, { merge: true });
+        // Fusion ou Nouvel article
+        if (existingMergeTarget) {
+          const existingRef = doc(firestore, 'users', user.uid, 'articles', existingMergeTarget.id);
+          updateDocumentNonBlocking(existingRef, {
+            quantity: Number(existingMergeTarget.quantity || 0) + qty,
+          });
+        } else {
+          const newId = crypto.randomUUID();
+          const newRef = doc(firestore, 'users', user.uid, 'articles', newId);
+          setDocumentNonBlocking(newRef, {
+            ...order,
+            id: newId,
+            originalOrderId: originalOrderId,
+            factureId: formData.factureId,
+            status: 'SHIPPED',
+            arrivalDate: formData.arrivalDate,
+            validatedAt: serverTimestamp(),
+            quantity: qty,
+            colorBreakdown: null,
+          }, { merge: true });
+        }
 
         // Original rduit
-        updateDocumentNonBlocking(docRef, { quantity: origQty - qty });
+        updateDocumentNonBlocking(docRef, { quantity: origQty - qty, originalOrderId: originalOrderId });
       }
     } else {
       //  NORMAL (Toute la commande) 
@@ -367,35 +416,71 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          {/* Conteneurs récents — clic rapide */}
+          {factures.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Ajouter à un conteneur existant</Label>
+              <div className="space-y-1.5">
+                {[...factures]
+                  .sort((a, b) => (b.createdAt || b.shippingDate || '').localeCompare(a.createdAt || a.shippingDate || ''))
+                  .slice(0, 5)
+                  .map(f => {
+                    const isSelected = formData.factureId === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => {
+                          setFormData({ factureId: f.id, arrivalDate: f.arrivalDate || '' });
+                          setAutofillVisible(true);
+                          setTimeout(() => setAutofillVisible(false), 2000);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-all text-left ${
+                          isSelected
+                            ? 'bg-blue-50 border-blue-400 shadow-sm'
+                            : 'bg-stone-50 border-stone-200 hover:bg-blue-50 hover:border-blue-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Ship className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-blue-500' : 'text-stone-400'}`} />
+                          <div className="min-w-0">
+                            <p className={`text-[11px] font-black uppercase tracking-tight truncate ${isSelected ? 'text-blue-700' : 'text-stone-700'}`}>{f.id}</p>
+                            <p className="text-[9px] font-bold text-stone-400">{f.arrivalDate || 'Date non definie'}</p>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
-            <Label className="font-bold text-stone-800">N de Facture / Conteneur</Label>
+            <Label className="font-bold text-stone-800">Ou saisir un nouveau N° de Facture / Conteneur</Label>
             <div className="relative">
               <Input 
                 value={formData.factureId}
                 onChange={handleFactureInput}
-                list="val-factures-suggestions"
                 required 
-                autoFocus
+                autoFocus={factures.length === 0}
                 className="uppercase font-bold border-blue-200 focus:ring-blue-500" 
                 placeholder="Ex: 26HD1004"
               />
-              <datalist id="val-factures-suggestions">
-                {factures.map(f => (
-                  <option key={f.id} value={f.id}>{f.arrivalDate}</option>
-                ))}
-              </datalist>
             </div>
             {autofillVisible && (
               <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 mt-2 animate-pulse">
                 <CheckCircle2 className="w-3 h-3" />
-                Date rcupre de la facture !
+                Date recupérée du conteneur !
               </div>
             )}
           </div>
 
           <div className="space-y-1">
             <Label className="text-blue-700 font-bold flex items-center gap-1">
-              <CalendarDays className="w-4 h-4" /> Date d'Arrive prvue
+              <CalendarDays className="w-4 h-4" /> Date d'Arrivée prévue
             </Label>
             <Input 
               type="date"
