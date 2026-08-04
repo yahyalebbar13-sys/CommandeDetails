@@ -198,6 +198,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         const diMad = valeurDouaneMad * di, tpiMad = valeurDouaneMad * tpi, ticMad = valeurDouaneMad * tic;
         const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
         const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
+      const valAchatMad = qty * prix * tc;
       const coutTotalMad = hasCustData ? (valAchatMad + fraisCmd + totalTaxesMad) : 0;
       const coutUniteMad = (hasCustData && qty > 0) ? coutTotalMad / qty : 0;
       
