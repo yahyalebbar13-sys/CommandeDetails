@@ -102,10 +102,14 @@ export const SKIN_ROUTINE_ITEMS = [
   { id: 'cleanser_am', label: 'Nettoyant (Matin)', emoji: '🧼', time: 'am' },
   { id: 'niacinamide', label: 'Niacinamide 5%', emoji: '💧', time: 'am' },
   { id: 'spf', label: 'SPF 50', emoji: '☀️', time: 'am' },
+  { id: 'teeth_am', label: 'Brossage Dents (Matin)', emoji: '🪥', time: 'am' },
+  
   { id: 'cleanser_pm', label: 'Nettoyant (Soir)', emoji: '🧼', time: 'pm' },
   { id: 'azelaic', label: 'Acide Azélaïque', emoji: '🧪', time: 'pm' },
   { id: 'adapalene', label: 'Adapalène', emoji: '💊', time: 'pm' },
   { id: 'moisturizer', label: 'Crème Hydratante', emoji: '🧴', time: 'pm' },
+  { id: 'teeth_pm', label: 'Brossage Dents (Soir)', emoji: '🪥', time: 'pm' },
+  { id: 'strips', label: 'Strips Blanchiment', emoji: '🦷', time: 'pm' },
 ];
 
 export const SKIN_RATINGS = [

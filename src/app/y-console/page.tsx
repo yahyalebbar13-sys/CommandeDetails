@@ -235,6 +235,7 @@ const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
   const currentSkinItems = SKIN_ROUTINE_ITEMS.filter(item => {
     if (item.id === 'azelaic') return isDayA;
     if (item.id === 'adapalene') return !isDayA;
+    if (item.id === 'strips') return isDayA;
     return true;
   });
 
@@ -1294,6 +1295,7 @@ export default function YConsolePage() {
     const currentRoutineItems = SKIN_ROUTINE_ITEMS.filter(item => {
       if (item.id === 'azelaic') return isDayA;
       if (item.id === 'adapalene') return !isDayA;
+      if (item.id === 'strips') return isDayA;
       return true;
     });
 
