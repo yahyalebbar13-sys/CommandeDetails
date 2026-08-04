@@ -48,6 +48,7 @@ import {
   Star,
   Activity,
   Bookmark,
+  Pencil,
 } from "lucide-react";
 import {
   type DailyEntry,
@@ -602,6 +603,35 @@ export default function YConsolePage() {
     }));
   }, []);
 
+  const [mealForm, setMealForm] = useState({
+    name: "",
+    prot: "",
+    carbs: "",
+    fats: "",
+    kcal: "",
+    saveAsTemplate: false,
+  });
+
+  const removeMeal = useCallback((idx: number) => {
+    updateToday((e) => ({
+      ...e,
+      meals: (e.meals || []).filter((_, i) => i !== idx),
+    }));
+  }, [updateToday]);
+
+  const editMeal = useCallback((idx: number, m: any) => {
+    setMealForm({
+      name: m.name,
+      prot: m.proteins ? String(m.proteins) : "",
+      carbs: m.carbs ? String(m.carbs) : "",
+      fats: m.fats ? String(m.fats) : "",
+      kcal: m.kcal ? String(m.kcal) : "",
+      saveAsTemplate: false,
+    });
+    removeMeal(idx);
+    setTab("nutrition");
+  }, [removeMeal]);
+
   // Computed values
   const totalProtein = (todayEntry.meals || []).reduce((s, m) => s + (m.proteins || 0), 0);
   const totalCarbs = (todayEntry.meals || []).reduce((s, m) => s + (m.carbs || 0), 0);
@@ -754,6 +784,12 @@ export default function YConsolePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-white/70 text-xs">{m.time}</span>
+                      <button onClick={() => editMeal(i, m)} className="text-white/40 hover:text-cyan-400 transition-colors">
+                        <Pencil size={12} />
+                      </button>
+                      <button onClick={() => removeMeal(i)} className="text-white/40 hover:text-red-400 transition-colors">
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </div>
                   <div className="flex gap-3 mt-1 text-xs text-white/50">
@@ -828,19 +864,12 @@ export default function YConsolePage() {
 
   // ─── NUTRITION TAB ──────────────────────────────────────────────
   const NutritionView = () => {
-    const [mealName, setMealName] = useState("");
-    const [mealProt, setMealProt] = useState("");
-    const [mealCarbs, setMealCarbs] = useState("");
-    const [mealFats, setMealFats] = useState("");
-    const [mealKcal, setMealKcal] = useState("");
-    const [saveAsTemplate, setSaveAsTemplate] = useState(false);
-
     const addMeal = () => {
-      if (!mealName) return;
-      const prot = parseInt(mealProt) || 0;
-      const carbs = parseInt(mealCarbs) || 0;
-      const fats = parseInt(mealFats) || 0;
-      const kcal = parseInt(mealKcal) || 0;
+      if (!mealForm.name) return;
+      const prot = parseInt(mealForm.prot) || 0;
+      const carbs = parseInt(mealForm.carbs) || 0;
+      const fats = parseInt(mealForm.fats) || 0;
+      const kcal = parseInt(mealForm.kcal) || 0;
 
       updateToday((e) => ({
         ...e,
@@ -848,7 +877,7 @@ export default function YConsolePage() {
           ...(e.meals || []),
           {
             id: "meal-" + Date.now(),
-            name: mealName,
+            name: mealForm.name,
             proteins: prot,
             carbs,
             fats,
@@ -858,14 +887,14 @@ export default function YConsolePage() {
         ],
       }));
       
-      if (saveAsTemplate) {
+      if (mealForm.saveAsTemplate) {
         setData(prev => ({
           ...prev,
           savedMeals: [
             ...(prev.savedMeals || []),
             {
               id: "template-" + Date.now(),
-              name: mealName,
+              name: mealForm.name,
               proteins: prot,
               carbs,
               fats,
@@ -876,20 +905,18 @@ export default function YConsolePage() {
         }));
       }
 
-      setMealName("");
-      setMealProt("");
-      setMealCarbs("");
-      setMealFats("");
-      setMealKcal("");
-      setSaveAsTemplate(false);
+      setMealForm({ name: "", prot: "", carbs: "", fats: "", kcal: "", saveAsTemplate: false });
     };
 
     const loadTemplate = (t: Meal) => {
-      setMealName(t.name);
-      setMealProt(t.proteins ? String(t.proteins) : "");
-      setMealCarbs(t.carbs ? String(t.carbs) : "");
-      setMealFats(t.fats ? String(t.fats) : "");
-      setMealKcal(t.kcal ? String(t.kcal) : "");
+      setMealForm({
+        name: t.name,
+        prot: t.proteins ? String(t.proteins) : "",
+        carbs: t.carbs ? String(t.carbs) : "",
+        fats: t.fats ? String(t.fats) : "",
+        kcal: t.kcal ? String(t.kcal) : "",
+        saveAsTemplate: false,
+      });
     };
     
     const removeTemplate = (id: string, e: React.MouseEvent) => {
@@ -897,13 +924,6 @@ export default function YConsolePage() {
       setData(prev => ({
         ...prev,
         savedMeals: (prev.savedMeals || []).filter(m => m.id !== id)
-      }));
-    };
-
-    const removeMeal = (idx: number) => {
-      updateToday((e) => ({
-        ...e,
-        meals: (e.meals || []).filter((_, i) => i !== idx),
       }));
     };
 
@@ -977,8 +997,8 @@ export default function YConsolePage() {
             <input
               type="text"
               placeholder="Nom du repas (ex: Déjeuner)"
-              value={mealName}
-              onChange={(e) => setMealName(e.target.value)}
+              value={mealForm.name}
+              onChange={(e) => setMealForm(p => ({ ...p, name: e.target.value }))}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 outline-none focus:border-cyan-500/50"
             />
 
@@ -988,8 +1008,8 @@ export default function YConsolePage() {
                 <input
                   type="number"
                   placeholder="0"
-                  value={mealKcal}
-                  onChange={(e) => setMealKcal(e.target.value)}
+                  value={mealForm.kcal}
+                  onChange={(e) => setMealForm(p => ({ ...p, kcal: e.target.value }))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
@@ -998,8 +1018,8 @@ export default function YConsolePage() {
                 <input
                   type="number"
                   placeholder="0"
-                  value={mealProt}
-                  onChange={(e) => setMealProt(e.target.value)}
+                  value={mealForm.prot}
+                  onChange={(e) => setMealForm(p => ({ ...p, prot: e.target.value }))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
@@ -1008,8 +1028,8 @@ export default function YConsolePage() {
                 <input
                   type="number"
                   placeholder="0"
-                  value={mealCarbs}
-                  onChange={(e) => setMealCarbs(e.target.value)}
+                  value={mealForm.carbs}
+                  onChange={(e) => setMealForm(p => ({ ...p, carbs: e.target.value }))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
@@ -1018,8 +1038,8 @@ export default function YConsolePage() {
                 <input
                   type="number"
                   placeholder="0"
-                  value={mealFats}
-                  onChange={(e) => setMealFats(e.target.value)}
+                  value={mealForm.fats}
+                  onChange={(e) => setMealForm(p => ({ ...p, fats: e.target.value }))}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
@@ -1028,8 +1048,8 @@ export default function YConsolePage() {
             <div className="flex flex-col gap-3 pt-2">
               <div className="flex items-center justify-end">
                 <button
-                  onClick={() => setSaveAsTemplate(!saveAsTemplate)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${saveAsTemplate ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-white/50 border border-transparent"}`}
+                  onClick={() => setMealForm(p => ({ ...p, saveAsTemplate: !p.saveAsTemplate }))}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${mealForm.saveAsTemplate ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-white/50 border border-transparent"}`}
                 >
                   <Bookmark size={14} /> Mémoriser
                 </button>
@@ -1037,7 +1057,7 @@ export default function YConsolePage() {
 
               <button
                 onClick={addMeal}
-                disabled={!mealName}
+                disabled={!mealForm.name}
                 className="w-full py-3 bg-cyan-500 disabled:opacity-50 rounded-xl text-white font-medium text-sm active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
               >
                 <Plus size={16} /> Ajouter le repas
