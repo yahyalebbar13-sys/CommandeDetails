@@ -1,5 +1,5 @@
 // ─── YTracker Service Worker ─────────────────────────────────────
-const CACHE_NAME = 'y-console-v1';
+const CACHE_NAME = 'y-console-v2';
 const ASSETS_TO_CACHE = [
   '/y-console',
   '/y-manifest.json',
