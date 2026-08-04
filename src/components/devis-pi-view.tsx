@@ -36,6 +36,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [isConfirming, setIsConfirming] = useState(false);
   const [remiseGlobale, setRemiseGlobale] = useState('0');
   const [remiseParArticle, setRemiseParArticle] = useState<Record<string, string>>({});
+  const [prixVenteSaisiParArticle, setPrixVenteSaisiParArticle] = useState<Record<string, string>>({});
   const [allOverrides, setAllOverrides] = useState<Record<string, any>>({});
   const [confirmedArticlesMap, setConfirmedArticlesMap] = useState<Record<string, any>>({});
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -197,19 +198,29 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         const diMad = valeurDouaneMad * di, tpiMad = valeurDouaneMad * tpi, ticMad = valeurDouaneMad * tic;
         const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
         const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
-        const valAchatMad = qty * prix * tc;
-        const coutTotalMad = hasCustData ? (valAchatMad + fraisCmd + totalTaxesMad) : 0;
-        const coutUniteMad = (hasCustData && qty > 0) ? coutTotalMad / qty : 0;
-        const marge = Number(margePercent) || 0;
-        const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
-        const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
-        const artRemise = remiseParArticle[article.id] !== undefined ? Number(remiseParArticle[article.id]) : Number(remiseGlobale) || 0;
-        const prixRemiseUniteMad = prixVenteUniteMad * (1 - artRemise / 100);
-        const prixRemiseTotalMad = prixVenteTotalMad * (1 - artRemise / 100);
+      const coutTotalMad = hasCustData ? (valAchatMad + fraisCmd + totalTaxesMad) : 0;
+      const coutUniteMad = (hasCustData && qty > 0) ? coutTotalMad / qty : 0;
+      
+      const margeGlobale = Number(margePercent) || 0;
+      const manualPv = prixVenteSaisiParArticle[article.id];
+      let prixVenteUniteMad = 0;
+      let usedMarge = margeGlobale;
+      
+      if (manualPv !== undefined && manualPv !== '') {
+        prixVenteUniteMad = Number(manualPv);
+        if (coutUniteMad > 0) usedMarge = ((prixVenteUniteMad / coutUniteMad) - 1) * 100;
+      } else {
+        prixVenteUniteMad = coutUniteMad * (1 + margeGlobale / 100);
+      }
+      
+      const prixVenteTotalMad = prixVenteUniteMad * qty;
+      const artRemise = remiseParArticle[article.id] !== undefined ? Number(remiseParArticle[article.id]) : Number(remiseGlobale) || 0;
+      const prixRemiseUniteMad = prixVenteUniteMad * (1 - artRemise / 100);
+      const prixRemiseTotalMad = prixVenteTotalMad * (1 - artRemise / 100);
 
-        return { article, computed: { qty, prix, cbm, cbmTotal, fretTotal$, fraisCmd, valAchatMad, totalTaxesMad, coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad, fraisTransitMad, fraisChangeMad, fraisSuppMad, remise: artRemise, prixRemiseUniteMad, prixRemiseTotalMad, isEstimated: !linkedFac, hasCustData: true } };
+      return { article, computed: { qty, prix, cbm, cbmTotal, fretTotal$, fraisCmd, valAchatMad, totalTaxesMad, coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad, fraisTransitMad, fraisChangeMad, fraisSuppMad, remise: artRemise, prixRemiseUniteMad, prixRemiseTotalMad, isEstimated: !linkedFac, hasCustData: true, usedMarge } };
     }).filter(Boolean);
-  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, allOverrides, articles, factures, categories, avgFreightPerCbm]);
+  }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, prixVenteSaisiParArticle, allOverrides, articles, factures, categories, avgFreightPerCbm]);
 
   const totalCoutTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.coutTotalMad || 0), 0);
   const totalNetMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixRemiseTotalMad || 0), 0);
@@ -236,7 +247,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       
       updates.set(articleId, {
         devisTauxChange: Number(tauxChange),
-        devisMargePercent: Number(margePercent),
+        devisMargePercent: c.computed.usedMarge,
         devisRemisePercent: c.computed.remise,
         devisPrixVenteTotalMad: c.computed.prixRemiseTotalMad,
         devisCoutTotalMad: c.computed.coutTotalMad,
@@ -461,18 +472,37 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                         </div>
                         <div className="text-right shrink-0">
                           {computed ? (
-                            <>
-                              {computed.computed.remise > 0 ? (
-                                <>
-                                  <p className="text-[8px] line-through text-stone-400">{fmtMAD(computed.computed.prixVenteUniteMad)}</p>
+                            <div className="flex flex-col items-end gap-1">
+                              <p className="text-[9px] font-black text-stone-500 uppercase">Revient: {fmtMAD(computed.computed.coutUniteMad)} MAD</p>
+                              
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[9px] font-black text-stone-400 uppercase">P.V:</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  onClick={e => e.stopPropagation()}
+                                  value={prixVenteSaisiParArticle[a.id] !== undefined ? prixVenteSaisiParArticle[a.id] : ''}
+                                  placeholder={fmtMAD(computed.computed.prixVenteUniteMad)}
+                                  onChange={e => {
+                                    setPrixVenteSaisiParArticle(prev => ({ ...prev, [a.id]: e.target.value }));
+                                  }}
+                                  className={`w-20 h-7 border rounded-md px-1.5 font-black text-xs text-right focus:outline-none transition-colors ${
+                                    prixVenteSaisiParArticle[a.id] ? 'bg-amber-100 border-amber-300 text-amber-700 focus:border-amber-500' : 'bg-stone-50 border-stone-200 text-stone-700 focus:border-amber-400'
+                                  }`}
+                                />
+                              </div>
+
+                              {computed.computed.remise > 0 && (
+                                <div className="flex items-center gap-1 justify-end mt-0.5">
                                   <p className="text-sm font-black text-rose-500">{fmtMAD(computed.computed.prixRemiseUniteMad)}</p>
                                   <p className="text-[8px] text-rose-400 font-bold">-{computed.computed.remise}%</p>
-                                </>
-                              ) : (
-                                <p className="text-sm font-black text-amber-600">{fmtMAD(computed.computed.prixVenteUniteMad)}</p>
+                                </div>
                               )}
-                              <p className="text-[8px] text-stone-400 font-bold">MAD/u</p>
-                            </>
+                              
+                              {prixVenteSaisiParArticle[a.id] && (
+                                <p className="text-[8px] text-amber-600 font-bold">Marge: {computed.computed.usedMarge.toFixed(1)}%</p>
+                              )}
+                            </div>
                           ) : a.devisPrixVenteUniteMad ? (
                             <>
                               <p className="text-sm font-black text-emerald-600">{fmtMAD(a.devisPrixVenteUniteMad)}</p>
