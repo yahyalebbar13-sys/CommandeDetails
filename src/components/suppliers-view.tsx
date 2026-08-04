@@ -2663,8 +2663,8 @@ function GroupedArticleList({
           }
         });
         const containerEntries = Array.from(containerMap.entries());
-        // Show containers when there are at least 1 container with 2+ articles, or multiple containers
-        const shouldShowContainers = containerEntries.length > 1 || containerEntries.some(([, arts]) => arts.length > 1);
+        // Show containers if any article is linked to a facture (container)
+        const shouldShowContainers = containerEntries.length > 0;
 
         return (
           <div key={group.key} className="rounded-2xl overflow-hidden shadow-sm border border-white/60">
