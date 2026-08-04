@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { FileDown, ReceiptText, Calculator, Search, Package, CheckSquare, Square, Lock, AlertTriangle, X, Percent, Tag, History, Clock } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { FileDown, ReceiptText, Calculator, Search, CheckSquare, Square, Lock, AlertTriangle, X, Percent, Tag, History, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, getDoc } from 'firebase/firestore';
@@ -37,10 +37,10 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const [remiseGlobale, setRemiseGlobale] = useState('0');
   const [remiseParArticle, setRemiseParArticle] = useState<Record<string, string>>({});
   const [allOverrides, setAllOverrides] = useState<Record<string, any>>({});
-  // Map of originalArticleId -> existing confirmed devis data (for history/warning)
   const [confirmedArticlesMap, setConfirmedArticlesMap] = useState<Record<string, any>>({});
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [showParams, setShowParams] = useState(false);
 
-  // Load all dp_declarations overrides so we perfectly match cost-analysis-view
   useEffect(() => {
     if (!user || !firestore) return;
     getDocs(collection(firestore, 'users', user.uid, 'dp_declarations'))
@@ -48,16 +48,13 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         const globalOverrides: Record<string, any> = {};
         snap.forEach(docSnap => {
           const data = docSnap.data();
-          if (data.overrides) {
-            Object.assign(globalOverrides, data.overrides);
-          }
+          if (data.overrides) Object.assign(globalOverrides, data.overrides);
         });
         setAllOverrides(globalOverrides);
       })
       .catch(err => console.error('Error loading overrides', err));
   }, [user, firestore]);
 
-  // Load existing confirmed devis data for selected articles (to detect re-confirmation)
   useEffect(() => {
     if (!user || !firestore || selectedArticleIds.size === 0) return;
     const ids = Array.from(selectedArticleIds);
@@ -70,15 +67,12 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     ).then(results => {
       const map: Record<string, any> = {};
       results.forEach((r: any) => {
-        if (r && r.data.devisConfirmed && r.data.devisPrixVenteUniteMad) {
-          map[r.id] = r.data;
-        }
+        if (r && r.data.devisConfirmed && r.data.devisPrixVenteUniteMad) map[r.id] = r.data;
       });
       setConfirmedArticlesMap(map);
     }).catch(() => {});
   }, [user, firestore, selectedArticleIds, articles]);
 
-  // All articles with a clientName assigned — all statuses (PI, SHIPPED, DELIVERED, STOCK, TRANSIT, etc.)
   const piArticles = useMemo(() =>
     articles.filter(a => a.clientName && a.clientName.trim() !== '')
       .filter(a => {
@@ -92,6 +86,17 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       .sort((a, b) => (a.clientName || '').localeCompare(b.clientName || '') || (a.categoryId || '').localeCompare(b.categoryId || ''))
   , [articles, search]);
 
+  // Group by client
+  const groupedByClient = useMemo(() => {
+    const map = new Map<string, any[]>();
+    piArticles.forEach(a => {
+      const client = a.clientName || 'Sans client';
+      if (!map.has(client)) map.set(client, []);
+      map.get(client)!.push(a);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [piArticles]);
+
   const toggleSelection = (id: string) => {
     setSelectedArticleIds(prev => {
       const next = new Set(prev);
@@ -100,12 +105,22 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     });
   };
 
-  const toggleSelectAll = () => {
-    if (selectedArticleIds.size === piArticles.length && piArticles.length > 0) {
-      setSelectedArticleIds(new Set());
-    } else {
-      setSelectedArticleIds(new Set(piArticles.map(a => a.id)));
-    }
+  const toggleClientSelection = (clientArticles: any[]) => {
+    const allSelected = clientArticles.every(a => selectedArticleIds.has(a.id));
+    setSelectedArticleIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) clientArticles.forEach(a => next.delete(a.id));
+      else clientArticles.forEach(a => next.add(a.id));
+      return next;
+    });
+  };
+
+  const toggleClient = (client: string) => {
+    setExpandedClients(prev => {
+      const next = new Set(prev);
+      if (next.has(client)) next.delete(client); else next.add(client);
+      return next;
+    });
   };
 
   const avgFreightPerCbm = useMemo(() => {
@@ -122,7 +137,6 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     return total / validFactures.length;
   }, [factures, articles]);
 
-  // Compute cost for selected articles
   const computedArray = useMemo(() => {
     const globalTc = Number(tauxChange) || DEFAULT_TAUX;
     const globalFraisTransitMad = Number(fraisTransit) || 0;
@@ -136,7 +150,6 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
       const cb = Array.isArray(parentArticle.colorBreakdown) ? parentArticle.colorBreakdown : [];
       const sb = Array.isArray(parentArticle.sizeBreakdown) ? parentArticle.sizeBreakdown : [];
       const parentQty = Number(parentArticle.quantity) || 1;
-
       let variants: any[] = [];
 
       if (cb.length > 0) {
@@ -149,17 +162,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         groups.forEach((rows, p) => {
           const groupQty = rows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
           const ratio = groupQty / parentQty;
-          variants.push({
-            ...parentArticle,
-            id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id,
-            originalId: parentArticle.id,
-            purchasePricePerUnit: p,
-            quantity: groupQty,
-            colorBreakdown: rows,
-            sizeBreakdown: null,
-            netWeight: (Number(parentArticle.netWeight) || 0) * ratio,
-            cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio,
-          });
+          variants.push({ ...parentArticle, id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id, originalId: parentArticle.id, purchasePricePerUnit: p, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, netWeight: (Number(parentArticle.netWeight) || 0) * ratio, cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio });
         });
       } else if (sb.length > 0) {
         const groups = new Map<number, any[]>();
@@ -171,120 +174,69 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         groups.forEach((rows, p) => {
           const groupQty = rows.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
           const ratio = groupQty / parentQty;
-          variants.push({
-            ...parentArticle,
-            id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id,
-            originalId: parentArticle.id,
-            purchasePricePerUnit: p,
-            quantity: groupQty,
-            sizeBreakdown: rows,
-            colorBreakdown: null,
-            netWeight: (Number(parentArticle.netWeight) || 0) * ratio,
-            cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio,
-          });
+          variants.push({ ...parentArticle, id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id, originalId: parentArticle.id, purchasePricePerUnit: p, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, netWeight: (Number(parentArticle.netWeight) || 0) * ratio, cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio });
         });
       } else {
         variants.push({ ...parentArticle, originalId: parentArticle.id });
       }
 
       return variants.map(article => {
-      
-      const ov = allOverrides[article.originalId || article.id] || {};
+        const ov = allOverrides[article.originalId || article.id] || {};
+        const qty = (ov.quantity != null ? Number(ov.quantity) : Number(article.quantity)) || 0;
+        const prix = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(article.purchasePricePerUnit)) || 0;
+        const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(article.cubicMeasurement)) || 0;
+        const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(article.netWeight)) || 0;
+        const linkedFac = factures.find(f => f.id === article.factureId);
 
-      const qty = (ov.quantity != null ? Number(ov.quantity) : Number(article.quantity)) || 0;
-      const prix = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(article.purchasePricePerUnit)) || 0;
-      const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(article.cubicMeasurement)) || 0;
-      const nw = (ov.netWeight != null ? Number(ov.netWeight) : Number(article.netWeight)) || 0;
+        let tc = globalTc, fraisTransitMad = globalFraisTransitMad, fraisChangeMad = globalFraisChangeMad, fraisSuppMad = globalFraisSuppMad;
+        let fretTotal$ = avgFreightPerCbm * CBM_STD;
 
-      const linkedFac = factures.find(f => f.id === article.factureId);
-
-      let tc = globalTc;
-      let fraisTransitMad = globalFraisTransitMad;
-      let fraisChangeMad = globalFraisChangeMad;
-      let fraisSuppMad = globalFraisSuppMad;
-      let fretTotal$ = avgFreightPerCbm * CBM_STD;
-
-      if (linkedFac) {
-        const invoicePaidDhs = Number(linkedFac.invoicePaidDhs) || 0;
-        const declaredValue = Number(linkedFac.declaredValue) || 0;
-        if (invoicePaidDhs > 0 && declaredValue > 0) {
-          tc = invoicePaidDhs / declaredValue;
-        } else if (Number(linkedFac.exchangeRate) > 0) {
-          tc = Number(linkedFac.exchangeRate);
-        } else if (Number(linkedFac.tauxChange) > 0) {
-          tc = Number(linkedFac.tauxChange);
+        if (linkedFac) {
+          const invoicePaidDhs = Number(linkedFac.invoicePaidDhs) || 0;
+          const declaredValue = Number(linkedFac.declaredValue) || 0;
+          if (invoicePaidDhs > 0 && declaredValue > 0) tc = invoicePaidDhs / declaredValue;
+          else if (Number(linkedFac.exchangeRate) > 0) tc = Number(linkedFac.exchangeRate);
+          else if (Number(linkedFac.tauxChange) > 0) tc = Number(linkedFac.tauxChange);
+          const transit = Number(linkedFac.supplierInvoiceAmount) || 0;
+          const change = Number(linkedFac.exchangeInvoiceAmount) || 0;
+          const supp = Number(linkedFac.additionalCostsAmount) || 0;
+          fraisTransitMad = transit > 0 ? transit : DEFAULT_FRAIS.transit;
+          fraisChangeMad = change > 0 ? change : DEFAULT_FRAIS.change;
+          fraisSuppMad = supp > 0 ? supp : DEFAULT_FRAIS.supp;
+          fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 0;
         }
 
-        const transit = Number(linkedFac.supplierInvoiceAmount) || 0;
-        const change = Number(linkedFac.exchangeInvoiceAmount) || 0;
-        const supp = Number(linkedFac.additionalCostsAmount) || 0;
-        fraisTransitMad = transit > 0 ? transit : DEFAULT_FRAIS.transit;
-        fraisChangeMad = change > 0 ? change : DEFAULT_FRAIS.change;
-        fraisSuppMad = supp > 0 ? supp : DEFAULT_FRAIS.supp;
-        fretTotal$ = Number(linkedFac.freightCost) || Number(linkedFac.freight) || 0;
-      }
+        const totalFraisHT = (fraisTransitMad + fraisChangeMad + fraisSuppMad) / 1.20;
+        const fretMad = (fretTotal$ * tc) / 1.20;
+        const mtFraisTotal = totalFraisHT + fretMad;
+        const cbmTotal = linkedFac
+          ? (articles.filter(a => a.factureId === linkedFac.id).reduce((s: number, a: any) => { const aOv = allOverrides[a.id] || {}; const aCbm = (aOv.cubicMeasurement != null ? Number(aOv.cubicMeasurement) : Number(a.cubicMeasurement)) || 0; return s + aCbm; }, 0) || CBM_STD)
+          : CBM_STD;
+        const fraisCmd = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
 
-      // Logistic costs (Divide by 1.20 as in CostAnalysisView)
-      const totalFraisHT = (fraisTransitMad + fraisChangeMad + fraisSuppMad) / 1.20;
-      const fretMad = (fretTotal$ * tc) / 1.20;
-      const mtFraisTotal = totalFraisHT + fretMad;
+        const cat = categories.find(c => c.name === article.categoryId || c.id === article.categoryId);
+        const customsVpKg = ov.customsValuePerKg != null ? Number(ov.customsValuePerKg) : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : 0);
+        const di = ov.importDutyRate != null ? Number(ov.importDutyRate) / 100 : (cat?.importDutyRate ?? 0) / 100;
+        const tpi = ov.tpiRate != null ? Number(ov.tpiRate) / 100 : (cat?.tpiRate ?? 0) / 100;
+        const tic = ov.ticRate != null ? Number(ov.ticRate) / 100 : (cat?.ticRate ?? 0) / 100;
+        const tva = ov.tvaRate != null ? Number(ov.tvaRate) / 100 : (cat?.tvaRate ?? 20) / 100;
+        const hasCustData = (ov.customsValuePerKg != null || cat?.customsValuePerKg != null);
+        const valeurDouaneMad = (hasCustData && customsVpKg > 0 && nw > 0) ? nw * customsVpKg : 0;
+        const diMad = valeurDouaneMad * di, tpiMad = valeurDouaneMad * tpi, ticMad = valeurDouaneMad * tic;
+        const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
+        const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
+        const valAchatMad = qty * prix * tc;
+        const coutTotalMad = hasCustData ? (valAchatMad + fraisCmd + totalTaxesMad) : 0;
+        const coutUniteMad = (hasCustData && qty > 0) ? coutTotalMad / qty : 0;
+        const marge = Number(margePercent) || 0;
+        const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
+        const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
+        const originalId = article.originalId || article.id;
+        const artRemise = remiseParArticle[originalId] !== undefined ? Number(remiseParArticle[originalId]) : Number(remiseGlobale) || 0;
+        const prixRemiseUniteMad = prixVenteUniteMad * (1 - artRemise / 100);
+        const prixRemiseTotalMad = prixVenteTotalMad * (1 - artRemise / 100);
 
-      const cbmTotal = linkedFac
-        ? (articles.filter(a => a.factureId === linkedFac.id).reduce((s: number, a: any) => {
-            const aOv = allOverrides[a.id] || {};
-            const aCbm = (aOv.cubicMeasurement != null ? Number(aOv.cubicMeasurement) : Number(a.cubicMeasurement)) || 0;
-            return s + aCbm;
-          }, 0) || CBM_STD)
-        : CBM_STD;
-
-      const fraisCmd = cbm > 0 && cbmTotal > 0 ? (cbm / cbmTotal) * mtFraisTotal : 0;
-
-      const cat = categories.find(c => c.name === article.categoryId || c.id === article.categoryId);
-      const customsVpKg = ov.customsValuePerKg != null ? Number(ov.customsValuePerKg) : (cat?.customsValuePerKg != null ? Number(cat.customsValuePerKg) : 0);
-      const di = ov.importDutyRate != null ? Number(ov.importDutyRate) / 100 : (cat?.importDutyRate ?? 0) / 100;
-      const tpi = ov.tpiRate != null ? Number(ov.tpiRate) / 100 : (cat?.tpiRate ?? 0) / 100;
-      const tic = ov.ticRate != null ? Number(ov.ticRate) / 100 : (cat?.ticRate ?? 0) / 100;
-      const tva = ov.tvaRate != null ? Number(ov.tvaRate) / 100 : (cat?.tvaRate ?? 20) / 100;
-      
-      const hasCustData = (ov.customsValuePerKg != null || cat?.customsValuePerKg != null);
-
-      const valeurFOB = qty * prix;
-      const valeurDouaneMad = (hasCustData && customsVpKg > 0 && nw > 0) ? nw * customsVpKg : 0;
-
-      const diMad = valeurDouaneMad * di;
-      const tpiMad = valeurDouaneMad * tpi;
-      const ticMad = valeurDouaneMad * tic;
-      // TVA Base INCLUDES TIC in CostAnalysisView line 136
-      const tvaMad = (valeurDouaneMad + diMad + tpiMad + ticMad) * tva;
-      const totalTaxesMad = diMad + tpiMad + ticMad + tvaMad;
-
-      const valAchatMad = qty * prix * tc;
-      const coutTotalMad = hasCustData ? (valAchatMad + fraisCmd + totalTaxesMad) : 0;
-      const coutUniteMad = (hasCustData && qty > 0) ? coutTotalMad / qty : 0;
-      const marge = Number(margePercent) || 0;
-      const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
-      const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
-
-      // Apply discounts: per-article remise overrides global remise
-      const originalId = article.originalId || article.id;
-      const artRemise = remiseParArticle[originalId] !== undefined ? Number(remiseParArticle[originalId]) : Number(remiseGlobale) || 0;
-      const prixRemiseUniteMad = prixVenteUniteMad * (1 - artRemise / 100);
-      const prixRemiseTotalMad = prixVenteTotalMad * (1 - artRemise / 100);
-
-      return {
-        article,
-        computed: {
-          qty, prix, cbm, cbmTotal, fretTotal$, fraisCmd,
-          valAchatMad, totalTaxesMad,
-          coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad,
-          fraisTransitMad, fraisChangeMad, fraisSuppMad,
-          remise: artRemise,
-          prixRemiseUniteMad,
-          prixRemiseTotalMad,
-          isEstimated: !linkedFac,
-          hasCustData: true,
-        }
-      };
+        return { article, computed: { qty, prix, cbm, cbmTotal, fretTotal$, fraisCmd, valAchatMad, totalTaxesMad, coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad, fraisTransitMad, fraisChangeMad, fraisSuppMad, remise: artRemise, prixRemiseUniteMad, prixRemiseTotalMad, isEstimated: !linkedFac, hasCustData: true } };
       });
     }).filter(Boolean);
   }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, allOverrides, articles, factures, categories, avgFreightPerCbm]);
@@ -294,14 +246,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   const totalRemiseMad = computedArray.reduce((acc, curr) => acc + ((curr?.computed.prixVenteTotalMad || 0) - (curr?.computed.prixRemiseTotalMad || 0)), 0);
   const totalNetMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixRemiseTotalMad || 0), 0);
   const hasAnyRemise = computedArray.some(c => (c?.computed.remise || 0) > 0);
-
-  const hasIncomplete = computedArray.some(c => 
-    !c?.article.purchasePricePerUnit || 
-    !c?.article.netWeight || 
-    !c?.article.cubicMeasurement || 
-    !c?.article.quantity || 
-    !c?.computed.hasCustData
-  );
+  const hasIncomplete = computedArray.some(c => !c?.article.purchasePricePerUnit || !c?.article.netWeight || !c?.article.cubicMeasurement || !c?.article.quantity || !c?.computed.hasCustData);
 
   const fmtMAD = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -309,420 +254,348 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     if (computedArray.length === 0 || hasIncomplete) return;
     setIsExporting(true);
     try {
-      await exportDevisClientPIPDF({
-        items: computedArray,
-        tauxChange: Number(tauxChange) || DEFAULT_TAUX,
-        margePercent: Number(margePercent) || 0,
-        remiseGlobale: Number(remiseGlobale) || 0,
-      });
+      await exportDevisClientPIPDF({ items: computedArray, tauxChange: Number(tauxChange) || DEFAULT_TAUX, margePercent: Number(margePercent) || 0, remiseGlobale: Number(remiseGlobale) || 0 });
     } finally { setIsExporting(false); }
   };
 
   const handleConfirm = async () => {
     if (computedArray.length === 0 || hasIncomplete || !user || !firestore) return;
     setIsConfirming(true);
-    
-    // Group variants back to their original document to accumulate totals
     const updates = new Map<string, any>();
-    
     computedArray.forEach(c => {
       if (!c) return;
       const articleId = c.article.originalId || c.article.id;
-      
       if (!updates.has(articleId)) {
-        updates.set(articleId, {
-          devisTauxChange: Number(tauxChange),
-          devisMargePercent: Number(margePercent),
-          devisRemisePercent: c.computed.remise,
-          devisPrixVenteTotalMad: 0,
-          devisCoutTotalMad: 0,
-          devisDate: new Date().toISOString(),
-          devisConfirmedAt: new Date().toISOString(),
-          devisConfirmed: true,
-          devisPrixVenteUniteMad: c.computed.prixRemiseUniteMad,
-        });
+        updates.set(articleId, { devisTauxChange: Number(tauxChange), devisMargePercent: Number(margePercent), devisRemisePercent: c.computed.remise, devisPrixVenteTotalMad: 0, devisCoutTotalMad: 0, devisDate: new Date().toISOString(), devisConfirmedAt: new Date().toISOString(), devisConfirmed: true, devisPrixVenteUniteMad: c.computed.prixRemiseUniteMad });
       }
-      
       const current = updates.get(articleId);
       current.devisPrixVenteTotalMad += c.computed.prixRemiseTotalMad;
       current.devisCoutTotalMad += c.computed.coutTotalMad;
       if (!current.devisRemise) current.devisRemise = c.computed.remise;
     });
-
-    // For each article, read existing history + append old confirmed price before overwriting
     const now = new Date().toISOString();
     const historyReads = await Promise.all(
       Array.from(updates.keys()).map(async articleId => {
         const snap = await getDoc(doc(firestore, 'users', user.uid, 'articles', articleId));
         const existing = snap.exists() ? snap.data() : {};
-        // Build history entry from the EXISTING confirmed price (before overwriting)
-        const historyEntry = existing.devisConfirmed && existing.devisPrixVenteUniteMad ? {
-          prix: existing.devisPrixVenteUniteMad,
-          total: existing.devisPrixVenteTotalMad || null,
-          margePercent: existing.devisMargePercent || null,
-          remisePercent: existing.devisRemisePercent || null,
-          tauxChange: existing.devisTauxChange || null,
-          confirmedAt: existing.devisConfirmedAt || null,
-          archivedAt: now,
-        } : null;
+        const historyEntry = existing.devisConfirmed && existing.devisPrixVenteUniteMad ? { prix: existing.devisPrixVenteUniteMad, total: existing.devisPrixVenteTotalMad || null, margePercent: existing.devisMargePercent || null, remisePercent: existing.devisRemisePercent || null, tauxChange: existing.devisTauxChange || null, confirmedAt: existing.devisConfirmedAt || null, archivedAt: now } : null;
         const previousHistory: any[] = Array.isArray(existing.devisHistory) ? existing.devisHistory : [];
-        const newHistory = historyEntry ? [...previousHistory, historyEntry] : previousHistory;
-        return { articleId, devisHistory: newHistory };
+        return { articleId, devisHistory: historyEntry ? [...previousHistory, historyEntry] : previousHistory };
       })
     );
-
-    historyReads.forEach(({ articleId, devisHistory }) => {
-      const update = updates.get(articleId);
-      if (update) update.devisHistory = devisHistory;
-    });
-
-    updates.forEach((data, articleId) => {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-      updateDocumentNonBlocking(docRef, data);
-    });
-
+    historyReads.forEach(({ articleId, devisHistory }) => { const update = updates.get(articleId); if (update) update.devisHistory = devisHistory; });
+    updates.forEach((data, articleId) => { const docRef = doc(firestore, 'users', user.uid, 'articles', articleId); updateDocumentNonBlocking(docRef, data); });
     setIsConfirming(false);
     setShowConfirmDialog(false);
     setConfirmedArticlesMap({});
-    toast({ 
-      title: "✅ Prix de Vente Fixé", 
-      description: `${updates.size} article(s) confirmé(s). Le prix est maintenant visible dans l'espace client et ne peut plus être modifié.` 
-    });
+    toast({ title: "Prix de Vente Fixe", description: `${updates.size} article(s) confirme(s).` });
   };
 
-  const isAllSelected = piArticles.length > 0 && selectedArticleIds.size === piArticles.length;
+  const statusColor = (status: string) => {
+    if (['PI', 'pi'].includes(status)) return 'bg-amber-100 text-amber-700';
+    if (['SHIPPED', 'shipped', 'TRANSIT', 'transit'].includes(status)) return 'bg-blue-100 text-blue-700';
+    if (['DELIVERED', 'STOCK'].includes(status)) return 'bg-emerald-100 text-emerald-700';
+    return 'bg-stone-100 text-stone-500';
+  };
 
   return (
-    <div className="space-y-6 fade-in">
+    <div className="space-y-4 fade-in">
       {/* Header */}
-      <header className="bg-stone-900 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-[80px]" />
-        <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+      <div className="bg-stone-900 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-amber-500 rounded-xl">
+            <ReceiptText className="w-5 h-5 text-white" />
+          </div>
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2.5 bg-amber-500 rounded-xl"><ReceiptText className="w-6 h-6 text-white" /></div>
-              <div>
-                <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Usage confidentiel</p>
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Devis Client</h2>
-              </div>
-            </div>
-            <p className="text-stone-400 text-sm font-medium max-w-lg">
-              Calculez le prix de vente et appliquez des remises pour vos devis clients. Tous les articles avec un client assigné sont disponibles, quel que soit leur statut.
-            </p>
+            <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Usage confidentiel</p>
+            <h2 className="text-xl font-black text-white uppercase tracking-tight">Prix de Vente Client</h2>
           </div>
         </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LEFT — Article selector */}
-        <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden flex flex-col">
-          <div className="bg-stone-900 px-6 py-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Package className="w-4 h-4 text-amber-400" />
-              <h3 className="text-sm font-black text-white uppercase tracking-tight">Articles Clients</h3>
-              <span className="bg-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">{piArticles.length} articles</span>
-            </div>
-            <button 
-              onClick={toggleSelectAll} 
-              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-stone-300 hover:text-white transition-colors"
-            >
-              {isAllSelected ? <CheckSquare className="w-4 h-4 text-amber-400" /> : <Square className="w-4 h-4" />}
-              {isAllSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
-            </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Quick marge control */}
+          <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2">
+            <span className="text-[9px] font-black text-stone-400 uppercase">Marge</span>
+            <input
+              type="number"
+              step="0.5"
+              value={margePercent}
+              onChange={e => setMargePercent(e.target.value)}
+              className="w-14 h-7 bg-white/10 border border-white/10 rounded-lg px-2 font-black text-amber-400 text-sm focus:outline-none focus:border-amber-400 text-center"
+            />
+            <span className="text-amber-400 font-black text-sm">%</span>
           </div>
-          <div className="p-4 border-b border-stone-100">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Rechercher par client, fournisseur, ou catégorie..."
-                className="w-full pl-9 pr-4 h-10 rounded-xl border border-stone-200 text-sm font-bold text-stone-700 focus:outline-none focus:border-amber-400 transition-colors"
-              />
-            </div>
+          <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2">
+            <span className="text-[9px] font-black text-stone-400 uppercase">Remise</span>
+            <input
+              type="number"
+              step="0.5"
+              min={0}
+              max={100}
+              value={remiseGlobale}
+              onChange={e => setRemiseGlobale(e.target.value)}
+              className="w-14 h-7 bg-white/10 border border-white/10 rounded-lg px-2 font-black text-rose-400 text-sm focus:outline-none focus:border-rose-400 text-center"
+            />
+            <span className="text-rose-400 font-black text-sm">%</span>
           </div>
-          <div className="overflow-y-auto flex-1" style={{ maxHeight: 420 }}>
-            {piArticles.length === 0 ? (
-              <div className="py-16 text-center text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucun article avec un client assigné</div>
-            ) : piArticles.map(a => {
-              const isSelected = selectedArticleIds.has(a.id);
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => toggleSelection(a.id)}
-                  className={`w-full text-left px-5 py-3.5 border-b border-stone-50 flex items-center gap-3 transition-colors ${isSelected ? 'bg-amber-50 border-amber-100' : 'hover:bg-stone-50'}`}
-                >
-                  <div className="shrink-0 text-amber-500">
-                    {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-stone-300" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[11px] font-black text-stone-900 uppercase truncate">{a.name || a.categoryId}</p>
-                      {a.devisPrixVenteUniteMad && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-black">CONFIRMÉ</span>}
-                      {/* Status badge */}
-                      <span className={`text-[7px] px-1.5 py-0.5 rounded font-black uppercase ${
-                        ['PI','pi'].includes(a.status) ? 'bg-amber-100 text-amber-700' :
-                        ['SHIPPED','shipped'].includes(a.status) ? 'bg-blue-100 text-blue-700' :
-                        ['DELIVERED','STOCK'].includes(a.status) ? 'bg-emerald-100 text-emerald-700' :
-                        'bg-stone-100 text-stone-500'
-                      }`}>{a.status || '—'}</span>
-                    </div>
-                    <p className="text-[9px] font-bold text-stone-400 uppercase mt-0.5">
-                      {a.clientName && <span className="text-indigo-500 font-black mr-1">{a.clientName} ·</span>}
-                      {a.categoryId}
-                      {Number(a.quantity) > 0 ? ` · ${Number(a.quantity).toLocaleString('fr-MA')} ${a.unitOfMeasure || 'u'}` : ''}
-                      {a.devisPrixVenteUniteMad ? ` · P.V: ${fmtMAD(a.devisPrixVenteUniteMad)}` : (Number(a.purchasePricePerUnit) > 0 ? ` · $${Number(a.purchasePricePerUnit).toFixed(4)}` : '')}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RIGHT — Config + Result */}
-        <div className="space-y-4">
-          {selectedArticleIds.size === 0 ? (
-            <div className="bg-white rounded-3xl border border-stone-100 shadow-xl py-24 flex flex-col items-center justify-center gap-4">
-              <div className="w-14 h-14 bg-stone-100 rounded-2xl flex items-center justify-center">
-                <ReceiptText className="w-7 h-7 text-stone-300" />
-              </div>
-              <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Sélectionnez au moins un article</p>
-            </div>
-          ) : (
-            <>
-              {/* Article info banner */}
-              <div className="bg-stone-900 rounded-2xl px-5 py-4 flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Articles sélectionnés</p>
-                  <p className="text-base font-black text-white uppercase">{selectedArticleIds.size} Article{selectedArticleIds.size > 1 ? 's' : ''}</p>
-                </div>
-              </div>
-
-              {hasIncomplete ? (
-                <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center space-y-2">
-                  <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Informations incomplètes</p>
-                  <p className="text-sm font-bold text-red-800">Impossible de calculer le devis. Certains articles sélectionnés ont des données manquantes (quantité, prix, poids, etc).</p>
-                </div>
-              ) : (
-                <>
-                  {/* Parameters */}
-                  <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 space-y-4">
-                    <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1.5"><Calculator className="w-3 h-3" /> Paramètres Globaux</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest block">Taux de change (MAD/$)</label>
-                        <input type="number" step="0.01" value={tauxChange} onChange={e => setTauxChange(e.target.value)}
-                          className="w-full h-10 border border-stone-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-amber-400 transition-colors" />
-                        <div className="flex gap-1 flex-wrap">
-                          {[10, 10.5, 11, 11.5].map(v => (
-                            <button key={v} onClick={() => setTauxChange(String(v))}
-                              className={`px-2 py-0.5 rounded-lg text-[8px] font-black border transition-all ${Number(tauxChange) === v ? 'bg-stone-900 text-white border-stone-900' : 'bg-stone-50 text-stone-400 border-stone-100 hover:border-stone-300'}`}>
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest block">Marge (%)</label>
-                        <input type="number" step="0.5" min={0} value={margePercent} onChange={e => setMargePercent(e.target.value)}
-                          className="w-full h-10 border-2 border-amber-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-amber-400 transition-colors text-center" />
-                        <div className="flex gap-1 flex-wrap">
-                          {[10, 15, 20, 25, 30].map(v => (
-                            <button key={v} onClick={() => setMargePercent(String(v))}
-                              className={`px-2 py-0.5 rounded-lg text-[8px] font-black border transition-all ${Number(margePercent) === v ? 'bg-amber-500 text-white border-amber-500' : 'bg-amber-50 text-amber-600 border-amber-100 hover:border-amber-300'}`}>
-                              {v}%
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-stone-50">
-                      {[
-                        { label: 'Transitaire (MAD)', val: fraisTransit, set: setFraisTransit },
-                        { label: 'Bureau Change (MAD)', val: fraisChange, set: setFraisChange },
-                        { label: 'Frais Supp. (MAD)', val: fraisSupp, set: setFraisSupp },
-                      ].map(({ label, val, set }) => (
-                        <div key={label} className="space-y-1">
-                          <label className="text-[7px] font-black text-stone-400 uppercase tracking-wider block">{label}</label>
-                          <input type="number" step="100" value={val} onChange={e => set(e.target.value)}
-                            className="w-full h-9 border border-stone-200 rounded-lg px-2 font-black text-stone-800 text-xs focus:outline-none focus:border-stone-400 transition-colors" />
-                        </div>
-                      ))}
-                    </div>
-
-                  {/* Remises */}
-                  <div className="bg-white rounded-2xl border border-rose-100 shadow-sm p-5 space-y-4">
-                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5"><Percent className="w-3 h-3" /> Remises</p>
-                    <div className="space-y-1.5">
-                      <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest block">Remise globale (%) — s&apos;applique à tous les articles</label>
-                      <div className="flex items-center gap-2">
-                        <input type="number" step="0.5" min={0} max={100} value={remiseGlobale} onChange={e => setRemiseGlobale(e.target.value)}
-                          className="w-full h-10 border-2 border-rose-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-rose-400 transition-colors text-center" />
-                        <span className="text-sm font-black text-rose-400">%</span>
-                      </div>
-                      <div className="flex gap-1 flex-wrap">
-                        {[0, 5, 10, 15, 20].map(v => (
-                          <button key={v} onClick={() => setRemiseGlobale(String(v))}
-                            className={`px-2 py-0.5 rounded-lg text-[8px] font-black border transition-all ${Number(remiseGlobale) === v ? 'bg-rose-500 text-white border-rose-500' : 'bg-rose-50 text-rose-500 border-rose-100 hover:border-rose-300'}`}>
-                            {v === 0 ? 'Aucune' : `${v}%`}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Per-article remise overrides */}
-                    {computedArray.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-rose-50">
-                        <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1"><Tag className="w-2.5 h-2.5" /> Remise par article (remplace la globale)</p>
-                        {computedArray.map((c, i) => c && (
-                          <div key={i} className="flex items-center gap-2">
-                            <p className="text-[9px] font-black text-stone-600 uppercase flex-1 truncate min-w-0">{c.article.categoryId || c.article.name}</p>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <input
-                                type="number" step="0.5" min={0} max={100}
-                                placeholder={remiseGlobale || '0'}
-                                value={remiseParArticle[c.article.originalId || c.article.id] ?? ''}
-                                onChange={e => {
-                                  const id = c.article.originalId || c.article.id;
-                                  setRemiseParArticle(prev => ({ ...prev, [id]: e.target.value }));
-                                }}
-                                className="w-16 h-8 border border-rose-200 rounded-lg px-2 font-black text-stone-800 text-xs focus:outline-none focus:border-rose-400 text-center"
-                              />
-                              <span className="text-[9px] text-rose-400 font-black">%</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  </div>
-
-                  {/* Result per article */}
-                  {computedArray.length > 0 && totalCoutTotalMad > 0 && (
-                    <div className="bg-stone-900 rounded-2xl p-5 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
-                      <div className="relative z-10 space-y-3">
-                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Récapitulatif — {computedArray.length} ligne(s)</p>
-                        
-                        {/* Per-article breakdown */}
-                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                          {computedArray.map((c, i) => c && (
-                            <div key={i} className="bg-stone-800/60 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-[9px] font-black text-stone-400 uppercase truncate">{c.article.clientName || '—'}</p>
-                                <p className="text-[10px] font-black text-white uppercase truncate">{c.article.categoryId || c.article.name}</p>
-                                <p className="text-[8px] font-bold text-stone-500">{Number(c.computed.qty).toLocaleString('fr-MA')} {c.article.unitOfMeasure}</p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <p className="text-[8px] font-black text-stone-500 uppercase">P.V. Unitaire</p>
-                                {c.computed.remise > 0 ? (
-                                  <>
-                                    <p className="text-[9px] line-through text-stone-600">{fmtMAD(c.computed.prixVenteUniteMad)}</p>
-                                    <p className="text-sm font-black text-rose-400">{fmtMAD(c.computed.prixRemiseUniteMad)}</p>
-                                    <p className="text-[8px] font-bold text-rose-500/70">-{c.computed.remise}%</p>
-                                  </>
-                                ) : (
-                                  <p className="text-sm font-black text-amber-400">{fmtMAD(c.computed.prixVenteUniteMad)}</p>
-                                )}
-                                <p className="text-[8px] font-bold text-stone-500">{fmtMAD(c.computed.prixRemiseTotalMad)} total</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="border-t border-stone-700 pt-3 space-y-1.5">
-                          {hasAnyRemise && (
-                            <>
-                              <div className="flex items-center justify-between">
-                                <p className="text-[8px] font-black text-stone-500 uppercase">Sous-total brut</p>
-                                <p className="text-sm font-black text-stone-400">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <p className="text-[8px] font-black text-rose-400 uppercase">Remise totale</p>
-                                <p className="text-sm font-black text-rose-400">-{fmtMAD(totalRemiseMad)} MAD</p>
-                              </div>
-                              <div className="border-t border-stone-600 pt-1.5 flex items-center justify-between">
-                                <p className="text-[8px] font-black text-stone-400 uppercase">Total net client</p>
-                                <p className="text-2xl font-black text-amber-400">{fmtMAD(totalNetMad)} MAD</p>
-                              </div>
-                            </>
-                          )}
-                          {!hasAnyRemise && (
-                            <div className="flex items-center justify-between">
-                              <p className="text-[8px] font-black text-stone-500 uppercase">Total prix de vente</p>
-                              <p className="text-2xl font-black text-amber-400">{fmtMAD(totalPrixVenteTotalMad)} MAD</p>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <p className="text-[8px] font-black text-stone-500 uppercase">Coût de revient total</p>
-                            <p className="text-lg font-black text-stone-300">{fmtMAD(totalCoutTotalMad)} MAD</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Export and Confirm */}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={() => setShowConfirmDialog(true)}
-                      disabled={computedArray.length === 0 || isExporting}
-                      className="w-full sm:w-1/2 h-14 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[11px] tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-xl shadow-emerald-500/20"
-                    >
-                      <Lock className="w-5 h-5" />
-                      Confirmer &amp; Fixer Prix
-                    </button>
-                    <button
-                      onClick={handleExport}
-                      disabled={computedArray.length === 0 || isExporting}
-                      className="w-full sm:w-1/2 h-14 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[11px] tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-xl shadow-amber-500/20"
-                    >
-                      <FileDown className="w-5 h-5" />
-                      {isExporting ? 'Génération...' : 'Exporter (PDF)'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </>
-          )}
+          <button
+            onClick={() => setShowParams(v => !v)}
+            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-3 py-2 transition-all"
+          >
+            <Calculator className="w-3.5 h-3.5 text-stone-400" />
+            <span className="text-[9px] font-black text-stone-400 uppercase">Params</span>
+            {showParams ? <ChevronDown className="w-3 h-3 text-stone-400" /> : <ChevronRight className="w-3 h-3 text-stone-400" />}
+          </button>
         </div>
       </div>
 
-      {/* ── CONFIRMATION DIALOG ── */}
+      {/* Expanded Params */}
+      {showParams && (
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 grid grid-cols-2 sm:grid-cols-5 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="space-y-1 col-span-1">
+            <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest block">Taux change (MAD/$)</label>
+            <input type="number" step="0.01" value={tauxChange} onChange={e => setTauxChange(e.target.value)} className="w-full h-9 border border-stone-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-amber-400" />
+            <div className="flex gap-1 flex-wrap">{[10, 10.5, 11, 11.5].map(v => (<button key={v} onClick={() => setTauxChange(String(v))} className={`px-2 py-0.5 rounded-lg text-[8px] font-black border transition-all ${Number(tauxChange) === v ? 'bg-stone-900 text-white border-stone-900' : 'bg-stone-50 text-stone-400 border-stone-100 hover:border-stone-300'}`}>{v}</button>))}</div>
+          </div>
+          {[
+            { label: 'Transitaire (MAD)', val: fraisTransit, set: setFraisTransit },
+            { label: 'Bureau Change (MAD)', val: fraisChange, set: setFraisChange },
+            { label: 'Frais Supp. (MAD)', val: fraisSupp, set: setFraisSupp },
+          ].map(({ label, val, set }) => (
+            <div key={label} className="space-y-1">
+              <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest block">{label}</label>
+              <input type="number" step="100" value={val} onChange={e => set(e.target.value)} className="w-full h-9 border border-stone-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-stone-400" />
+            </div>
+          ))}
+          {/* Remise per article */}
+          {computedArray.length > 0 && (
+            <div className="col-span-full border-t border-stone-100 pt-4">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Tag className="w-2.5 h-2.5" /> Remise par article</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {computedArray.map((c, i) => c && (
+                  <div key={i} className="flex items-center gap-2 bg-stone-50 rounded-xl px-3 py-2">
+                    <p className="text-[9px] font-black text-stone-600 uppercase flex-1 truncate min-w-0">{c.article.categoryId || c.article.name}</p>
+                    <input type="number" step="0.5" min={0} max={100} placeholder={remiseGlobale || '0'} value={remiseParArticle[c.article.originalId || c.article.id] ?? ''} onChange={e => { const id = c.article.originalId || c.article.id; setRemiseParArticle(prev => ({ ...prev, [id]: e.target.value })); }} className="w-14 h-7 border border-rose-200 rounded-lg px-2 font-black text-stone-800 text-xs focus:outline-none focus:border-rose-400 text-center" />
+                    <span className="text-[9px] text-rose-400 font-black">%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher par client, article, fournisseur..."
+          className="w-full pl-11 pr-4 h-11 rounded-xl border border-stone-200 bg-white text-sm font-bold text-stone-700 focus:outline-none focus:border-amber-400 transition-colors shadow-sm"
+        />
+      </div>
+
+      {/* No articles */}
+      {groupedByClient.length === 0 && (
+        <div className="bg-white rounded-2xl border border-stone-100 py-20 flex flex-col items-center justify-center gap-3">
+          <div className="w-12 h-12 bg-stone-100 rounded-2xl flex items-center justify-center">
+            <ReceiptText className="w-6 h-6 text-stone-300" />
+          </div>
+          <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Aucun article avec un client</p>
+        </div>
+      )}
+
+      {/* Grouped by client */}
+      <div className="space-y-3">
+        {groupedByClient.map(([client, clientArticles]) => {
+          const isExpanded = expandedClients.has(client);
+          const allSelected = clientArticles.every(a => selectedArticleIds.has(a.id));
+          const someSelected = clientArticles.some(a => selectedArticleIds.has(a.id));
+          const clientComputed = computedArray.filter(c => c?.article.clientName === client);
+          const clientTotal = clientComputed.reduce((s, c) => s + (c?.computed.prixRemiseTotalMad || 0), 0);
+
+          return (
+            <div key={client} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+              {/* Client header */}
+              <div
+                className={`flex items-center gap-3 px-5 py-4 cursor-pointer transition-all ${someSelected ? 'bg-amber-50 border-b border-amber-100' : 'hover:bg-stone-50 border-b border-stone-50'}`}
+                onClick={() => toggleClient(client)}
+              >
+                {/* Select all toggle */}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); toggleClientSelection(clientArticles); }}
+                  className="shrink-0 transition-colors"
+                >
+                  {allSelected
+                    ? <CheckSquare className="w-5 h-5 text-amber-500" />
+                    : someSelected
+                      ? <CheckSquare className="w-5 h-5 text-amber-300" />
+                      : <Square className="w-5 h-5 text-stone-300 hover:text-amber-400 transition-colors" />
+                  }
+                </button>
+
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-indigo-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{client}</p>
+                    <p className="text-[9px] font-bold text-stone-400">{clientArticles.length} article{clientArticles.length > 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  {clientTotal > 0 && (
+                    <div className="text-right">
+                      <p className="text-[8px] font-black text-stone-400 uppercase">Total client</p>
+                      <p className="text-sm font-black text-amber-600">{fmtMAD(clientTotal)} MAD</p>
+                    </div>
+                  )}
+                  <span className={`w-5 h-5 flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                    <ChevronRight className="w-4 h-4 text-stone-400" />
+                  </span>
+                </div>
+              </div>
+
+              {/* Articles list */}
+              {isExpanded && (
+                <div className="divide-y divide-stone-50">
+                  {clientArticles.map(a => {
+                    const isSelected = selectedArticleIds.has(a.id);
+                    const computed = computedArray.find(c => (c?.article.originalId || c?.article.id) === a.id);
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => toggleSelection(a.id)}
+                        className={`w-full text-left px-5 py-3.5 flex items-center gap-3 transition-all ${isSelected ? 'bg-amber-50/60' : 'hover:bg-stone-50'}`}
+                      >
+                        <div className="shrink-0">
+                          {isSelected
+                            ? <CheckSquare className="w-4 h-4 text-amber-500" />
+                            : <Square className="w-4 h-4 text-stone-200 group-hover:text-stone-400" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[11px] font-black text-stone-800 uppercase">{a.name || a.categoryId}</p>
+                            {a.devisPrixVenteUniteMad && (
+                              <span className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-black uppercase">Confirme</span>
+                            )}
+                            <span className={`text-[7px] px-1.5 py-0.5 rounded font-black uppercase ${statusColor(a.status)}`}>{a.status || '—'}</span>
+                          </div>
+                          <p className="text-[9px] font-bold text-stone-400 mt-0.5 uppercase">
+                            {a.categoryId}
+                            {Number(a.quantity) > 0 ? ` · ${Number(a.quantity).toLocaleString('fr-MA')} ${a.unitOfMeasure || 'u'}` : ''}
+                            {a.supplierId ? ` · ${a.supplierId}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {computed ? (
+                            <>
+                              {computed.computed.remise > 0 ? (
+                                <>
+                                  <p className="text-[8px] line-through text-stone-400">{fmtMAD(computed.computed.prixVenteUniteMad)}</p>
+                                  <p className="text-sm font-black text-rose-500">{fmtMAD(computed.computed.prixRemiseUniteMad)}</p>
+                                  <p className="text-[8px] text-rose-400 font-bold">-{computed.computed.remise}%</p>
+                                </>
+                              ) : (
+                                <p className="text-sm font-black text-amber-600">{fmtMAD(computed.computed.prixVenteUniteMad)}</p>
+                              )}
+                              <p className="text-[8px] text-stone-400 font-bold">MAD/u</p>
+                            </>
+                          ) : a.devisPrixVenteUniteMad ? (
+                            <>
+                              <p className="text-sm font-black text-emerald-600">{fmtMAD(a.devisPrixVenteUniteMad)}</p>
+                              <p className="text-[8px] text-stone-400 font-bold">MAD/u (fixe)</p>
+                            </>
+                          ) : (
+                            <p className="text-[9px] text-stone-300 font-bold">Selectionner</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bottom summary bar */}
+      {selectedArticleIds.size > 0 && (
+        <div className="sticky bottom-4 z-20">
+          <div className="bg-stone-900 rounded-2xl p-4 shadow-2xl border border-white/5 flex flex-col sm:flex-row items-center gap-4">
+            {/* Summary */}
+            <div className="flex-1 grid grid-cols-3 gap-3 w-full sm:w-auto">
+              <div className="text-center">
+                <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Articles</p>
+                <p className="text-lg font-black text-white">{selectedArticleIds.size}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Cout revient</p>
+                <p className="text-sm font-black text-stone-300">{fmtMAD(totalCoutTotalMad)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Total client</p>
+                <p className="text-lg font-black text-amber-400">{fmtMAD(totalNetMad)}</p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 w-full sm:w-auto">
+              {hasIncomplete && (
+                <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  <span className="text-[9px] font-black text-red-400 uppercase">Donnees manquantes</span>
+                </div>
+              )}
+              <button
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={hasIncomplete || computedArray.length === 0}
+                className="flex-1 sm:flex-none h-11 px-5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <Lock className="w-4 h-4" />
+                Fixer Prix
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={hasIncomplete || computedArray.length === 0 || isExporting}
+                className="flex-1 sm:flex-none h-11 px-5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase text-[10px] tracking-widest rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <FileDown className="w-4 h-4" />
+                {isExporting ? 'Export...' : 'PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm dialog */}
       {showConfirmDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}>
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            {/* Header */}
             <div className="bg-stone-900 px-6 py-5 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-              <button type="button" onClick={() => setShowConfirmDialog(false)} className="absolute top-4 right-4 text-stone-500 hover:text-white transition-colors">
-                <X className="w-4 h-4" />
-              </button>
+              <button type="button" onClick={() => setShowConfirmDialog(false)} className="absolute top-4 right-4 text-stone-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
               <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0">
-                  <Lock className="w-5 h-5 text-white" />
-                </div>
+                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0"><Lock className="w-5 h-5 text-white" /></div>
                 <div>
-                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Action irréversible</p>
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight">Confirmer le Devis Client</h3>
+                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Action irreversible</p>
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight">Confirmer le Devis</h3>
                 </div>
               </div>
             </div>
-            {/* Body */}
             <div className="p-6 space-y-4">
               <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-2xl p-4">
                 <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-black text-stone-900">Ce prix devient le prix de vente officiel</p>
-                  <p className="text-xs font-bold text-stone-500 mt-1">Une fois confirmé, le prix sera affiché dans l'espace client et verrouillé. Vous ne pourrez plus le modifier librement.</p>
+                  <p className="text-xs font-bold text-stone-500 mt-1">Une fois confirme, le prix sera affiche dans l&apos;espace client et verrouille.</p>
                 </div>
               </div>
-
-              {/* Summary */}
               <div className="bg-stone-50 border border-stone-100 rounded-2xl p-4 space-y-2">
-                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">Résumé des prix à confirmer</p>
-
-                {/* Re-confirmation warnings */}
+                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">Resume</p>
                 {computedArray.some(c => c && confirmedArticlesMap[c.article.originalId || c.article.id]) && (
                   <div className="mb-3 space-y-2">
                     {computedArray.filter(c => c && confirmedArticlesMap[c.article.originalId || c.article.id]).map((c, i) => {
@@ -733,59 +606,32 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                           <History className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                           <div className="min-w-0">
                             <p className="text-[9px] font-black text-amber-700 uppercase truncate">{c.article.clientName} · {c.article.categoryId}</p>
-                            <p className="text-[8px] font-bold text-amber-600 mt-0.5">
-                              Prix précédent : <span className="font-black">{fmtMAD(prev.devisPrixVenteUniteMad)} MAD/u</span>
-                              {prev.devisConfirmedAt && (
-                                <span className="ml-1 text-amber-500">· le {new Date(prev.devisConfirmedAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
-                              )}
-                            </p>
-                            <p className="text-[8px] text-amber-500 mt-0.5">→ Sera archivé dans l&apos;historique</p>
+                            <p className="text-[8px] font-bold text-amber-600 mt-0.5">Ancien prix : <span className="font-black">{fmtMAD(prev.devisPrixVenteUniteMad)} MAD/u</span></p>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
-
-                {computedArray.slice(0, 4).map((c, i) => c && (
+                {computedArray.slice(0, 5).map((c, i) => c && (
                   <div key={i} className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black text-stone-700 uppercase truncate">{c.article.clientName} · {c.article.categoryId || c.article.name}</p>
+                      <p className="text-[9px] font-black text-stone-700 uppercase truncate">{c.article.clientName} · {c.article.categoryId || c.article.name}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-black text-emerald-600">{fmtMAD(c.computed.prixVenteUniteMad)} MAD/u</p>
-                    </div>
+                    <p className="text-sm font-black text-emerald-600 shrink-0">{fmtMAD(c.computed.prixVenteUniteMad)} MAD/u</p>
                   </div>
                 ))}
-                {computedArray.length > 4 && (
-                  <p className="text-[9px] font-bold text-stone-400 text-center pt-1">+ {computedArray.length - 4} autre(s)...</p>
-                )}
-                  <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between">
-                    <p className="text-[10px] font-black text-stone-500 uppercase">Total net client</p>
-                    <p className="text-sm font-black text-emerald-600">{fmtMAD(totalNetMad)} MAD</p>
-                  </div>
+                {computedArray.length > 5 && <p className="text-[9px] font-bold text-stone-400 text-center">+ {computedArray.length - 5} autre(s)...</p>}
+                <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between">
+                  <p className="text-[10px] font-black text-stone-500 uppercase">Total net client</p>
+                  <p className="text-sm font-black text-emerald-600">{fmtMAD(totalNetMad)} MAD</p>
+                </div>
               </div>
-
-              {/* Actions */}
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmDialog(false)}
-                  className="flex-1 h-12 bg-stone-100 hover:bg-stone-200 text-stone-700 font-black uppercase text-[10px] tracking-widest rounded-2xl transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  disabled={isConfirming}
-                  className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-500/30"
-                >
-                  {isConfirming ? (
-                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Confirmation...</>
-                  ) : (
-                    <><Lock className="w-4 h-4" />Confirmer &amp; Fixer</>  
-                  )}
+                <button type="button" onClick={() => setShowConfirmDialog(false)} className="flex-1 h-12 bg-stone-100 hover:bg-stone-200 text-stone-700 font-black uppercase text-[10px] tracking-widest rounded-2xl transition-colors">Annuler</button>
+                <button type="button" onClick={handleConfirm} disabled={isConfirming} className="flex-1 h-12 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors">
+                  <Lock className="w-4 h-4" />
+                  {isConfirming ? 'Confirmation...' : 'Confirmer'}
                 </button>
               </div>
             </div>

@@ -99,12 +99,13 @@ export const GYM_SESSIONS: { type: GymSessionType; label: string; emoji: string;
 ];
 
 export const SKIN_ROUTINE_ITEMS = [
-  { id: 'cleanser', label: 'Nettoyant', emoji: '🧼' },
-  { id: 'moisturizer', label: 'Hydratant', emoji: '💧' },
-  { id: 'spf', label: 'SPF / Crème solaire', emoji: '☀️' },
-  { id: 'serum', label: 'Sérum', emoji: '💎' },
-  { id: 'exfoliant', label: 'Exfoliant', emoji: '✨' },
-  { id: 'mask', label: 'Masque', emoji: '🎭' },
+  { id: 'cleanser_am', label: 'Nettoyant (Matin)', emoji: '🧼', time: 'am' },
+  { id: 'niacinamide', label: 'Niacinamide 5%', emoji: '💧', time: 'am' },
+  { id: 'spf', label: 'SPF 50', emoji: '☀️', time: 'am' },
+  { id: 'cleanser_pm', label: 'Nettoyant (Soir)', emoji: '🧼', time: 'pm' },
+  { id: 'azelaic', label: 'Acide Azélaïque', emoji: '🧪', time: 'pm' },
+  { id: 'adapalene', label: 'Adapalène', emoji: '💊', time: 'pm' },
+  { id: 'moisturizer', label: 'Crème Hydratante', emoji: '🧴', time: 'pm' },
 ];
 
 export const SKIN_RATINGS = [

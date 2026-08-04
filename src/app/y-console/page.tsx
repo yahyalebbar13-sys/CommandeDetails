@@ -231,8 +231,15 @@ const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
     score += clamp(entry.gym.intensity * 4, 0, 20); // up to 20 pts (5 stars = 20)
   }
 
-  const routineLength = entry.skin?.routineCompleted?.length || 0;
-  score += (routineLength / Math.max(SKIN_ROUTINE_ITEMS.length, 1)) * 10;
+  const isDayA = Math.floor(new Date(entry.date || today()).getTime() / 86400000) % 2 === 0;
+  const currentSkinItems = SKIN_ROUTINE_ITEMS.filter(item => {
+    if (item.id === 'azelaic') return isDayA;
+    if (item.id === 'adapalene') return !isDayA;
+    return true;
+  });
+
+  const routineLength = (entry.skin?.routineCompleted || []).filter(id => currentSkinItems.some(i => i.id === id)).length;
+  score += (routineLength / Math.max(currentSkinItems.length, 1)) * 10;
 
   if (hasFastFood) score -= 10;
   return Math.round(clamp(score, 0, 100));
@@ -1282,15 +1289,55 @@ export default function YConsolePage() {
       updateToday((e) => ({ ...e, skin: { ...e.skin, rating: r } }));
     };
 
+    const isDayA = Math.floor(new Date(todayKey).getTime() / 86400000) % 2 === 0;
+    
+    const currentRoutineItems = SKIN_ROUTINE_ITEMS.filter(item => {
+      if (item.id === 'azelaic') return isDayA;
+      if (item.id === 'adapalene') return !isDayA;
+      return true;
+    });
+
+    const amItems = currentRoutineItems.filter(i => i.time === 'am');
+    const pmItems = currentRoutineItems.filter(i => i.time === 'pm');
+
     const routinePct =
-      ((todayEntry.skin?.routineCompleted || []).length /
-        SKIN_ROUTINE_ITEMS.length) *
+      ((todayEntry.skin?.routineCompleted || []).filter(id => currentRoutineItems.some(i => i.id === id)).length /
+        currentRoutineItems.length) *
       100;
+
     const last14 = getLastNDays(14);
     const skinData = last14.map((d) => ({
       day: formatDate(d).split(" ")[1],
       rating: data.entries[d]?.skin?.rating || 0,
     }));
+
+    const renderRoutineGroup = (title: string, items: typeof SKIN_ROUTINE_ITEMS) => (
+      <div className="space-y-2">
+        <div className="text-white/40 text-[10px] font-bold uppercase tracking-wider pl-1 mb-1">{title}</div>
+        {items.map((item) => {
+          const done = (todayEntry.skin?.routineCompleted || []).includes(item.id);
+          return (
+            <button
+              key={item.id}
+              onClick={() => toggleRoutine(item.id)}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all active:scale-[0.98] ${done ? "bg-violet-500/20 border border-violet-500/30" : "bg-white/5 border border-white/10"}`}
+            >
+              <span className="text-lg">{item.emoji}</span>
+              <span
+                className={`flex-1 text-left text-sm ${done ? "text-white line-through" : "text-white/70"}`}
+              >
+                {item.label}
+              </span>
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center ${done ? "bg-violet-500" : "border border-white/20"}`}
+              >
+                {done && <Check size={12} className="text-white" />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
 
     return (
       <div className="space-y-4 animate-[fadeIn_0.3s_ease]">
@@ -1311,31 +1358,9 @@ export default function YConsolePage() {
               }}
             />
           </div>
-          <div className="space-y-2">
-            {SKIN_ROUTINE_ITEMS.map((item) => {
-              const done = (todayEntry.skin?.routineCompleted || []).includes(
-                item.id,
-              );
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => toggleRoutine(item.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all active:scale-[0.98] ${done ? "bg-violet-500/20 border border-violet-500/30" : "bg-white/5 border border-white/10"}`}
-                >
-                  <span className="text-lg">{item.emoji}</span>
-                  <span
-                    className={`flex-1 text-left text-sm ${done ? "text-white line-through" : "text-white/70"}`}
-                  >
-                    {item.label}
-                  </span>
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center ${done ? "bg-violet-500" : "border border-white/20"}`}
-                  >
-                    {done && <Check size={12} className="text-white" />}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="space-y-4">
+            {renderRoutineGroup("Matin ☀️", amItems)}
+            {renderRoutineGroup("Soir 🌙", pmItems)}
           </div>
         </GlassCard>
 
