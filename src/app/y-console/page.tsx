@@ -221,9 +221,9 @@ const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
   const totalKcal = (entry.meals || []).reduce((s, m) => s + (m.kcal || 0), 0);
 
   const dailyProtGoal = goals?.dailyProtein || 140;
-  const dailyCarbsGoal = goals?.dailyCarbs || 200;
-  const dailyFatsGoal = goals?.dailyFats || 70;
-  const dailyKcalGoal = goals?.dailyKcal || 2000;
+  const dailyCarbsGoal = goals?.dailyCarbs || 340;
+  const dailyFatsGoal = goals?.dailyFats || 75;
+  const dailyKcalGoal = goals?.dailyKcal || 2600;
   const waterGoal = goals?.waterGoal || 12;
 
   // Proteins: up to 30 pts

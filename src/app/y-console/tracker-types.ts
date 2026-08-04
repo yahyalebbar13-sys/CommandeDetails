@@ -122,9 +122,9 @@ export const SKIN_RATINGS = [
 
 export const DEFAULT_GOALS: UserGoals = {
   dailyProtein: 140,
-  dailyCarbs: 200,
-  dailyFats: 70,
-  dailyKcal: 2000,
+  dailyCarbs: 340,
+  dailyFats: 75,
+  dailyKcal: 2600,
   waterGoal: 12,
   currentWeight: 71,
   height: 180,

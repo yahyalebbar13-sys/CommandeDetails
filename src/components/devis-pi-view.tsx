@@ -74,7 +74,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   }, [user, firestore, selectedArticleIds, articles]);
 
   const piArticles = useMemo(() =>
-    articles.filter(a => a.clientName && a.clientName.trim() !== '')
+    articles.filter(a => a.clientName && a.clientName.trim() !== '' && !a.devisConfirmed)
       .filter(a => {
         if (!search.trim()) return true;
         const q = search.toLowerCase();
@@ -88,13 +88,20 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
   // Group by client
   const groupedByClient = useMemo(() => {
-    const map = new Map<string, any[]>();
+    const map = new Map<string, { name: string, articles: any[] }>();
     piArticles.forEach(a => {
-      const client = a.clientName || 'Sans client';
-      if (!map.has(client)) map.set(client, []);
-      map.get(client)!.push(a);
+      const rawName = (a.clientName || 'Sans client').trim();
+      const normName = rawName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (!map.has(normName)) {
+        map.set(normName, { name: rawName, articles: [] });
+      }
+      const clientData = map.get(normName)!;
+      if (clientData.name === 'Sans client' && rawName !== 'Sans client') clientData.name = rawName;
+      clientData.articles.push(a);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return Array.from(map.values())
+      .map(c => [c.name, c.articles] as [string, any[]])
+      .sort(([a], [b]) => a.localeCompare(b));
   }, [piArticles]);
 
   const toggleSelection = (id: string) => {
@@ -143,44 +150,9 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     const globalFraisChangeMad = Number(fraisChange) || 0;
     const globalFraisSuppMad = Number(fraisSupp) || 0;
 
-    return Array.from(selectedArticleIds).flatMap(id => {
-      const parentArticle = articles.find(a => a.id === id);
-      if (!parentArticle) return [];
-
-      const cb = Array.isArray(parentArticle.colorBreakdown) ? parentArticle.colorBreakdown : [];
-      const sb = Array.isArray(parentArticle.sizeBreakdown) ? parentArticle.sizeBreakdown : [];
-      const parentQty = Number(parentArticle.quantity) || 1;
-      let variants: any[] = [];
-
-      if (cb.length > 0) {
-        const groups = new Map<number, any[]>();
-        cb.forEach((r: any) => {
-          const p = (r.priceOverride !== '' && r.priceOverride != null) ? Number(r.priceOverride) : Number(parentArticle.purchasePricePerUnit || 0);
-          if (!groups.has(p)) groups.set(p, []);
-          groups.get(p)!.push(r);
-        });
-        groups.forEach((rows, p) => {
-          const groupQty = rows.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
-          const ratio = groupQty / parentQty;
-          variants.push({ ...parentArticle, id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id, originalId: parentArticle.id, purchasePricePerUnit: p, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, netWeight: (Number(parentArticle.netWeight) || 0) * ratio, cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio });
-        });
-      } else if (sb.length > 0) {
-        const groups = new Map<number, any[]>();
-        sb.forEach((r: any) => {
-          const p = (r.priceOverride !== '' && r.priceOverride != null) ? Number(r.priceOverride) : Number(parentArticle.purchasePricePerUnit || 0);
-          if (!groups.has(p)) groups.set(p, []);
-          groups.get(p)!.push(r);
-        });
-        groups.forEach((rows, p) => {
-          const groupQty = rows.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
-          const ratio = groupQty / parentQty;
-          variants.push({ ...parentArticle, id: groups.size > 1 ? `${parentArticle.id}_${p}` : parentArticle.id, originalId: parentArticle.id, purchasePricePerUnit: p, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, netWeight: (Number(parentArticle.netWeight) || 0) * ratio, cubicMeasurement: (Number(parentArticle.cubicMeasurement) || 0) * ratio });
-        });
-      } else {
-        variants.push({ ...parentArticle, originalId: parentArticle.id });
-      }
-
-      return variants.map(article => {
+    return Array.from(selectedArticleIds).map(id => {
+      const article = articles.find(a => a.id === id);
+      if (!article) return null;
         const ov = allOverrides[article.originalId || article.id] || {};
         const qty = (ov.quantity != null ? Number(ov.quantity) : Number(article.quantity)) || 0;
         const prix = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(article.purchasePricePerUnit)) || 0;
@@ -231,21 +203,16 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         const marge = Number(margePercent) || 0;
         const prixVenteUniteMad = coutUniteMad * (1 + marge / 100);
         const prixVenteTotalMad = coutTotalMad * (1 + marge / 100);
-        const originalId = article.originalId || article.id;
-        const artRemise = remiseParArticle[originalId] !== undefined ? Number(remiseParArticle[originalId]) : Number(remiseGlobale) || 0;
+        const artRemise = remiseParArticle[article.id] !== undefined ? Number(remiseParArticle[article.id]) : Number(remiseGlobale) || 0;
         const prixRemiseUniteMad = prixVenteUniteMad * (1 - artRemise / 100);
         const prixRemiseTotalMad = prixVenteTotalMad * (1 - artRemise / 100);
 
         return { article, computed: { qty, prix, cbm, cbmTotal, fretTotal$, fraisCmd, valAchatMad, totalTaxesMad, coutTotalMad, coutUniteMad, prixVenteUniteMad, prixVenteTotalMad, fraisTransitMad, fraisChangeMad, fraisSuppMad, remise: artRemise, prixRemiseUniteMad, prixRemiseTotalMad, isEstimated: !linkedFac, hasCustData: true } };
-      });
     }).filter(Boolean);
   }, [selectedArticleIds, tauxChange, margePercent, fraisTransit, fraisChange, fraisSupp, remiseGlobale, remiseParArticle, allOverrides, articles, factures, categories, avgFreightPerCbm]);
 
   const totalCoutTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.coutTotalMad || 0), 0);
-  const totalPrixVenteTotalMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixVenteTotalMad || 0), 0);
-  const totalRemiseMad = computedArray.reduce((acc, curr) => acc + ((curr?.computed.prixVenteTotalMad || 0) - (curr?.computed.prixRemiseTotalMad || 0)), 0);
   const totalNetMad = computedArray.reduce((acc, curr) => acc + (curr?.computed.prixRemiseTotalMad || 0), 0);
-  const hasAnyRemise = computedArray.some(c => (c?.computed.remise || 0) > 0);
   const hasIncomplete = computedArray.some(c => !c?.article.purchasePricePerUnit || !c?.article.netWeight || !c?.article.cubicMeasurement || !c?.article.quantity || !c?.computed.hasCustData);
 
   const fmtMAD = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -262,17 +229,24 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     if (computedArray.length === 0 || hasIncomplete || !user || !firestore) return;
     setIsConfirming(true);
     const updates = new Map<string, any>();
+    
     computedArray.forEach(c => {
       if (!c) return;
-      const articleId = c.article.originalId || c.article.id;
-      if (!updates.has(articleId)) {
-        updates.set(articleId, { devisTauxChange: Number(tauxChange), devisMargePercent: Number(margePercent), devisRemisePercent: c.computed.remise, devisPrixVenteTotalMad: 0, devisCoutTotalMad: 0, devisDate: new Date().toISOString(), devisConfirmedAt: new Date().toISOString(), devisConfirmed: true, devisPrixVenteUniteMad: c.computed.prixRemiseUniteMad });
-      }
-      const current = updates.get(articleId);
-      current.devisPrixVenteTotalMad += c.computed.prixRemiseTotalMad;
-      current.devisCoutTotalMad += c.computed.coutTotalMad;
-      if (!current.devisRemise) current.devisRemise = c.computed.remise;
+      const articleId = c.article.id;
+      
+      updates.set(articleId, {
+        devisTauxChange: Number(tauxChange),
+        devisMargePercent: Number(margePercent),
+        devisRemisePercent: c.computed.remise,
+        devisPrixVenteTotalMad: c.computed.prixRemiseTotalMad,
+        devisCoutTotalMad: c.computed.coutTotalMad,
+        devisDate: new Date().toISOString(),
+        devisConfirmedAt: new Date().toISOString(),
+        devisConfirmed: true,
+        devisPrixVenteUniteMad: c.computed.prixRemiseUniteMad
+      });
     });
+
     const now = new Date().toISOString();
     const historyReads = await Promise.all(
       Array.from(updates.keys()).map(async articleId => {
@@ -300,7 +274,6 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
 
   return (
     <div className="space-y-4 fade-in">
-      {/* Header */}
       <div className="bg-stone-900 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-500 rounded-xl">
@@ -312,7 +285,6 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Quick marge control */}
           <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2">
             <span className="text-[9px] font-black text-stone-400 uppercase">Marge</span>
             <input
@@ -348,7 +320,6 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
         </div>
       </div>
 
-      {/* Expanded Params */}
       {showParams && (
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 grid grid-cols-2 sm:grid-cols-5 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="space-y-1 col-span-1">
@@ -366,7 +337,6 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
               <input type="number" step="100" value={val} onChange={e => set(e.target.value)} className="w-full h-9 border border-stone-200 rounded-xl px-3 font-black text-stone-900 text-sm focus:outline-none focus:border-stone-400" />
             </div>
           ))}
-          {/* Remise per article */}
           {computedArray.length > 0 && (
             <div className="col-span-full border-t border-stone-100 pt-4">
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Tag className="w-2.5 h-2.5" /> Remise par article</p>
@@ -374,7 +344,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                 {computedArray.map((c, i) => c && (
                   <div key={i} className="flex items-center gap-2 bg-stone-50 rounded-xl px-3 py-2">
                     <p className="text-[9px] font-black text-stone-600 uppercase flex-1 truncate min-w-0">{c.article.categoryId || c.article.name}</p>
-                    <input type="number" step="0.5" min={0} max={100} placeholder={remiseGlobale || '0'} value={remiseParArticle[c.article.originalId || c.article.id] ?? ''} onChange={e => { const id = c.article.originalId || c.article.id; setRemiseParArticle(prev => ({ ...prev, [id]: e.target.value })); }} className="w-14 h-7 border border-rose-200 rounded-lg px-2 font-black text-stone-800 text-xs focus:outline-none focus:border-rose-400 text-center" />
+                    <input type="number" step="0.5" min={0} max={100} placeholder={remiseGlobale} value={remiseParArticle[c.article.id] ?? ''} onChange={e => { const id = c.article.id; setRemiseParArticle(prev => ({ ...prev, [id]: e.target.value })); }} className="w-14 h-7 border border-rose-200 rounded-lg px-2 font-black text-stone-800 text-xs focus:outline-none focus:border-rose-400 text-center" />
                     <span className="text-[9px] text-rose-400 font-black">%</span>
                   </div>
                 ))}
