@@ -549,6 +549,7 @@ export default function YConsolePage() {
     version: 1,
   });
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [statsPeriod, setStatsPeriod] = useState<7 | 30 | 90>(7);
   const [mounted, setMounted] = useState(false);
 
   const todayKey = today();
@@ -1467,7 +1468,8 @@ export default function YConsolePage() {
 
   // ─── STATS TAB ────────────────────────────────────────────────
   const StatsView = () => {
-    const [period, setPeriod] = useState<7 | 30 | 90>(7);
+    const period = statsPeriod;
+    const setPeriod = setStatsPeriod;
     const days = getLastNDays(period);
 
     const proteinChartData = days.map((d) => ({
