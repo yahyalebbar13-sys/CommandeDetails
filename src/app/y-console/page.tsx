@@ -114,6 +114,16 @@ const loadData = (): TrackerData => {
           const e = parsed.entries[key];
           if (!e.meals) e.meals = [];
 
+          // Add default carbs, fats, kcal if they don't exist in existing meals
+          e.meals.forEach((m: any) => {
+            if (m.carbs === undefined) m.carbs = 0;
+            if (m.fats === undefined) m.fats = 0;
+            if (m.kcal === undefined) m.kcal = 0;
+            delete m.sugar;
+            delete m.oil;
+            delete m.isFastFood;
+          });
+
           // Migrate proteins, sugar, oil to a generic meal if they exist and meals are empty
           if (
             (e.proteins || e.sugar !== undefined || e.oil !== undefined) &&
@@ -129,9 +139,9 @@ const loadData = (): TrackerData => {
                 id: "migrated-" + Date.now(),
                 name: "Repas (Migré)",
                 proteins: totalProt,
-                sugar: e.sugar || 0,
-                oil: e.oil || 0,
-                isFastFood: !!e.fastFood,
+                carbs: 0,
+                fats: 0,
+                kcal: 0,
                 time: "12:00",
               });
             }
@@ -142,11 +152,17 @@ const loadData = (): TrackerData => {
           }
 
           // Clean up old fields
-          delete e.proteins;
-          delete e.sugar;
-          delete e.oil;
-          delete e.fastFood;
+          delete (e as any).proteins;
+          delete (e as any).sugar;
+          delete (e as any).oil;
+          delete (e as any).fastFood;
         });
+      }
+
+      if (parsed.goals) {
+        delete parsed.goals.maxSugar;
+        delete parsed.goals.maxOilTbsp;
+        delete parsed.goals.maxFastFoodPerWeek;
       }
 
       return {
@@ -199,31 +215,30 @@ const getWeekDates = (): string[] => {
 const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
   let score = 0;
 
-  const totalProt = (entry.meals || []).reduce(
-    (s, m) => s + (m.proteins || 0),
-    0,
-  );
-  const entrySugar = (entry.meals || []).reduce(
-    (s, m) => s + (m.sugar || 0),
-    0,
-  );
-  const entryOil = (entry.meals || []).reduce((s, m) => s + (m.oil || 0), 0);
-  const hasFastFood = (entry.meals || []).some((m) => m.isFastFood);
+  const totalProt = (entry.meals || []).reduce((s, m) => s + (m.proteins || 0), 0);
+  const totalCarbs = (entry.meals || []).reduce((s, m) => s + (m.carbs || 0), 0);
+  const totalFats = (entry.meals || []).reduce((s, m) => s + (m.fats || 0), 0);
+  const totalKcal = (entry.meals || []).reduce((s, m) => s + (m.kcal || 0), 0);
 
   const dailyProtGoal = goals?.dailyProtein || 140;
-  const maxSugar = goals?.maxSugar || 25;
-  const maxOil = goals?.maxOilTbsp || 3;
+  const dailyCarbsGoal = goals?.dailyCarbs || 200;
+  const dailyFatsGoal = goals?.dailyFats || 70;
+  const dailyKcalGoal = goals?.dailyKcal || 2000;
   const waterGoal = goals?.waterGoal || 12;
 
+  // Proteins: up to 30 pts
   score += clamp((totalProt / dailyProtGoal) * 30, 0, 30);
+  
+  // Kcal: up to 15 pts
+  score += clamp((totalKcal / dailyKcalGoal) * 15, 0, 15);
+  
+  // Carbs: up to 10 pts
+  score += clamp((totalCarbs / dailyCarbsGoal) * 10, 0, 10);
+  
+  // Fats: up to 10 pts
+  score += clamp((totalFats / dailyFatsGoal) * 10, 0, 10);
 
-  score +=
-    entrySugar <= maxSugar
-      ? 15
-      : clamp(15 - ((entrySugar - maxSugar) / maxSugar) * 15, 0, 15);
-
-  score += entryOil <= maxOil ? 10 : 5;
-
+  // Water: up to 15 pts
   const entryWater = entry.water || 0;
   score += entryWater >= waterGoal ? 15 : (entryWater / waterGoal) * 15;
 
@@ -242,7 +257,6 @@ const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
   const routineLength = (entry.skin?.routineCompleted || []).filter(id => currentSkinItems.some(i => i.id === id)).length;
   score += (routineLength / Math.max(currentSkinItems.length, 1)) * 10;
 
-  if (hasFastFood) score -= 10;
   return Math.round(clamp(score, 0, 100));
 };
 
@@ -589,10 +603,10 @@ export default function YConsolePage() {
   }, []);
 
   // Computed values
-  const totalProtein = (todayEntry.meals || []).reduce(
-    (s, m) => s + (m.proteins || 0),
-    0,
-  );
+  const totalProtein = (todayEntry.meals || []).reduce((s, m) => s + (m.proteins || 0), 0);
+  const totalCarbs = (todayEntry.meals || []).reduce((s, m) => s + (m.carbs || 0), 0);
+  const totalFats = (todayEntry.meals || []).reduce((s, m) => s + (m.fats || 0), 0);
+  const totalKcal = (todayEntry.meals || []).reduce((s, m) => s + (m.kcal || 0), 0);
   const healthScore = calcHealthScore(todayEntry, goals);
   const streak = useMemo(() => getStreak(data.entries || {}), [data.entries]);
   const gymStreak = useMemo(
@@ -665,6 +679,13 @@ export default function YConsolePage() {
         {/* Quick stats grid */}
         <div className="grid grid-cols-2 gap-3">
           <StatCard
+            icon={<Flame size={18} color="#f97316" />}
+            label="Calories"
+            value={`${totalKcal} kcal`}
+            sub={`/ ${goals.dailyKcal}`}
+            color="#f97316"
+          />
+          <StatCard
             icon={<Apple size={18} color="#22c55e" />}
             label="Protéines"
             value={`${totalProtein}g`}
@@ -672,30 +693,18 @@ export default function YConsolePage() {
             color="#22c55e"
           />
           <StatCard
-            icon={<Droplets size={18} color="#3b82f6" />}
-            label="Eau"
-            value={`${todayEntry.water}`}
-            sub={`/ ${goals.waterGoal} verres`}
+            icon={<Activity size={18} color="#3b82f6" />}
+            label="Glucides"
+            value={`${totalCarbs}g`}
+            sub={`/ ${goals.dailyCarbs}g`}
             color="#3b82f6"
           />
           <StatCard
-            icon={<Flame size={18} color="#ef4444" />}
-            label="Sucre"
-            value={`${(todayEntry.meals || []).reduce((s, m) => s + (m.sugar || 0), 0)}g`}
-            sub={`max ${goals.maxSugar}g`}
-            color={
-              (todayEntry.meals || []).reduce((s, m) => s + (m.sugar || 0), 0) >
-              goals.maxSugar
-                ? "#ef4444"
-                : "#22c55e"
-            }
-          />
-          <StatCard
-            icon={<Zap size={18} color="#f97316" />}
-            label="Streak"
-            value={`${streak}j`}
-            sub="consécutifs"
-            color="#f97316"
+            icon={<Droplets size={18} color="#eab308" />}
+            label="Lipides"
+            value={`${totalFats}g`}
+            sub={`/ ${goals.dailyFats}g`}
+            color="#eab308"
           />
         </div>
 
@@ -739,11 +748,9 @@ export default function YConsolePage() {
                       <span className="text-white text-sm font-medium">
                         {m.name}
                       </span>
-                      {m.isFastFood && (
-                        <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-md">
-                          Fast Food
-                        </span>
-                      )}
+                      <span className="text-xs flex items-center gap-1 text-orange-400">
+                        <Flame className="w-3 h-3" /> {m.kcal} kcal
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-white/70 text-xs">{m.time}</span>
@@ -751,15 +758,13 @@ export default function YConsolePage() {
                   </div>
                   <div className="flex gap-3 mt-1 text-xs text-white/50">
                     <span className="flex items-center gap-1">
-                      <Dumbbell className="w-3 h-3 text-cyan-400" />{" "}
-                      {m.proteins}g
+                      <Dumbbell className="w-3 h-3 text-cyan-400" /> {m.proteins}g Prot
                     </span>
                     <span className="flex items-center gap-1">
-                      <Activity className="w-3 h-3 text-pink-400" /> {m.sugar}g
+                      <Activity className="w-3 h-3 text-blue-400" /> {m.carbs}g Glu
                     </span>
                     <span className="flex items-center gap-1">
-                      <Droplets className="w-3 h-3 text-yellow-400" /> {m.oil}{" "}
-                      c.s
+                      <Droplets className="w-3 h-3 text-yellow-400" /> {m.fats}g Lip
                     </span>
                   </div>
                 </div>
@@ -825,16 +830,17 @@ export default function YConsolePage() {
   const NutritionView = () => {
     const [mealName, setMealName] = useState("");
     const [mealProt, setMealProt] = useState("");
-    const [mealSugar, setMealSugar] = useState("");
-    const [mealOil, setMealOil] = useState("");
-    const [isFastFood, setIsFastFood] = useState(false);
+    const [mealCarbs, setMealCarbs] = useState("");
+    const [mealFats, setMealFats] = useState("");
+    const [mealKcal, setMealKcal] = useState("");
     const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
     const addMeal = () => {
       if (!mealName) return;
       const prot = parseInt(mealProt) || 0;
-      const sug = parseInt(mealSugar) || 0;
-      const oil = parseFloat(mealOil) || 0;
+      const carbs = parseInt(mealCarbs) || 0;
+      const fats = parseInt(mealFats) || 0;
+      const kcal = parseInt(mealKcal) || 0;
 
       updateToday((e) => ({
         ...e,
@@ -844,9 +850,9 @@ export default function YConsolePage() {
             id: "meal-" + Date.now(),
             name: mealName,
             proteins: prot,
-            sugar: sug,
-            oil,
-            isFastFood,
+            carbs,
+            fats,
+            kcal,
             time: new Date().toTimeString().slice(0, 5),
           },
         ],
@@ -861,10 +867,10 @@ export default function YConsolePage() {
               id: "template-" + Date.now(),
               name: mealName,
               proteins: prot,
-              sugar: sug,
-              oil,
-              isFastFood,
-              time: "", // templates don't need time
+              carbs,
+              fats,
+              kcal,
+              time: "",
             }
           ]
         }));
@@ -872,18 +878,18 @@ export default function YConsolePage() {
 
       setMealName("");
       setMealProt("");
-      setMealSugar("");
-      setMealOil("");
-      setIsFastFood(false);
+      setMealCarbs("");
+      setMealFats("");
+      setMealKcal("");
       setSaveAsTemplate(false);
     };
 
     const loadTemplate = (t: Meal) => {
       setMealName(t.name);
       setMealProt(t.proteins ? String(t.proteins) : "");
-      setMealSugar(t.sugar ? String(t.sugar) : "");
-      setMealOil(t.oil ? String(t.oil) : "");
-      setIsFastFood(t.isFastFood);
+      setMealCarbs(t.carbs ? String(t.carbs) : "");
+      setMealFats(t.fats ? String(t.fats) : "");
+      setMealKcal(t.kcal ? String(t.kcal) : "");
     };
     
     const removeTemplate = (id: string, e: React.MouseEvent) => {
@@ -949,8 +955,8 @@ export default function YConsolePage() {
                   className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl transition-all"
                 >
                   <div className="flex flex-col items-start">
-                    <span className="text-white text-sm font-medium">{t.name} {t.isFastFood && '🍔'}</span>
-                    <span className="text-white/40 text-[10px]">{t.proteins}g Prot • {t.sugar}g Sucre</span>
+                    <span className="text-white text-sm font-medium">{t.name}</span>
+                    <span className="text-white/40 text-[10px]">{t.kcal} kcal • {t.proteins}P • {t.carbs}G • {t.fats}L</span>
                   </div>
                   <div 
                     onClick={(e) => removeTemplate(t.id, e)}
@@ -976,48 +982,51 @@ export default function YConsolePage() {
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm placeholder:text-white/30 outline-none focus:border-cyan-500/50"
             />
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <div className="flex flex-col gap-1">
-                <span className="text-white/50 text-[10px]">Protéines (g)</span>
+                <span className="text-white/50 text-[10px]">Kcal</span>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={mealKcal}
+                  onChange={(e) => setMealKcal(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-white/50 text-[10px]">Prot (g)</span>
                 <input
                   type="number"
                   placeholder="0"
                   value={mealProt}
                   onChange={(e) => setMealProt(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-white/50 text-[10px]">Sucre (g)</span>
+                <span className="text-white/50 text-[10px]">Glu (g)</span>
                 <input
                   type="number"
                   placeholder="0"
-                  value={mealSugar}
-                  onChange={(e) => setMealSugar(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
+                  value={mealCarbs}
+                  onChange={(e) => setMealCarbs(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-white/50 text-[10px]">Huile (c.s)</span>
+                <span className="text-white/50 text-[10px]">Lip (g)</span>
                 <input
                   type="number"
                   placeholder="0"
-                  step="0.5"
-                  value={mealOil}
-                  onChange={(e) => setMealOil(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
+                  value={mealFats}
+                  onChange={(e) => setMealFats(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-white text-sm outline-none focus:border-cyan-500/50"
                 />
               </div>
             </div>
 
             <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setIsFastFood(!isFastFood)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isFastFood ? "bg-red-500/20 text-red-400" : "bg-white/5 text-white/50"}`}
-                >
-                  <span>🍔</span> Fast Food
-                </button>
+              <div className="flex items-center justify-end">
                 <button
                   onClick={() => setSaveAsTemplate(!saveAsTemplate)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${saveAsTemplate ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-white/50 border border-transparent"}`}
@@ -1450,10 +1459,10 @@ export default function YConsolePage() {
       goal: goals.dailyProtein,
     }));
 
-    const sugarChartData = days.map((d) => ({
+    const kcalChartData = days.map((d) => ({
       day: period <= 7 ? formatDate(d).split(" ")[0] : d.slice(8),
-      sugar: (data.entries[d]?.meals || []).reduce((s, m) => s + (m.sugar || 0), 0),
-      max: goals.maxSugar,
+      kcal: (data.entries[d]?.meals || []).reduce((s, m) => s + (m.kcal || 0), 0),
+      goal: goals.dailyKcal,
     }));
 
     const gymCompletionData = (() => {
@@ -1470,19 +1479,19 @@ export default function YConsolePage() {
 
     const macroData = (() => {
       let totalProt = 0,
-        totalSugar = 0,
-        totalOil = 0;
+        totalCarbs = 0,
+        totalFats = 0;
       days.forEach((d) => {
         const e = data.entries[d];
         if (!e) return;
         totalProt += (e.meals || []).reduce((s, m) => s + (m.proteins || 0), 0);
-        totalSugar += (e.meals || []).reduce((s, m) => s + (m.sugar || 0), 0);
-        totalOil += (e.meals || []).reduce((s, m) => s + (m.oil || 0), 0) * 14; // 1 tbsp ≈ 14g
+        totalCarbs += (e.meals || []).reduce((s, m) => s + (m.carbs || 0), 0);
+        totalFats += (e.meals || []).reduce((s, m) => s + (m.fats || 0), 0);
       });
       return [
         { name: "Protéines", value: totalProt, color: "#22c55e" },
-        { name: "Sucre", value: totalSugar, color: "#ef4444" },
-        { name: "Huile", value: totalOil, color: "#eab308" },
+        { name: "Glucides", value: totalCarbs, color: "#3b82f6" },
+        { name: "Lipides", value: totalFats, color: "#eab308" },
       ];
     })();
 
@@ -1639,11 +1648,11 @@ export default function YConsolePage() {
           </ResponsiveContainer>
         </GlassCard>
 
-        {/* Sugar chart */}
+        {/* Calories chart */}
         <GlassCard>
-          <div className="text-white/50 text-xs mb-2">SUCRE ({period}j)</div>
+          <div className="text-white/50 text-xs mb-2">CALORIES ({period}j)</div>
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={sugarChartData}>
+            <LineChart data={kcalChartData}>
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="rgba(255,255,255,0.05)"
@@ -1670,15 +1679,15 @@ export default function YConsolePage() {
               />
               <Line
                 type="monotone"
-                dataKey="sugar"
-                stroke="#ef4444"
+                dataKey="kcal"
+                stroke="#f97316"
                 strokeWidth={2}
-                dot={{ fill: "#ef4444", r: 3 }}
+                dot={{ fill: "#f97316", r: 3 }}
               />
               <Line
                 type="monotone"
-                dataKey="max"
-                stroke="#ef4444"
+                dataKey="goal"
+                stroke="#f97316"
                 strokeDasharray="5 5"
                 strokeWidth={1}
                 dot={false}
@@ -1928,34 +1937,34 @@ export default function YConsolePage() {
         <GlassCard>
           <div className="text-white/50 text-xs mb-1">OBJECTIFS QUOTIDIENS</div>
           <GoalInput
+            label="Calories"
+            value={goals.dailyKcal}
+            unit="kcal"
+            onChange={(v) => updateGoals({ dailyKcal: v })}
+          />
+          <GoalInput
             label="Protéines"
             value={goals.dailyProtein}
             unit="g"
             onChange={(v) => updateGoals({ dailyProtein: v })}
           />
           <GoalInput
-            label="Sucre max"
-            value={goals.maxSugar}
+            label="Glucides"
+            value={goals.dailyCarbs}
             unit="g"
-            onChange={(v) => updateGoals({ maxSugar: v })}
+            onChange={(v) => updateGoals({ dailyCarbs: v })}
           />
           <GoalInput
-            label="Huile max"
-            value={goals.maxOilTbsp}
-            unit="c.à.s"
-            onChange={(v) => updateGoals({ maxOilTbsp: v })}
+            label="Lipides"
+            value={goals.dailyFats}
+            unit="g"
+            onChange={(v) => updateGoals({ dailyFats: v })}
           />
           <GoalInput
             label="Eau"
             value={goals.waterGoal}
             unit="verres"
             onChange={(v) => updateGoals({ waterGoal: v })}
-          />
-          <GoalInput
-            label="Fast food/sem"
-            value={goals.maxFastFoodPerWeek}
-            unit="max"
-            onChange={(v) => updateGoals({ maxFastFoodPerWeek: v })}
           />
         </GlassCard>
 

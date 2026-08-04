@@ -22,6 +22,7 @@ import CostSaleView from '@/components/cost-sale-view';
 import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
+import { ClientProfitabilityView } from '@/components/client-profitability-view';
 import BaseOrdersView from '@/components/base-orders-view';
 import EmailsView from '@/components/emails-view';
 import { exportGlobalPackingPDF } from '@/lib/pdf-global-packing';
@@ -486,6 +487,7 @@ function AdminApp() {
   const financeSubItems = [
     { id: 'cost-analysis'   as const, label: 'Coût Revient',  icon: Calculator },
     { id: 'history-revient' as const, label: 'Hist. Revient', icon: History },
+    { id: 'client-profitability' as const, label: 'Rentabilité', icon: TrendingUp },
     { id: 'cost-sale'       as const, label: 'Coût Vente',    icon: ShoppingCart },
     { id: 'dp'              as const, label: 'Déc. Prov.',    icon: FileCheck },
     { id: 'reconciliation'  as const, label: 'Réconcil.',     icon: TrendingUp },
@@ -667,6 +669,9 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'devis-pi' ? 'block animate-in fade-in' : 'hidden'}>
               <DevisPIView articles={articles} factures={factures} categories={subCategories} />
+            </div>
+            <div className={activeTab === 'client-profitability' ? 'block animate-in fade-in' : 'hidden'}>
+              <ClientProfitabilityView articles={articles} />
             </div>
             <div className={activeTab === 'suppliers' ? 'block animate-in fade-in' : 'hidden'}>
               <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />

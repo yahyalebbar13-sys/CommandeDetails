@@ -23,9 +23,9 @@ export interface Meal {
   id: string;
   name: string;
   proteins: number; // grams
-  sugar: number;    // grams
-  oil: number;      // tablespoons
-  isFastFood: boolean;
+  carbs: number;    // grams
+  fats: number;     // grams
+  kcal: number;     // calories
   time: string;     // HH:mm
 }
 
@@ -47,9 +47,9 @@ export interface DailyEntry {
 
 export interface UserGoals {
   dailyProtein: number;    // grams, default 140
-  maxSugar: number;        // grams, default 25
-  maxOilTbsp: number;      // tablespoons, default 3
-  maxFastFoodPerWeek: number; // default 2
+  dailyCarbs: number;      // grams, default 200
+  dailyFats: number;       // grams, default 70
+  dailyKcal: number;       // calories, default 2000
   waterGoal: number;       // glasses, default 12
   currentWeight: number;   // kg, default 71
   height: number;          // cm, default 180
@@ -122,9 +122,9 @@ export const SKIN_RATINGS = [
 
 export const DEFAULT_GOALS: UserGoals = {
   dailyProtein: 140,
-  maxSugar: 25,
-  maxOilTbsp: 3,
-  maxFastFoodPerWeek: 2,
+  dailyCarbs: 200,
+  dailyFats: 70,
+  dailyKcal: 2000,
   waterGoal: 12,
   currentWeight: 71,
   height: 180,

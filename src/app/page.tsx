@@ -22,13 +22,14 @@ import DPView from '@/components/dp-view';
 import ReconciliationView from '@/components/reconciliation-view';
 import DevisPIView from '@/components/devis-pi-view';
 import EmailsView from '@/components/emails-view';
+import { ClientProfitabilityView } from '@/components/client-profitability-view';
 
 import { ClientDetailView } from '@/components/suppliers-view';
 import { Button } from '@/components/ui/button';
 import {
   LogOut, Loader2, Layers, Plus, Database,
   LayoutDashboard, ClipboardList, Factory, Truck,
-  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, ChevronDown, Mail
+  Anchor, UserCheck, Menu, Timer, Calculator, Package, ShieldOff, ShoppingCart, FileCheck, Table2, TrendingUp, ReceiptText, ChevronDown, Mail, History
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -483,10 +484,11 @@ function AdminApp() {
   ] as const;
 
   const financeSubItems = [
-    { id: 'cost-analysis'  as const, label: 'Coût Revient',  icon: Calculator },
-    { id: 'cost-sale'      as const, label: 'Coût Vente',    icon: ShoppingCart },
-    { id: 'dp'             as const, label: 'Déc. Prov.',    icon: FileCheck },
-    { id: 'reconciliation' as const, label: 'Réconcil.',     icon: TrendingUp },
+    { id: 'cost-analysis'   as const, label: 'Coût Revient',  icon: Calculator },
+    { id: 'client-profitability' as const, label: 'Rentabilité', icon: TrendingUp },
+    { id: 'cost-sale'       as const, label: 'Coût Vente',    icon: ShoppingCart },
+    { id: 'dp'              as const, label: 'Déc. Prov.',    icon: FileCheck },
+    { id: 'reconciliation'  as const, label: 'Réconcil.',     icon: TrendingUp },
   ];
   const isFinanceTab = financeSubItems.some(f => f.id === activeTab);
   const navItems = [...navGroups.flat(), ...financeSubItems];
@@ -649,6 +651,9 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'devis-pi' ? 'block animate-in fade-in' : 'hidden'}>
               <DevisPIView articles={articles} factures={factures} categories={subCategories} />
+            </div>
+            <div className={activeTab === 'client-profitability' ? 'block animate-in fade-in' : 'hidden'}>
+              <ClientProfitabilityView articles={articles} />
             </div>
             <div className={activeTab === 'suppliers' ? 'block animate-in fade-in' : 'hidden'}>
               <SuppliersView articles={articles} factures={factures} payments={payments} categories={subCategories} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} />
