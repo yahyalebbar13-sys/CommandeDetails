@@ -75,7 +75,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
   }, [user, firestore, selectedArticleIds, articles]);
 
   const piArticles = useMemo(() =>
-    articles.filter(a => a.clientName && a.clientName.trim() !== '' && !a.devisConfirmed)
+    articles.filter(a => a.clientName && a.clientName.trim() !== '' && !a.devisConfirmed && !a.devisPrixVenteUniteMad)
       .filter(a => {
         if (!search.trim()) return true;
         const q = search.toLowerCase();

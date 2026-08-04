@@ -2128,12 +2128,12 @@ export default function YConsolePage() {
 
       {/* Content */}
       <div className="px-4 py-4 max-w-lg mx-auto">
-        {tab === "dashboard" && <DashboardView />}
-        {tab === "nutrition" && <NutritionView />}
-        {tab === "gym" && <GymView />}
-        {tab === "skin" && <SkinView />}
-        {tab === "stats" && <StatsView />}
-        {tab === "settings" && <SettingsView />}
+        {tab === "dashboard" && DashboardView()}
+        {tab === "nutrition" && NutritionView()}
+        {tab === "gym" && GymView()}
+        {tab === "skin" && SkinView()}
+        {tab === "stats" && StatsView()}
+        {tab === "settings" && SettingsView()}
       </div>
 
       {/* Bottom navigation */}
