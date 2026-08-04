@@ -153,7 +153,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     return Array.from(selectedArticleIds).map(id => {
       const article = articles.find(a => a.id === id);
       if (!article) return null;
-        const ov = allOverrides[article.originalId || article.id] || {};
+        const ov = allOverrides[article.id] || {};
         const qty = (ov.quantity != null ? Number(ov.quantity) : Number(article.quantity)) || 0;
         const prix = (ov.purchasePricePerUnit != null ? Number(ov.purchasePricePerUnit) : Number(article.purchasePricePerUnit)) || 0;
         const cbm = (ov.cubicMeasurement != null ? Number(ov.cubicMeasurement) : Number(article.cubicMeasurement)) || 0;
@@ -433,7 +433,7 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
                 <div className="divide-y divide-stone-50">
                   {clientArticles.map(a => {
                     const isSelected = selectedArticleIds.has(a.id);
-                    const computed = computedArray.find(c => (c?.article.originalId || c?.article.id) === a.id);
+                    const computed = computedArray.find(c => (c?.article.id) === a.id);
                     return (
                       <button
                         key={a.id}
