@@ -213,6 +213,23 @@ const getWeekDates = (): string[] => {
   return days;
 };
 
+const getSleepDuration = (sleep?: { bedtime: string; wakeTime: string; }) => {
+  if (!sleep?.bedtime || !sleep?.wakeTime) return 0;
+  const [bh, bm] = sleep.bedtime.split(":").map(Number);
+  const [wh, wm] = sleep.wakeTime.split(":").map(Number);
+  let bedMins = bh * 60 + bm;
+  let wakeMins = wh * 60 + wm;
+  if (wakeMins <= bedMins) wakeMins += 24 * 60;
+  return wakeMins - bedMins; // minutes
+};
+
+const calcDurationStr = (mins: number) => {
+  if (!mins) return "0h00";
+  const h = Math.floor(mins / 60);
+  const m = Math.floor(mins % 60);
+  return `${h}h${m.toString().padStart(2, "0")}`;
+};
+
 const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
   let score = 0;
 
@@ -257,6 +274,13 @@ const calcHealthScore = (entry: DailyEntry, goals: UserGoals): number => {
 
   const routineLength = (entry.skin?.routineCompleted || []).filter(id => currentSkinItems.some(i => i.id === id)).length;
   score += (routineLength / Math.max(currentSkinItems.length, 1)) * 10;
+
+  // Sleep: up to 15 pts (15 pts if >= sleepGoal, scaled if less)
+  const sleepMins = getSleepDuration(entry.sleep);
+  const sleepGoalMins = (goals?.sleepGoal || 8) * 60;
+  if (sleepGoalMins > 0) {
+    score += clamp((sleepMins / sleepGoalMins) * 15, 0, 15);
+  }
 
   return Math.round(clamp(score, 0, 100));
 };
@@ -367,6 +391,14 @@ const scheduleNotifications = (settings: NotificationSettings, entries: Record<s
       body: "Fais ton bilan du jour !",
       tag: "review",
     });
+    if (settings.sleepReminder) {
+      reminders.push({
+        time: settings.sleepReminder,
+        title: "🌙 Couvre-feu",
+        body: "Il est temps de se préparer à dormir !",
+        tag: "sleep",
+      });
+    }
 
     const todayKey = new Date().toISOString().split("T")[0];
     let lastShaveDays = -1;
@@ -558,7 +590,7 @@ const MiniSparkline = ({
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════
 
-type Tab = "dashboard" | "nutrition" | "gym" | "skin" | "stats" | "settings";
+type Tab = "dashboard" | "nutrition" | "gym" | "skin" | "sleep" | "stats" | "settings";
 
 export default function YConsolePage() {
   const [data, setData] = useState<TrackerData>({
@@ -757,6 +789,30 @@ export default function YConsolePage() {
             sub={`/ ${goals.dailyFats}g`}
             color="#eab308"
           />
+        </div>
+
+        {/* Sleep summary */}
+        <div onClick={() => setTab("sleep")} className="cursor-pointer active:scale-[0.98] transition-all">
+          <GlassCard className="flex items-center justify-between border-violet-500/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center">
+                <Moon size={20} className="text-violet-400" />
+              </div>
+              <div>
+                <div className="text-white font-semibold text-sm">
+                  Sommeil
+                </div>
+                <div className="text-white/40 text-xs flex items-center gap-1">
+                  Objectif: {goals.sleepGoal || 8}h
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-violet-400">
+                {calcDurationStr(getSleepDuration(todayEntry.sleep))}
+              </div>
+            </div>
+          </GlassCard>
         </div>
 
         {/* Today's gym */}
@@ -1505,6 +1561,79 @@ export default function YConsolePage() {
     );
   };
 
+  // ─── SLEEP TAB ────────────────────────────────────────────────
+  const SleepView = () => {
+    const sleepData = todayEntry.sleep || { bedtime: "", wakeTime: "" };
+
+    const currentDurationMins = getSleepDuration(sleepData);
+
+    const setBedtime = (v: string) => updateToday(e => ({ ...e, sleep: { ...e.sleep, bedtime: v, wakeTime: e.sleep?.wakeTime || "" } }));
+    const setWakeTime = (v: string) => updateToday(e => ({ ...e, sleep: { ...e.sleep, bedtime: e.sleep?.bedtime || "", wakeTime: v } }));
+
+    const last14 = getLastNDays(14);
+    const chartData = last14.map(d => {
+      const s = data.entries[d]?.sleep;
+      const dur = getSleepDuration(s) / 60;
+      return {
+        day: formatDate(d).split(" ")[1],
+        duration: dur,
+        goal: goals.sleepGoal || 8,
+      };
+    });
+
+    return (
+      <div className="space-y-4 animate-[fadeIn_0.3s_ease]">
+        <GlassCard>
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-white/50 text-xs font-bold uppercase tracking-wider">Nuit Dernière</div>
+            <div className="text-xl font-bold text-violet-400">
+              {calcDurationStr(currentDurationMins)}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] text-white/40 mb-1">Coucher</label>
+              <input
+                type="time"
+                value={sleepData.bedtime}
+                onChange={(e) => setBedtime(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-lg focus:outline-none focus:border-violet-500/50"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-white/40 mb-1">Réveil</label>
+              <input
+                type="time"
+                value={sleepData.wakeTime}
+                onChange={(e) => setWakeTime(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white text-lg focus:outline-none focus:border-violet-500/50"
+              />
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard>
+          <div className="text-white/50 text-xs mb-4 uppercase tracking-wider font-bold">Historique (14 jours)</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 12]} tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                contentStyle={{ background: "rgba(10,10,15,0.9)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", color: "#fff", fontSize: 12 }}
+                formatter={(value: number) => [`${Math.floor(value)}h${Math.round((value % 1) * 60).toString().padStart(2, "0")}`, "Sommeil"]}
+              />
+              <Bar dataKey="duration" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+              <Line type="monotone" dataKey="goal" stroke="#22c55e" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </GlassCard>
+      </div>
+    );
+  };
+
   // ─── STATS TAB ────────────────────────────────────────────────
   const StatsView = () => {
     const period = statsPeriod;
@@ -2027,6 +2156,12 @@ export default function YConsolePage() {
             unit="verres"
             onChange={(v) => updateGoals({ waterGoal: v })}
           />
+          <GoalInput
+            label="Sommeil"
+            value={goals.sleepGoal || 8}
+            unit="h"
+            onChange={(v) => updateGoals({ sleepGoal: v })}
+          />
         </GlassCard>
 
         {/* Body */}
@@ -2093,6 +2228,10 @@ export default function YConsolePage() {
                 <BarChart3 size={14} />{" "}
                 <span>Bilan : {data.notifications.dailyReview}</span>
               </div>
+              <div className="flex items-center gap-2 text-white/50">
+                <Moon size={14} />{" "}
+                <span>Couvre-feu : {data.notifications.sleepReminder || "23:00"}</span>
+              </div>
             </div>
           )}
         </GlassCard>
@@ -2136,6 +2275,7 @@ export default function YConsolePage() {
     { key: "nutrition", icon: <Apple size={18} />, label: "Nutri" },
     { key: "gym", icon: <Dumbbell size={18} />, label: "Gym" },
     { key: "skin", icon: <Heart size={18} />, label: "Skin" },
+    { key: "sleep", icon: <Moon size={18} />, label: "Sleep" },
     { key: "stats", icon: <BarChart3 size={18} />, label: "Stats" },
     { key: "settings", icon: <Settings size={18} />, label: "Config" },
   ];
@@ -2173,6 +2313,7 @@ export default function YConsolePage() {
         {tab === "nutrition" && NutritionView()}
         {tab === "gym" && GymView()}
         {tab === "skin" && SkinView()}
+        {tab === "sleep" && SleepView()}
         {tab === "stats" && StatsView()}
         {tab === "settings" && SettingsView()}
       </div>

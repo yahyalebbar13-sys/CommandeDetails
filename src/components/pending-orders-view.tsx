@@ -56,23 +56,9 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
 
     return Array.from(bySup.entries())
       .map(([sup, supArts]) => {
-        const lclArts = supArts.filter((a: any) => !a.isFullContainer);
-        const fclArts = supArts.filter((a: any) => a.isFullContainer);
-
-        // Group FCLs by containerRef
-        const byContainer = new Map<string, any[]>();
-        fclArts.forEach((o: any) => {
-          const ref = o.containerRef || 'FCL (SANS RÉFÉRENCE)';
-          if (!byContainer.has(ref)) byContainer.set(ref, []);
-          byContainer.get(ref)!.push(o);
-        });
-        const fclGroups = Array.from(byContainer.entries())
-          .map(([ref, arts]) => ({ ref, arts }))
-          .sort((a, b) => a.ref.localeCompare(b.ref));
-
-        // Sub-group LCLs by pôle
+        // Sub-group by pôle
         const byPole = new Map<string, any[]>();
-        lclArts.forEach((o: any) => {
+        supArts.forEach((o: any) => {
           const poleId = o.generalCategoryId || '__other__';
           if (!byPole.has(poleId)) byPole.set(poleId, []);
           byPole.get(poleId)!.push(o);
@@ -97,11 +83,11 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
 
         return {
           sup,
-          fclGroups,
           poleGroups,
           allArts: supArts,
           totalValue: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
           totalQty: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
+          totalCbm: supArts.reduce((s: number, o: any) => s + (Number(o.cubicMeasurement) || 0), 0),
         };
       })
       .sort((a, b) => a.sup.localeCompare(b.sup));
@@ -369,8 +355,9 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         </Card>
       ) : (
         <div className="space-y-5">
-          {supplierGroups.map(({ sup, fclGroups, poleGroups, allArts, totalValue: supVal, totalQty: supQty }) => {
+          {supplierGroups.map(({ sup, poleGroups, allArts, totalValue: supVal, totalQty: supQty, totalCbm }) => {
             const collapsed = collapsedGroups.has(sup);
+            const cbmPercent = Math.min(((totalCbm || 0) / 68) * 100, 100);
             return (
               <div key={sup} className="rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm">
                 {/* ── Supplier header (primary, collapsible) ── */}
@@ -388,17 +375,20 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
                       <span className="text-[9px] font-bold text-stone-400 uppercase">
                         {allArts.length} commande{allArts.length > 1 ? 's' : ''}
                       </span>
-                      {fclGroups.length > 0 && (
-                        <span className="text-[9px] font-bold text-orange-400 uppercase">
-                          {fclGroups.length} FCL
-                        </span>
-                      )}
                       <span className="text-[9px] font-bold text-amber-400 uppercase">
                         {poleGroups.length} pôle{poleGroups.length > 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0">
+                  <div className="flex items-center gap-6 shrink-0">
+                    <div className="hidden lg:flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Conteneur HQ</span>
+                      <div className="w-24 h-1.5 bg-stone-800 rounded-full overflow-hidden shadow-inner">
+                        <div className={`h-full transition-all ${cbmPercent >= 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-blue-500'}`} style={{ width: `${cbmPercent}%` }} />
+                      </div>
+                      <span className="text-[9px] font-black text-stone-200">{(totalCbm || 0).toFixed(1)} <span className="text-[8px] text-stone-500">/ 68 CBM</span></span>
+                    </div>
+                    
                     <div className="text-right hidden md:block">
                       <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Valeur totale</p>
                       <p className="text-base font-black text-amber-400">${supVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
@@ -413,25 +403,10 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
                 {/* ── Pôle sub-sections ── */}
                 {!collapsed && (
                   <div className="bg-white/60 divide-y divide-stone-100">
-                    {/* FCL GROUPS */}
-                    {fclGroups.map(({ ref, arts }) => (
-                      <div key={ref}>
-                        <div className="flex items-center gap-3 px-6 py-2.5 bg-orange-50/80 border-b border-orange-100">
-                          <Container className="w-4 h-4 text-orange-600" />
-                          <h4 className="font-black text-[11px] text-orange-800 uppercase tracking-widest">{ref}</h4>
-                          <span className="ml-auto text-[9px] font-bold text-orange-600 px-2 py-0.5 bg-orange-100 rounded-full">{arts.length} article(s)</span>
-                        </div>
-                        <div className="p-4 space-y-2">
-                          {arts.map((o: any) => <ArticleCard key={o.id} o={o} />)}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* LCL GROUPS */}
                     {poleGroups.map(({ poleId, poleName, catGroups, allArts: poleArts }) => (
                       <div key={poleId}>
-                        {/* Pôle separator — shown if multiple pôles OR if there are FCLs */}
-                        {(poleGroups.length > 1 || fclGroups.length > 0) && (
+                        {/* Pôle separator — shown only if supplier has multiple pôles */}
+                        {poleGroups.length > 1 && (
                           <div className="flex items-center gap-3 px-6 py-2.5 bg-stone-50 border-b border-stone-100">
                             <Layers className="w-3 h-3 text-stone-400" />
                             <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{poleName}</span>

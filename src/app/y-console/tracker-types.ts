@@ -41,6 +41,7 @@ export interface DailyEntry {
   water: number; // glasses
   gym: GymSession | null;
   skin: SkinEntry;
+  sleep?: { bedtime: string; wakeTime: string; };
   weight?: number; // kg
   healthScore?: number; // 0-100 calculated
 }
@@ -51,6 +52,7 @@ export interface UserGoals {
   dailyFats: number;       // grams, default 70
   dailyKcal: number;       // calories, default 2000
   waterGoal: number;       // glasses, default 12
+  sleepGoal: number;       // hours, default 8
   currentWeight: number;   // kg, default 71
   height: number;          // cm, default 180
 }
@@ -63,6 +65,7 @@ export interface NotificationSettings {
   skinMorning: string;          // "07:30"
   skinEvening: string;          // "21:30"
   dailyReview: string;          // "22:00"
+  sleepReminder: string;        // "23:00"
 }
 
 export interface TrackerData {
@@ -129,6 +132,7 @@ export const DEFAULT_GOALS: UserGoals = {
   dailyFats: 75,
   dailyKcal: 2600,
   waterGoal: 12,
+  sleepGoal: 8,
   currentWeight: 71,
   height: 180,
 };
@@ -141,6 +145,7 @@ export const DEFAULT_NOTIFICATIONS: NotificationSettings = {
   skinMorning: '07:30',
   skinEvening: '21:30',
   dailyReview: '22:00',
+  sleepReminder: '23:00',
 };
 
 export const STORAGE_KEY = '__sys_console_data';
