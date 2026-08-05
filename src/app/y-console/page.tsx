@@ -66,6 +66,7 @@ import {
   DEFAULT_GOALS,
   DEFAULT_NOTIFICATIONS,
   STORAGE_KEY,
+  MEAL_CATEGORIES,
 } from "./tracker-types";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -662,6 +663,7 @@ export default function YConsolePage() {
     carbs: "",
     fats: "",
     kcal: "",
+    category: "Repas",
     saveAsTemplate: false,
   });
 
@@ -977,12 +979,13 @@ export default function YConsolePage() {
               fats,
               kcal,
               time: "",
+              category: mealForm.category,
             }
           ]
         }));
       }
 
-      setMealForm({ name: "", prot: "", carbs: "", fats: "", kcal: "", saveAsTemplate: false });
+      setMealForm({ name: "", prot: "", carbs: "", fats: "", kcal: "", category: "Repas", saveAsTemplate: false });
     };
 
     const loadTemplate = (t: Meal) => {
@@ -992,6 +995,7 @@ export default function YConsolePage() {
         carbs: t.carbs ? String(t.carbs) : "",
         fats: t.fats ? String(t.fats) : "",
         kcal: t.kcal ? String(t.kcal) : "",
+        category: t.category || "Repas",
         saveAsTemplate: false,
       });
     };
@@ -1042,29 +1046,37 @@ export default function YConsolePage() {
 
         {/* Saved Templates */}
         {data.savedMeals && data.savedMeals.length > 0 && (
-          <GlassCard>
-            <div className="text-white/50 text-xs mb-3">REPAS MÉMORISÉS</div>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {data.savedMeals.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => loadTemplate(t)}
-                  className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl transition-all"
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="text-white text-sm font-medium">{t.name}</span>
-                    <span className="text-white/40 text-[10px]">{t.kcal} kcal • {t.proteins}P • {t.carbs}G • {t.fats}L</span>
+          <div className="space-y-4">
+            {MEAL_CATEGORIES.map(category => {
+              const meals = data.savedMeals.filter(m => (m.category || "Repas") === category);
+              if (meals.length === 0) return null;
+              return (
+                <GlassCard key={category}>
+                  <div className="text-white/50 text-[10px] font-bold mb-3 uppercase tracking-wider">{category} MÉMORISÉS</div>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    {meals.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => loadTemplate(t)}
+                        className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl transition-all"
+                      >
+                        <div className="flex flex-col items-start">
+                          <span className="text-white text-sm font-medium">{t.name}</span>
+                          <span className="text-white/40 text-[10px]">{t.kcal} kcal • {t.proteins}P • {t.carbs}G • {t.fats}L</span>
+                        </div>
+                        <div 
+                          onClick={(e) => removeTemplate(t.id, e)}
+                          className="ml-2 w-5 h-5 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20"
+                        >
+                          <X size={12} />
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  <div 
-                    onClick={(e) => removeTemplate(t.id, e)}
-                    className="ml-2 w-5 h-5 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center hover:bg-red-500/20"
-                  >
-                    <X size={12} />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </GlassCard>
+                </GlassCard>
+              );
+            })}
+          </div>
         )}
 
         {/* Custom Meal Form */}
@@ -1123,13 +1135,27 @@ export default function YConsolePage() {
             </div>
 
             <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center justify-end">
+              <div className="flex flex-col items-end gap-3">
                 <button
                   onClick={() => setMealForm(p => ({ ...p, saveAsTemplate: !p.saveAsTemplate }))}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${mealForm.saveAsTemplate ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-white/50 border border-transparent"}`}
                 >
                   <Bookmark size={14} /> Mémoriser
                 </button>
+                
+                {mealForm.saveAsTemplate && (
+                  <div className="flex flex-wrap justify-end gap-2 w-full">
+                    {MEAL_CATEGORIES.map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setMealForm(p => ({ ...p, category: c }))}
+                        className={`px-3 py-1 rounded-full text-[10px] font-medium transition-all ${mealForm.category === c ? "bg-cyan-500 text-white" : "bg-white/5 text-white/50 hover:bg-white/10"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button

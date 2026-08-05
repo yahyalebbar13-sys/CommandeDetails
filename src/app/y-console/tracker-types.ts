@@ -27,6 +27,7 @@ export interface Meal {
   fats: number;     // grams
   kcal: number;     // calories
   time: string;     // HH:mm
+  category?: string;
 }
 
 export interface SkinEntry {
@@ -77,6 +78,15 @@ export interface TrackerData {
 }
 
 // ─── Constants ──────────────────────────────────────────────────
+
+export const MEAL_CATEGORIES = [
+  'Repas',
+  'Boissons',
+  'Pâtisseries',
+  'Desserts',
+  'Sucre rapide',
+  'Fast food'
+];
 
 export const PROTEIN_SOURCES = [
   { name: 'Poulet (100g)', grams: 31, emoji: '🍗' },
