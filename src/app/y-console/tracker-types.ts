@@ -108,8 +108,11 @@ export const SKIN_ROUTINE_ITEMS = [
   { id: 'azelaic', label: 'Acide Azélaïque', emoji: '🧪', time: 'pm' },
   { id: 'adapalene', label: 'Adapalène', emoji: '💊', time: 'pm' },
   { id: 'moisturizer', label: 'Crème Hydratante', emoji: '🧴', time: 'pm' },
+  { id: 'minoxidil', label: 'Minoxidil', emoji: '💆‍♂️', time: 'pm' },
   { id: 'teeth_pm', label: 'Brossage Dents (Soir)', emoji: '🪥', time: 'pm' },
   { id: 'strips', label: 'Strips Blanchiment', emoji: '🦷', time: 'pm' },
+
+  { id: 'body_shave', label: 'Rasage corporel complet', emoji: '🪒', time: 'other' },
 ];
 
 export const SKIN_RATINGS = [

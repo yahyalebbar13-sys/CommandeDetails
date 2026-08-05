@@ -316,7 +316,7 @@ const requestNotifPermission = async () => {
   return perm === "granted";
 };
 
-const scheduleNotifications = (settings: NotificationSettings) => {
+const scheduleNotifications = (settings: NotificationSettings, entries: Record<string, DailyEntry>) => {
   if (!settings.enabled || !("serviceWorker" in navigator)) return;
   navigator.serviceWorker.ready.then((reg) => {
     const reminders: {
@@ -367,6 +367,26 @@ const scheduleNotifications = (settings: NotificationSettings) => {
       body: "Fais ton bilan du jour !",
       tag: "review",
     });
+
+    const todayKey = new Date().toISOString().split("T")[0];
+    let lastShaveDays = -1;
+    const allDays = Object.keys(entries).sort().reverse();
+    for (const d of allDays) {
+      if (entries[d].skin?.routineCompleted?.includes('body_shave')) {
+        lastShaveDays = Math.floor((new Date(todayKey).getTime() - new Date(d).getTime()) / 86400000);
+        break;
+      }
+    }
+    
+    if (lastShaveDays === -1 || lastShaveDays >= 15) {
+      reminders.push({
+        time: settings.skinEvening,
+        title: "🪒 Rasage Corporel",
+        body: "Ça fait 15 jours (ou plus). Temps pour un rasage d'hygiène complet !",
+        tag: "body-shave",
+      });
+    }
+
     reg.active?.postMessage({
       type: "SCHEDULE_NOTIFICATIONS",
       payload: { reminders },
@@ -576,10 +596,10 @@ export default function YConsolePage() {
   useEffect(() => {
     if (mounted && data.notifications.enabled) {
       requestNotifPermission().then((ok) => {
-        if (ok) scheduleNotifications(data.notifications);
+        if (ok) scheduleNotifications(data.notifications, data.entries);
       });
     }
-  }, [mounted, data.notifications]);
+  }, [mounted, data.notifications, data.entries]);
 
   const updateToday = useCallback(
     (updater: (e: DailyEntry) => DailyEntry) => {
@@ -1332,6 +1352,24 @@ export default function YConsolePage() {
     const amItems = currentRoutineItems.filter(i => i.time === 'am');
     const pmItems = currentRoutineItems.filter(i => i.time === 'pm');
 
+    let lastShaveDays = -1;
+    const allDays = Object.keys(data.entries).sort().reverse();
+    for (const d of allDays) {
+      if (data.entries[d].skin?.routineCompleted?.includes('body_shave')) {
+        lastShaveDays = Math.floor((new Date(todayKey).getTime() - new Date(d).getTime()) / 86400000);
+        break;
+      }
+    }
+
+    const otherItems = currentRoutineItems.filter(i => i.time === 'other').map(i => {
+      if (i.id === 'body_shave' && lastShaveDays >= 0) {
+        const text = lastShaveDays === 0 ? "aujourd'hui" : `il y a ${lastShaveDays}j`;
+        const alert = lastShaveDays >= 15 ? " ⚠️" : "";
+        return { ...i, label: `${i.label} (${text})${alert}` };
+      }
+      return i;
+    });
+
     const routinePct =
       ((todayEntry.skin?.routineCompleted || []).filter(id => currentRoutineItems.some(i => i.id === id)).length /
         currentRoutineItems.length) *
@@ -1393,6 +1431,7 @@ export default function YConsolePage() {
           <div className="space-y-4">
             {renderRoutineGroup("Matin ☀️", amItems)}
             {renderRoutineGroup("Soir 🌙", pmItems)}
+            {renderRoutineGroup("Soins occasionnels 🪒", otherItems)}
           </div>
         </GlassCard>
 
