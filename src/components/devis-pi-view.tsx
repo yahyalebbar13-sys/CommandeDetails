@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { FileDown, ReceiptText, Calculator, Search, CheckSquare, Square, Lock, AlertTriangle, X, Percent, Tag, History, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { FileDown, ReceiptText, Calculator, Search, CheckSquare, Square, Lock, AlertTriangle, X, Percent, Tag, History, ChevronDown, ChevronRight, User, Ship, Package } from 'lucide-react';
 import { exportDevisClientPIPDF } from '@/lib/pdf-export';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, getDoc } from 'firebase/firestore';
@@ -74,8 +74,11 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     }).catch(() => {});
   }, [user, firestore, selectedArticleIds, articles]);
 
+  const isTransit = (s: string) => ['SHIPPED', 'shipped', 'TRANSIT', 'transit'].includes(s || '');
+  const isStock = (s: string) => ['DELIVERED', 'STOCK', 'stock', 'DELIVERED '].includes(s || '');
+
   const piArticles = useMemo(() =>
-    articles.filter(a => a.clientName && a.clientName.trim() !== '' && !a.devisConfirmed && !a.devisPrixVenteUniteMad)
+    articles.filter(a => a.clientName && a.clientName.trim() !== '' && !a.devisConfirmed && !a.devisPrixVenteUniteMad && (isTransit(a.status) || isStock(a.status)))
       .filter(a => {
         if (!search.trim()) return true;
         const q = search.toLowerCase();
@@ -284,6 +287,80 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
     return 'bg-stone-100 text-stone-500';
   };
 
+  const renderArticle = (a: any) => {
+    const isSelected = selectedArticleIds.has(a.id);
+    const computed = computedArray.find(c => (c?.article.id) === a.id);
+    return (
+      <button
+        key={a.id}
+        onClick={() => toggleSelection(a.id)}
+        className={`w-full text-left px-5 py-3.5 flex items-center gap-3 transition-all ${isSelected ? 'bg-amber-50/60' : 'hover:bg-stone-50'}`}
+      >
+        <div className="shrink-0">
+          {isSelected
+            ? <CheckSquare className="w-4 h-4 text-amber-500" />
+            : <Square className="w-4 h-4 text-stone-200 group-hover:text-stone-400" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[11px] font-black text-stone-800 uppercase">{a.name || a.categoryId}</p>
+            {a.devisPrixVenteUniteMad && (
+              <span className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-black uppercase">Confirme</span>
+            )}
+            <span className={`text-[7px] px-1.5 py-0.5 rounded font-black uppercase ${statusColor(a.status)}`}>{a.status || '—'}</span>
+          </div>
+          <p className="text-[9px] font-bold text-stone-400 mt-0.5 uppercase">
+            {a.categoryId}
+            {Number(a.quantity) > 0 ? ` · ${Number(a.quantity).toLocaleString('fr-MA')} ${a.unitOfMeasure || 'u'}` : ''}
+            {a.supplierId ? ` · ${a.supplierId}` : ''}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          {computed ? (
+            <div className="flex flex-col items-end gap-1">
+              <p className="text-[9px] font-black text-stone-500 uppercase">Revient: {fmtMAD(computed.computed.coutUniteMad)} MAD</p>
+              
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[9px] font-black text-stone-400 uppercase">P.V:</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  onClick={e => e.stopPropagation()}
+                  value={prixVenteSaisiParArticle[a.id] !== undefined ? prixVenteSaisiParArticle[a.id] : ''}
+                  placeholder={fmtMAD(computed.computed.prixVenteUniteMad)}
+                  onChange={e => {
+                    setPrixVenteSaisiParArticle(prev => ({ ...prev, [a.id]: e.target.value }));
+                  }}
+                  className={`w-20 h-7 border rounded-md px-1.5 font-black text-xs text-right focus:outline-none transition-colors ${
+                    prixVenteSaisiParArticle[a.id] ? 'bg-amber-100 border-amber-300 text-amber-700 focus:border-amber-500' : 'bg-stone-50 border-stone-200 text-stone-700 focus:border-amber-400'
+                  }`}
+                />
+              </div>
+
+              {computed.computed.remise > 0 && (
+                <div className="flex items-center gap-1 justify-end mt-0.5">
+                  <p className="text-sm font-black text-rose-500">{fmtMAD(computed.computed.prixRemiseUniteMad)}</p>
+                  <p className="text-[8px] text-rose-400 font-bold">-{computed.computed.remise}%</p>
+                </div>
+              )}
+              
+              {prixVenteSaisiParArticle[a.id] && (
+                <p className="text-[8px] text-amber-600 font-bold">Marge: {computed.computed.usedMarge.toFixed(1)}%</p>
+              )}
+            </div>
+          ) : a.devisPrixVenteUniteMad ? (
+            <>
+              <p className="text-sm font-black text-emerald-600">{fmtMAD(a.devisPrixVenteUniteMad)}</p>
+              <p className="text-[8px] text-stone-400 font-bold">MAD/u (fixe)</p>
+            </>
+          ) : (
+            <p className="text-[9px] text-stone-300 font-bold">Selectionner</p>
+          )}
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-4 fade-in">
       <div className="bg-stone-900 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -443,79 +520,27 @@ export default function DevisPIView({ articles, factures, categories }: DevisPIV
               {/* Articles list */}
               {isExpanded && (
                 <div className="divide-y divide-stone-50">
-                  {clientArticles.map(a => {
-                    const isSelected = selectedArticleIds.has(a.id);
-                    const computed = computedArray.find(c => (c?.article.id) === a.id);
-                    return (
-                      <button
-                        key={a.id}
-                        onClick={() => toggleSelection(a.id)}
-                        className={`w-full text-left px-5 py-3.5 flex items-center gap-3 transition-all ${isSelected ? 'bg-amber-50/60' : 'hover:bg-stone-50'}`}
-                      >
-                        <div className="shrink-0">
-                          {isSelected
-                            ? <CheckSquare className="w-4 h-4 text-amber-500" />
-                            : <Square className="w-4 h-4 text-stone-200 group-hover:text-stone-400" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-[11px] font-black text-stone-800 uppercase">{a.name || a.categoryId}</p>
-                            {a.devisPrixVenteUniteMad && (
-                              <span className="text-[7px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-black uppercase">Confirme</span>
-                            )}
-                            <span className={`text-[7px] px-1.5 py-0.5 rounded font-black uppercase ${statusColor(a.status)}`}>{a.status || '—'}</span>
-                          </div>
-                          <p className="text-[9px] font-bold text-stone-400 mt-0.5 uppercase">
-                            {a.categoryId}
-                            {Number(a.quantity) > 0 ? ` · ${Number(a.quantity).toLocaleString('fr-MA')} ${a.unitOfMeasure || 'u'}` : ''}
-                            {a.supplierId ? ` · ${a.supplierId}` : ''}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          {computed ? (
-                            <div className="flex flex-col items-end gap-1">
-                              <p className="text-[9px] font-black text-stone-500 uppercase">Revient: {fmtMAD(computed.computed.coutUniteMad)} MAD</p>
-                              
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <span className="text-[9px] font-black text-stone-400 uppercase">P.V:</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  onClick={e => e.stopPropagation()}
-                                  value={prixVenteSaisiParArticle[a.id] !== undefined ? prixVenteSaisiParArticle[a.id] : ''}
-                                  placeholder={fmtMAD(computed.computed.prixVenteUniteMad)}
-                                  onChange={e => {
-                                    setPrixVenteSaisiParArticle(prev => ({ ...prev, [a.id]: e.target.value }));
-                                  }}
-                                  className={`w-20 h-7 border rounded-md px-1.5 font-black text-xs text-right focus:outline-none transition-colors ${
-                                    prixVenteSaisiParArticle[a.id] ? 'bg-amber-100 border-amber-300 text-amber-700 focus:border-amber-500' : 'bg-stone-50 border-stone-200 text-stone-700 focus:border-amber-400'
-                                  }`}
-                                />
-                              </div>
+                  {/* Transit Section */}
+                  {clientArticles.filter(a => isTransit(a.status)).length > 0 && (
+                    <>
+                      <div className="px-5 py-2.5 bg-blue-50 border-y border-blue-100 flex items-center gap-2">
+                        <Ship className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">En Transit</span>
+                      </div>
+                      {clientArticles.filter(a => isTransit(a.status)).map(a => renderArticle(a))}
+                    </>
+                  )}
 
-                              {computed.computed.remise > 0 && (
-                                <div className="flex items-center gap-1 justify-end mt-0.5">
-                                  <p className="text-sm font-black text-rose-500">{fmtMAD(computed.computed.prixRemiseUniteMad)}</p>
-                                  <p className="text-[8px] text-rose-400 font-bold">-{computed.computed.remise}%</p>
-                                </div>
-                              )}
-                              
-                              {prixVenteSaisiParArticle[a.id] && (
-                                <p className="text-[8px] text-amber-600 font-bold">Marge: {computed.computed.usedMarge.toFixed(1)}%</p>
-                              )}
-                            </div>
-                          ) : a.devisPrixVenteUniteMad ? (
-                            <>
-                              <p className="text-sm font-black text-emerald-600">{fmtMAD(a.devisPrixVenteUniteMad)}</p>
-                              <p className="text-[8px] text-stone-400 font-bold">MAD/u (fixe)</p>
-                            </>
-                          ) : (
-                            <p className="text-[9px] text-stone-300 font-bold">Selectionner</p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {/* Stock Section */}
+                  {clientArticles.filter(a => isStock(a.status)).length > 0 && (
+                    <>
+                      <div className="px-5 py-2.5 bg-emerald-50 border-y border-emerald-100 flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">En Stock</span>
+                      </div>
+                      {clientArticles.filter(a => isStock(a.status)).map(a => renderArticle(a))}
+                    </>
+                  )}
                 </div>
               )}
             </div>
