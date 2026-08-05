@@ -87,6 +87,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
           allArts: supArts,
           totalValue: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
           totalQty: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
+          totalCbm: supArts.reduce((s: number, o: any) => s + (Number(o.cubicMeasurement) || 0), 0),
         };
       })
       .sort((a, b) => a.sup.localeCompare(b.sup));
@@ -354,8 +355,9 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         </Card>
       ) : (
         <div className="space-y-5">
-          {supplierGroups.map(({ sup, poleGroups, allArts, totalValue: supVal, totalQty: supQty }) => {
+          {supplierGroups.map(({ sup, poleGroups, allArts, totalValue: supVal, totalQty: supQty, totalCbm }) => {
             const collapsed = collapsedGroups.has(sup);
+            const cbmPercent = Math.min(((totalCbm || 0) / 68) * 100, 100);
             return (
               <div key={sup} className="rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm">
                 {/* ── Supplier header (primary, collapsible) ── */}
@@ -378,7 +380,15 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0">
+                  <div className="flex items-center gap-6 shrink-0">
+                    <div className="hidden lg:flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Conteneur HQ</span>
+                      <div className="w-24 h-1.5 bg-stone-800 rounded-full overflow-hidden shadow-inner">
+                        <div className={`h-full transition-all ${cbmPercent >= 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-blue-500'}`} style={{ width: `${cbmPercent}%` }} />
+                      </div>
+                      <span className="text-[9px] font-black text-stone-200">{(totalCbm || 0).toFixed(1)} <span className="text-[8px] text-stone-500">/ 68 CBM</span></span>
+                    </div>
+                    
                     <div className="text-right hidden md:block">
                       <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Valeur totale</p>
                       <p className="text-base font-black text-amber-400">${supVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
