@@ -1108,57 +1108,106 @@ export default function CategoriesView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedData.production.length > 0 ? groupedData.production.map(a => {
-                    const isTechnical = isTechnicalZipper(a.categoryId);
-                    return (
-                      <TableRow key={a.id} className="hover:bg-amber-50/30 transition-colors border-stone-50">
-                        <TableCell className="py-3.5 px-6 align-top">
-                          <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
-                            <span>{a.name}</span>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
-                              <Pencil className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
-                        <TableCell className="py-3.5">
-                          {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
-                              <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-[10px] py-3.5">
-                          {isTechnical ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
-                              <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
-                            </div>
-                          ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          <span className="text-[9px] font-black text-stone-600 bg-stone-50 border border-stone-100 px-2 py-1 rounded uppercase">{a.supplierId}</span>
-                        </TableCell>
-                        <TableCell className="text-stone-500 font-bold text-[10px] py-3.5">{a.orderDate || '-'}</TableCell>
-                        <TableCell className="text-right py-3.5">
-                          <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-                          <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
-                          {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
-                            <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-black text-amber-700 text-[10px] py-3.5">{Number(a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
-                        <TableCell className="text-right py-3.5 px-6">
-                          <span className="font-black text-amber-600 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  }) : (
-                    <TableRow><TableCell colSpan={9} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucune commande en production</TableCell></TableRow>
-                  )}
+                  {(() => {
+                    const bySupplier = Object.entries(
+                      groupedData.production.reduce((acc: any, a: any) => {
+                        const frns = a.supplierId || 'Sans fournisseur';
+                        if (!acc[frns]) acc[frns] = [];
+                        acc[frns].push(a);
+                        return acc;
+                      }, {})
+                    ).sort(([a], [b]) => a.localeCompare(b));
+
+                    if (bySupplier.length === 0) {
+                      return <TableRow><TableCell colSpan={9} className="text-center py-16 text-stone-300 text-[10px] uppercase font-black tracking-widest">Aucune commande en production</TableCell></TableRow>;
+                    }
+
+                    return bySupplier.map(([supplier, articles]: any) => {
+                      const totalCbm = articles.reduce((sum: number, a: any) => sum + (Number(a.cubicMeasurement) || 0), 0);
+                      const totalAmount = articles.reduce((sum: number, a: any) => sum + ((Number(a.quantity) || 0) * (Number(a.purchasePricePerUnit) || 0)), 0);
+                      const cbmPercent = Math.min((totalCbm / 68) * 100, 100);
+
+                      return (
+                        <React.Fragment key={supplier}>
+                          {/* Header Row */}
+                          <TableRow className="bg-stone-50 hover:bg-stone-50/80 border-y border-stone-200">
+                            <TableCell colSpan={9} className="py-2.5 px-6">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Factory className="w-4 h-4 text-amber-600" />
+                                  <span className="font-black text-xs text-stone-800 uppercase tracking-widest">{supplier}</span>
+                                  <Badge variant="outline" className="text-[9px] bg-white text-stone-500 border-stone-200">{articles.length} article(s)</Badge>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Conteneur HQ</span>
+                                    <div className="w-24 h-1.5 bg-white rounded-full overflow-hidden border border-stone-200 shadow-inner">
+                                      <div className={`h-full transition-all ${cbmPercent >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${cbmPercent}%` }} />
+                                    </div>
+                                    <span className="text-[10px] font-black text-stone-700">{totalCbm.toFixed(1)} <span className="text-[8px] text-stone-400">/ 68 CBM</span></span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-xs font-black text-amber-600">${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Articles */}
+                          {articles.map((a: any) => {
+                            const isTechnical = isTechnicalZipper(a.categoryId);
+                            return (
+                              <TableRow key={a.id} className="hover:bg-amber-50/30 transition-colors border-stone-50">
+                                <TableCell className="py-3.5 px-6 align-top">
+                                  <div className="font-black text-[11px] text-stone-900 uppercase leading-tight flex items-center justify-between gap-2">
+                                    <span>{a.name}</span>
+                                    <Button variant="ghost" size="icon" className="h-5 w-5 text-stone-300 hover:text-amber-600 shrink-0" onClick={(e) => { e.stopPropagation(); setEditingArticle(a); }}>
+                                      <Pencil className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-3.5"><span className="text-[10px] text-stone-600 uppercase font-bold bg-stone-50 px-2 py-0.5 rounded">{a.size || '-'}</span></TableCell>
+                                <TableCell className="py-3.5">
+                                  {a.colorBreakdown && a.colorBreakdown.length > 0 ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-violet-700 font-black uppercase text-[9px]">VARIOUS ({a.colorBreakdown.length})</span>
+                                      <button onClick={() => setColorDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-violet-100 text-violet-600 hover:bg-violet-200 px-2 py-0.5 rounded-full transition-colors"><Palette className="w-2.5 h-2.5" /> Détail</button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-[10px] py-3.5">
+                                  {isTechnical ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
+                                      <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
+                                    </div>
+                                  ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
+                                </TableCell>
+                                <TableCell className="py-3.5">
+                                  <span className="text-[9px] font-black text-stone-600 bg-stone-50 border border-stone-100 px-2 py-1 rounded uppercase">{a.supplierId}</span>
+                                </TableCell>
+                                <TableCell className="text-stone-500 font-bold text-[10px] py-3.5">{a.orderDate || '-'}</TableCell>
+                                <TableCell className="text-right py-3.5">
+                                  <span className="font-black text-stone-900 text-[11px]">{Number(a.quantity).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                                  <span className="text-[8px] text-stone-400 font-bold ml-1 uppercase">{a.unitOfMeasure}</span>
+                                  {Number(a.netWeight) > 0 && Number(a.quantity) > 0 && (
+                                    <div className="text-[8px] text-stone-400 font-bold uppercase mt-0.5">{(Number(a.netWeight)/Number(a.quantity)).toLocaleString('en-US',{maximumFractionDigits:3})} kg/u</div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right font-black text-amber-700 text-[10px] py-3.5">{Number(a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 3 })} $</TableCell>
+                                <TableCell className="text-right py-3.5 px-6">
+                                  <span className="font-black text-amber-600 text-[11px]">{Number(a.quantity * a.purchasePricePerUnit).toLocaleString('en-US', { maximumFractionDigits: 0 })} $</span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    });
+                  })()}
                 </TableBody>
               </Table>
             )}
