@@ -13,7 +13,8 @@ import {
   LogOut,
   Calendar,
   Clock,
-  ClipboardList
+  ClipboardList,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -29,7 +30,7 @@ interface ClientPortalAppProps {
 }
 
 export function ClientPortalApp({ clientName, articles, factures, categories, onLogout }: ClientPortalAppProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'to_order' | 'production' | 'transit' | 'stock' | 'history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'to_order' | 'production' | 'transit' | 'customs' | 'stock' | 'history'>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const clientArticles = useMemo(() => {
@@ -68,7 +69,8 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
     return {
       to_order: clientArticles.filter(a => a.status === 'TO_ORDER'),
       production: clientArticles.filter(a => a.status === 'PI'),
-      transit: clientArticles.filter(a => ['TRANSIT', 'SHIPPED', 'CUSTOMS'].includes(a.status)),
+      transit: clientArticles.filter(a => ['TRANSIT', 'SHIPPED'].includes(a.status)),
+      customs: clientArticles.filter(a => a.status === 'CUSTOMS'),
       stock: clientArticles.filter(a => a.status === 'STOCK'),
       history: clientArticles.filter(a => a.status === 'DELIVERED'),
     };
@@ -79,6 +81,7 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
     { id: 'to_order', label: 'En Attente', icon: ClipboardList, count: stats.to_order.length },
     { id: 'production', label: 'En Production', icon: Factory, count: stats.production.length },
     { id: 'transit', label: 'En Transit', icon: Ship, count: stats.transit.length },
+    { id: 'customs', label: 'Dédouanement', icon: FileText, count: stats.customs.length },
     { id: 'stock', label: 'En Stock', icon: PackageCheck, count: stats.stock.length },
     { id: 'history', label: 'Historique', icon: History, count: stats.history.length },
   ];
@@ -151,6 +154,13 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
             <p className="mt-1.5 text-[11px] font-black text-blue-600 uppercase flex items-center gap-1.5">
               <Ship className="w-3 h-3" /> Arrivée : {new Date(article.arrivalDate).toLocaleDateString('fr-FR')}
             </p>
+          )}
+          {article.status === 'CUSTOMS' && (
+            <div className="mt-2 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 inline-block w-max">
+              <p className="text-[10px] font-black text-indigo-700 uppercase flex items-center gap-1">
+                <FileText className="w-3 h-3" /> En Dédouanement
+              </p>
+            </div>
           )}
           {article.status === 'STOCK' && article.stockEntryDate && (
             <p className="mt-1.5 text-[11px] font-black text-emerald-600 uppercase flex items-center gap-1.5">
@@ -307,8 +317,8 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
                       <p className="text-2xl font-black text-white">{clientArticles.length}</p>
                     </div>
                     <div className="bg-blue-500/10 backdrop-blur-md border border-blue-500/20 rounded-2xl p-4">
-                      <p className="text-blue-400 text-[9px] font-black uppercase tracking-widest mb-1">En Transit</p>
-                      <p className="text-2xl font-black text-white">{stats.transit.length}</p>
+                      <p className="text-blue-400 text-[9px] font-black uppercase tracking-widest mb-1">Transit & Douane</p>
+                      <p className="text-2xl font-black text-white">{stats.transit.length + stats.customs.length}</p>
                     </div>
                     <div className="bg-emerald-500/10 backdrop-blur-md border border-emerald-500/20 rounded-2xl p-4">
                       <p className="text-emerald-400 text-[9px] font-black uppercase tracking-widest mb-1">En Stock</p>
@@ -365,6 +375,18 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
                 <h2 className="text-lg font-black text-stone-900 uppercase tracking-widest">Commandes en Transit</h2>
               </div>
               {stats.transit.length > 0 ? <ContainerGrid articles={stats.transit} /> : <EmptyState text="Aucune commande en transit" />}
+            </div>
+          )}
+
+          {activeTab === 'customs' && (
+            <div className="animate-in fade-in">
+              <div className="flex items-center gap-3 mb-6 px-2">
+                <div className="p-2 rounded-xl bg-indigo-50">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                </div>
+                <h2 className="text-lg font-black text-stone-900 uppercase tracking-widest">En Dédouanement</h2>
+              </div>
+              {stats.customs.length > 0 ? <ContainerGrid articles={stats.customs} /> : <EmptyState text="Aucune commande en dédouanement" />}
             </div>
           )}
 
