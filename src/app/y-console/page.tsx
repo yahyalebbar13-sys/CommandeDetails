@@ -31,6 +31,7 @@ import {
   Check,
   X,
   ChevronRight,
+  ChevronLeft,
   Calendar,
   Target,
   Zap,
@@ -604,8 +605,8 @@ export default function YConsolePage() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [statsPeriod, setStatsPeriod] = useState<7 | 30 | 90>(7);
   const [mounted, setMounted] = useState(false);
+  const [todayKey, setTodayKey] = useState(today());
 
-  const todayKey = today();
   const todayEntry = data.entries[todayKey] || emptyDay(todayKey);
   const goals = data.goals;
 
@@ -2315,8 +2316,32 @@ export default function YConsolePage() {
             <h1 className="text-lg font-black bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">
               YTracker
             </h1>
-            <div className="text-white/30 text-[10px]">
-              {formatDate(todayKey)}
+            <div className="flex items-center gap-2 mt-0.5">
+              <button 
+                onClick={() => {
+                  const d = new Date(todayKey);
+                  d.setDate(d.getDate() - 1);
+                  setTodayKey(d.toISOString().split("T")[0]);
+                }}
+                className="text-white/40 hover:text-white transition-colors p-1 -ml-1 active:scale-90"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <div className="text-white/50 text-[10px] font-medium w-16 text-center">
+                {todayKey === today() ? "Aujourd'hui" : formatDate(todayKey).split(" ").slice(0, 2).join(" ")}
+              </div>
+              <button 
+                onClick={() => {
+                  if (todayKey === today()) return;
+                  const d = new Date(todayKey);
+                  d.setDate(d.getDate() + 1);
+                  setTodayKey(d.toISOString().split("T")[0]);
+                }}
+                className={`transition-colors p-1 -mr-1 active:scale-90 ${todayKey === today() ? 'text-white/10 cursor-not-allowed' : 'text-white/40 hover:text-white'}`}
+                disabled={todayKey === today()}
+              >
+                <ChevronRight size={14} />
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-2">
