@@ -42,16 +42,17 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
         return aName === nameLower || aName.includes(nameLower) || nameLower.includes(aName);
       })
       .map(a => {
-        const derivedStatus = computeEffectiveStatus(a);
         const facture = factures.find(f => f.id === a.factureId);
         const arrivalDate = facture?.arrivalDate || null;
         const stockEntryDate = facture?.stockEntryDate || null;
         const orderDate = a.orderDate || null;
+        
+        const mergedArticle = { ...a, arrivalDate, stockEntryDate };
+        const derivedStatus = computeEffectiveStatus(mergedArticle);
+        
         return {
-          ...a,
+          ...mergedArticle,
           status: derivedStatus,
-          arrivalDate,
-          stockEntryDate,
           orderDate,
           factureNoBL: facture?.noBL || null,
           factureShippingLine: facture?.shippingLine || null,
