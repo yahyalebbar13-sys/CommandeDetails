@@ -141,6 +141,16 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
             {article.orderDate && <span className="text-stone-400">• Cmd: {article.orderDate}</span>}
           </div>
           
+          {(article.size || (article.color && !hasVariousColors) || article.specs || article.zipperType) && (
+            <p className="text-[10px] font-bold text-stone-500 mb-1.5 leading-snug line-clamp-2">
+              {[
+                article.size ? `Taille: ${article.size}` : null,
+                article.color && !hasVariousColors ? `Couleur: ${article.color}` : null,
+                article.specs ? `Spéc: ${article.specs}` : article.zipperType ? `Zip: ${article.zipperType} ${article.slider || ''}` : null
+              ].filter(Boolean).join(' • ')}
+            </p>
+          )}
+          
           {hasVariousColors && (
             <div className="mt-1 flex flex-wrap gap-1">
               {safeColorBreakdown.map((c: any, i: number) => (
