@@ -76,7 +76,7 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
 
   const navItems = [
     { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard, count: 0 },
-    { id: 'to_order', label: 'Commandes en Attente', icon: ClipboardList, count: stats.to_order.length },
+    { id: 'to_order', label: 'En Attente', icon: ClipboardList, count: stats.to_order.length },
     { id: 'production', label: 'En Production', icon: Factory, count: stats.production.length },
     { id: 'transit', label: 'En Transit', icon: Ship, count: stats.transit.length },
     { id: 'stock', label: 'En Stock', icon: PackageCheck, count: stats.stock.length },
@@ -341,7 +341,7 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
 
           {activeTab === 'to_order' && (
             <div className="animate-in fade-in">
-              <ArticleGrid title="Commandes en Attente" icon={ClipboardList} color="bg-orange-50 text-orange-600" articles={stats.to_order} />
+              <ArticleGrid title="En Attente" icon={ClipboardList} color="bg-orange-50 text-orange-600" articles={stats.to_order} />
               {stats.to_order.length === 0 && <EmptyState text="Aucune commande en attente" />}
             </div>
           )}
