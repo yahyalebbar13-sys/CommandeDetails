@@ -223,16 +223,9 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
         {Object.entries(groups).map(([bl, groupArts]) => {
           let partText = '';
           if (bl !== 'EN ATTENTE DE CONTENEUR') {
-            const factureId = groupArts[0]?.factureId;
-            const allContainerArts = articles.filter(a => a.factureId === factureId);
-            
             const groupCbm = groupArts.reduce((acc, a) => acc + (Number(a.cubicMeasurement) || 0), 0);
-            const totalCbm = allContainerArts.reduce((acc, a) => acc + (Number(a.cubicMeasurement) || 0), 0);
-            
-            if (totalCbm > 0 && groupCbm > 0) {
-              partText = `Part : ${(groupCbm / totalCbm * 100).toFixed(1)}%`;
-            } else if (allContainerArts.length > 0) {
-              partText = `Part : ${Math.round((groupArts.length / allContainerArts.length) * 100)}%`;
+            if (groupCbm > 0) {
+              partText = `Part : ${(groupCbm / 68 * 100).toFixed(1)}%`;
             }
           }
 
