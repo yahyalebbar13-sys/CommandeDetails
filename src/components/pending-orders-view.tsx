@@ -42,55 +42,69 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
   const clientOrders = useMemo(() => pendingOrders.filter(o => o.isPreorder && o.clientName), [pendingOrders]);
   const activeOrders = activeTab === 'mine' ? myOrders : clientOrders;
 
-  // Group: Fournisseur (primary) → Pôle (secondary) → Catégorie (tertiary)
-  const supplierGroups = useMemo(() => {
+  // Grouping logic: Container first, then Supplier
+  const groupedBlocks = useMemo(() => {
     const poleNameMap: Record<string, string> = {};
     (generalCategories || []).forEach((gc: any) => { poleNameMap[gc.id] = gc.name || gc.id; });
 
-    const bySup = new Map<string, any[]>();
+    const containerMap = new Map<string, any[]>();
+    const supplierMap = new Map<string, any[]>();
+
     activeOrders.forEach(o => {
-      const sup = o.supplierId || 'NON SPÉCIFIÉ';
-      if (!bySup.has(sup)) bySup.set(sup, []);
-      bySup.get(sup)!.push(o);
+      if (o.isFullContainer || (o.containerRef && o.containerRef.trim() !== '')) {
+        const cRef = (o.containerRef && o.containerRef.trim() !== '') ? o.containerRef.trim().toUpperCase() : `FCL - ${o.supplierId || 'SANS FOURNISSEUR'}`;
+        if (!containerMap.has(cRef)) containerMap.set(cRef, []);
+        containerMap.get(cRef)!.push(o);
+      } else {
+        const sup = o.supplierId || 'NON SPÉCIFIÉ';
+        if (!supplierMap.has(sup)) supplierMap.set(sup, []);
+        supplierMap.get(sup)!.push(o);
+      }
     });
 
-    return Array.from(bySup.entries())
-      .map(([sup, supArts]) => {
-        // Sub-group by pôle
-        const byPole = new Map<string, any[]>();
-        supArts.forEach((o: any) => {
-          const poleId = o.generalCategoryId || '__other__';
-          if (!byPole.has(poleId)) byPole.set(poleId, []);
-          byPole.get(poleId)!.push(o);
+    const buildPoleGroups = (arts: any[]) => {
+      const byPole = new Map<string, any[]>();
+      arts.forEach((o: any) => {
+        const poleId = o.generalCategoryId || '__other__';
+        if (!byPole.has(poleId)) byPole.set(poleId, []);
+        byPole.get(poleId)!.push(o);
+      });
+      return Array.from(byPole.entries()).map(([poleId, poleArts]) => {
+        const poleName = poleId === '__other__' ? 'Autres' : (poleNameMap[poleId] || poleId);
+        const byCat = new Map<string, any[]>();
+        poleArts.forEach((o: any) => {
+          const cat = o.categoryId || o.name || 'Non spécifié';
+          if (!byCat.has(cat)) byCat.set(cat, []);
+          byCat.get(cat)!.push(o);
         });
+        const catGroups = Array.from(byCat.entries()).map(([cat, catArts]) => ({ cat, arts: catArts })).sort((a, b) => a.cat.localeCompare(b.cat));
+        return { poleId, poleName, catGroups, allArts: poleArts };
+      }).sort((a, b) => a.poleName.localeCompare(b.poleName));
+    };
 
-        const poleGroups = Array.from(byPole.entries())
-          .map(([poleId, poleArts]) => {
-            const poleName = poleId === '__other__' ? 'Autres' : (poleNameMap[poleId] || poleId);
-            // Sub-group by category inside pôle
-            const byCat = new Map<string, any[]>();
-            poleArts.forEach((o: any) => {
-              const cat = o.categoryId || o.name || 'Non spécifié';
-              if (!byCat.has(cat)) byCat.set(cat, []);
-              byCat.get(cat)!.push(o);
-            });
-            const catGroups = Array.from(byCat.entries())
-              .map(([cat, catArts]) => ({ cat, arts: catArts }))
-              .sort((a, b) => a.cat.localeCompare(b.cat));
-            return { poleId, poleName, catGroups, allArts: poleArts };
-          })
-          .sort((a, b) => a.poleName.localeCompare(b.poleName));
+    const containerBlocks = Array.from(containerMap.entries()).map(([cRef, arts]) => ({
+      type: 'container' as const,
+      id: `container-${cRef}`,
+      title: cRef,
+      poleGroups: buildPoleGroups(arts),
+      allArts: arts,
+      totalValue: arts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
+      totalQty: arts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
+      totalCbm: arts.reduce((s: number, o: any) => s + (Number(o.cubicMeasurement) || 0), 0),
+    })).sort((a, b) => a.title.localeCompare(b.title));
 
-        return {
-          sup,
-          poleGroups,
-          allArts: supArts,
-          totalValue: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
-          totalQty: supArts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
-          totalCbm: supArts.reduce((s: number, o: any) => s + (Number(o.cubicMeasurement) || 0), 0),
-        };
-      })
-      .sort((a, b) => a.sup.localeCompare(b.sup));
+    const supplierBlocks = Array.from(supplierMap.entries()).map(([sup, arts]) => ({
+      type: 'supplier' as const,
+      id: `supplier-${sup}`,
+      title: sup,
+      poleGroups: buildPoleGroups(arts),
+      allArts: arts,
+      totalValue: arts.reduce((s: number, o: any) => s + (Number(o.quantity) * Number(o.purchasePricePerUnit || 0)), 0),
+      totalQty: arts.reduce((s: number, o: any) => s + (Number(o.quantity) || 0), 0),
+      totalCbm: arts.reduce((s: number, o: any) => s + (Number(o.cubicMeasurement) || 0), 0),
+    })).sort((a, b) => a.title.localeCompare(b.title));
+
+    return [...containerBlocks, ...supplierBlocks];
   }, [activeOrders, generalCategories]);
 
   const totalValue = activeOrders.reduce((s, o) =>
@@ -355,48 +369,49 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         </Card>
       ) : (
         <div className="space-y-5">
-          {supplierGroups.map(({ sup, poleGroups, allArts, totalValue: supVal, totalQty: supQty, totalCbm }) => {
-            const collapsed = collapsedGroups.has(sup);
+          {groupedBlocks.map(({ type, id, title, poleGroups, allArts, totalValue: blockVal, totalQty: blockQty, totalCbm }) => {
+            const collapsed = collapsedGroups.has(id);
             const cbmPercent = Math.min(((totalCbm || 0) / 68) * 100, 100);
+            const isContainer = type === 'container';
             return (
-              <div key={sup} className="rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm">
-                {/* ── Supplier header (primary, collapsible) ── */}
+              <div key={id} className={`rounded-2xl border-2 overflow-hidden shadow-sm ${isContainer ? 'border-teal-200' : 'border-stone-200'}`}>
+                {/* ── Block header (collapsible) ── */}
                 <button
                   type="button"
-                  onClick={() => toggleGroup(sup)}
-                  className="w-full flex items-center gap-4 px-6 py-4 bg-stone-900 hover:bg-stone-800 transition-colors text-left"
+                  onClick={() => toggleGroup(id)}
+                  className={`w-full flex items-center gap-4 px-6 py-4 transition-colors text-left ${isContainer ? 'bg-teal-900 hover:bg-teal-950' : 'bg-stone-900 hover:bg-stone-800'}`}
                 >
                   <div className="p-2 bg-white/10 rounded-xl shrink-0">
-                    <Building2 className="w-5 h-5 text-amber-400" />
+                    {isContainer ? <Container className="w-5 h-5 text-teal-400" /> : <Building2 className="w-5 h-5 text-amber-400" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-black text-white uppercase tracking-wider">{sup}</p>
+                    <p className="text-[15px] font-black text-white uppercase tracking-wider">{isContainer ? `Conteneur: ${title}` : title}</p>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      <span className="text-[9px] font-bold text-stone-400 uppercase">
+                      <span className={`text-[9px] font-bold uppercase ${isContainer ? 'text-teal-200' : 'text-stone-400'}`}>
                         {allArts.length} commande{allArts.length > 1 ? 's' : ''}
                       </span>
-                      <span className="text-[9px] font-bold text-amber-400 uppercase">
+                      <span className={`text-[9px] font-bold uppercase ${isContainer ? 'text-teal-400' : 'text-amber-400'}`}>
                         {poleGroups.length} pôle{poleGroups.length > 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-6 shrink-0">
                     <div className="hidden lg:flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
-                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Conteneur HQ</span>
-                      <div className="w-24 h-1.5 bg-stone-800 rounded-full overflow-hidden shadow-inner">
+                      <span className={`text-[8px] font-black uppercase tracking-widest ${isContainer ? 'text-teal-400' : 'text-stone-400'}`}>Conteneur HQ</span>
+                      <div className={`w-24 h-1.5 rounded-full overflow-hidden shadow-inner ${isContainer ? 'bg-teal-950' : 'bg-stone-800'}`}>
                         <div className={`h-full transition-all ${cbmPercent >= 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-blue-500'}`} style={{ width: `${cbmPercent}%` }} />
                       </div>
-                      <span className="text-[9px] font-black text-stone-200">{(totalCbm || 0).toFixed(1)} <span className="text-[8px] text-stone-500">/ 68 CBM</span></span>
+                      <span className="text-[9px] font-black text-stone-200">{(totalCbm || 0).toFixed(1)} <span className="text-[8px] opacity-50">/ 68 CBM</span></span>
                     </div>
                     
                     <div className="text-right hidden md:block">
-                      <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest">Valeur totale</p>
-                      <p className="text-base font-black text-amber-400">${supVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                      <p className={`text-[8px] font-black uppercase tracking-widest ${isContainer ? 'text-teal-400/60' : 'text-stone-500'}`}>Valeur totale</p>
+                      <p className={`text-base font-black ${isContainer ? 'text-teal-400' : 'text-amber-400'}`}>${blockVal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
                     </div>
-                    <Badge className="bg-amber-500 text-white border-none text-[9px] font-black px-3 py-1">
-                      {supQty.toLocaleString()} unités
+                    <Badge className={`${isContainer ? 'bg-teal-500' : 'bg-amber-500'} text-white border-none text-[9px] font-black px-3 py-1`}>
+                      {blockQty.toLocaleString()} unités
                     </Badge>
-                    <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
+                    <ChevronDown className={`w-4 h-4 text-white/50 transition-transform shrink-0 ${collapsed ? '' : 'rotate-180'}`} />
                   </div>
                 </button>
 
