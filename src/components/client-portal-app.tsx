@@ -220,7 +220,19 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
 
     return (
       <div className="space-y-8">
-        {Object.entries(groups).map(([bl, groupArts]) => (
+        {Object.entries(groups).map(([bl, groupArts]) => {
+          let partText = '';
+          if (bl !== 'EN ATTENTE DE CONTENEUR') {
+            const factureId = groupArts[0]?.factureId;
+            const facture = factures.find(f => f.id === factureId);
+            const factureCbm = Number(facture?.totalCbm) || 0;
+            const groupCbm = groupArts.reduce((acc, a) => acc + (Number(a.volumeCbm) || 0), 0);
+            if (factureCbm > 0 && groupCbm > 0) {
+              partText = `Part : ${(groupCbm / factureCbm * 100).toFixed(1)}%`;
+            }
+          }
+
+          return (
           <div key={bl} className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-stone-100">
               <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
@@ -230,6 +242,11 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
                 <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Conteneur / B/L</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="text-xl font-black text-stone-900 uppercase tracking-wider">{bl}</h3>
+                  {partText && (
+                    <span className="text-[11px] font-black text-stone-500 uppercase bg-stone-100 px-2.5 py-1 rounded-md">
+                      {partText}
+                    </span>
+                  )}
                   {groupArts[0]?.arrivalDate && (
                     <span className="text-[11px] font-black text-blue-600 uppercase flex items-center gap-1.5 bg-blue-50/50 border border-blue-100 px-2.5 py-1 rounded-md">
                       <Ship className="w-3.5 h-3.5" /> Arrivée prévue : {new Date(groupArts[0].arrivalDate).toLocaleDateString('fr-FR')}
@@ -245,7 +262,7 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
               {groupArts.map(a => <ArticleCard key={a.id} article={a} hideArrivalDate />)}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     );
   };
