@@ -110,6 +110,9 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
   );
 
   const ArticleCard = ({ article, hideArrivalDate }: { article: any, hideArrivalDate?: boolean }) => {
+    const category = categories.find(c => c.id === article.categoryId || (c.name && c.name.toLowerCase() === (article.categoryId || '').toLowerCase()));
+    const displayImage = article.imageUrl || article.designImageUrl || category?.imageUrl;
+
     const safeColorBreakdown = Array.isArray(article.colorBreakdown) 
       ? article.colorBreakdown 
       : (article.colorBreakdown && typeof article.colorBreakdown === 'object') 
@@ -120,8 +123,8 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
 
     return (
       <div className="bg-white border border-stone-200 rounded-2xl p-4 flex gap-4 hover:shadow-md transition-all">
-        {article.imageUrl ? (
-          <img src={article.imageUrl} alt="" className="w-20 h-20 rounded-xl object-cover border border-stone-100 shrink-0" />
+        {displayImage ? (
+          <img src={displayImage} alt="" className="w-20 h-20 rounded-xl object-cover border border-stone-100 shrink-0" />
         ) : (
           <div className="w-20 h-20 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center shrink-0">
             <Package className="w-6 h-6 text-stone-300" />
