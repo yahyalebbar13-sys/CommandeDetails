@@ -49,23 +49,26 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
           
           if (!res.ok) {
             const text = await res.text();
-            throw new Error(`API a retourné une erreur ${res.status}: ${text.substring(0,50)}`);
-          }
-          const data = await res.json();
-          // S'il existe déjà, essayons UPDATE_PASSWORD
-          if (data.error && data.error.includes('already exists')) {
-             const updateRes = await fetch('/api/admin/manage-user', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({
-                 action: 'UPDATE_PASSWORD',
-                 email: editingStore.accessEmail.trim(),
-                 password: editingPassword
-               })
-             });
-             if (!updateRes.ok) {
-               throw new Error('Erreur lors de la mise à jour du mot de passe');
-             }
+            let data;
+            try { data = JSON.parse(text); } catch(e) {}
+            
+            if (data && data.error && data.error.includes('already exists')) {
+              // S'il existe déjà, essayons UPDATE_PASSWORD
+              const updateRes = await fetch('/api/admin/manage-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'UPDATE_PASSWORD',
+                  email: editingStore.accessEmail.trim(),
+                  password: editingPassword
+                })
+              });
+              if (!updateRes.ok) {
+                throw new Error('Erreur lors de la mise à jour du mot de passe');
+              }
+            } else {
+              throw new Error(`API a retourné une erreur ${res.status}: ${text.substring(0,50)}`);
+            }
           }
         }
         
