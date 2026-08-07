@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin if not already initialized
 function getFirebaseAdminApp() {
-  if (!admin.apps || !admin.apps.length) {
+  if (!getApps().length) {
     try {
-      return admin.initializeApp({
-        credential: admin.credential.cert({
+      return initializeApp({
+        credential: cert({
           projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
           privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
@@ -17,7 +18,7 @@ function getFirebaseAdminApp() {
       return null;
     }
   }
-  return admin.app();
+  return getApps()[0];
 }
 
 export async function POST(req: Request) {
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Action and email/uid are required' }, { status: 400 });
     }
 
-    const auth = admin.auth();
+    const auth = getAuth(app);
 
     if (action === 'CREATE') {
       if (!password || !email) {
