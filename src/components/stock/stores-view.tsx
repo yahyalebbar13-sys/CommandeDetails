@@ -70,7 +70,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
         }
         
         // Sauvegarder dans /storeAccess
-        await setDoc(doc(firestore, 'storeAccess', editingStore.accessEmail.trim()), {
+        await setDoc(doc(firestore, 'storeAccess', editingStore.accessEmail.trim().toLowerCase()), {
           storeId: safeId,
           role: 'COMMERCIAL',
           adminUid: adminUid
