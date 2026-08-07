@@ -214,6 +214,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     // ════════════════════════════════════════════════════════════════════════
     const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
+    const designBreakdown: any[] = Array.isArray(article.designBreakdown) ? article.designBreakdown : [];
 
     const drawTable = (title: string, head: string[][], body: any[][], totalRow: any[]) => {
       doc.setFontSize(8.5);
@@ -286,7 +287,18 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       drawTable("DÉTAIL PAR TAILLE", [["#", "Taille", "Quantité"]], rows, ["", "TOTAL GÉNÉRAL", fmtQty(total, article.unitOfMeasure)]);
     }
 
-    if (colorBreakdown.length === 0 && sizeBreakdown.length === 0) {
+    if (designBreakdown.length > 0) {
+      if (y > H - 60) { doc.addPage(); y = 20; }
+      const rows = designBreakdown.map((r: any, i: number) => [
+        String(i + 1),
+        (r.designRef || "—").toUpperCase(),
+        fmtQty(Number(r.rolls || 0), article.unitOfMeasure),
+      ]);
+      const total = designBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+      drawTable("DÉTAIL PAR MODÈLE", [["#", "Référence Modèle", "Quantité"]], rows, ["", "TOTAL GÉNÉRAL", fmtQty(total, article.unitOfMeasure)]);
+    }
+
+    if (colorBreakdown.length === 0 && sizeBreakdown.length === 0 && designBreakdown.length === 0) {
       const rows = [[
         article.size && article.size !== "various" ? article.size.toUpperCase() : "—",
         article.color ? article.color.toUpperCase() : "—",
