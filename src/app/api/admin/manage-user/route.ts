@@ -6,16 +6,24 @@ import { getAuth } from 'firebase-admin/auth';
 function getFirebaseAdminApp() {
   if (!getApps().length) {
     try {
+      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'studio-9506506653-9b525';
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+      if (!clientEmail || !privateKey) {
+        throw new Error(`Missing env vars. email=${!!clientEmail}, key=${!!privateKey}`);
+      }
+
       return initializeApp({
         credential: cert({
-          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+          projectId,
+          clientEmail,
+          privateKey,
         }),
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Firebase admin initialization error', error);
-      return null;
+      throw error;
     }
   }
   return getApps()[0];
@@ -23,8 +31,14 @@ function getFirebaseAdminApp() {
 
 export async function POST(req: Request) {
   try {
-    const app = getFirebaseAdminApp();
-    if (!app) {
+    let adminApp;
+    try {
+      adminApp = getFirebaseAdminApp();
+    } catch (err: any) {
+      return NextResponse.json({ error: `Firebase Admin init failed: ${err.message}` }, { status: 500 });
+    }
+
+    if (!adminApp) {
       return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 500 });
     }
 
