@@ -1,0 +1,474 @@
+<Dialog open={!!selectedArticleId} onOpenChange={(o) => { if (!o) setSelectedArticleId(null); }}>
+        <DialogContent className="max-w-md rounded-[2rem] p-0 border-transparent overflow-hidden shadow-2xl bg-stone-50">
+          <DialogTitle className="sr-only">Détails de l'article</DialogTitle>
+          {selectedArticle && (() => {
+            // Safely parse breakdown data which might be stored as Array or Object in Firestore
+            const safeSizeBreakdown = Array.isArray(selectedArticle.sizeBreakdown) 
+              ? selectedArticle.sizeBreakdown 
+              : (selectedArticle.sizeBreakdown && typeof selectedArticle.sizeBreakdown === 'object') 
+                ? Object.values(selectedArticle.sizeBreakdown) 
+                : [];
+                
+            const safeColorBreakdown = Array.isArray(selectedArticle.colorBreakdown) 
+              ? selectedArticle.colorBreakdown 
+              : (selectedArticle.colorBreakdown && typeof selectedArticle.colorBreakdown === 'object') 
+                ? Object.values(selectedArticle.colorBreakdown) 
+                : [];
+
+            return (
+              <div className="flex flex-col relative w-full max-h-[85vh] overflow-y-auto custom-scrollbar">
+                {/* Premium header */}
+                <div className="relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }}>
+                  <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #c4a062, transparent)', transform: 'translate(30%, -30%)' }} />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #6366f1, transparent)', transform: 'translate(-30%, 30%)' }} />
+                  
+                  {/* Close button */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedArticleId(null)}
+                    className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </button>
+
+                  <div className="relative z-10 p-7 pb-6">
+                    {/* Status badge */}
+                    {(() => { const s = statusLabel(selectedArticle.status); return (
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-lg">{s.icon}</span>
+                        <span className={`${s.cls} text-[9px] font-black uppercase tracking-widest border px-2.5 py-1 rounded-full`}>{s.label}</span>
+                      </div>
+                    ); })()}
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tight leading-tight mb-1">{selectedArticle.categoryId}</h2>
+                    <p className="font-black uppercase tracking-widest" style={{ color: '#c4a062', fontSize: '1.1rem' }}>
+                      {Number(selectedArticle.quantity).toLocaleString('en-US')} <span className="text-sm" style={{ color: 'rgba(196,160,98,0.6)' }}>{selectedArticle.unitOfMeasure || 'U'}</span>
+                    </p>
+                  </div>
+                  {/* Gold separator */}
+                  <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #c4a062 0%, transparent 100%)' }} />
+                </div>
+
+                {/* Product image — shown below header if available */}
+                {(selectedArticle.imageUrl || selectedArticle.designImageUrl || selectedCategory?.imageUrl) && (
+                  <div className="w-full bg-white border-b border-stone-100 flex items-center justify-center" style={{ maxHeight: 220 }}>
+                    <img
+                      src={selectedArticle.imageUrl || selectedArticle.designImageUrl || selectedCategory?.imageUrl}
+                      alt={selectedArticle.categoryId}
+                      className="max-h-52 w-full object-contain"
+                    />
+                  </div>
+                )}
+
+                
+                <div className="p-5 space-y-4 shrink-0" style={{ background: '#f8f9fa' }}>
+                  {/* Spec grid */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { label: 'Code HS', value: selectedArticle.hsCode || selectedCategory?.hsCode || '—' },
+                      { label: 'CBM', value: selectedArticle.cubicMeasurement != null ? `${selectedArticle.cubicMeasurement} m³` : '—' },
+                    ].map((spec, i) => (
+                      <div key={i} className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
+                        <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">{spec.label}</span>
+                        <span className="text-sm font-black text-stone-900">{spec.value}</span>
+                      </div>
+                    ))}
+
+                    {/* Fret indicator (if applicable) */}
+                    {(() => {
+                      if (!selectedArticle.factureId || !freightStats.averageEfficiency) return null;
+                      const fac = factures.find(f => f.id === selectedArticle.factureId);
+                      if (!fac || !fac.efficiency) return null;
+                      
+                      const efficiency = Number(fac.efficiency);
+                      const avg = freightStats.averageEfficiency;
+                      const diffPercent = ((efficiency - avg) / avg) * 100;
+                      
+                      let statusText = "Normal";
+                      let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                      let textColor = "text-emerald-600";
+                      let icon = "✅";
+                      
+                      if (diffPercent > 20) {
+                        statusText = "Élevé";
+                        badgeColor = "bg-red-50 text-red-700 border-red-200";
+                        textColor = "text-red-600";
+                        icon = "⚠️";
+                      } else if (diffPercent > 5) {
+                        statusText = "Légèrement élevé";
+                        badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
+                        textColor = "text-amber-600";
+                        icon = "📈";
+                      } else if (diffPercent < -15) {
+                        statusText = "Très bon";
+                        badgeColor = "bg-blue-50 text-blue-700 border-blue-200";
+                        textColor = "text-blue-600";
+                        icon = "📉";
+                      }
+
+                      return (
+                        <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 col-span-2 flex flex-col items-center text-center">
+                          <div className="flex items-center justify-between w-full mb-2">
+                            <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                              <Ship className="w-2.5 h-2.5" /> Fret Maritime (Dossier)
+                            </span>
+                            <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest border ${badgeColor}`}>
+                              {icon} {statusText}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-end gap-3 w-full">
+                            <div className="flex-1 text-left">
+                              <span className="text-xl font-black text-stone-900">{efficiency.toFixed(0)}$<span className="text-[10px] text-stone-400 ml-0.5">/m³</span></span>
+                            </div>
+                            <div className="flex-1 text-right border-l border-stone-100 pl-3">
+                              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest block mb-0.5">Moyenne Globale</span>
+                              <span className="text-sm font-black text-stone-600">{avg.toFixed(0)}$<span className="text-[9px] text-stone-400 ml-0.5">/m³</span></span>
+                            </div>
+                          </div>
+                          
+                          <div className="w-full bg-stone-100 rounded-full h-1.5 mt-3 overflow-hidden">
+                            <div 
+                              className={`h-full ${diffPercent > 20 ? 'bg-red-500' : diffPercent > 5 ? 'bg-amber-500' : 'bg-emerald-500'} rounded-full`} 
+                              style={{ width: `${Math.min(100, Math.max(10, 50 + (diffPercent / 2)))}%` }}
+                            />
+                          </div>
+                          <p className={`text-[8px] font-bold uppercase tracking-widest mt-1.5 ${textColor}`}>
+                            {diffPercent > 0 ? '+' : ''}{diffPercent.toFixed(1)}% vs Moyenne
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Taille — compact badges if sizeBreakdown */}
+                    <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Taille</span>
+                      {safeSizeBreakdown.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {safeSizeBreakdown.map((r: any, i: number) => (
+                            <span key={i} className="text-[8px] font-black bg-teal-50 text-teal-700 border border-teal-200 rounded px-1.5 py-0.5">
+                              {r.size} ×{Number(r.quantity) || 0}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm font-black text-stone-900">{selectedArticle.size || '—'}</span>
+                      )}
+                    </div>
+
+                    {/* Couleur — compact badges if colorBreakdown */}
+                    <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 flex flex-col items-center text-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Couleur</span>
+                      {safeColorBreakdown.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {safeColorBreakdown.map((r: any, i: number) => (
+                            <span key={i} className="text-[8px] font-black bg-violet-50 text-violet-700 border border-violet-200 rounded px-1.5 py-0.5 uppercase">
+                              {r.colorCode || r.color} ×{Number(r.rolls) || 0}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm font-black text-stone-900 uppercase">{selectedArticle.color || '—'}</span>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-stone-100 shadow-sm p-3.5 col-span-2 flex flex-col items-center text-center">
+                      <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                        <ClipboardList className="w-2.5 h-2.5" /> Spécifications Techniques
+                      </span>
+                      <span className="text-[11px] font-bold text-stone-600 leading-snug">
+                        {selectedArticle.specs || (selectedArticle.zipperType ? `${selectedArticle.zipperType} ${selectedArticle.slider || ''}` : '—')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ── SHIPPING TIMELINE ── */}
+                  {(() => {
+                    const STEPS = [
+                      { key: 'TO_ORDER', icon: '📋', label: 'Commande' },
+                      { key: 'PI',       icon: '🏭', label: 'Production' },
+                      { key: 'TRANSIT',  icon: '🚢', label: 'Transit Maritime' },
+                      { key: 'CUSTOMS',  icon: '🛃', label: 'Dédouanement' },
+                      { key: 'STOCK',    icon: '✅', label: 'Stock' },
+                    ];
+                    // SHIPPED and TRANSIT are the same stage — normalize to TRANSIT for the timeline
+                    const normalizedStatus = selectedArticle.status === 'SHIPPED' ? 'TRANSIT' : selectedArticle.status;
+                    const STATUS_ORDER = ['TO_ORDER','PI','TRANSIT','CUSTOMS','STOCK','DELIVERED'];
+                    const currentIdx = STATUS_ORDER.indexOf(normalizedStatus);
+                    const isDelivered = selectedArticle.status === 'DELIVERED';
+                    return (
+                      <div className="rounded-2xl overflow-hidden border border-stone-200">
+                        <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #0f172a, #1e1b4b)' }}>
+                          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Suivi de la Commande</span>
+                          {isDelivered && <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">✓ Livré</span>}
+                        </div>
+                        <div className="bg-white p-4">
+                          <div className="relative flex flex-col gap-0">
+                            {STEPS.map((step, i) => {
+                              const stepIdx = STATUS_ORDER.indexOf(step.key);
+                              const isDone = isDelivered || stepIdx < currentIdx;
+                              const isActive = !isDelivered && stepIdx === currentIdx;
+                              const isPending = !isDelivered && stepIdx > currentIdx;
+                              return (
+                                <div key={step.key} className="flex items-start gap-3 relative">
+                                  {/* Vertical line */}
+                                  {i < STEPS.length - 1 && (
+                                    <div
+                                      className="absolute left-[17px] top-9 w-0.5 h-[calc(100%-8px)] z-0"
+                                      style={{ background: isDone ? 'linear-gradient(180deg,#10b981,#10b981)' : isActive ? 'linear-gradient(180deg,#6366f1,#e2e8f0)' : '#e2e8f0' }}
+                                    />
+                                  )}
+                                  {/* Dot */}
+                                  <div className="relative z-10 shrink-0" style={{ marginTop: 2 }}>
+                                    <div
+                                      className={`w-9 h-9 rounded-full flex items-center justify-center text-base transition-all ${
+                                        isDone ? 'ring-2 ring-emerald-300 ring-offset-1' :
+                                        isActive ? 'ring-2 ring-indigo-400 ring-offset-1 shadow-lg shadow-indigo-100' : ''
+                                      }`}
+                                      style={{
+                                        background: isDone ? '#d1fae5' : isActive ? 'linear-gradient(135deg,#4f46e5,#6366f1)' : '#f1f5f9',
+                                      }}
+                                    >
+                                      <span style={{ filter: isPending ? 'grayscale(1) opacity(0.4)' : 'none' }}>{step.icon}</span>
+                                    </div>
+                                  </div>
+                                  {/* Label */}
+                                  <div className="py-1.5 pb-5">
+                                    <p
+                                      className={`text-[11px] font-black uppercase tracking-wider leading-none ${
+                                        isDone ? 'text-emerald-600' : isActive ? 'text-indigo-700' : 'text-stone-300'
+                                      }`}
+                                    >
+                                      {step.label}
+                                      {isActive && (
+                                        <span className="ml-2 inline-flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse inline-block" />
+                                          <span className="text-[9px] text-indigo-400 font-bold normal-case tracking-normal">En cours</span>
+                                        </span>
+                                      )}
+                                      {isDone && <span className="ml-1.5 text-[9px] text-emerald-400 font-bold normal-case">✓</span>}
+                                    </p>
+                                    {isActive && selectedArticle.arrivalDate && (
+                                      <p className="text-[9px] text-indigo-400 font-bold mt-0.5">Arrivée prévue : {selectedArticle.arrivalDate}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {isDelivered && (
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-stone-800 ring-2 ring-stone-600 ring-offset-1 text-base">📦</div>
+                                <p className="text-[11px] font-black uppercase tracking-wider text-stone-700">Livré <span className="ml-1 text-[9px] font-bold text-stone-400 normal-case">Commande clôturée</span></p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {/* Ref dossier footer */}
+                        {selectedArticle.factureId && (() => {
+                          const tracking = getTrackingInfo(selectedArticle.factureShippingLine, selectedArticle.factureNoBL);
+                          return (
+                            <div className="border-t border-stone-100 bg-stone-50">
+                              <div className="px-4 py-3 flex items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° Dossier</p>
+                                  <p className="text-[11px] font-black text-stone-900 uppercase">{selectedArticle.factureId}</p>
+                                </div>
+                                {selectedArticle.factureNoBL && (
+                                  <div className="text-right">
+                                    <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-0.5">N° BL</p>
+                                    <p className="text-[11px] font-black uppercase" style={{ color: '#c4a062' }}>{selectedArticle.factureNoBL}</p>
+                                  </div>
+                                )}
+                              </div>
+                              {/* Tracking link */}
+                              {tracking && (
+                                <a
+                                  href={tracking.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mx-4 mb-3 flex items-center justify-between gap-2 px-4 py-3 rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 hover:border-indigo-300 transition-all group"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-9 h-9 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                                      <Ship className="w-4.5 h-4.5 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Suivre via {tracking.name}</p>
+                                      <p className="text-[11px] font-black text-indigo-700 uppercase">{selectedArticle.factureNoBL}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 text-indigo-500 group-hover:text-indigo-700 transition-colors">
+                                    <span className="text-[8px] font-black uppercase tracking-widest hidden sm:block">Tracking</span>
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="group-hover:translate-x-0.5 transition-transform"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                  </div>
+                                </a>
+                              )}
+                              {/* Compagnie maritime badge */}
+                              {selectedArticle.factureShippingLine && !tracking && (
+                                <div className="mx-4 mb-3 flex items-center gap-2 bg-stone-100 rounded-xl px-3 py-2">
+                                  <Ship className="w-3.5 h-3.5 text-stone-400" />
+                                  <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{selectedArticle.factureShippingLine}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Breakdowns */}
+                  {safeSizeBreakdown.length > 0 && (
+                    <div className="rounded-xl border border-stone-200 overflow-hidden">
+                      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#0f172a' }}>
+                        <span className="text-base">📐</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Détail Tailles</span>
+                      </div>
+                      <div className="bg-white divide-y divide-stone-50">
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-50">
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Taille</div>
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest text-right">Qté</div>
+                        </div>
+                        {safeSizeBreakdown.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-stone-50 transition-colors">
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.size}</div>
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.quantity).toLocaleString()}</div>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-900 text-white">
+                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>TOTAL</div>
+                          <div className="py-2 px-3 text-right text-[10px] font-black">{safeSizeBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {safeColorBreakdown.length > 0 && (
+                    <div className="rounded-xl border border-stone-200 overflow-hidden">
+                      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#0f172a' }}>
+                        <span className="text-base">🎨</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>Détail Couleurs</span>
+                      </div>
+                      <div className="bg-white divide-y divide-stone-50">
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-50">
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Couleur</div>
+                          <div className="py-2 px-3 text-[8px] font-black text-stone-400 uppercase tracking-widest text-right">Qté</div>
+                        </div>
+                        {safeColorBreakdown.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_80px] hover:bg-stone-50 transition-colors">
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-800 uppercase">{row.colorCode}</div>
+                            <div className="py-2.5 px-3 text-[11px] font-black text-stone-900 text-right">{Number(row.rolls).toLocaleString()}</div>
+                          </div>
+                        ))}
+                        <div className="grid grid-cols-[1fr_80px] bg-stone-900 text-white">
+                          <div className="py-2 px-3 text-[8px] font-black uppercase tracking-widest" style={{ color: '#c4a062' }}>TOTAL</div>
+                          <div className="py-2 px-3 text-right text-[10px] font-black">{safeColorBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dossier ref — now shown in the timeline footer above */}
+
+                  {/* ── PRIX DE VENTE CONFIRMÉ ── */}
+                  {selectedArticle.devisConfirmed && selectedArticle.devisPrixVenteUniteMad && (
+                    <div className="rounded-2xl overflow-hidden border-2 border-emerald-300 shadow-lg shadow-emerald-100">
+                      {/* Header */}
+                      <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ background: 'linear-gradient(135deg, #065f46, #047857)' }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🔒</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-emerald-100">Prix de Vente Officiel</span>
+                        </div>
+                        <span className="text-[8px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-900/40 px-2 py-0.5 rounded-full">CONFIRMÉ</span>
+                      </div>
+                      {/* Price display */}
+                      <div className="bg-emerald-50 p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Prix Unitaire</p>
+                            <p className="text-3xl font-black text-emerald-700 leading-none">
+                              {Number(selectedArticle.devisPrixVenteUniteMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <span className="text-base ml-1 font-bold text-emerald-500">MAD</span>
+                            </p>
+                          </div>
+                          {selectedArticle.devisPrixVenteTotalMad && (
+                            <div className="text-right">
+                              <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total</p>
+                              <p className="text-lg font-black text-emerald-700">
+                                {Number(selectedArticle.devisPrixVenteTotalMad).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {selectedArticle.devisConfirmedAt && (
+                          <div className="pt-2 border-t border-emerald-200 text-right">
+                            <p className="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-0.5">Confirmé le</p>
+                            <p className="text-[10px] font-black text-emerald-700">
+                              {new Date(selectedArticle.devisConfirmedAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 bg-emerald-100 rounded-xl px-3 py-2">
+                          <span className="text-emerald-600 text-[9px]">🔒</span>
+                          <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">Ce prix est fixé et ne peut pas être modifié</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── HISTORIQUE DES DEVIS (admin only) ── */}
+                  {!isPortal && Array.isArray(selectedArticle.devisHistory) && selectedArticle.devisHistory.length > 0 && (
+                    <div className="rounded-2xl overflow-hidden border border-amber-200">
+                      <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #92400e, #b45309)' }}>
+                        <span className="text-sm">📋</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-amber-100">Historique des Devis</span>
+                        <span className="ml-auto text-[8px] font-black text-amber-300 bg-amber-900/40 px-2 py-0.5 rounded-full">{selectedArticle.devisHistory.length} révision{selectedArticle.devisHistory.length > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="bg-amber-50 divide-y divide-amber-100">
+                        {[...selectedArticle.devisHistory].reverse().map((entry: any, i: number) => (
+                          <div key={i} className="px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-0.5">
+                                {entry.confirmedAt ? new Date(entry.confirmedAt).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+                              </p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {entry.margePercent != null && (
+                                  <span className="text-[7px] font-black text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded">Marge {entry.margePercent}%</span>
+                                )}
+                                {entry.remisePercent != null && entry.remisePercent > 0 && (
+                                  <span className="text-[7px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Remise -{entry.remisePercent}%</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-[10px] font-black text-amber-700 line-through">
+                                {Number(entry.prix).toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD/u
+                              </p>
+                              {entry.total && (
+                                <p className="text-[8px] font-bold text-amber-500">{Number(entry.total).toLocaleString('fr-MA', { maximumFractionDigits: 0 })} total</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+
+
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white rounded-xl border border-stone-200 p-4 text-center">
+                      <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-2 flex items-center justify-center gap-1"><Calendar className="w-3 h-3" /> Date Commande</p>
+                      <p className="text-xs font-black text-stone-900">{selectedArticle.orderDate || '—'}</p>
+                    </div>
+                    <div className="rounded-xl p-4 text-center" style={{ background: 'linear-gradient(135deg, #0f172a, #1e1b4b)' }}>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-2 flex items-center justify-center gap-1" style={{ color: 'rgba(196,160,98,0.7)' }}><Clock className="w-3 h-3" /> Date Arrivée</p>
+                      <p className="text-xs font-black" style={{ color: '#c4a062' }}>{selectedArticle.arrivalDate || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>

@@ -280,26 +280,31 @@ export default function StockApp() {
           setDoc(doc(firestore, 'publicConfig', 'adminConfig'), { adminUid: user.uid }, { merge: true }).catch(() => {});
         }
         if (activeView === 'dashboard' && userRole !== 'ADMIN') setActiveView('dashboard');
-      } else if (user.email === 'ahmed@lebtex.ma') {
-        setUserRole('COMMERCIAL');
-        setActiveStore('DERB_OMAR');
-        if (activeView === 'dashboard') setActiveView('sale');
-        if (firestore && !adminUid) {
-          getDoc(doc(firestore, 'publicConfig', 'adminConfig')).then(snap => {
-            if (snap.exists()) setAdminUid(snap.data().adminUid);
-          });
-        }
-      } else if (user.email === 'hafid@lebtex.ma') {
-        setUserRole('COMMERCIAL');
-        setActiveStore('CHRIFA');
-        if (activeView === 'dashboard') setActiveView('sale');
-        if (firestore && !adminUid) {
-          getDoc(doc(firestore, 'publicConfig', 'adminConfig')).then(snap => {
-            if (snap.exists()) setAdminUid(snap.data().adminUid);
-          });
-        }
       } else {
-        setUserRole('UNAUTHORIZED');
+        if (!firestore) return;
+        const checkStoreAccess = async () => {
+          try {
+            const snap = await getDoc(doc(firestore, 'storeAccess', user.email!));
+            if (snap.exists()) {
+              const data = snap.data();
+              setUserRole(data.role || 'COMMERCIAL');
+              setActiveStore(data.storeId);
+              if (activeView === 'dashboard') setActiveView('sale');
+              if (!adminUid) {
+                const adminSnap = await getDoc(doc(firestore, 'publicConfig', 'adminConfig'));
+                if (adminSnap.exists()) {
+                  setAdminUid(adminSnap.data().adminUid);
+                }
+              }
+            } else {
+              setUserRole('UNAUTHORIZED');
+            }
+          } catch (error) {
+            console.error('Error checking store access:', error);
+            setUserRole('UNAUTHORIZED');
+          }
+        };
+        checkStoreAccess();
       }
     }
   }, [user, activeView, userRole, firestore, adminUid]);

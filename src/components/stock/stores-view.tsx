@@ -22,27 +22,70 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<Partial<Store>>({ type: 'WAREHOUSE' });
+  const [editingPassword, setEditingPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSaveStore = async () => {
     if (!firestore || !adminUid || !editingStore.id || !editingStore.name) return;
     
-    // Check if ID is uppercase without spaces
     const safeId = editingStore.id.toUpperCase().replace(/\s+/g, '_');
+    setLoading(true);
     
     try {
+      // Si un email est fourni, on vérifie s'il faut créer ou mettre à jour le mot de passe
+      if (editingStore.accessEmail) {
+        // Appeler l'API pour créer le compte ou mettre à jour le mot de passe
+        
+        if (editingPassword) {
+          const res = await fetch('/api/admin/manage-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'CREATE',
+              email: editingStore.accessEmail.trim(),
+              password: editingPassword
+            })
+          });
+          const data = await res.json();
+          // S'il existe déjà, essayons UPDATE_PASSWORD
+          if (data.error && data.error.includes('already exists')) {
+             await fetch('/api/admin/manage-user', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                 action: 'UPDATE_PASSWORD',
+                 email: editingStore.accessEmail.trim(),
+                 password: editingPassword
+               })
+             });
+          }
+        }
+        
+        // Sauvegarder dans /storeAccess
+        await setDoc(doc(firestore, 'storeAccess', editingStore.accessEmail.trim()), {
+          storeId: safeId,
+          role: 'COMMERCIAL',
+          adminUid: adminUid
+        }, { merge: true });
+      }
+
       const docRef = doc(firestore, 'users', adminUid, 'stores', safeId);
       await setDoc(docRef, {
         id: safeId,
         name: editingStore.name,
         type: editingStore.type || 'STORE',
-        isMain: editingStore.isMain || false
+        isMain: editingStore.isMain || false,
+        accessEmail: editingStore.accessEmail || null
       }, { merge: true });
 
       toast({ title: 'Enregistré', description: `Le lieu ${editingStore.name} a été enregistré.` });
       setModalOpen(false);
       setEditingStore({ type: 'WAREHOUSE' });
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Sauvegarde impossible.' });
+      setEditingPassword('');
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: e.message || 'Sauvegarde impossible.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,11 +167,27 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                 <option value="STORE">Magasin / Point de vente</option>
               </select>
             </div>
+            
+            <div className="pt-4 border-t border-stone-100 space-y-4">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-stone-500">Gérer l'Accès (Connexion)</h4>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-stone-500">E-mail de connexion</label>
+                <Input value={editingStore.accessEmail || ''} onChange={e => setEditingStore(s => ({ ...s, accessEmail: e.target.value }))} placeholder="Ex: vendeur@lebtex.ma" className="h-12 rounded-xl font-bold" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-stone-500">Mot de passe {editingStore.accessEmail && '(Laissez vide pour conserver)'}</label>
+                <Input type="password" value={editingPassword} onChange={e => setEditingPassword(e.target.value)} placeholder="Nouveau mot de passe..." className="h-12 rounded-xl font-bold" />
+                {editingPassword.length > 0 && editingPassword.length < 6 && (
+                  <p className="text-red-500 text-[10px] font-bold">Le mot de passe doit faire au moins 6 caractères.</p>
+                )}
+              </div>
+            </div>
+
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setModalOpen(false)} className="rounded-xl text-[10px] font-black uppercase">Annuler</Button>
-            <Button onClick={handleSaveStore} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest px-8">
-              <Save className="w-4 h-4 mr-2" /> Enregistrer
+            <Button variant="ghost" onClick={() => { setModalOpen(false); setEditingPassword(''); }} disabled={loading} className="rounded-xl text-[10px] font-black uppercase">Annuler</Button>
+            <Button onClick={handleSaveStore} disabled={loading || (editingPassword.length > 0 && editingPassword.length < 6)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest px-8">
+              {loading ? 'En cours...' : <><Save className="w-4 h-4 mr-2" /> Enregistrer</>}
             </Button>
           </DialogFooter>
         </DialogContent>

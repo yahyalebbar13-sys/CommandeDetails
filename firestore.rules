@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     function isCommercial() {
-      return isSignedIn() && (request.auth.token.email == 'ahmed@lebtex.ma' || request.auth.token.email == 'hafid@lebtex.ma');
+      return isSignedIn() && exists(/databases/$(database)/documents/storeAccess/$(request.auth.token.email));
     }
 
     function hasAccess(userId) {
@@ -21,6 +21,12 @@ service cloud.firestore {
 
     // ── Global Config ──────────────────────────────────────────────────────────
     match /publicConfig/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
+    // ── Store Access ───────────────────────────────────────────────────────────
+    match /storeAccess/{email} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
     }

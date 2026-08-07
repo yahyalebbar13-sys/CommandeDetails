@@ -2,11 +2,14 @@ export type OrderStatus = 'TO_ORDER' | 'PI' | 'SHIPPED';
 
 export type StoreLocation = string;
 
+export type StoreType = 'WAREHOUSE' | 'STORE';
+
 export type Store = {
-  id: string;
+  id: StoreLocation;
   name: string;
-  type: 'WAREHOUSE' | 'STORE';
-  isMain?: boolean;
+  type: StoreType;
+  isMain: boolean;
+  accessEmail?: string;
 };
 
 export type GeneralCategory = {
