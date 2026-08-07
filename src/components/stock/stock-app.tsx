@@ -290,7 +290,9 @@ export default function StockApp() {
               setUserRole(data.role || 'COMMERCIAL');
               setActiveStore(data.storeId);
               if (activeView === 'dashboard') setActiveView('sale');
-              if (!adminUid) {
+              if (data.adminUid) {
+                setAdminUid(data.adminUid);
+              } else if (!adminUid) {
                 const adminSnap = await getDoc(doc(firestore, 'publicConfig', 'adminConfig'));
                 if (adminSnap.exists()) {
                   setAdminUid(adminSnap.data().adminUid);
@@ -579,7 +581,7 @@ export default function StockApp() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f0faf4] gap-4">
         <h2 className="text-2xl font-black text-red-600 uppercase">Accès Refusé</h2>
-        <p className="text-stone-500 font-bold">Cette adresse email n'est pas autorisée.</p>
+        <p className="text-stone-500 font-bold">Cette adresse email ({user?.email}) n'est pas autorisée.</p>
         <Button onClick={() => auth.signOut()} variant="outline" className="mt-4 border-stone-300 text-stone-600">
           Se déconnecter
         </Button>
