@@ -42,6 +42,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 500 });
     }
 
+    const auth = getAuth(adminApp);
+
     const body = await req.json();
     const { action, email, password, uid } = body;
 
@@ -49,7 +51,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Action and email/uid are required' }, { status: 400 });
     }
 
-    const auth = getAuth(app);
 
     if (action === 'CREATE') {
       if (!password || !email) {
