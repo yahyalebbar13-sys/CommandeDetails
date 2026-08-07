@@ -257,7 +257,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
           }
         },
         columnStyles: {
-          0: { cellWidth: 10, textColor: MUTED, halign: "center" },
+          0: head[0][0] === "#" ? { cellWidth: 10, textColor: MUTED, halign: "center" } : { textColor: MUTED },
           [head[0].length - 1]: { halign: "right", fontStyle: "bold", textColor: NAVY, cellWidth: 40 },
         },
       });

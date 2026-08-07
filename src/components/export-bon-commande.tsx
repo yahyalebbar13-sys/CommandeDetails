@@ -243,6 +243,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
     // ════════════════════════════════════════════════════════════════════════
     const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
+    const designBreakdown: any[] = Array.isArray(article.designBreakdown) ? article.designBreakdown : [];
 
     const drawTable = (title: string, head: string[][], body: any[][], totalRow: any[]) => {
       doc.setFontSize(8.5);
@@ -285,7 +286,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
           }
         },
         columnStyles: {
-          0: { cellWidth: 10, textColor: MUTED, halign: "center" },
+          0: head[0][0] === "#" ? { cellWidth: 10, textColor: MUTED, halign: "center" } : { textColor: MUTED },
           [head[0].length - 1]: { halign: "right", fontStyle: "bold", textColor: NAVY, cellWidth: 40 },
         },
       });
@@ -315,7 +316,18 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
       drawTable("SIZE BREAKDOWN", [["#", "Size", "Qty"]], rows, ["", "GRAND TOTAL", fmtQty(total, article.unitOfMeasure)]);
     }
 
-    if (colorBreakdown.length === 0 && sizeBreakdown.length === 0) {
+    if (designBreakdown.length > 0) {
+      if (y > H - 60) { doc.addPage(); y = 20; }
+      const rows = designBreakdown.map((r: any, i: number) => [
+        String(i + 1),
+        (r.designRef || "—").toUpperCase(),
+        fmtQty(Number(r.rolls || 0), article.unitOfMeasure),
+      ]);
+      const total = designBreakdown.reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0);
+      drawTable("DESIGN BREAKDOWN", [["#", "Design Ref", "Qty"]], rows, ["", "GRAND TOTAL", fmtQty(total, article.unitOfMeasure)]);
+    }
+
+    if (colorBreakdown.length === 0 && sizeBreakdown.length === 0 && designBreakdown.length === 0) {
       const rows = [[
         article.size && article.size !== "various" ? article.size.toUpperCase() : "—",
         article.color ? article.color.toUpperCase() : "—",
