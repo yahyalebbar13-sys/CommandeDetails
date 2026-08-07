@@ -46,10 +46,15 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
               password: editingPassword
             })
           });
+          
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`API a retourné une erreur ${res.status}: ${text.substring(0,50)}`);
+          }
           const data = await res.json();
           // S'il existe déjà, essayons UPDATE_PASSWORD
           if (data.error && data.error.includes('already exists')) {
-             await fetch('/api/admin/manage-user', {
+             const updateRes = await fetch('/api/admin/manage-user', {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({
@@ -58,6 +63,9 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                  password: editingPassword
                })
              });
+             if (!updateRes.ok) {
+               throw new Error('Erreur lors de la mise à jour du mot de passe');
+             }
           }
         }
         
