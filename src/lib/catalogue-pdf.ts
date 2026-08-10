@@ -5,806 +5,744 @@ import autoTable from 'jspdf-autotable';
 import type { ShopProduct, ShopCategory } from './shop-types';
 
 // ─── Color Palette ────────────────────────────────────────────────────────────
-const COLORS = {
-  red: [200, 16, 46] as [number, number, number],
-  black: [26, 26, 26] as [number, number, number],
-  darkGray: [60, 60, 60] as [number, number, number],
-  gray: [120, 120, 120] as [number, number, number],
-  lightGray: [200, 200, 200] as [number, number, number],
-  veryLightGray: [240, 236, 232] as [number, number, number],
-  white: [255, 255, 255] as [number, number, number],
-  gold: [212, 168, 67] as [number, number, number],
-  green: [16, 185, 129] as [number, number, number],
-  redLight: [255, 240, 240] as [number, number, number],
-  greenLight: [236, 253, 245] as [number, number, number],
+const C = {
+  red:           [200, 16, 46]   as [number, number, number],
+  black:         [26, 26, 26]    as [number, number, number],
+  darkGray:      [55, 55, 55]    as [number, number, number],
+  gray:          [120, 120, 120] as [number, number, number],
+  lightGray:     [205, 200, 195] as [number, number, number],
+  silk:          [240, 236, 232] as [number, number, number],
+  cream:         [253, 251, 248] as [number, number, number],
+  white:         [255, 255, 255] as [number, number, number],
+  gold:          [212, 168, 67]  as [number, number, number],
+  goldDark:      [160, 120, 40]  as [number, number, number],
 };
 
-// ─── Helper: Load Image as base64 ─────────────────────────────────────────────
-async function loadImageAsBase64(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new Promise((resolve) => {
+type ProgressCb = (pct: number, msg: string) => void;
+
+// ─── Load image → base64 (with CORS proxy fallback) ──────────────────────────
+async function toBase64(url: string): Promise<string | null> {
+  if (!url) return null;
+  const tryFetch = async (u: string) => {
+    const r = await fetch(u, { mode: 'cors' });
+    if (!r.ok) throw new Error('not ok');
+    const blob = await r.blob();
+    return new Promise<string>((res, rej) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
+      reader.onloadend = () => res(reader.result as string);
+      reader.onerror = rej;
       reader.readAsDataURL(blob);
     });
-  } catch {
-    return null;
-  }
+  };
+  try { return await tryFetch(url); } catch { return null; }
 }
 
-// ─── Helper: Draw rounded rect ───────────────────────────────────────────────
-function roundedRect(doc: jsPDF, x: number, y: number, w: number, h: number, r: number, fill: [number, number, number], stroke?: [number, number, number]) {
-  doc.setFillColor(...fill);
-  if (stroke) {
-    doc.setDrawColor(...stroke);
-    doc.setLineWidth(0.3);
-  }
-  doc.roundedRect(x, y, w, h, r, r, stroke ? 'FD' : 'F');
-}
-
-// ─── Helper: Hex to RGB ──────────────────────────────────────────────────────
-function hexToRgb(hex: string): [number, number, number] {
+// ─── Hex → RGB ───────────────────────────────────────────────────────────────
+function hexRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
-  return [
-    parseInt(h.substring(0, 2), 16),
-    parseInt(h.substring(2, 4), 16),
-    parseInt(h.substring(4, 6), 16),
-  ];
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 }
 
-// ─── Helper: Truncate text ───────────────────────────────────────────────────
-function truncate(text: string, maxLen: number): string {
-  return text.length > maxLen ? text.substring(0, maxLen - 1) + '…' : text;
+// ─── Clip text ───────────────────────────────────────────────────────────────
+function clip(t: string, n: number) { return t.length > n ? t.slice(0, n-1)+'…' : t; }
+
+// ─── Draw page footer ─────────────────────────────────────────────────────────
+let _pageNum = 0;
+function footer(doc: jsPDF, dateStr: string) {
+  const PW = 210, PH = 297, ML = 14, MR = 14;
+  _pageNum++;
+  doc.setDrawColor(...C.lightGray);
+  doc.setLineWidth(0.25);
+  doc.line(ML, PH-13, PW-MR, PH-13);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.gray);
+  doc.text('LEBTEX — Mercerie & Accessoires Textiles', ML, PH-9);
+  doc.text(dateStr, PW/2, PH-9, { align:'center' });
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...C.red);
+  doc.text(String(_pageNum), PW-MR, PH-9, { align:'right' });
+  doc.setFont('helvetica','italic');
+  doc.setFontSize(5);
+  doc.setTextColor(...C.lightGray);
+  doc.text('Document confidentiel — reproduction interdite sans autorisation écrite de LEBTEX', PW/2, PH-5.5, { align:'center' });
 }
 
-// ─── Progress Callback Type ──────────────────────────────────────────────────
-type ProgressCallback = (percent: number, status: string) => void;
+// ─── Draw accent band (top of page) ──────────────────────────────────────────
+function accentBand(doc: jsPDF, color: [number,number,number]) {
+  doc.setFillColor(...color);
+  doc.rect(0, 0, 210, 3, 'F');
+}
 
-// ─── MAIN EXPORT FUNCTION ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── MAIN ───────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 export async function generateCataloguePDF(
   sections: { category: ShopCategory; products: ShopProduct[]; subCategories: ShopCategory[] }[],
   totalProducts: number,
-  inStockCount: number,
-  onProgress?: ProgressCallback,
+  _inStockCount: number,
+  onProgress?: ProgressCb,
 ) {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const PW = 210; // Page width
-  const PH = 297; // Page height
-  const ML = 15;  // Margin left
-  const MR = 15;  // Margin right
-  const CW = PW - ML - MR; // Content width
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('fr-MA', { day: '2-digit', month: 'long', year: 'numeric' });
-  let pageNum = 0;
+  _pageNum = 0;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const PW = 210, PH = 297, ML = 14, MR = 14, CW = PW - ML - MR;
+  const now  = new Date();
+  const year = now.getFullYear();
+  const dateStr = now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
 
-  onProgress?.(5, 'Préparation du document...');
+  onProgress?.(3, 'Préparation…');
 
-  // ── Page footer helper ─────────────────────────────────────────────────────
-  function drawPageFooter(showNumber = true) {
-    // Bottom line
-    doc.setDrawColor(...COLORS.lightGray);
-    doc.setLineWidth(0.3);
-    doc.line(ML, PH - 15, PW - MR, PH - 15);
-
-    // Left: brand
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.gray);
-    doc.text('LEBTEX — Mercerie & Accessoires Textiles', ML, PH - 10);
-
-    // Center: date
-    doc.text(dateStr, PW / 2, PH - 10, { align: 'center' });
-
-    // Right: page number
-    if (showNumber) {
-      pageNum++;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...COLORS.red);
-      doc.text(String(pageNum), PW - MR, PH - 10, { align: 'right' });
-    }
-
-    // Confidentiality
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(5.5);
-    doc.setTextColor(...COLORS.lightGray);
-    doc.text('Document confidentiel — Reproduction interdite sans autorisation', PW / 2, PH - 6, { align: 'center' });
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════════
-  // ── PAGE 1: COVER ─────────────────────────────────────────────────────────────
-  // ══════════════════════════════════════════════════════════════════════════════
-
-  // Full dark background
-  doc.setFillColor(15, 15, 15);
+  // ══════════════════════════════════════════════════════
+  // PAGE 1 — COUVERTURE
+  // ══════════════════════════════════════════════════════
+  // Dark background
+  doc.setFillColor(12, 12, 12);
   doc.rect(0, 0, PW, PH, 'F');
 
-  // Subtle gradient overlay (top-right red glow)
+  // Subtle red glow
   doc.setFillColor(200, 16, 46);
-  doc.setGState(doc.GState({ opacity: 0.06 }));
-  doc.circle(PW + 20, -20, 120, 'F');
-  doc.setGState(doc.GState({ opacity: 0.04 }));
-  doc.circle(-30, PH + 30, 100, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // Top label
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...COLORS.gold);
-  const labelText = `CATALOGUE PRODUITS ${now.getFullYear()}`;
-  const labelW = doc.getTextWidth(labelText) + 16;
-  roundedRect(doc, PW / 2 - labelW / 2, 55, labelW, 10, 5, [212, 168, 67]);
-  doc.setGState(doc.GState({ opacity: 0.15 }));
+  doc.setGState(doc.GState({ opacity: 0.07 }));
+  doc.ellipse(PW - 30, 40, 90, 70, 'F');
   doc.setFillColor(212, 168, 67);
-  doc.roundedRect(PW / 2 - labelW / 2, 55, labelW, 10, 5, 5, 'F');
+  doc.setGState(doc.GState({ opacity: 0.04 }));
+  doc.ellipse(20, PH - 40, 80, 60, 'F');
   doc.setGState(doc.GState({ opacity: 1 }));
-  doc.setDrawColor(...COLORS.gold);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(PW / 2 - labelW / 2, 55, labelW, 10, 5, 5, 'S');
-  doc.text(labelText, PW / 2, 61.5, { align: 'center' });
 
-  // Main title
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(56);
-  doc.setTextColor(...COLORS.white);
-  doc.text('LEB', PW / 2 - 2, 110, { align: 'right' });
-  doc.setTextColor(...COLORS.red);
-  doc.text('TEX', PW / 2 + 2, 110, { align: 'left' });
+  // Top label pill
+  const pill = `CATALOGUE PRODUITS ${year}`;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.gold);
+  const pillW = doc.getTextWidth(pill) + 14;
+  const pillX = PW/2 - pillW/2;
+  doc.setFillColor(...C.goldDark);
+  doc.setGState(doc.GState({ opacity: 0.2 }));
+  doc.roundedRect(pillX, 52, pillW, 9.5, 4, 4, 'F');
+  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setDrawColor(...C.gold);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(pillX, 52, pillW, 9.5, 4, 4, 'S');
+  doc.text(pill, PW/2, 58.2, { align:'center' });
 
-  // Subtitle
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(14);
-  doc.setTextColor(255, 255, 255, 80);
-  doc.text('Mercerie & Accessoires Textiles', PW / 2, 124, { align: 'center' });
+  // Main brand name
+  doc.setFontSize(62);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(...C.white);
+  const wLEB = doc.getTextWidth('LEB');
+  doc.text('LEB', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2, 112);
+  doc.setTextColor(...C.red);
+  doc.text('TEX', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2 + wLEB, 112);
 
-  // Decorative line
-  doc.setDrawColor(...COLORS.red);
-  doc.setLineWidth(1);
-  doc.line(PW / 2 - 30, 133, PW / 2 + 30, 133);
+  // Tagline
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(13);
+  doc.setTextColor(255,255,255);
+  doc.setGState(doc.GState({ opacity: 0.35 }));
+  doc.text('Mercerie & Accessoires Textiles', PW/2, 127, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Description
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255, 50);
-  const descLines = doc.splitTextToSize(
-    'Catalogue interactif avec fiches produits complètes — les disponibilités changent automatiquement selon notre stock réel.',
-    120
-  );
-  doc.text(descLines, PW / 2, 145, { align: 'center' });
+  // Red rule
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(1.2);
+  doc.line(PW/2-28, 136, PW/2+28, 136);
 
-  // Stats boxes
-  const statsY = 175;
+  // Sub-description
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(255,255,255);
+  doc.setGState(doc.GState({ opacity: 0.3 }));
+  const descLines = doc.splitTextToSize('Catalogue officiel de la gamme complète — fermetures, boutons, élastiques, rubans, accessoires couture.', 110);
+  doc.text(descLines, PW/2, 148, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
+
+  // Stat boxes
   const stats = [
-    { label: 'Produits', value: String(totalProducts), color: COLORS.white },
-    { label: 'Disponibles', value: String(inStockCount), color: COLORS.green },
-    { label: 'Catégories', value: String(sections.length), color: COLORS.gold },
+    { val: String(totalProducts),  lbl: 'Produits' },
+    { val: String(sections.length), lbl: 'Catégories' },
   ];
-  const boxW = 45;
-  const boxGap = 8;
-  const totalStatsW = stats.length * boxW + (stats.length - 1) * boxGap;
-  const statsStartX = PW / 2 - totalStatsW / 2;
-
-  stats.forEach((stat, i) => {
-    const bx = statsStartX + i * (boxW + boxGap);
-    // Box border
-    doc.setDrawColor(255, 255, 255);
-    doc.setGState(doc.GState({ opacity: 0.1 }));
-    doc.setLineWidth(0.5);
-    doc.roundedRect(bx, statsY, boxW, 30, 4, 4, 'S');
+  const bW = 44, bH = 28, bGap = 10;
+  const bTotalW = stats.length * bW + (stats.length-1)*bGap;
+  const bStartX = PW/2 - bTotalW/2;
+  stats.forEach((s, i) => {
+    const bx = bStartX + i*(bW+bGap);
+    doc.setGState(doc.GState({ opacity: 0.12 }));
+    doc.setFillColor(...C.white);
+    doc.roundedRect(bx, 175, bW, bH, 4, 4, 'F');
     doc.setGState(doc.GState({ opacity: 1 }));
-
-    // Value
-    doc.setFont('helvetica', 'bold');
+    doc.setDrawColor(255,255,255);
+    doc.setGState(doc.GState({ opacity: 0.15 }));
+    doc.setLineWidth(0.4);
+    doc.roundedRect(bx, 175, bW, bH, 4, 4, 'S');
+    doc.setGState(doc.GState({ opacity: 1 }));
+    doc.setFont('helvetica','bold');
     doc.setFontSize(22);
-    doc.setTextColor(...stat.color);
-    doc.text(stat.value, bx + boxW / 2, statsY + 15, { align: 'center' });
-
-    // Label
-    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.white);
+    doc.text(s.val, bx+bW/2, 189, { align:'center' });
+    doc.setFont('helvetica','normal');
     doc.setFontSize(7);
-    doc.setTextColor(255, 255, 255, 60);
-    doc.text(stat.label, bx + boxW / 2, statsY + 23, { align: 'center' });
+    doc.setGState(doc.GState({ opacity: 0.4 }));
+    doc.text(s.lbl, bx+bW/2, 197, { align:'center' });
+    doc.setGState(doc.GState({ opacity: 1 }));
   });
 
-  // Live indicator
-  doc.setFillColor(...COLORS.green);
-  doc.circle(PW / 2 - 20, 225, 1.5, 'F');
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(...COLORS.green);
-  doc.text('Stock en direct', PW / 2 - 16, 226.5);
-
-  // Contact info at bottom
-  doc.setFont('helvetica', 'normal');
+  // Contact at bottom of cover
+  doc.setFont('helvetica','normal');
   doc.setFontSize(8);
-  doc.setTextColor(255, 255, 255, 40);
-  doc.text('lebtex.ma', PW / 2, 260, { align: 'center' });
-  doc.setFontSize(7);
-  doc.text('+212 760 998 347  ·  WhatsApp', PW / 2, 267, { align: 'center' });
-
-  // Date
+  doc.setGState(doc.GState({ opacity: 0.3 }));
+  doc.setTextColor(...C.white);
+  doc.text('lebtex.ma  ·  +212 760 998 347', PW/2, 268, { align:'center' });
   doc.setFontSize(6.5);
-  doc.setTextColor(255, 255, 255, 25);
-  doc.text(`Généré le ${dateStr}`, PW / 2, PH - 12, { align: 'center' });
+  doc.setGState(doc.GState({ opacity: 0.18 }));
+  doc.text(`Généré le ${dateStr}`, PW/2, PH - 10, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  onProgress?.(15, 'Page de couverture créée...');
+  onProgress?.(10, 'Couverture créée…');
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // ── PAGE 2: SOMMAIRE ──────────────────────────────────────────────────────────
-  // ══════════════════════════════════════════════════════════════════════════════
-
+  // ══════════════════════════════════════════════════════
+  // PAGE 2 — SOMMAIRE
+  // ══════════════════════════════════════════════════════
   doc.addPage();
+  accentBand(doc, C.red);
 
-  // Header band
-  doc.setFillColor(...COLORS.red);
-  doc.rect(0, 0, PW, 3, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(28);
+  doc.setTextColor(...C.black);
+  doc.text('Sommaire', ML, 26);
 
-  // Title
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(26);
-  doc.setTextColor(...COLORS.black);
-  doc.text('Sommaire', ML, 28);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...C.gray);
+  doc.text(`${sections.length} catégories  ·  ${totalProducts} produits`, ML, 33);
 
-  // Subtitle
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.gray);
-  doc.text(`${sections.length} catégories · ${totalProducts} produits · ${inStockCount} disponibles`, ML, 36);
-
-  // Decorative line
-  doc.setDrawColor(...COLORS.red);
+  doc.setDrawColor(...C.red);
   doc.setLineWidth(0.8);
-  doc.line(ML, 40, ML + 40, 40);
+  doc.line(ML, 37, ML+30, 37);
 
-  let sy = 52;
-  sections.forEach((section, i) => {
-    const cat = section.category;
-    const accentColor = cat.color ? hexToRgb(cat.color) : COLORS.red;
-    const availCount = section.products.filter(p => p.inStock).length;
-
-    if (sy > PH - 35) {
-      drawPageFooter();
+  let sy = 48;
+  sections.forEach((sec, i) => {
+    const cat = sec.category;
+    const accent = cat.color ? hexRgb(cat.color) : C.red;
+    if (sy > PH - 30) {
+      footer(doc, dateStr);
       doc.addPage();
-      doc.setFillColor(...COLORS.red);
-      doc.rect(0, 0, PW, 3, 'F');
-      sy = 20;
+      accentBand(doc, C.red);
+      sy = 16;
     }
 
-    // Section number badge
-    roundedRect(doc, ML, sy, 12, 12, 3, accentColor);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.white);
-    doc.text(String(i + 1).padStart(2, '0'), ML + 6, sy + 7.5, { align: 'center' });
+    // Number badge
+    doc.setFillColor(...accent);
+    doc.roundedRect(ML, sy, 11, 11, 2, 2, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.white);
+    doc.text(String(i+1).padStart(2,'0'), ML+5.5, sy+7.2, { align:'center' });
 
-    // Category name
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(...COLORS.black);
-    doc.text(cat.name, ML + 16, sy + 5);
+    // Name
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11.5);
+    doc.setTextColor(...C.black);
+    doc.text(cat.name, ML+15, sy+5);
 
     // Description
     if (cat.description) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...COLORS.gray);
-      doc.text(truncate(cat.description, 80), ML + 16, sy + 10.5);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...C.gray);
+      doc.text(clip(cat.description, 85), ML+15, sy+9.5);
     }
 
-    // Right info: count
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...accentColor);
-    doc.text(String(section.products.length), PW - MR, sy + 5, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
+    // Products count (right)
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...accent);
+    doc.text(String(sec.products.length), PW-MR, sy+5, { align:'right' });
+    doc.setFont('helvetica','normal');
     doc.setFontSize(6.5);
-    doc.setTextColor(...COLORS.gray);
-    doc.text(`produit${section.products.length > 1 ? 's' : ''}`, PW - MR, sy + 9.5, { align: 'right' });
-
-    // Availability badge
-    const availText = `${availCount} dispo.`;
-    const availW = doc.getTextWidth(availText) + 6;
-    roundedRect(doc, PW - MR - availW - 22, sy + 1, availW, 6, 2, COLORS.greenLight);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
-    doc.setTextColor(...COLORS.green);
-    doc.text(availText, PW - MR - 22 - availW / 2, sy + 5.2, { align: 'center' });
+    doc.setTextColor(...C.gray);
+    doc.text(`produit${sec.products.length>1?'s':''}`, PW-MR, sy+9.5, { align:'right' });
 
     // Divider
-    doc.setDrawColor(...COLORS.veryLightGray);
-    doc.setLineWidth(0.3);
-    doc.line(ML + 16, sy + 14, PW - MR, sy + 14);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.25);
+    doc.line(ML+15, sy+13, PW-MR, sy+13);
 
-    sy += 20;
+    sy += 19;
   });
 
-  drawPageFooter();
+  footer(doc, dateStr);
+  onProgress?.(18, 'Sommaire créé…');
 
-  onProgress?.(25, 'Sommaire créé...');
+  // ══════════════════════════════════════════════════════
+  // SECTIONS — Products with photos
+  // ══════════════════════════════════════════════════════
+  const totalSec = sections.length;
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // ── CATEGORY PAGES: Products ──────────────────────────────────────────────────
-  // ══════════════════════════════════════════════════════════════════════════════
+  for (let si = 0; si < sections.length; si++) {
+    const sec      = sections[si];
+    const cat      = sec.category;
+    const accent   = cat.color ? hexRgb(cat.color) : C.red;
+    const prods    = sec.products;
 
-  const totalSections = sections.length;
-  let processedSections = 0;
+    const pctBase  = 18 + (si / totalSec) * 72;
+    onProgress?.(Math.round(pctBase), `Section ${si+1}/${totalSec}: ${cat.name}…`);
 
-  for (const section of sections) {
-    const cat = section.category;
-    const accentColor = cat.color ? hexToRgb(cat.color) : COLORS.red;
-    const prods = section.products;
-    const availCount = prods.filter(p => p.inStock).length;
-
-    processedSections++;
-    const progressBase = 25 + (processedSections / totalSections) * 65;
-    onProgress?.(Math.round(progressBase), `Section ${processedSections}/${totalSections}: ${cat.name}...`);
-
-    // ── Category Title Page ──────────────────────────────────────────────────
+    // ── Category header page ─────────────────────────────────────────────────
     doc.addPage();
+    accentBand(doc, accent);
 
-    // Top accent bar
-    doc.setFillColor(...accentColor);
-    doc.rect(0, 0, PW, 4, 'F');
-
-    // Section header background
-    roundedRect(doc, ML, 14, CW, 36, 4, COLORS.veryLightGray);
+    // Header band background
+    doc.setFillColor(...C.cream);
+    doc.rect(0, 3, PW, 42, 'F');
 
     // Section number
-    roundedRect(doc, ML + 6, 20, 20, 20, 4, accentColor);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(...COLORS.white);
-    doc.text(String(processedSections).padStart(2, '0'), ML + 16, 33, { align: 'center' });
+    doc.setFillColor(...accent);
+    doc.roundedRect(ML, 9, 22, 22, 3, 3, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(16);
+    doc.setTextColor(...C.white);
+    doc.text(String(si+1).padStart(2,'0'), ML+11, 22.5, { align:'center' });
 
     // Category name
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(...COLORS.black);
-    doc.text(cat.name, ML + 32, 30);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(22);
+    doc.setTextColor(...C.black);
+    doc.text(cat.name, ML+28, 20);
 
-    // Description
+    // Category description
     if (cat.description) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...COLORS.gray);
-      doc.text(truncate(cat.description, 100), ML + 32, 38);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...C.gray);
+      const dLines = doc.splitTextToSize(cat.description, CW - 50);
+      doc.text(dLines, ML+28, 28);
     }
 
-    // Stats pills
-    const pillY = 18;
-    // Product count
-    doc.setFont('helvetica', 'bold');
+    // Products count
+    doc.setFont('helvetica','bold');
     doc.setFontSize(16);
-    doc.setTextColor(...accentColor);
-    doc.text(String(prods.length), PW - MR - 6, pillY + 9, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...accent);
+    doc.text(String(prods.length), PW-MR-4, 18, { align:'right' });
+    doc.setFont('helvetica','normal');
     doc.setFontSize(7);
-    doc.setTextColor(...COLORS.gray);
-    doc.text('produits', PW - MR - 6, pillY + 14, { align: 'right' });
+    doc.setTextColor(...C.gray);
+    doc.text(`produit${prods.length>1?'s':''}`, PW-MR-4, 24, { align:'right' });
 
-    // Available count
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...COLORS.green);
-    doc.text(String(availCount), PW - MR - 30, pillY + 9, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    doc.setTextColor(...COLORS.gray);
-    doc.text('dispo.', PW - MR - 30, pillY + 14, { align: 'right' });
-
-    // ── Product Table ────────────────────────────────────────────────────────
-    const tableBody: string[][] = [];
-
-    for (const p of prods) {
-      const specs: string[] = [];
-      if (p.material) specs.push(`Matériau: ${p.material}`);
-      if (p.typeProduit) specs.push(`Type: ${p.typeProduit}`);
-      if (p.couleur) specs.push(`Couleur: ${p.couleur}`);
-      if (p.width) specs.push(`Largeur: ${p.width}`);
-      if (p.longueur) specs.push(`Longueur: ${p.longueur}`);
-      if (p.weight) specs.push(`Poids: ${p.weight}g`);
-      if (p.packaging) specs.push(`Emballage: ${p.packaging}`);
-      if (p.specification) specs.push(`Spéc: ${p.specification}`);
-      if (p.resistance) specs.push(`Résistance: ${p.resistance}`);
-      if (p.paysFabrication) specs.push(`Origine: ${p.paysFabrication}`);
-
-      tableBody.push([
-        p.sku || '—',
-        p.name,
-        specs.length > 0 ? specs.join('\n') : '—',
-        p.variants?.length > 0 ? `${p.variants.length} variante${p.variants.length > 1 ? 's' : ''}` : '—',
-        p.inStock ? '● Disponible' : '○ Indisponible',
-      ]);
-    }
-
-    autoTable(doc, {
-      startY: 56,
-      margin: { left: ML, right: MR },
-      head: [['Réf.', 'Désignation', 'Caractéristiques techniques', 'Variantes', 'Disponibilité']],
-      body: tableBody,
-      theme: 'plain',
-      styles: {
-        fontSize: 7.5,
-        cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
-        lineColor: COLORS.veryLightGray,
-        lineWidth: 0.3,
-        textColor: COLORS.darkGray,
-        font: 'helvetica',
-      },
-      headStyles: {
-        fillColor: accentColor,
-        textColor: COLORS.white,
-        fontStyle: 'bold',
-        fontSize: 7,
-        cellPadding: { top: 3.5, right: 3, bottom: 3.5, left: 3 },
-        halign: 'left',
-      },
-      columnStyles: {
-        0: { cellWidth: 22, fontStyle: 'bold', fontSize: 6.5, textColor: COLORS.gray },
-        1: { cellWidth: 45, fontStyle: 'bold' },
-        2: { cellWidth: 'auto', fontSize: 6.5 },
-        3: { cellWidth: 22, halign: 'center', fontSize: 6.5 },
-        4: { cellWidth: 26, halign: 'center', fontSize: 6.5 },
-      },
-      alternateRowStyles: {
-        fillColor: [252, 250, 247],
-      },
-      didParseCell: (data) => {
-        // Color availability column
-        if (data.column.index === 4 && data.section === 'body') {
-          const val = data.cell.raw as string;
-          if (val.startsWith('●')) {
-            data.cell.styles.textColor = COLORS.green;
-            data.cell.styles.fontStyle = 'bold';
-          } else {
-            data.cell.styles.textColor = [220, 80, 80];
-            data.cell.styles.fontStyle = 'normal';
-          }
+    // ── Load all images for this category ────────────────────────────────────
+    onProgress?.(Math.round(pctBase + 0.3), `Chargement des images: ${cat.name}…`);
+    const imageCache: Record<string, string|null> = {};
+    await Promise.all(
+      prods.flatMap(p => (p.images||[]).slice(0,1)).map(async url => {
+        if (url && !imageCache[url]) {
+          imageCache[url] = await toBase64(url);
         }
-      },
-      didDrawPage: () => {
-        // Redraw accent bar on subsequent pages
-        doc.setFillColor(...accentColor);
-        doc.rect(0, 0, PW, 2, 'F');
-        drawPageFooter();
-      },
-    });
-
-    // Draw footer on first page of this category
-    drawPageFooter();
-
-    // ── Per-product detail sheets (for products with technical data) ─────────
-    const detailedProducts = prods.filter(p =>
-      p.material || p.typeProduit || p.specification || p.applications ||
-      p.avantages || p.conseilsEntretien || p.description
+      })
     );
 
-    if (detailedProducts.length > 0) {
-      let detailY = 20;
+    // ── Render products: 2-column grid layout ────────────────────────────────
+    // Each product card: image on left, details on right
+    const CARD_H  = 68;  // mm per card
+    const CARD_GAP = 6;
+    const IMG_W   = 45;
+    const IMG_H   = 45;
+    const COL_COUNT = 2;
+    const COL_W  = (CW - (COL_COUNT-1)*CARD_GAP) / COL_COUNT;
 
-      for (let pi = 0; pi < detailedProducts.length; pi++) {
-        const p = detailedProducts[pi];
-        const neededHeight = 80; // Approximate height per product sheet
+    let py = 52; // start after header
 
-        if (detailY + neededHeight > PH - 20 || pi === 0) {
+    for (let pi = 0; pi < prods.length; pi++) {
+      const p = prods[pi];
+      const col = pi % COL_COUNT;
+
+      if (col === 0 && pi > 0) {
+        py += CARD_H + CARD_GAP;
+      }
+
+      // Page break
+      if (py + CARD_H > PH - 20) {
+        footer(doc, dateStr);
+        doc.addPage();
+        accentBand(doc, accent);
+        py = 10;
+      }
+
+      const cx = ML + col * (COL_W + CARD_GAP);
+      const cy = py;
+
+      // Card background
+      doc.setFillColor(...C.cream);
+      doc.setDrawColor(...C.silk);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(cx, cy, COL_W, CARD_H, 3, 3, 'FD');
+
+      // Accent top bar
+      doc.setFillColor(...accent);
+      doc.roundedRect(cx, cy, COL_W, 3, 3, 3, 'F');
+      doc.rect(cx, cy+1, COL_W, 2, 'F');
+
+      // ── Image ──────────────────────────────────────────────────────────────
+      const imgUrl = (p.images||[])[0];
+      const imgData = imgUrl ? imageCache[imgUrl] : null;
+      const imgX = cx + 4;
+      const imgY = cy + 7;
+
+      // Image placeholder background
+      doc.setFillColor(232, 228, 224);
+      doc.roundedRect(imgX, imgY, IMG_W, IMG_H, 2, 2, 'F');
+
+      if (imgData) {
+        try {
+          doc.addImage(imgData, 'JPEG', imgX, imgY, IMG_W, IMG_H, undefined, 'FAST');
+        } catch {
+          // fallback: grey square
+          doc.setFillColor(210, 206, 202);
+          doc.roundedRect(imgX, imgY, IMG_W, IMG_H, 2, 2, 'F');
+        }
+      }
+
+      // ── Right side: product info ───────────────────────────────────────────
+      const rx = cx + IMG_W + 8;
+      const rw = COL_W - IMG_W - 12;
+      let ry = cy + 8;
+
+      // SKU
+      if (p.sku) {
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(6);
+        doc.setTextColor(...C.gray);
+        doc.text(`Réf: ${p.sku}`, rx, ry);
+        ry += 4;
+      }
+
+      // Product name
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...C.black);
+      const nameLines = doc.splitTextToSize(clip(p.name, 60), rw);
+      doc.text(nameLines, rx, ry);
+      ry += nameLines.length * 4.5 + 1;
+
+      // Short description
+      if (p.shortDescription) {
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...C.darkGray);
+        const sdLines = doc.splitTextToSize(clip(p.shortDescription, 100), rw);
+        doc.text(sdLines.slice(0,2), rx, ry);
+        ry += Math.min(sdLines.length, 2) * 3.5 + 2;
+      }
+
+      // Specs: compact inline list
+      const specs: string[] = [];
+      if (p.material)      specs.push(`Matériau: ${p.material}`);
+      if (p.typeProduit)   specs.push(`Type: ${p.typeProduit}`);
+      if (p.couleur)       specs.push(`Couleur: ${p.couleur}`);
+      if (p.width)         specs.push(`Largeur: ${p.width}`);
+      if (p.longueur)      specs.push(`Longueur: ${p.longueur}`);
+      if (p.weight)        specs.push(`Poids: ${p.weight}g`);
+      if (p.packaging)     specs.push(`Emballage: ${p.packaging}`);
+      if (p.paysFabrication) specs.push(`Origine: ${p.paysFabrication}`);
+
+      specs.slice(0, 4).forEach(sp => {
+        if (ry > cy + CARD_H - 6) return;
+        const [lbl, val] = sp.split(': ');
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(5.5);
+        doc.setTextColor(...C.gray);
+        doc.text(`${lbl}:`, rx, ry);
+        doc.setFont('helvetica','normal');
+        doc.setTextColor(...C.black);
+        doc.text(clip(val||'', 30), rx + doc.getTextWidth(`${lbl}: `), ry);
+        ry += 4;
+      });
+
+      // Variants count if any
+      if (p.variants?.length > 0) {
+        if (ry <= cy + CARD_H - 6) {
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(5.5);
+          doc.setTextColor(...accent);
+          const colors = [...new Set(p.variants.filter(v=>v.color).map(v=>v.color!))];
+          const sizes  = [...new Set(p.variants.filter(v=>v.size).map(v=>v.size!))];
+          if (colors.length > 0) doc.text(`Coloris: ${colors.join(', ')}`, rx, ry), ry += 4;
+          if (sizes.length > 0)  doc.text(`Tailles: ${sizes.join(', ')}`, rx, ry), ry += 4;
+        }
+      }
+    }
+
+    // Last row might be a single-column card, still needs footer
+    footer(doc, dateStr);
+
+    // ── Detailed product sheets page (for products with rich data) ─────────
+    const richProds = prods.filter(p =>
+      p.description || p.material || p.applications || p.avantages ||
+      p.conseilsEntretien || p.informationCommerciale || p.specification
+    );
+
+    if (richProds.length > 0) {
+      doc.addPage();
+      accentBand(doc, accent);
+
+      // Sheet section header
+      doc.setFillColor(...C.cream);
+      doc.rect(0, 3, PW, 16, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(13);
+      doc.setTextColor(...C.black);
+      doc.text(`${cat.name} — Fiches Techniques Détaillées`, ML, 14);
+      doc.setDrawColor(...accent);
+      doc.setLineWidth(0.6);
+      doc.line(ML, 17.5, ML+60, 17.5);
+
+      let dy = 24;
+
+      for (const p of richProds) {
+        // Estimate card height
+        const techSpecs = [
+          p.material, p.typeProduit, p.specification, p.couleur, p.width,
+          p.largeurMaille, p.longueur, p.weight ? `${p.weight}g` : '', p.packaging,
+          p.matiereMailles, p.compositionRuban, p.type, p.design, p.resistance,
+          p.securite, p.compatibleAvec, p.paysFabrication,
+        ].filter(Boolean);
+        const infoSpecs = [p.applications, p.avantages, p.conseilsEntretien, p.informationCommerciale].filter(Boolean);
+        const estimatedH = 14 + (p.description ? 12 : 0) + techSpecs.length * 4.5 + infoSpecs.length * 10 + 12;
+
+        if (dy + estimatedH > PH - 18) {
+          footer(doc, dateStr);
           doc.addPage();
-          doc.setFillColor(...accentColor);
-          doc.rect(0, 0, PW, 2, 'F');
-          detailY = 14;
+          accentBand(doc, accent);
+          dy = 10;
+        }
 
-          if (pi === 0) {
-            // Sub-header
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(11);
-            doc.setTextColor(...COLORS.black);
-            doc.text('Fiches Techniques Détaillées', ML, detailY + 6);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.setTextColor(...COLORS.gray);
-            doc.text(`${cat.name} — ${detailedProducts.length} produit${detailedProducts.length > 1 ? 's' : ''} avec fiche complète`, ML, detailY + 12);
-            doc.setDrawColor(...accentColor);
-            doc.setLineWidth(0.6);
-            doc.line(ML, detailY + 15, ML + 35, detailY + 15);
-            detailY += 22;
+        // ── Image + Header bar ───────────────────────────────────────────────
+        const cardX = ML, cardW = CW;
+
+        // Image (small, on the left)
+        const imgUrl = (p.images||[])[0];
+        const imgData = imgUrl ? imageCache[imgUrl] : null;
+        const SH = 32; // small image height
+
+        // Name header
+        doc.setFillColor(...accent);
+        doc.setGState(doc.GState({ opacity: 0.12 }));
+        doc.roundedRect(cardX, dy, cardW, 10, 2, 2, 'F');
+        doc.setGState(doc.GState({ opacity: 1 }));
+        doc.setDrawColor(...accent);
+        doc.setLineWidth(0.25);
+        doc.roundedRect(cardX, dy, cardW, 10, 2, 2, 'S');
+
+        // Left accent strip
+        doc.setFillColor(...accent);
+        doc.rect(cardX, dy+2, 2.5, 6, 'F');
+
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...C.black);
+        doc.text(clip(p.name, 90), cardX + 6, dy + 7);
+        if (p.sku) {
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(6.5);
+          doc.setTextColor(...C.gray);
+          doc.text(`Réf: ${p.sku}`, cardX + cardW - 3, dy + 7, { align:'right' });
+        }
+        dy += 13;
+
+        // ── Body: image left + content right ───────────────────────────────
+        const IMG_SH = 32;
+        const IMG_SW = 32;
+        let bodyY = dy;
+
+        // Small image
+        if (imgData) {
+          doc.setFillColor(232, 228, 224);
+          doc.roundedRect(cardX, bodyY, IMG_SW, IMG_SH, 2, 2, 'F');
+          try {
+            doc.addImage(imgData, 'JPEG', cardX, bodyY, IMG_SW, IMG_SH, undefined, 'FAST');
+          } catch {
+            doc.setFillColor(210, 206, 202);
+            doc.roundedRect(cardX, bodyY, IMG_SW, IMG_SH, 2, 2, 'F');
           }
         }
 
-        // ── Product card ─────────────────────────────────────────────────
-        const cardX = ML;
-        const cardW = CW;
-        const cardStartY = detailY;
-
-        // Card border
-        doc.setDrawColor(...COLORS.veryLightGray);
-        doc.setLineWidth(0.3);
-
-        // Product name header
-        roundedRect(doc, cardX, detailY, cardW, 10, 2, accentColor);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(...COLORS.white);
-        doc.text(truncate(p.name, 70), cardX + 4, detailY + 6.5);
-
-        // SKU on right
-        if (p.sku) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6.5);
-          doc.text(`Réf: ${p.sku}`, cardX + cardW - 4, detailY + 6.5, { align: 'right' });
-        }
-
-        // Availability badge
-        const stockText = p.inStock ? '● DISPONIBLE' : '○ INDISPONIBLE';
-        const stockColor = p.inStock ? COLORS.green : [220, 80, 80] as [number, number, number];
-        doc.setFillColor(...(p.inStock ? COLORS.greenLight : COLORS.redLight));
-        const stockW = 28;
-        doc.roundedRect(cardX + cardW - stockW - 4, detailY + 1.5, stockW, 7, 2, 2, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(5.5);
-        doc.setTextColor(...stockColor);
-        doc.text(stockText, cardX + cardW - stockW / 2 - 4, detailY + 6, { align: 'center' });
-
-        detailY += 13;
+        const cx2 = cardX + (imgData ? IMG_SW + 5 : 0);
+        const cw2 = cardW - (imgData ? IMG_SW + 5 : 0);
+        let cy2 = bodyY;
 
         // Description
         if (p.description) {
-          doc.setFont('helvetica', 'normal');
+          doc.setFont('helvetica','italic');
           doc.setFontSize(7);
-          doc.setTextColor(...COLORS.darkGray);
-          const descLines = doc.splitTextToSize(truncate(p.description, 300), cardW - 8);
-          doc.text(descLines, cardX + 4, detailY + 4);
-          detailY += descLines.length * 3.5 + 4;
+          doc.setTextColor(...C.darkGray);
+          const dl = doc.splitTextToSize(clip(p.description, 350), cw2);
+          doc.text(dl.slice(0,3), cx2, cy2 + 4);
+          cy2 += Math.min(dl.length, 3) * 3.5 + 4;
         }
 
-        // Technical specs in 2 columns
-        const allSpecs: { label: string; value: string }[] = [
-          { label: 'Matériau', value: p.material || '' },
-          { label: 'Type', value: p.typeProduit || '' },
-          { label: 'Spécification', value: p.specification || '' },
-          { label: 'Couleur', value: p.couleur || '' },
-          { label: 'Largeur', value: p.width || '' },
-          { label: 'Largeur maille', value: p.largeurMaille || '' },
-          { label: 'Longueur', value: p.longueur || '' },
-          { label: 'Poids', value: p.weight ? `${p.weight}g` : '' },
-          { label: 'Emballage', value: p.packaging || '' },
-          { label: 'Composition ruban', value: p.compositionRuban || '' },
-          { label: 'Matière/Mailles', value: p.matiereMailles || '' },
-          { label: 'Design', value: p.design || '' },
-          { label: 'Résistance', value: p.resistance || '' },
-          { label: 'Sécurité', value: p.securite || '' },
-          { label: 'Compatible avec', value: p.compatibleAvec || '' },
-          { label: 'Origine', value: p.paysFabrication || '' },
-        ].filter(s => s.value);
+        // Technical specs — 2 columns
+        if (techSpecs.length > 0) {
+          const specLabels = [
+            'Matériau','Type de produit','Spécification','Couleur','Largeur',
+            'Largeur maille','Longueur','Poids','Emballage','Matière/Mailles',
+            'Composition ruban','Type','Design','Résistance','Sécurité',
+            'Compatible avec','Pays de fabrication',
+          ];
+          const specValues = [
+            p.material, p.typeProduit, p.specification, p.couleur, p.width,
+            p.largeurMaille, p.longueur, p.weight ? `${p.weight}g` : '', p.packaging,
+            p.matiereMailles, p.compositionRuban, p.type, p.design, p.resistance,
+            p.securite, p.compatibleAvec, p.paysFabrication,
+          ];
+          const pairs = specLabels.map((l,i)=>({ l, v:specValues[i]||'' })).filter(s=>s.v);
 
-        if (allSpecs.length > 0) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7);
-          doc.setTextColor(...accentColor);
-          doc.text('CARACTÉRISTIQUES TECHNIQUES', cardX + 4, detailY + 3);
-          detailY += 6;
+          // Section title
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(6.5);
+          doc.setTextColor(...accent);
+          doc.text('CARACTÉRISTIQUES TECHNIQUES', cx2, cy2 + 3);
+          cy2 += 5;
 
-          const colW = (cardW - 12) / 2;
-          allSpecs.forEach((spec, si) => {
-            const col = si % 2;
-            const sx = cardX + 4 + col * (colW + 4);
+          const halfW = (cw2 - 4) / 2;
+          pairs.forEach((s, i) => {
+            const scol = i % 2;
+            if (scol === 0 && i > 0) cy2 += 5.5;
+            if (cy2 > Math.max(bodyY + IMG_SH, dy + estimatedH - 8)) { cy2 += 5.5; return; }
+            const sx = cx2 + scol * (halfW + 4);
 
-            if (col === 0 && si > 0) detailY += 5;
-
-            // Check page break
-            if (detailY > PH - 25) {
-              drawPageFooter();
-              doc.addPage();
-              doc.setFillColor(...accentColor);
-              doc.rect(0, 0, PW, 2, 'F');
-              detailY = 14;
-            }
-
-            // Label
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(5.5);
-            doc.setTextColor(...COLORS.gray);
-            doc.text(spec.label.toUpperCase(), sx, detailY + 3);
-
-            // Value
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.setTextColor(...COLORS.black);
-            doc.text(truncate(spec.value, 45), sx, detailY + 7);
-          });
-
-          if (allSpecs.length % 2 !== 0) detailY += 5;
-          detailY += 6;
-        }
-
-        // Additional info
-        const infoSpecs: { label: string; value: string }[] = [
-          { label: 'Applications', value: p.applications || '' },
-          { label: 'Avantages', value: p.avantages || '' },
-          { label: 'Conseils d\'entretien', value: p.conseilsEntretien || '' },
-          { label: 'Info commerciale', value: p.informationCommerciale || '' },
-        ].filter(s => s.value);
-
-        if (infoSpecs.length > 0) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7);
-          doc.setTextColor(...accentColor);
-          doc.text('INFORMATIONS COMPLÉMENTAIRES', cardX + 4, detailY + 3);
-          detailY += 7;
-
-          infoSpecs.forEach(spec => {
-            if (detailY > PH - 25) {
-              drawPageFooter();
-              doc.addPage();
-              doc.setFillColor(...accentColor);
-              doc.rect(0, 0, PW, 2, 'F');
-              detailY = 14;
-            }
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(6);
-            doc.setTextColor(...COLORS.darkGray);
-            doc.text(spec.label, cardX + 4, detailY + 3);
-            doc.setFont('helvetica', 'normal');
+            doc.setFont('helvetica','bold');
+            doc.setFontSize(5.2);
+            doc.setTextColor(...C.gray);
+            doc.text(s.l.toUpperCase(), sx, cy2 + 2);
+            doc.setFont('helvetica','normal');
             doc.setFontSize(6.5);
-            doc.setTextColor(...COLORS.gray);
-            const infoLines = doc.splitTextToSize(truncate(spec.value, 200), cardW - 12);
-            doc.text(infoLines, cardX + 4, detailY + 7);
-            detailY += infoLines.length * 3 + 6;
+            doc.setTextColor(...C.black);
+            doc.text(clip(s.v, 35), sx, cy2 + 6);
           });
+          if (pairs.length % 2 !== 0) cy2 += 5.5;
+          cy2 += 7;
         }
 
-        // Variants
-        if (p.variants && p.variants.length > 0) {
-          if (detailY > PH - 30) {
-            drawPageFooter();
+        // Advance dy to below image or content
+        dy = Math.max(bodyY + IMG_SH, cy2) + 4;
+
+        // Additional information sections
+        const infoData: { label: string; value: string }[] = [
+          { label:'Applications', value: p.applications||'' },
+          { label:'Avantages', value: p.avantages||'' },
+          { label:"Conseils d'entretien", value: p.conseilsEntretien||'' },
+          { label:'Information commerciale', value: p.informationCommerciale||'' },
+        ].filter(s => s.value);
+
+        if (infoData.length > 0) {
+          if (dy + 6 > PH - 18) {
+            footer(doc, dateStr);
             doc.addPage();
-            doc.setFillColor(...accentColor);
-            doc.rect(0, 0, PW, 2, 'F');
-            detailY = 14;
+            accentBand(doc, accent);
+            dy = 10;
           }
 
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7);
-          doc.setTextColor(...accentColor);
-          doc.text(`VARIANTES (${p.variants.length})`, cardX + 4, detailY + 3);
-          detailY += 5;
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(6.5);
+          doc.setTextColor(...accent);
+          doc.text('INFORMATIONS COMPLÉMENTAIRES', cardX, dy + 3);
+          dy += 6;
 
-          const variantRows = p.variants.map(v => [
-            v.color || '—',
-            v.size || '—',
-            v.sku || '—',
-            v.stock > 0 ? `● ${v.stock}` : '○ 0',
-          ]);
-
-          autoTable(doc, {
-            startY: detailY,
-            margin: { left: cardX + 4, right: MR + 4 },
-            head: [['Couleur', 'Taille', 'Réf.', 'Stock']],
-            body: variantRows,
-            theme: 'plain',
-            styles: {
-              fontSize: 6.5,
-              cellPadding: 2,
-              lineColor: COLORS.veryLightGray,
-              lineWidth: 0.2,
-              textColor: COLORS.darkGray,
-            },
-            headStyles: {
-              fillColor: COLORS.veryLightGray,
-              textColor: COLORS.darkGray,
-              fontStyle: 'bold',
-              fontSize: 6,
-            },
-            columnStyles: {
-              3: { halign: 'center' },
-            },
-            didParseCell: (data) => {
-              if (data.column.index === 3 && data.section === 'body') {
-                const val = data.cell.raw as string;
-                if (val.startsWith('●')) {
-                  data.cell.styles.textColor = COLORS.green;
-                  data.cell.styles.fontStyle = 'bold';
-                } else {
-                  data.cell.styles.textColor = [220, 80, 80];
-                }
-              }
-            },
+          infoData.forEach(info => {
+            if (dy > PH - 18) {
+              footer(doc, dateStr);
+              doc.addPage();
+              accentBand(doc, accent);
+              dy = 10;
+            }
+            doc.setFont('helvetica','bold');
+            doc.setFontSize(6.2);
+            doc.setTextColor(...C.darkGray);
+            doc.text(info.label, cardX, dy + 3);
+            doc.setFont('helvetica','normal');
+            doc.setFontSize(6.5);
+            doc.setTextColor(...C.gray);
+            const il = doc.splitTextToSize(clip(info.value, 250), CW - 4);
+            doc.text(il.slice(0, 4), cardX, dy + 7);
+            dy += Math.min(il.length, 4) * 3.5 + 6;
           });
-
-          // @ts-ignore - autoTable extends doc
-          detailY = (doc as any).lastAutoTable?.finalY || detailY + 15;
-          detailY += 5;
         }
 
-        // Bottom card border
-        doc.setDrawColor(...COLORS.veryLightGray);
-        doc.setLineWidth(0.3);
-        doc.line(cardX, detailY, cardX + cardW, detailY);
-        detailY += 8;
+        // Divider
+        doc.setDrawColor(...C.silk);
+        doc.setLineWidth(0.25);
+        doc.line(cardX, dy, cardX + cardW, dy);
+        dy += 7;
       }
 
-      drawPageFooter();
+      footer(doc, dateStr);
     }
   }
 
-  onProgress?.(92, 'Dernière page...');
+  onProgress?.(93, 'Page de contact…');
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // ── LAST PAGE: CONTACT ────────────────────────────────────────────────────────
-  // ══════════════════════════════════════════════════════════════════════════════
-
+  // ══════════════════════════════════════════════════════
+  // LAST PAGE — CONTACT
+  // ══════════════════════════════════════════════════════
   doc.addPage();
 
-  // Dark background
-  doc.setFillColor(15, 15, 15);
+  // Dark bg
+  doc.setFillColor(12, 12, 12);
   doc.rect(0, 0, PW, PH, 'F');
 
   // Red glow
-  doc.setFillColor(200, 16, 46);
-  doc.setGState(doc.GState({ opacity: 0.05 }));
-  doc.circle(PW / 2, PH / 2 - 30, 80, 'F');
+  doc.setFillColor(...C.red);
+  doc.setGState(doc.GState({ opacity: 0.06 }));
+  doc.ellipse(PW/2, PH/2 - 20, 80, 70, 'F');
   doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Title
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(32);
-  doc.setTextColor(...COLORS.white);
-  doc.text('Besoin', PW / 2, 95, { align: 'center' });
-  doc.text("d'information ?", PW / 2, 108, { align: 'center' });
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(34);
+  doc.setTextColor(...C.white);
+  doc.text("Besoin d'informations ?", PW/2, 100, { align:'center' });
 
-  // Description
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica','normal');
   doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255, 50);
-  const contactDesc = doc.splitTextToSize(
-    'Contactez-nous pour les prix, quantités minimales, ou toute question. Notre équipe vous répond rapidement.',
-    120
-  );
-  doc.text(contactDesc, PW / 2, 122, { align: 'center' });
+  doc.setGState(doc.GState({ opacity: 0.4 }));
+  doc.text('Contactez-nous pour les tarifs, quantités et conditions.', PW/2, 114, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // WhatsApp CTA
-  const ctaY = 145;
-  roundedRect(doc, PW / 2 - 50, ctaY, 100, 14, 7, [37, 211, 102]);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...COLORS.white);
-  doc.text('Demander les prix — WhatsApp', PW / 2, ctaY + 9, { align: 'center' });
+  // WhatsApp button
+  const waY = 132;
+  doc.setFillColor(37, 211, 102);
+  doc.roundedRect(PW/2 - 48, waY, 96, 14, 7, 7, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...C.white);
+  doc.text('Demander les prix — WhatsApp', PW/2, waY + 9.5, { align:'center' });
 
   // Phone
-  const phoneY = ctaY + 22;
-  doc.setDrawColor(255, 255, 255);
   doc.setGState(doc.GState({ opacity: 0.15 }));
-  doc.setLineWidth(0.5);
-  doc.roundedRect(PW / 2 - 40, phoneY, 80, 12, 6, 6, 'S');
+  doc.setDrawColor(...C.white);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(PW/2-35, 156, 70, 11, 5, 5, 'S');
   doc.setGState(doc.GState({ opacity: 1 }));
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('helvetica','bold');
   doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255, 70);
-  doc.text('+212 760 998 347', PW / 2, phoneY + 8, { align: 'center' });
+  doc.setGState(doc.GState({ opacity: 0.6 }));
+  doc.setTextColor(...C.white);
+  doc.text('+212 760 998 347', PW/2, 163, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Website
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(255, 255, 255, 35);
-  doc.text('lebtex.ma', PW / 2, phoneY + 24, { align: 'center' });
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8.5);
+  doc.setGState(doc.GState({ opacity: 0.28 }));
+  doc.text('lebtex.ma', PW/2, 180, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 0.08 }));
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(40);
+  doc.text('LEBTEX', PW/2, PH - 30, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 0.18 }));
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(6.5);
+  doc.text(`© ${year} LEBTEX — Tous droits réservés`, PW/2, PH - 18, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Brand at bottom
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(28);
-  doc.setTextColor(255, 255, 255, 10);
-  doc.text('LEBTEX', PW / 2, PH - 30, { align: 'center' });
+  onProgress?.(100, 'Téléchargement…');
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(255, 255, 255, 20);
-  doc.text(`© ${now.getFullYear()} LEBTEX — Tous droits réservés`, PW / 2, PH - 20, { align: 'center' });
-
-  onProgress?.(100, 'Téléchargement du PDF...');
-
-  // ── Save ───────────────────────────────────────────────────────────────────
-  const filename = `LEBTEX_Catalogue_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
-  doc.save(filename);
-
-  return filename;
+  const fname = `LEBTEX_Catalogue_${year}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.pdf`;
+  doc.save(fname);
+  return fname;
 }
