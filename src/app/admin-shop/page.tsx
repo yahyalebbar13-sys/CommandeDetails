@@ -1984,7 +1984,8 @@ function ProduitsView() {
       
       // Combine and sort by priority
       const allCats = [...mergedBase, ...customCats].sort((a: any, b: any) => (b.priority || 0) - (a.priority || 0));
-      setAllCategoriesLocal(allCats);
+      const uniqueCats = Array.from(new Map(allCats.map((c: any) => [c.slug, c])).values());
+      setAllCategoriesLocal(uniqueCats);
     }).catch(() => {}).finally(() => setLoadingOverrides(false));
   }, []);
 
