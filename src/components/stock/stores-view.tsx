@@ -22,27 +22,41 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStore, setEditingStore] = useState<Partial<Store>>({ type: 'WAREHOUSE' });
+  const [originalAccessEmail, setOriginalAccessEmail] = useState<string | null>(null);
   const [editingPassword, setEditingPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const openEditModal = (store?: Store) => {
+    if (store) {
+      setEditingStore(store);
+      setOriginalAccessEmail(store.accessEmail || null);
+    } else {
+      setEditingStore({ type: 'WAREHOUSE' });
+      setOriginalAccessEmail(null);
+    }
+    setEditingPassword('');
+    setModalOpen(true);
+  };
 
   const handleSaveStore = async () => {
     if (!firestore || !adminUid || !editingStore.id || !editingStore.name) return;
     
     const safeId = editingStore.id.toUpperCase().replace(/\s+/g, '_');
+    const newEmail = editingStore.accessEmail?.trim().toLowerCase() || null;
+    const oldEmail = originalAccessEmail?.trim().toLowerCase() || null;
     setLoading(true);
     
     try {
-      // Si un email est fourni, on vérifie s'il faut créer ou mettre à jour le mot de passe
-      if (editingStore.accessEmail) {
-        // Appeler l'API pour créer le compte ou mettre à jour le mot de passe
-        
+      // Si un email est fourni, on gère le compte Firebase Auth + storeAccess
+      if (newEmail) {
+        // Créer/mettre à jour le compte Firebase Auth si un mot de passe est fourni
         if (editingPassword) {
           const res = await fetch('/api/admin/manage-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'CREATE',
-              email: editingStore.accessEmail.trim(),
+              email: newEmail,
               password: editingPassword
             })
           });
@@ -53,13 +67,13 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
             try { data = JSON.parse(text); } catch(e) {}
             
             if (data && data.error && data.error.includes('already exists')) {
-              // S'il existe déjà, essayons UPDATE_PASSWORD
+              // S'il existe déjà, mettre à jour le mot de passe
               const updateRes = await fetch('/api/admin/manage-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   action: 'UPDATE_PASSWORD',
-                  email: editingStore.accessEmail.trim(),
+                  email: newEmail,
                   password: editingPassword
                 })
               });
@@ -72,12 +86,20 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
           }
         }
         
-        // Sauvegarder dans /storeAccess
-        await setDoc(doc(firestore, 'storeAccess', editingStore.accessEmail.trim().toLowerCase()), {
+        // Si l'email a changé, supprimer l'ancien document storeAccess
+        if (oldEmail && oldEmail !== newEmail) {
+          await deleteDoc(doc(firestore, 'storeAccess', oldEmail));
+        }
+        
+        // Créer/mettre à jour le document storeAccess avec le nouvel email
+        await setDoc(doc(firestore, 'storeAccess', newEmail), {
           storeId: safeId,
           role: 'COMMERCIAL',
           adminUid: adminUid
         }, { merge: true });
+      } else if (oldEmail) {
+        // L'email a été vidé → supprimer l'ancien accès
+        await deleteDoc(doc(firestore, 'storeAccess', oldEmail));
       }
 
       const docRef = doc(firestore, 'users', adminUid, 'stores', safeId);
@@ -86,12 +108,13 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
         name: editingStore.name,
         type: editingStore.type || 'STORE',
         isMain: editingStore.isMain || false,
-        accessEmail: editingStore.accessEmail || null
+        accessEmail: newEmail || null
       }, { merge: true });
 
       toast({ title: 'Enregistré', description: `Le lieu ${editingStore.name} a été enregistré.` });
       setModalOpen(false);
       setEditingStore({ type: 'WAREHOUSE' });
+      setOriginalAccessEmail(null);
       setEditingPassword('');
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: e.message || 'Sauvegarde impossible.' });
@@ -121,7 +144,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
             Lieux de <span className="text-emerald-400">Stockage</span>
           </h1>
         </div>
-        <Button onClick={() => { setEditingStore({ type: 'WAREHOUSE' }); setModalOpen(true); }} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 rounded-2xl h-11">
+        <Button onClick={() => openEditModal()} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 rounded-2xl h-11">
           <Plus className="w-4 h-4 mr-2" /> Nouveau Lieu
         </Button>
       </div>
@@ -138,7 +161,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                 <p className="text-[10px] text-stone-400 font-bold font-mono mt-1">ID: {store.id}</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => { setEditingStore(store); setModalOpen(true); }} className="p-2 text-stone-400 hover:text-blue-600 bg-stone-50 hover:bg-blue-50 rounded-lg transition-colors">
+                <button onClick={() => openEditModal(store)} className="p-2 text-stone-400 hover:text-blue-600 bg-stone-50 hover:bg-blue-50 rounded-lg transition-colors">
                   <StoreIcon className="w-4 h-4" />
                 </button>
                 <button onClick={() => handleDeleteStore(store.id)} className="p-2 text-stone-400 hover:text-red-600 bg-stone-50 hover:bg-red-50 rounded-lg transition-colors">
