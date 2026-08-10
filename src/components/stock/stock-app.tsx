@@ -578,12 +578,17 @@ export default function StockApp() {
   }, [user, firestore, adminUid, toast]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
-  if (isUserLoading || userRole === 'LOADING') return (
+  if (isUserLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#f0faf4]">
       <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
     </div>
   );
   if (!user) return <AuthView />;
+  if (userRole === 'LOADING') return (
+    <div className="min-h-screen flex items-center justify-center bg-[#f0faf4]">
+      <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+    </div>
+  );
 
   if (userRole === 'UNAUTHORIZED') {
     return (
