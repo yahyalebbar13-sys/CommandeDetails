@@ -1,46 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from 'https';
+import http from 'http';
 
-// Agent that skips SSL verification (for Firebase Storage cert issues)
-const agent = new https.Agent({ rejectUnauthorized: false });
+// Follow redirects manually with https.get (which supports rejectUnauthorized)
+function fetchWithRedirects(url: string, maxRedirects = 5): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    if (maxRedirects <= 0) return reject(new Error('Too many redirects'));
+
+    const isHttps = url.startsWith('https');
+    const mod = isHttps ? https : http;
+    const options = isHttps ? { rejectUnauthorized: false } : {};
+
+    mod.get(url, options, (res) => {
+      // Handle redirects (301, 302, 307, 308)
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        let redirectUrl = res.headers.location;
+        // Handle relative redirects
+        if (redirectUrl.startsWith('/')) {
+          const parsed = new URL(url);
+          redirectUrl = `${parsed.protocol}//${parsed.host}${redirectUrl}`;
+        }
+        return fetchWithRedirects(redirectUrl, maxRedirects - 1).then(resolve).catch(reject);
+      }
+
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
   if (!url) return NextResponse.json({ error: 'Missing url param' }, { status: 400 });
 
   try {
-    // Use Node fetch with custom agent — follows redirects AND skips SSL
-    const resp = await fetch(url, {
-      // @ts-expect-error — Node.js fetch accepts agent via dispatcher
-      agent,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15000),
-    });
+    const data = await fetchWithRedirects(url);
 
-    if (!resp.ok) {
-      // Fallback: try without agent (some URLs don't need SSL bypass)
-      const resp2 = await fetch(url, {
-        redirect: 'follow',
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!resp2.ok) throw new Error(`Failed: ${resp2.status}`);
-      const buf2 = Buffer.from(await resp2.arrayBuffer());
-      const ct2 = resp2.headers.get('content-type') || 'image/jpeg';
-      return new NextResponse(buf2, {
-        headers: {
-          'Content-Type': ct2,
-          'Cache-Control': 'public, max-age=86400',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
+    const contentType =
+      url.includes('.png') ? 'image/png' :
+      url.includes('.webp') ? 'image/webp' :
+      'image/jpeg';
 
-    const buf = Buffer.from(await resp.arrayBuffer());
-    const contentType = resp.headers.get('content-type') || 
-      (url.includes('.png') ? 'image/png' :
-       url.includes('.webp') ? 'image/webp' : 'image/jpeg');
-
-    return new NextResponse(buf, {
+    return new NextResponse(data, {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=86400',
