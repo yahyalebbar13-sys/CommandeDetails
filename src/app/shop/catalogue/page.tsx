@@ -464,28 +464,6 @@ export default function CataloguePage() {
   const [pdfProgress, setPdfProgress] = useState(0);
   const [pdfStatus, setPdfStatus] = useState('');
 
-  const handleExportPDF = useCallback(async () => {
-    setPdfExporting(true);
-    setPdfProgress(0);
-    setPdfStatus('Chargement...');
-    try {
-      const { generateCataloguePDF } = await import('@/lib/catalogue-pdf');
-      await generateCataloguePDF(
-        categorySections,
-        totalProducts,
-        inStockCount,
-        (percent, status) => {
-          setPdfProgress(percent);
-          setPdfStatus(status);
-        },
-      );
-    } catch (err) {
-      console.error('PDF export error:', err);
-    } finally {
-      setTimeout(() => setPdfExporting(false), 800);
-    }
-  }, [categorySections, totalProducts, inStockCount]);
-
   const rootCats = useMemo(() => categories.filter(c => !c.parentSlug), [categories]);
 
   const categorySections = useMemo(() => {
@@ -516,6 +494,28 @@ export default function CataloguePage() {
   const totalProducts = products.length;
   const inStockCount = products.filter(p => p.inStock).length;
   const lastUpdate = new Date();
+
+  const handleExportPDF = useCallback(async () => {
+    setPdfExporting(true);
+    setPdfProgress(0);
+    setPdfStatus('Chargement...');
+    try {
+      const { generateCataloguePDF } = await import('@/lib/catalogue-pdf');
+      await generateCataloguePDF(
+        categorySections,
+        totalProducts,
+        inStockCount,
+        (percent, status) => {
+          setPdfProgress(percent);
+          setPdfStatus(status);
+        },
+      );
+    } catch (err) {
+      console.error('PDF export error:', err);
+    } finally {
+      setTimeout(() => setPdfExporting(false), 800);
+    }
+  }, [categorySections, totalProducts, inStockCount]);
 
   const scrollTo = (slug: string) => {
     const el = document.getElementById(`cat-${slug}`);
