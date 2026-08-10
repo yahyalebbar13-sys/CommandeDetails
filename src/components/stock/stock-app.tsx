@@ -269,51 +269,53 @@ export default function StockApp() {
   const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL'>('ALL');
   const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED' | 'LOADING'>('LOADING');
   const [adminUid, setAdminUid] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
-  useEffect(() => {
-    if (!user?.email) return;
-
+  const checkAccess = useCallback(async () => {
+    if (!user?.email || !firestore) return;
+    
     if (user.email === 'yahya.lebbar13@gmail.com') {
       setUserRole('ADMIN');
       setActiveStore('ALL');
       setAdminUid(user.uid);
-      if (firestore) {
-        setDoc(doc(firestore, 'publicConfig', 'adminConfig'), { adminUid: user.uid }, { merge: true }).catch(() => {});
-      }
+      setDoc(doc(firestore, 'publicConfig', 'adminConfig'), { adminUid: user.uid }, { merge: true }).catch(() => {});
       return;
     }
 
-    if (!firestore) return;
-
-    // Reset to LOADING so we don't flash UNAUTHORIZED while checking
     setUserRole('LOADING');
+    setDebugInfo(`Vérification de ${user.email.toLowerCase()}...`);
 
-    const checkStoreAccess = async () => {
-      try {
-        const snap = await getDoc(doc(firestore, 'storeAccess', user.email!.toLowerCase()));
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.adminUid) {
-            setAdminUid(data.adminUid);
-          } else {
-            // fallback: read from publicConfig
-            try {
-              const adminSnap = await getDoc(doc(firestore, 'publicConfig', 'adminConfig'));
-              if (adminSnap.exists()) setAdminUid(adminSnap.data().adminUid);
-            } catch (_) {}
-          }
-          setActiveStore(data.storeId);
-          setActiveView('sale');
-          setUserRole(data.role || 'COMMERCIAL');
+    try {
+      const emailKey = user.email.toLowerCase();
+      const snap = await getDoc(doc(firestore, 'storeAccess', emailKey));
+      if (snap.exists()) {
+        const data = snap.data();
+        setDebugInfo(`Trouvé: role=${data.role}, store=${data.storeId}, admin=${data.adminUid}`);
+        if (data.adminUid) {
+          setAdminUid(data.adminUid);
         } else {
-          setUserRole('UNAUTHORIZED');
+          try {
+            const adminSnap = await getDoc(doc(firestore, 'publicConfig', 'adminConfig'));
+            if (adminSnap.exists()) setAdminUid(adminSnap.data().adminUid);
+          } catch (_) {}
         }
-      } catch (error: any) {
-        console.error('Error checking store access:', error);
+        setActiveStore(data.storeId);
+        setActiveView('sale');
+        setUserRole(data.role || 'COMMERCIAL');
+      } else {
+        setDebugInfo(`Document storeAccess/${emailKey} n'existe pas dans Firestore`);
         setUserRole('UNAUTHORIZED');
       }
-    };
-    checkStoreAccess();
+    } catch (error: any) {
+      const msg = error?.code || error?.message || String(error);
+      console.error('Error checking store access:', error);
+      setDebugInfo(`Erreur Firestore: ${msg}`);
+      setUserRole('UNAUTHORIZED');
+    }
+  }, [user?.uid, user?.email, firestore]);
+
+  useEffect(() => {
+    checkAccess();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, user?.email, firestore]);
 
@@ -585,12 +587,20 @@ export default function StockApp() {
 
   if (userRole === 'UNAUTHORIZED') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f0faf4] gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f0faf4] gap-4 p-6">
         <h2 className="text-2xl font-black text-red-600 uppercase">Accès Refusé</h2>
-        <p className="text-stone-500 font-bold">Cette adresse email ({user?.email}) n'est pas autorisée.</p>
-        <Button onClick={() => auth.signOut()} variant="outline" className="mt-4 border-stone-300 text-stone-600">
-          Se déconnecter
-        </Button>
+        <p className="text-stone-500 font-bold text-center">Cette adresse email ({user?.email}) n'est pas autorisée.</p>
+        {debugInfo && (
+          <p className="text-xs text-stone-400 bg-stone-100 px-4 py-2 rounded-lg font-mono max-w-md text-center">{debugInfo}</p>
+        )}
+        <div className="flex gap-3 mt-2">
+          <Button onClick={() => checkAccess()} variant="outline" className="border-emerald-300 text-emerald-600">
+            Réessayer
+          </Button>
+          <Button onClick={() => auth.signOut()} variant="outline" className="border-stone-300 text-stone-600">
+            Se déconnecter
+          </Button>
+        </div>
       </div>
     );
   }
