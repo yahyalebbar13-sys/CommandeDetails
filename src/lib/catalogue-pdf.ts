@@ -102,134 +102,95 @@ export async function generateCataloguePDF(
 
   onProgress?.(3, 'Préparation…');
 
-  // ═══════════════════════════════════════════════════
-  // PAGE 1 — COUVERTURE (split design)
-  // ═══════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════
+  // PAGE 1 — COUVERTURE
+  // ══════════════════════════════════════════════════════
+  doc.setFillColor(12, 12, 12);
+  doc.rect(0, 0, PW, PH, 'F');
 
-  // Top half dark
-  doc.setFillColor(...C.ink);
-  doc.rect(0, 0, PW, 148, 'F');
-
-  // Bottom half cream/white
-  doc.setFillColor(...C.cream);
-  doc.rect(0, 148, PW, PH - 148, 'F');
-
-  // Dark red diagonal accent top-right
-  doc.setFillColor(...C.red);
-  doc.setGState(doc.GState({ opacity: 0.18 }));
-  doc.triangle(PW, 0, PW, 90, PW - 70, 0, 'F');
+  // Red glow top-right
+  doc.setFillColor(200, 16, 46);
+  doc.setGState(doc.GState({ opacity: 0.08 }));
+  doc.ellipse(PW + 10, 30, 85, 65, 'F');
+  // Gold glow bottom-left
+  doc.setFillColor(212, 168, 67);
+  doc.setGState(doc.GState({ opacity: 0.05 }));
+  doc.ellipse(-10, PH - 30, 70, 50, 'F');
   doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Gold dot pattern top-left
-  doc.setFillColor(...C.gold);
-  doc.setGState(doc.GState({ opacity: 0.06 }));
-  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
-    doc.circle(12 + c*14, 12 + r*14, 1.5, 'F');
-  }
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // Year badge top-left
+  // Logo text
   doc.setFont('helvetica','bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...C.gold);
-  doc.text(`${year}`, 16, 16);
+  doc.setFontSize(52);
+  doc.setTextColor(...C.white);
+  const wLEB = doc.getTextWidth('LEB');
+  doc.text('LEB', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2, 105);
+  doc.setTextColor(...C.red);
+  doc.text('TEX', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2 + wLEB, 105);
 
-  // ── White logo card centered ──────────────────────────────────────────────
-  const logoCardW = 110, logoCardH = 55;
-  const logoCardX = PW/2 - logoCardW/2;
-  const logoCardY = 42;
+  // Divider under logo
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(1);
+  doc.line(PW/2 - 35, 116, PW/2 + 35, 116);
 
-  // Card shadow (simulate)
-  doc.setFillColor(0, 0, 0);
-  doc.setGState(doc.GState({ opacity: 0.25 }));
-  doc.roundedRect(logoCardX + 2, logoCardY + 2, logoCardW, logoCardH, 4, 4, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // White card
-  doc.setFillColor(...C.white);
-  doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 4, 4, 'F');
-
-  // Red top line on card
-  doc.setFillColor(...C.red);
-  doc.roundedRect(logoCardX, logoCardY, logoCardW, 2.5, 2, 2, 'F');
-  doc.rect(logoCardX, logoCardY + 1, logoCardW, 1.5, 'F');
-
-  // Logo inside white card
-  try {
-    const lW = 82, lH = 37;
-    doc.addImage(LOGO_B64, 'PNG', logoCardX + logoCardW/2 - lW/2, logoCardY + (logoCardH - lH)/2 + 1, lW, lH, undefined, 'FAST');
-  } catch { /* skip */ }
-
-  // ── Bottom white section content ──────────────────────────────────────────
   // Tagline
   doc.setFont('helvetica','normal');
-  doc.setFontSize(10);
-  doc.setTextColor(...C.dark);
-  doc.text('Mercerie & Accessoires Textiles', PW/2, 164, { align:'center' });
+  doc.setFontSize(11);
+  doc.setGState(doc.GState({ opacity: 0.45 }));
+  doc.setTextColor(...C.white);
+  doc.text('Mercerie & Accessoires Textiles', PW/2, 126, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Red divider
-  doc.setDrawColor(...C.red);
-  doc.setLineWidth(1.2);
-  doc.line(PW/2 - 20, 170, PW/2 + 20, 170);
-
-  // Catalogue label
+  // Label pill
+  const pillText = `CATALOGUE PRODUITS ${year}`;
   doc.setFont('helvetica','bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...C.gray);
-  const labelTxt = `CATALOGUE PRODUITS ${year}`;
-  const labelW = doc.getTextWidth(labelTxt) + 10;
-  doc.setDrawColor(...C.lgray);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(PW/2 - labelW/2, 175, labelW, 8, 3, 3, 'S');
-  doc.text(labelTxt, PW/2, 180.5, { align:'center' });
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.gold);
+  const pillW = doc.getTextWidth(pillText) + 14;
+  doc.setDrawColor(...C.gold);
+  doc.setGState(doc.GState({ opacity: 0.5 }));
+  doc.roundedRect(PW/2 - pillW/2, 138, pillW, 9, 4, 4, 'S');
+  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.text(pillText, PW/2, 144.2, { align:'center' });
 
-  // Stats — 3 boxes
-  const statItems = [
+  // Stat boxes
+  const stats = [
     { val: String(totalProducts),   lbl: 'Produits' },
     { val: String(sections.length), lbl: 'Catégories' },
-    { val: dateStr.split(' ')[2],   lbl: 'Édition' },
   ];
-  const bW = 48, bGap = 6;
-  const bTotal = statItems.length * bW + (statItems.length-1)*bGap;
-  const bSX = PW/2 - bTotal/2;
-
-  statItems.forEach((s, i) => {
-    const bx = bSX + i*(bW+bGap), by = 196;
-    // Box
+  const bW = 42, bH = 26, bGap = 12;
+  const bTW = stats.length * bW + (stats.length-1)*bGap;
+  const bSX = PW/2 - bTW/2;
+  stats.forEach((s, i) => {
+    const bx = bSX + i*(bW+bGap), by = 164;
+    doc.setGState(doc.GState({ opacity: 0.1 }));
     doc.setFillColor(...C.white);
-    doc.setDrawColor(...C.silk);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(bx, by, bW, 24, 3, 3, 'FD');
-    // Accent top
-    const acc = i === 0 ? C.red : i === 1 ? C.gold : C.dark;
-    doc.setFillColor(...acc);
-    doc.roundedRect(bx + bW/2 - 10, by - 1, 20, 3, 1, 1, 'F');
-    // Value
+    doc.roundedRect(bx, by, bW, bH, 4, 4, 'F');
+    doc.setGState(doc.GState({ opacity: 1 }));
+    doc.setDrawColor(255,255,255);
+    doc.setGState(doc.GState({ opacity: 0.12 }));
+    doc.setLineWidth(0.4);
+    doc.roundedRect(bx, by, bW, bH, 4, 4, 'S');
+    doc.setGState(doc.GState({ opacity: 1 }));
     doc.setFont('helvetica','bold');
-    doc.setFontSize(18);
-    doc.setTextColor(...C.black);
-    doc.text(s.val, bx + bW/2, by + 14, { align:'center' });
-    // Label
+    doc.setFontSize(20);
+    doc.setTextColor(...C.white);
+    doc.text(s.val, bx+bW/2, by+15, { align:'center' });
     doc.setFont('helvetica','normal');
     doc.setFontSize(6.5);
-    doc.setTextColor(...C.gray);
-    doc.text(s.lbl, bx + bW/2, by + 20, { align:'center' });
+    doc.setGState(doc.GState({ opacity: 0.4 }));
+    doc.text(s.lbl, bx+bW/2, by+22, { align:'center' });
+    doc.setGState(doc.GState({ opacity: 1 }));
   });
 
-  // Contact at bottom
+  // Contact
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
-  doc.setTextColor(...C.gray);
-  doc.text('lebtex.ma  ·  +212 760 998 347', PW/2, 238, { align:'center' });
-
-  // Bottom dark strip
-  doc.setFillColor(...C.ink);
-  doc.rect(0, PH - 16, PW, 16, 'F');
-  doc.setFont('helvetica','normal');
+  doc.setGState(doc.GState({ opacity: 0.28 }));
+  doc.setTextColor(...C.white);
+  doc.text('lebtex.ma  ·  +212 760 998 347', PW/2, 218, { align:'center' });
   doc.setFontSize(6.5);
-  doc.setTextColor(255,255,255);
-  doc.setGState(doc.GState({ opacity: 0.3 }));
-  doc.text(`Généré le ${dateStr}`, PW/2, PH - 7, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 0.16 }));
+  doc.text(`Généré le ${dateStr}`, PW/2, PH - 10, { align:'center' });
   doc.setGState(doc.GState({ opacity: 1 }));
 
   onProgress?.(10, 'Couverture créée…');
