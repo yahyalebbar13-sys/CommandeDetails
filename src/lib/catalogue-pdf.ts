@@ -21,14 +21,22 @@ const C = {
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image via our API proxy (bypasses SSL issues server-side) ────────────
+// ─── Load image: local URLs direct, external URLs via proxy ───────────────────
 async function loadImg(originalUrl: string): Promise<string | null> {
   if (!originalUrl) return null;
   try {
-    // Use our own proxy — same origin, no CORS, SSL handled server-side
-    const proxyUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
-    const resp = await fetch(proxyUrl);
-    if (!resp.ok) throw new Error('proxy fetch failed');
+    let fetchUrl: string;
+    if (originalUrl.startsWith('/') || originalUrl.startsWith('blob:')) {
+      // Local URL — fetch directly (same origin, no CORS/SSL issues)
+      fetchUrl = originalUrl;
+    } else if (originalUrl.startsWith('http')) {
+      // External URL — use our proxy to bypass SSL issues
+      fetchUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
+    } else {
+      return null;
+    }
+    const resp = await fetch(fetchUrl);
+    if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
     const blob = await resp.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -36,7 +44,8 @@ async function loadImg(originalUrl: string): Promise<string | null> {
       reader.onerror = () => resolve(null);
       reader.readAsDataURL(blob);
     });
-  } catch {
+  } catch (e) {
+    console.warn('loadImg failed:', originalUrl, e);
     return null;
   }
 }
