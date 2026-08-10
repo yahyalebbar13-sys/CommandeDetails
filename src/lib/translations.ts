@@ -15,6 +15,7 @@ export const translations: Translations = {
   nav_precommande:  { fr: 'Service Import', ar: 'خدمة الاستيراد' },
   nav_all_cats:     { fr: 'Toutes les catégories', ar: 'كل التصنيفات' },
   nav_more:         { fr: 'Plus...', ar: 'المزيد...' },
+  nav_catalogue:    { fr: 'Catalogue', ar: 'كتالوج' },
 
   // ── Hero section ──────────────────────────────────────────────────────────
   hero_badge:    { fr: 'Mercerie Professionnelle', ar: 'خردوات خياطة احترافية' },

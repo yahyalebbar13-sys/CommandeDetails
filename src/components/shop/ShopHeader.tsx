@@ -38,6 +38,7 @@ const NAV_LINKS: NavLink[] = [
 ];
 
 const MORE_LINKS = [
+  { labelKey: "nav_catalogue", href: "/shop/catalogue" },
   { labelKey: "nav_tracking", href: "/shop/suivi" },
   { labelKey: "nav_contact", href: "/shop/contact" },
 ];

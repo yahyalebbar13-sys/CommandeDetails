@@ -10,6 +10,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Fermetures éclair en nylon de qualité supérieure — toutes tailles et couleurs',
     descriptionAr: 'سحابات نايلون عالية الجودة — جميع المقاسات والألوان',
     color: '#3B82F6',
+    icon: '🪢',
     image: '/fermetures.jpg',
     priority: 100,
   },
@@ -21,6 +22,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Fermetures en résine (plastique) robustes et colorées',
     descriptionAr: 'سحابات بلاستيكية متينة ومتعددة الألوان',
     color: '#8B5CF6',
+    icon: '🔗',
     image: '/fermetures-plastique.jpg',
     priority: 90,
   },
@@ -32,6 +34,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Fermetures métalliques laiton et aluminium — haut de gamme',
     descriptionAr: 'سحابات معدنية من النحاس والألومنيوم — جودة عالية',
     color: '#D4A843',
+    icon: '⛓️',
     priority: 80,
   },
   {
@@ -42,6 +45,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Fermetures invisibles pour robes et vêtements élégants',
     descriptionAr: 'سحابات خفية للفساتين والملابس الأنيقة',
     color: '#EC4899',
+    icon: '🤐',
     priority: 70,
   },
   {
@@ -52,6 +56,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Boutons pression, couverts, fantaisie — large gamme',
     descriptionAr: 'أزرار ضغط، قابلة للتغطية وأزرار فاخرة — تشكيلة واسعة',
     color: '#10B981',
+    icon: '🔘',
     priority: 60,
   },
   {
@@ -62,6 +67,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Élastiques plats, ronds et dentelle pour toutes applications',
     descriptionAr: 'مطاطات مسطحة ودائرية ومزخرفة لجميع الاستخدامات',
     color: '#F59E0B',
+    icon: '➰',
     priority: 50,
   },
   {
@@ -72,6 +78,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Biais coton et rubans satin, gros grain et fantaisie',
     descriptionAr: 'أشرطة قطنية وساتان وأشرطة فاخرة ومتنوعة',
     color: '#C8102E',
+    icon: '🎀',
     priority: 40,
   },
   {
@@ -82,6 +89,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Bandes auto-agrippantes scratch et velcro toutes largeurs',
     descriptionAr: 'أشرطة لاصقة بالضغط (فيلكرو وسكراتش) بجميع العرضات',
     color: '#06B6D4',
+    icon: '🧲',
     priority: 30,
   },
   {
@@ -92,6 +100,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
     description: 'Aiguilles, épingles, dés à coudre et accessoires mercerie',
     descriptionAr: 'إبر، دبابيس، كشتبانات وجميع لوازم الخياطة',
     color: '#F97316',
+    icon: '🪡',
     priority: 20,
   },
 ];

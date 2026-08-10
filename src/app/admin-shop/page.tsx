@@ -78,6 +78,13 @@ import {
   MessageCircle,
   Phone,
   Upload,
+  BookOpen,
+  Link as LinkIcon,
+  Eye,
+  ToggleLeft,
+  ToggleRight,
+  Globe,
+  Copy,
 } from 'lucide-react';
 
 // ─── Firebase init ─────────────────────────────────────────────────────────────
@@ -559,6 +566,7 @@ function Sidebar({ activeNav, onNav }: { activeNav: string; onNav: (v: string) =
     { id: 'produits', label: 'Produits', icon: <ShoppingBag className="w-5 h-5" /> },
     { id: 'categories', label: 'Catégories', icon: <Grid3X3 className="w-5 h-5" /> },
     { id: 'clients', label: 'Clients', icon: <Users className="w-5 h-5" /> },
+    { id: 'catalogue', label: 'Catalogue', icon: <BookOpen className="w-5 h-5" /> },
   ];
 
   return (
@@ -3392,6 +3400,363 @@ function AccessDenied() {
   );
 }
 
+// ─── Catalogue Admin View ──────────────────────────────────────────────────────
+function CatalogueAdminView() {
+  const { products, categories } = useShopProducts ? useShopProducts() : { products: SHOP_PRODUCTS_DATA, categories: SHOP_CATEGORIES };
+
+  // Settings state
+  const [settings, setSettings] = useState({
+    heroTitle: 'Notre Catalogue Complet',
+    heroSubtitle: 'Tous nos produits de mercerie — disponibilités et prix mis à jour en temps réel.',
+    whatsappNumber: '212760998347',
+    showOutOfStock: true,
+    highlightNewProducts: true,
+    enabledCatalogueLink: true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  // Hidden product IDs
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [productSearch, setProductSearch] = useState('');
+
+  const catalogueUrl = 'https://lebtex.ma/catalogue';
+
+  // Load settings from Firestore
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { getDoc, doc: fsDoc } = await import('firebase/firestore');
+        const snap = await getDoc(fsDoc(db, 'shop_catalogue_settings', 'main'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+          if (data.hiddenIds) setHiddenIds(new Set(data.hiddenIds));
+        }
+      } catch (e) {
+        console.error('Failed to load catalogue settings:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await setDoc(doc(db, 'shop_catalogue_settings', 'main'), {
+        settings,
+        hiddenIds: Array.from(hiddenIds),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e: any) {
+      alert('Erreur lors de la sauvegarde : ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleHidden = (productId: string) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(catalogueUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  // Stats
+  const inStock = products.filter(p => p.inStock).length;
+  const outOfStock = products.filter(p => !p.inStock).length;
+  const hiddenCount = hiddenIds.size;
+
+  // Filtered products
+  const filteredProducts = products.filter(p =>
+    !productSearch.trim() ||
+    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+    (p.categoryName || '').toLowerCase().includes(productSearch.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-[#C8102E]" />
+        <p className="text-gray-500 text-sm">Chargement des paramètres…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 pb-24">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-[#C8102E]" />
+            Gestion du Catalogue
+          </h2>
+          <p className="text-gray-500 text-sm mt-1">
+            Configurez la page catalogue publique de lebtex.ma
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <a
+            href="/shop/catalogue"
+            target="_blank"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:border-white/20 text-xs font-medium transition-all"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Voir le catalogue
+          </a>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a50d25] transition-all disabled:opacity-60"
+          >
+            {saving ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Sauvegarde…</>
+            ) : saved ? (
+              <><Check className="w-4 h-4" /> Sauvegardé !</>
+            ) : (
+              <><Save className="w-4 h-4" /> Sauvegarder</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Total produits', value: products.length, color: '#C8102E', icon: <Package className="w-4 h-4" /> },
+          { label: 'En stock', value: inStock, color: '#10B981', icon: <Check className="w-4 h-4" /> },
+          { label: 'Rupture', value: outOfStock, color: '#F59E0B', icon: <AlertCircle className="w-4 h-4" /> },
+          { label: 'Masqués', value: hiddenCount, color: '#8B5CF6', icon: <X className="w-4 h-4" /> },
+        ].map(s => (
+          <div key={s.label} className="bg-[#1A1A1A] rounded-2xl p-4 border border-white/5">
+            <div className="flex items-center gap-2 mb-3" style={{ color: s.color }}>
+              {s.icon}
+            </div>
+            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* ─── Settings panel ─── */}
+        <div className="space-y-5">
+          {/* Catalogue URL */}
+          <div className="bg-[#1A1A1A] rounded-2xl border border-white/5 p-5">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-4">
+              <Globe className="w-4 h-4 text-[#C8102E]" />
+              Lien du catalogue
+            </h3>
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+              <Globe className="w-4 h-4 text-[#D4A843] flex-shrink-0" />
+              <span className="text-sm text-[#D4A843] font-mono flex-1 truncate">{catalogueUrl}</span>
+              <button
+                onClick={copyUrl}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-medium hover:bg-white/20 transition-all flex-shrink-0"
+              >
+                {copied ? <><Check className="w-3 h-3" /> Copié</> : <><Copy className="w-3 h-3" /> Copier</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Hero settings */}
+          <div className="bg-[#1A1A1A] rounded-2xl border border-white/5 p-5 space-y-4">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#D4A843]" />
+              Section héro
+            </h3>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Titre principal</label>
+              <input
+                type="text"
+                value={settings.heroTitle}
+                onChange={e => setSettings(prev => ({ ...prev, heroTitle: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
+                placeholder="Notre Catalogue Complet"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sous-titre</label>
+              <textarea
+                value={settings.heroSubtitle}
+                onChange={e => setSettings(prev => ({ ...prev, heroSubtitle: e.target.value }))}
+                rows={2}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600 resize-none"
+                placeholder="Description du catalogue…"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Numéro WhatsApp</label>
+              <input
+                type="text"
+                value={settings.whatsappNumber}
+                onChange={e => setSettings(prev => ({ ...prev, whatsappNumber: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600 font-mono"
+                placeholder="212760998347"
+              />
+              <p className="text-[10px] text-gray-600">Format international sans le + (ex: 212760998347)</p>
+            </div>
+          </div>
+
+          {/* Toggle options */}
+          <div className="bg-[#1A1A1A] rounded-2xl border border-white/5 p-5 space-y-3">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-4">
+              <Zap className="w-4 h-4 text-emerald-400" />
+              Options d'affichage
+            </h3>
+
+            {[
+              { key: 'showOutOfStock', label: 'Afficher les produits en rupture', sub: 'Si désactivé, les produits hors stock sont masqués' },
+              { key: 'highlightNewProducts', label: 'Mettre en avant les nouveautés', sub: 'Badge "Nouveau" visible sur les produits marqués isNew' },
+              { key: 'enabledCatalogueLink', label: 'Catalogue accessible publiquement', sub: 'Si désactivé, la page affiche un message de maintenance' },
+            ].map(opt => {
+              const val = settings[opt.key as keyof typeof settings] as boolean;
+              return (
+                <div
+                  key={opt.key}
+                  onClick={() => setSettings(prev => ({ ...prev, [opt.key]: !val }))}
+                  className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-white/[0.03] border border-white/5 cursor-pointer hover:bg-white/[0.06] transition-all"
+                >
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-200 font-medium">{opt.label}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">{opt.sub}</p>
+                  </div>
+                  <div className={`flex-shrink-0 transition-colors ${val ? 'text-emerald-400' : 'text-gray-600'}`}>
+                    {val ? <ToggleRight className="w-7 h-7" /> : <ToggleLeft className="w-7 h-7" />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ─── Product visibility ─── */}
+        <div className="bg-[#1A1A1A] rounded-2xl border border-white/5 overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2">
+              <Package className="w-4 h-4 text-[#C8102E]" />
+              Visibilité produits dans le catalogue
+            </h3>
+            {hiddenIds.size > 0 && (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-400">
+                {hiddenIds.size} masqué{hiddenIds.size > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          <div className="px-5 py-3 border-b border-white/5">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Rechercher un produit…"
+                value={productSearch}
+                onChange={e => setProductSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-xs focus:outline-none focus:border-[#C8102E]/50 placeholder-gray-600"
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto" style={{ maxHeight: '480px' }}>
+            {filteredProducts.length === 0 ? (
+              <div className="flex items-center justify-center py-12 text-gray-500 text-sm">Aucun produit trouvé</div>
+            ) : (
+              filteredProducts.map(product => {
+                const isHidden = hiddenIds.has(product.id);
+                const img = product.images?.[0];
+                return (
+                  <div
+                    key={product.id}
+                    className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
+                      {img ? (
+                        <img src={img} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Package className="w-4 h-4 text-gray-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-medium truncate ${isHidden ? 'text-gray-600 line-through' : 'text-gray-200'}`}>
+                        {product.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-gray-500">{product.categoryName || product.categorySlug}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                          product.inStock ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                        }`}>
+                          {product.inStock ? '✅ En stock' : '🔴 Rupture'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => toggleHidden(product.id)}
+                      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${
+                        isHidden
+                          ? 'bg-white/5 border-white/10 text-gray-500 hover:border-emerald-500/30 hover:text-emerald-400'
+                          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400'
+                      }`}
+                    >
+                      {isHidden ? '👁 Afficher' : '🚫 Masquer'}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {hiddenIds.size > 0 && (
+            <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
+              <span className="text-xs text-gray-500">{hiddenIds.size} produit{hiddenIds.size > 1 ? 's' : ''} masqué{hiddenIds.size > 1 ? 's' : ''} du catalogue</span>
+              <button
+                onClick={() => setHiddenIds(new Set())}
+                className="text-xs text-[#C8102E] hover:underline font-medium"
+              >
+                Tout afficher
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Save reminder */}
+      <div className="flex items-center justify-between p-4 rounded-2xl bg-[#1A1A1A] border border-white/5">
+        <p className="text-gray-400 text-sm">
+          💡 N'oubliez pas de <strong className="text-white">sauvegarder</strong> vos modifications avant de quitter.
+        </p>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#C8102E] text-white text-sm font-semibold hover:bg-[#a50d25] transition-all disabled:opacity-60"
+        >
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Sauvegarde…</> : saved ? <><Check className="w-4 h-4" /> Sauvegardé !</> : <><Save className="w-4 h-4" /> Sauvegarder</>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Login screen for admin ────────────────────────────────────────────────────
 function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -3608,6 +3973,7 @@ export default function AdminShopPage() {
               {activeNav === 'produits' && <ProduitsView />}
               {activeNav === 'categories' && <CategoriesView />}
               {activeNav === 'clients' && <ClientsView orders={orders} />}
+              {activeNav === 'catalogue' && <CatalogueAdminView />}
             </>
           )}
         </main>
