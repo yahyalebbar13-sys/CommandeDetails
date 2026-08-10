@@ -2525,41 +2525,7 @@ Cette action est irréversible.`)) return;
                     </div>
                   </div>
 
-                  {/* ─── Fiche technique ─── */}
-                  <div className="mt-5 pt-4 border-t border-white/10">
-                    <p className="text-[10px] font-bold text-[#D4A843] uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                      <span>📋</span> Fiche technique
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {[
-                        { key: 'material',      label: '🧵 Matériau',      placeholder: 'Ex: Nylon, Polyester...' },
-                        { key: 'specification', label: '📐 Spécification',  placeholder: 'Ex: NO5, ISO 9001...' },
-                        { key: 'width',         label: '↔️ Largeur',        placeholder: 'Ex: 5 cm, 120mm...' },
-                        { key: 'packaging',     label: '📦 Emballage',      placeholder: 'Ex: Sachet 100 pcs...' },
-                      ].map(({ key, label, placeholder }) => (
-                        <div key={key} className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>
-                          <input
-                            type="text"
-                            value={(editForm as any)[key] || ''}
-                            onChange={e => setEditForm(prev => ({ ...prev, [key]: e.target.value }))}
-                            placeholder={placeholder}
-                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/50 placeholder-gray-600"
-                          />
-                        </div>
-                      ))}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">⚖️ Poids (g)</label>
-                        <input
-                          type="number" min="0"
-                          value={(editForm as any).weight || ''}
-                          onChange={e => setEditForm(prev => ({ ...prev, weight: e.target.value }))}
-                          placeholder="Ex: 250"
-                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/50 placeholder-gray-600"
-                        />
-                      </div>
-                    </div>
-                  </div>
+
 
                   {/* ─── Détails Hyper Pro (Édition) ─── */}
                   <div className="mt-5 pt-4 border-t border-white/10">
@@ -2590,17 +2556,16 @@ Cette action est irréversible.`)) return;
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {[
                         { key: 'typeProduit', label: 'Type de produit' },
-                        { key: 'matiereMailles', label: 'Matière mailles' },
-                        { key: 'compositionRuban', label: 'Comp. ruban' },
+                        { key: 'matiereMailles', label: 'Matière' },
+                        { key: 'compositionRuban', label: 'Composition' },
                         { key: 'couleur', label: 'Couleur' },
-                        { key: 'largeurMaille', label: 'Largeur maille' },
+                        { key: 'largeurMaille', label: 'Largeur' },
                         { key: 'longueur', label: 'Longueur' },
                         { key: 'type', label: 'Type' },
                         { key: 'design', label: 'Design' },
                         { key: 'securite', label: 'Sécurité' },
                         { key: 'resistance', label: 'Résistance' },
                         { key: 'compatibleAvec', label: 'Compatible avec' },
-                        { key: 'paysFabrication', label: 'Pays fabrication' },
                       ].map(({ key, label }) => (
                         <div key={key} className="space-y-1.5">
                           <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider truncate block" title={label}>{label}</label>
@@ -2985,17 +2950,16 @@ function NouveauProduitModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { key: 'typeProduit', label: 'Type de produit' },
-                { key: 'matiereMailles', label: 'Matière mailles' },
-                { key: 'compositionRuban', label: 'Comp. ruban' },
+                { key: 'matiereMailles', label: 'Matière' },
+                { key: 'compositionRuban', label: 'Composition' },
                 { key: 'couleur', label: 'Couleur' },
-                { key: 'largeurMaille', label: 'Largeur maille' },
+                { key: 'largeurMaille', label: 'Largeur' },
                 { key: 'longueur', label: 'Longueur' },
                 { key: 'type', label: 'Type' },
                 { key: 'design', label: 'Design' },
                 { key: 'securite', label: 'Sécurité' },
                 { key: 'resistance', label: 'Résistance' },
                 { key: 'compatibleAvec', label: 'Compatible avec' },
-                { key: 'paysFabrication', label: 'Pays fabrication' },
               ].map(({ key, label }) => (
                 <div key={key} className="space-y-1.5">
                   <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider truncate block" title={label}>{label}</label>
