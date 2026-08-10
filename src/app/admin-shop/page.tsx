@@ -2885,41 +2885,7 @@ function NouveauProduitModal({
             />
           </div>
 
-          {/* ─── Fiche technique ─── */}
-          <div className="pt-2">
-            <p className="text-[10px] font-bold text-[#D4A843] uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span>📋</span> Fiche technique
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[
-                { key: 'material',      label: '🧵 Matériau',      placeholder: 'Ex: Nylon, Polyester...' },
-                { key: 'specification', label: '📐 Spécification',  placeholder: 'Ex: NO5, ISO 9001...' },
-                { key: 'width',         label: '↔️ Largeur',        placeholder: 'Ex: 5 cm, 120mm...' },
-                { key: 'packaging',     label: '📦 Emballage',      placeholder: 'Ex: Sachet 100 pcs...' },
-              ].map(({ key, label, placeholder }) => (
-                <div key={key} className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{label}</label>
-                  <input
-                    type="text"
-                    value={(form as any)[key]}
-                    onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
-                  />
-                </div>
-              ))}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">⚖️ Poids (g)</label>
-                <input
-                  type="number" min="0"
-                  value={form.weight}
-                  onChange={e => setForm(p => ({ ...p, weight: e.target.value }))}
-                  placeholder="Ex: 250"
-                  className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#D4A843]/60 placeholder-gray-600"
-                />
-              </div>
-            </div>
-          </div>
+
 
           {/* ─── Détails Hyper Pro (Création) ─── */}
           <div className="mt-5 pt-4 border-t border-white/10">
