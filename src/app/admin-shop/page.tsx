@@ -41,6 +41,7 @@ import { formatPrice } from '@/lib/shop-utils';
 import { SHOP_PRODUCTS_DATA, SHOP_CATEGORIES } from '@/lib/shop-products-data';
 import type { ShopProduct } from '@/lib/shop-types';
 import type { ProductOverride } from '@/contexts/shop-products-context';
+import { useShopProducts } from '@/contexts/shop-products-context';
 import {
   LayoutDashboard,
   Package,
@@ -3402,7 +3403,7 @@ function AccessDenied() {
 
 // ─── Catalogue Admin View ──────────────────────────────────────────────────────
 function CatalogueAdminView() {
-  const { products, categories } = useShopProducts ? useShopProducts() : { products: SHOP_PRODUCTS_DATA, categories: SHOP_CATEGORIES };
+  const { products, categories } = useShopProducts();
 
   // Settings state
   const [settings, setSettings] = useState({
