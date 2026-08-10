@@ -32,6 +32,7 @@ export interface ShopProduct {
   id: string;
   slug: string;
   name: string;
+  catalogueName?: string; // Nom alternatif pour le catalogue PDF/web
   nameAr?: string;
   shortDescription?: string;
   shortDescriptionAr?: string;

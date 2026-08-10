@@ -206,7 +206,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
             <div className="lg:w-[55%] p-6">
               {/* Title */}
               <h1 className="text-xl sm:text-2xl font-black text-[#1A1A1A] leading-tight mb-2" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                {product.name}
+                {product.catalogueName || product.name}
               </h1>
 
               {/* Tags */}
@@ -275,7 +275,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                 <p className="text-[10px] text-gray-400 mb-3 uppercase tracking-wider font-bold">Intéressé par ce produit ?</p>
                 <div className="flex gap-3">
                   <a
-                    href={`https://wa.me/212760998347?text=${encodeURIComponent(`Bonjour LEBTEX, je suis intéressé par le produit "${product.name}" (${product.sku || product.id}). Pouvez-vous m'envoyer les prix et disponibilités ?`)}`}
+                    href={`https://wa.me/212760998347?text=${encodeURIComponent(`Bonjour LEBTEX, je suis intéressé par le produit "${product.catalogueName || product.name}" (${product.sku || product.id}). Pouvez-vous m'envoyer les prix et disponibilités ?`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#1eba57] transition-colors"
@@ -431,7 +431,7 @@ function CategorySection({
               {/* Info */}
               <div className="p-3 flex flex-col flex-1">
                 <h3 className="text-xs sm:text-sm font-bold text-[#1A1A1A] leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors flex-1">
-                  {product.name}
+                  {product.catalogueName || product.name}
                 </h3>
                 {product.shortDescription && (
                   <p className="text-[10px] text-gray-400 line-clamp-1 mt-1">{product.shortDescription}</p>

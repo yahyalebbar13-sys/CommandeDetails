@@ -695,7 +695,7 @@ export async function generateCataloguePDF(
         doc.setFont('helvetica','bold');
         doc.setFontSize(16);
         doc.setTextColor(...C.lgray);
-        doc.text(p.name.charAt(0).toUpperCase(), IX + IMG_W/2, IY + IMG_H/2 + 5, { align:'center' });
+        doc.text((p.catalogueName || p.name).charAt(0).toUpperCase(), IX + IMG_W/2, IY + IMG_H/2 + 5, { align:'center' });
       }
 
       // Right side
@@ -719,7 +719,7 @@ export async function generateCataloguePDF(
       doc.setFont('helvetica','bold');
       doc.setFontSize(8.5);
       doc.setTextColor(...C.black);
-      const nameLines = doc.splitTextToSize(clip(p.name, 50), RW);
+      const nameLines = doc.splitTextToSize(clip(p.catalogueName || p.name, 50), RW);
       doc.text(nameLines.slice(0,2), RX, ry);
       ry += Math.min(nameLines.length, 2)*4 + 1;
 
@@ -807,7 +807,7 @@ export async function generateCataloguePDF(
       doc.setFont('helvetica','bold');
       doc.setFontSize(9);
       doc.setTextColor(...C.black);
-      doc.text(clip(p.name, 85), ML+5, dy+6.8);
+      doc.text(clip(p.catalogueName || p.name, 85), ML+5, dy+6.8);
       if (p.sku) {
         doc.setFont('helvetica','normal');
         doc.setFontSize(6.5);

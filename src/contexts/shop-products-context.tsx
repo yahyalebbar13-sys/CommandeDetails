@@ -22,6 +22,7 @@ export interface ProductOverride {
   inStock?: boolean;
   stockQty?: number;
   name?: string;
+  catalogueName?: string | null;
   nameAr?: string;
   shortDescription?: string;
   shortDescriptionAr?: string;

@@ -2087,6 +2087,7 @@ function ProduitsView() {
       // Build override without undefined values
       const base: Record<string, unknown> = {};
       if (editForm.name?.trim()) base.name = editForm.name.trim();
+      if (editForm.catalogueName !== undefined) base.catalogueName = editForm.catalogueName?.trim() || null;
       if (editForm.categorySlug?.trim()) {
         base.categorySlug = editForm.categorySlug.trim();
         const cat = allCategoriesLocal.find(c => c.slug === base.categorySlug);
@@ -2335,6 +2336,8 @@ Cette action est irréversible.`)) return;
                       <input type="text" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50" />
                     </div>
                     <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-[#D4A843] uppercase tracking-wider">Nom catalogue <span className="text-gray-600 normal-case">(si différent)</span></label>
+                      <input type="text" value={editForm.catalogueName || ''} onChange={e => setEditForm(p => ({ ...p, catalogueName: e.target.value }))} placeholder="Laissez vide pour utiliser le nom principal" className="w-full px-3 py-2 rounded-xl bg-white/5 border border-[#D4A843]/20 text-white text-sm outline-none focus:border-[#D4A843]/50 placeholder:text-gray-600" />
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Catégorie</label>
                       <select value={editForm.categorySlug || ''} onChange={e => setEditForm(p => ({ ...p, categorySlug: e.target.value }))} className="w-full px-3 py-2 rounded-xl bg-[#111] border border-white/10 text-white text-sm outline-none focus:border-[#C8102E]/50">
                         {(() => {
@@ -2844,6 +2847,16 @@ function NouveauProduitModal({
                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                 placeholder="Ex: Fermeture Nylon NO5 30cm"
                 className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#C8102E]/60 placeholder-gray-600"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-[#D4A843] uppercase tracking-wider">Nom catalogue <span className="text-gray-600 normal-case">(optionnel)</span></label>
+              <input
+                type="text"
+                value={(form as any).catalogueName || ''}
+                onChange={e => setForm(p => ({ ...p, catalogueName: e.target.value }))}
+                placeholder="Laissez vide pour utiliser le nom principal"
+                className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-[#D4A843]/20 text-white text-sm focus:outline-none focus:border-[#D4A843]/50 placeholder-gray-600"
               />
             </div>
             <div className="space-y-1.5">
