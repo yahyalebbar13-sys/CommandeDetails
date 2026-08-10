@@ -21,69 +21,40 @@ const C = {
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image: local direct, external via proxy with browser fallback ───────
+// ─── Load image and return base64 data URI ────────────────────────────────────
 async function loadImg(originalUrl: string): Promise<string | null> {
   if (!originalUrl) return null;
+  try {
+    let fetchUrl: string;
+    if (originalUrl.startsWith('/') || originalUrl.startsWith('blob:')) {
+      fetchUrl = originalUrl;
+    } else if (originalUrl.startsWith('http')) {
+      fetchUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
+    } else {
+      return null;
+    }
 
-  const toB64 = async (resp: Response): Promise<string | null> => {
-    if (!resp.ok) return null;
+    console.log('[loadImg] fetching:', fetchUrl.substring(0, 80));
+    const resp = await fetch(fetchUrl);
+    console.log('[loadImg] response:', resp.status, resp.headers.get('content-type'));
+    if (!resp.ok) { console.warn('[loadImg] not ok:', resp.status); return null; }
+
     const blob = await resp.blob();
-    if (blob.size < 100) return null; // too small = probably error
-    return new Promise((resolve) => {
+    console.log('[loadImg] blob size:', blob.size, 'type:', blob.type);
+    if (blob.size < 100) return null;
+
+    return new Promise<string | null>((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        console.log('[loadImg] base64 length:', result?.length || 0, 'starts:', result?.substring(0, 30));
+        resolve(result || null);
+      };
+      reader.onerror = () => { console.warn('[loadImg] FileReader error'); resolve(null); };
       reader.readAsDataURL(blob);
     });
-  };
-
-  try {
-    if (originalUrl.startsWith('/') || originalUrl.startsWith('blob:')) {
-      // Local URL — fetch directly
-      const resp = await fetch(originalUrl);
-      return await toB64(resp);
-    }
-
-    if (originalUrl.startsWith('http')) {
-      // Try 1: proxy (handles SSL bypass server-side)
-      try {
-        const proxyUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
-        const resp = await fetch(proxyUrl);
-        const result = await toB64(resp);
-        if (result) return result;
-      } catch { /* proxy failed, try direct */ }
-
-      // Try 2: direct browser fetch (browser handles SSL/redirects natively)
-      try {
-        const resp = await fetch(originalUrl, { mode: 'cors' });
-        const result = await toB64(resp);
-        if (result) return result;
-      } catch { /* direct also failed */ }
-
-      // Try 3: img tag + canvas (last resort)
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          try {
-            const c = document.createElement('canvas');
-            c.width = img.naturalWidth || 300;
-            c.height = img.naturalHeight || 300;
-            const ctx = c.getContext('2d');
-            if (!ctx) { resolve(null); return; }
-            ctx.drawImage(img, 0, 0);
-            resolve(c.toDataURL('image/jpeg', 0.8));
-          } catch { resolve(null); }
-        };
-        img.onerror = () => resolve(null);
-        img.src = originalUrl;
-        setTimeout(() => resolve(null), 12000);
-      });
-    }
-
-    return null;
   } catch (e) {
-    console.warn('loadImg failed:', originalUrl, e);
+    console.warn('[loadImg] error:', originalUrl, e);
     return null;
   }
 }
@@ -150,12 +121,17 @@ export async function generateCataloguePDF(
   await Promise.all(
     sections.map(async sec => {
       // Use first product's first image as category thumbnail
-      const firstImg = sec.products.find(p => p.images?.length > 0)?.images[0];
+      const firstProd = sec.products.find(p => p.images?.length > 0);
+      const firstImg = firstProd?.images[0];
+      console.log(`[PDF] Cat "${sec.category.name}" (${sec.category.slug}): ${sec.products.length} prods, firstImg=${firstImg ? firstImg.substring(0,60)+'...' : 'NONE'}`);
       if (firstImg) {
-        catImgCache[sec.category.slug] = await loadImg(firstImg);
+        const result = await loadImg(firstImg);
+        catImgCache[sec.category.slug] = result;
+        console.log(`[PDF] → Loaded: ${result ? `YES (${result.length} chars)` : 'FAILED'}`);
       }
     })
   );
+  console.log('[PDF] catImgCache keys:', Object.keys(catImgCache), 'non-null:', Object.values(catImgCache).filter(Boolean).length);
 
   // Store photos
   const storePhotos: Record<string, string|null> = {};
@@ -250,7 +226,7 @@ export async function generateCataloguePDF(
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
   doc.setTextColor(...C.gray);
-  doc.text('lebtex.ma  ·  +212 760 998 347  ·  contact@lebtex.ma', PW/2, 215, { align:'center' });
+  doc.text('lebtex.ma  ·  +212 760 998 347  ·  lebtexsarlau@gmail.com', PW/2, 215, { align:'center' });
 
   // Bottom decorative
   doc.setDrawColor(...C.silk);
@@ -1002,7 +978,7 @@ export async function generateCataloguePDF(
   // Contact info boxes
   const lastContacts = [
     { label: 'WhatsApp / Téléphone', value: '+212 760 998 347', col: C.red },
-    { label: 'Email', value: 'contact@lebtex.ma', col: [59,130,246] as [number,number,number] },
+    { label: 'Email', value: 'lebtexsarlau@gmail.com', col: [59,130,246] as [number,number,number] },
     { label: 'Site Web', value: 'lebtex.ma', col: C.gold },
   ];
   const lcW = 50, lcGap = 6;

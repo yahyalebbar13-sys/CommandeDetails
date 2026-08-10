@@ -55,8 +55,8 @@ export default function ContactPage() {
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-md hover:bg-white/10 transition-colors">
               <Mail className="w-8 h-8 text-gray-400 mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Email</h3>
-              <p className="text-gray-300 mb-4">contact@lebtex.ma</p>
-              <a href="mailto:contact@lebtex.ma" className="inline-flex items-center text-gray-300 font-medium hover:text-white transition-colors">
+              <p className="text-gray-300 mb-4">lebtexsarlau@gmail.com</p>
+              <a href="mailto:lebtexsarlau@gmail.com" className="inline-flex items-center text-gray-300 font-medium hover:text-white transition-colors">
                 Nous envoyer un email <ChevronRight className="w-4 h-4 ml-1" />
               </a>
             </div>

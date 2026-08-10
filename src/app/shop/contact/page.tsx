@@ -42,7 +42,7 @@ export default function ContactPage() {
                 {[
                   { icon: MessageCircle, label: 'WhatsApp (Recommandé)', value: '+212 760 998 347', href: 'https://wa.me/212760998347', color: '#25D366', bg: '#f0fdf4' },
                   { icon: Phone, label: 'Téléphone', value: '0760 998 347', href: 'tel:+212760998347', color: '#C8102E', bg: '#fef2f4' },
-                  { icon: Mail, label: 'Email', value: 'contact@lebtex.ma', href: 'mailto:contact@lebtex.ma', color: '#3B82F6', bg: '#eff6ff' },
+                  { icon: Mail, label: 'Email', value: 'lebtexsarlau@gmail.com', href: 'mailto:lebtexsarlau@gmail.com', color: '#3B82F6', bg: '#eff6ff' },
                   { icon: MapPin, label: 'Adresse', value: 'Casablanca, Maroc', href: 'https://maps.google.com/?q=Casablanca+Maroc', color: '#D4A843', bg: '#fffbeb' },
                 ].map(({ icon: Icon, label, value, href, color, bg }) => (
                   <a key={label} href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"

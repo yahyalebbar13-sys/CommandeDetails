@@ -262,11 +262,10 @@ export default function ShopFooter() {
                   style={{ color: "#C8102E" }}
                 />
                 <a
-                  href="mailto:contact@lebtex.ma"
-                  className="hover:text-white transition-colors"
-                  style={{ color: "#9CA3AF" }}
+                  href="mailto:lebtexsarlau@gmail.com"
+                  className="text-gray-600 dark:text-gray-400 hover:text-[#C8102E] dark:hover:text-[#D4A843] transition-colors"
                 >
-                  contact@lebtex.ma
+                  lebtexsarlau@gmail.com
                 </a>
               </div>
             </div>

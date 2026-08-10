@@ -20,7 +20,7 @@ export default function LocalBusinessSchema() {
         },
         image: 'https://lebtex.ma/hero-banner.png',
         telephone: '+212600000000', // Update with real number
-        email: 'contact@lebtex.ma',
+        email: 'lebtexsarlau@gmail.com',
         priceRange: '₺₺',
         currenciesAccepted: 'MAD',
         paymentAccepted: 'Cash, Paiement à la livraison',
