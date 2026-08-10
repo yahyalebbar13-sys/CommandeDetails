@@ -2015,6 +2015,7 @@ function ProduitsView() {
     setEditingId(product.id);
     setEditForm({
       name: merged.name,
+      catalogueName: merged.catalogueName || '',
       categorySlug: merged.categorySlug,
       shortDescription: merged.shortDescription || '',
       description: merged.description || '',
@@ -2617,6 +2618,7 @@ function NouveauProduitModal({
 }) {
   const [form, setForm] = useState({
     name: '',
+    catalogueName: '',
     shortDescription: '',
     description: '',
     categorySlug: allCategories[0]?.slug || '',
@@ -2654,7 +2656,6 @@ function NouveauProduitModal({
     compatibleAvec: '',
     conditionnementUnitaire: '',
     conditionnementGros: '',
-    paysFabrication: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
   type VariantForm = { id: string; color: string; colorHex: string; image?: string; size: string; stockStatus: StockStatus; price: string };
@@ -2747,6 +2748,7 @@ function NouveauProduitModal({
         minOrderQty: parseInt(form.minOrderQty) || 1,
         // Only include optional fields when they have values
         ...(form.shortDescription.trim() ? { shortDescription: form.shortDescription.trim() } : {}),
+        ...(form.catalogueName?.trim() ? { catalogueName: form.catalogueName.trim() } : {}),
         ...(form.comparePrice ? { comparePrice: parseFloat(form.comparePrice) } : {}),
         // Fiche technique
         ...(form.material.trim() ? { material: form.material.trim() } : {}),
@@ -2773,7 +2775,6 @@ function NouveauProduitModal({
         ...(form.compatibleAvec.trim() ? { compatibleAvec: form.compatibleAvec.trim() } : {}),
         ...(form.conditionnementUnitaire?.trim() ? { conditionnementUnitaire: form.conditionnementUnitaire.trim() } : {}),
         ...(form.conditionnementGros?.trim() ? { conditionnementGros: form.conditionnementGros.trim() } : {}),
-        ...(form.paysFabrication.trim() ? { paysFabrication: form.paysFabrication.trim() } : {}),
       };
       await setDoc(doc(db, 'shop_custom_products', id), product);
       const imgCount = (product.images as string[]).length;
