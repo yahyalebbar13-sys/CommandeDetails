@@ -536,13 +536,11 @@ export default function CataloguePage() {
         <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg, #0C0C0C 0%, #1A1A1A 40%, #1C0A0D 100%)' }} />
         <div className="absolute inset-0 opacity-[0.02]"
           style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-        <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full opacity-[0.06] blur-[100px]"
+        <div className="absolute -top-32 -right-32 w-[400px] h-[400px] rounded-full opacity-[0.06] blur-[100px]"
           style={{ background: '#C8102E' }} />
-        <div className="absolute -bottom-32 -left-32 w-[400px] h-[400px] rounded-full opacity-[0.05] blur-[80px]"
-          style={{ background: '#D4A843' }} />
 
-        <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-20 sm:py-28 text-center">
-          <nav className="flex items-center justify-center gap-2 mb-10 flex-wrap">
+        <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-10 sm:py-14 text-center">
+          <nav className="flex items-center justify-center gap-2 mb-6 flex-wrap">
             <Link href="/shop/a-propos"
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/12 text-white/50 hover:text-white text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
               <Store className="w-3 h-3" /> À propos
@@ -557,15 +555,23 @@ export default function CataloguePage() {
             </Link>
           </nav>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 mb-8">
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8">
-              <BookOpen className="w-4 h-4 text-[#D4A843]" />
-              <span className="text-[#D4A843] text-xs font-bold tracking-[0.15em] uppercase">Catalogue Produits {new Date().getFullYear()}</span>
+          <h1 className="text-4xl sm:text-5xl font-black text-white mb-3 leading-[1.1] tracking-tight"
+            style={{ fontFamily: "'Outfit', sans-serif" }}>
+            LEB<span style={{ color: '#C8102E' }}>TEX</span>
+          </h1>
+          <p className="text-lg text-white/30 font-light mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            Mercerie & Accessoires Textiles
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8">
+              <BookOpen className="w-3.5 h-3.5 text-[#D4A843]" />
+              <span className="text-[#D4A843] text-[11px] font-bold tracking-[0.12em] uppercase">Catalogue {new Date().getFullYear()}</span>
             </div>
             <button
               onClick={handleExportPDF}
               disabled={pdfExporting || isLoading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-semibold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-sm cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[11px] font-semibold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-sm cursor-pointer"
             >
               {pdfExporting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -576,32 +582,17 @@ export default function CataloguePage() {
             </button>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-[1.05] tracking-tight"
-            style={{ fontFamily: "'Outfit', sans-serif" }}>
-            LEB<span style={{ color: '#C8102E' }}>TEX</span>
-          </h1>
-          <p className="text-xl sm:text-2xl text-white/30 font-light mb-2" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            Mercerie & Accessoires Textiles
-          </p>
-          <p className="text-white/20 text-sm max-w-md mx-auto leading-relaxed mt-4">
-            Catalogue interactif avec fiches produits complètes — les disponibilités changent automatiquement selon notre stock réel.
-          </p>
-
-          <div className="flex items-center justify-center gap-8 mt-10 text-xs text-white/25">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
+          <div className="flex items-center justify-center gap-6 text-[11px] text-white/25">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
               </span>
               <span className="text-emerald-400/60">Stock en direct</span>
             </div>
             <span>{totalProducts} produits</span>
             <span>{inStockCount} disponibles</span>
             <span>{rootCats.length} catégories</span>
-          </div>
-
-          <div className="mt-12 animate-bounce">
-            <ArrowDown className="w-5 h-5 text-white/15 mx-auto" />
           </div>
         </div>
       </section>

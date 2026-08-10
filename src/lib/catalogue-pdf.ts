@@ -107,12 +107,14 @@ export async function generateCataloguePDF(
 
   onProgress?.(3, 'Chargement des images…');
 
-  // ── Pre-load category images & store photos ─────────────────────────────────
+  // ── Pre-load first product image per category (for sommaire) ────────────────
   const catImgCache: Record<string, string|null> = {};
   await Promise.all(
     sections.map(async sec => {
-      if (sec.category.image) {
-        catImgCache[sec.category.image] = await loadImg(sec.category.image);
+      // Use first product's first image as category thumbnail
+      const firstImg = sec.products.find(p => p.images?.length > 0)?.images[0];
+      if (firstImg) {
+        catImgCache[sec.category.slug] = await loadImg(firstImg);
       }
     })
   );
@@ -403,28 +405,7 @@ export async function generateCataloguePDF(
   doc.setLineWidth(0.7);
   doc.line(ML, 42, ML+30, 42);
 
-  // Product images showcase strip
-  const catImgs = Object.values(catImgCache).filter(Boolean) as string[];
   let iy = 50;
-  if (catImgs.length > 0) {
-    const stripH = 28, stripGap = 3;
-    const maxImgs = Math.min(catImgs.length, 5);
-    const stripImgW = (CW - (maxImgs-1)*stripGap) / maxImgs;
-    let sx = ML;
-    const sy2 = 47;
-    doc.setFillColor(...C.cream);
-    doc.roundedRect(ML-1, sy2-1, CW+2, stripH+2, 3, 3, 'F');
-    for (let si = 0; si < maxImgs; si++) {
-      try {
-        doc.addImage(catImgs[si], 'JPEG', sx, sy2, stripImgW, stripH, `imp-strip-${si}`, 'FAST');
-        doc.setDrawColor(...C.silk);
-        doc.setLineWidth(0.2);
-        doc.roundedRect(sx, sy2, stripImgW, stripH, 2, 2, 'S');
-      } catch {}
-      sx += stripImgW + stripGap;
-    }
-    iy = sy2 + stripH + 6;
-  }
 
   // Features
   doc.setFont('helvetica','bold');
@@ -535,7 +516,7 @@ export async function generateCataloguePDF(
     }
     const accent = sec.category.color ? hexRgb(sec.category.color) : C.red;
     const imgSz = 18;
-    const imgB64 = sec.category.image ? catImgCache[sec.category.image] : null;
+    const imgB64 = catImgCache[sec.category.slug] || null;
 
     // Category image or colored fallback
     if (imgB64) {
