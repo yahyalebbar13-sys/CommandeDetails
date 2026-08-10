@@ -7,57 +7,53 @@ import { LOGO_B64 } from './logo-b64';
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 const C = {
-  red:       [200, 16, 46]   as [number, number, number],
-  black:     [26, 26, 26]    as [number, number, number],
-  dark:      [55, 55, 55]    as [number, number, number],
-  gray:      [120, 120, 120] as [number, number, number],
-  lgray:     [200, 196, 192] as [number, number, number],
-  silk:      [238, 234, 230] as [number, number, number],
-  cream:     [253, 251, 248] as [number, number, number],
-  white:     [255, 255, 255] as [number, number, number],
-  gold:      [212, 168, 67]  as [number, number, number],
+  red:   [200, 16, 46]   as [number, number, number],
+  black: [26, 26, 26]    as [number, number, number],
+  dark:  [55, 55, 55]    as [number, number, number],
+  gray:  [120, 120, 120] as [number, number, number],
+  lgray: [200, 196, 192] as [number, number, number],
+  silk:  [238, 234, 230] as [number, number, number],
+  cream: [253, 251, 248] as [number, number, number],
+  white: [255, 255, 255] as [number, number, number],
+  gold:  [212, 168, 67]  as [number, number, number],
+  ink:   [12, 12, 12]    as [number, number, number],
 };
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image via Canvas (avoids SSL issues) ────────────────────────────────
-async function imgToBase64(url: string): Promise<string | null> {
-  if (!url) return null;
+// ─── Load image via Next.js proxy (same-origin → no CORS issues) ──────────────
+async function loadImg(originalUrl: string): Promise<string | null> {
+  if (!originalUrl) return null;
+  // Use Next.js image endpoint as proxy — same origin, no CORS
+  const proxyUrl = `/_next/image?url=${encodeURIComponent(originalUrl)}&w=400&q=80`;
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || img.width;
-        canvas.height = img.naturalHeight || img.height;
+        canvas.width  = img.naturalWidth  || 400;
+        canvas.height = img.naturalHeight || 400;
         const ctx = canvas.getContext('2d');
         if (!ctx) { resolve(null); return; }
         ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
       } catch { resolve(null); }
     };
     img.onerror = () => resolve(null);
-    // Append a cache-busting param to help CORS
-    img.src = url.includes('?') ? url : url + '?x=1';
-    // Timeout fallback
-    setTimeout(() => resolve(null), 8000);
+    img.src = proxyUrl;
+    setTimeout(() => resolve(null), 10000);
   });
 }
 
-// ─── Hex → RGB ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function hexRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 }
-
-// ─── Clip text ────────────────────────────────────────────────────────────────
 function clip(t: string, n: number) { return t && t.length > n ? t.slice(0, n-1)+'…' : (t||''); }
 
-// ─── Page counter ─────────────────────────────────────────────────────────────
 let _pg = 0;
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
 function drawFooter(doc: jsPDF, dateStr: string) {
   const PW = 210, PH = 297, ML = 14, MR = 14;
   _pg++;
@@ -68,47 +64,28 @@ function drawFooter(doc: jsPDF, dateStr: string) {
   doc.setFontSize(6.5);
   doc.setTextColor(...C.gray);
   doc.text('LEBTEX — Mercerie & Accessoires Textiles', ML, PH-9);
-  doc.text(dateStr, PW/2, PH-9, { align:'center' });
+  doc.text(dateStr, 105, PH-9, { align:'center' });
   doc.setFont('helvetica','bold');
   doc.setTextColor(...C.red);
   doc.text(String(_pg), PW-MR, PH-9, { align:'right' });
   doc.setFont('helvetica','italic');
   doc.setFontSize(5);
   doc.setTextColor(...C.lgray);
-  doc.text('Document confidentiel — reproduction interdite sans autorisation', PW/2, PH-5.5, { align:'center' });
+  doc.text('Document confidentiel — reproduction interdite sans autorisation', 105, PH-5.5, { align:'center' });
 }
 
-// ─── Accent band ─────────────────────────────────────────────────────────────
-function band(doc: jsPDF, color: [number,number,number]) {
+function band(doc: jsPDF, color: [number,number,number], h = 3) {
   doc.setFillColor(...color);
-  doc.rect(0, 0, 210, 3, 'F');
+  doc.rect(0, 0, 210, h, 'F');
 }
 
-// ─── Draw image safely ───────────────────────────────────────────────────────
-function drawImg(doc: jsPDF, data: string, x: number, y: number, w: number, h: number) {
-  if (!data) return;
+function safeImg(doc: jsPDF, data: string, x: number, y: number, w: number, h: number) {
   try {
     const fmt = data.startsWith('data:image/png') ? 'PNG' : 'JPEG';
     doc.addImage(data, fmt, x, y, w, h, undefined, 'FAST');
-  } catch { /* silently skip */ }
+  } catch { /* skip */ }
 }
 
-// ─── Spec row ────────────────────────────────────────────────────────────────
-function specRow(doc: jsPDF, label: string, value: string, x: number, y: number, colW: number): number {
-  if (!value) return y;
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(...C.gray);
-  doc.text(label.toUpperCase(), x, y);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7);
-  doc.setTextColor(...C.black);
-  doc.text(clip(value, 42), x, y + 4.5);
-  return y + 9;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── MAIN ───────────────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 export async function generateCataloguePDF(
   sections: { category: ShopCategory; products: ShopProduct[]; subCategories: ShopCategory[] }[],
@@ -125,112 +102,141 @@ export async function generateCataloguePDF(
 
   onProgress?.(3, 'Préparation…');
 
-  // ══════════════════════════════════════════════════════
-  // PAGE 1 — COUVERTURE
-  // ══════════════════════════════════════════════════════
-  doc.setFillColor(12, 12, 12);
-  doc.rect(0, 0, PW, PH, 'F');
+  // ═══════════════════════════════════════════════════
+  // PAGE 1 — COUVERTURE (split design)
+  // ═══════════════════════════════════════════════════
 
-  // Red glow top-right
-  doc.setFillColor(200, 16, 46);
-  doc.setGState(doc.GState({ opacity: 0.08 }));
-  doc.ellipse(PW + 10, 30, 85, 65, 'F');
-  // Gold glow bottom-left
-  doc.setFillColor(212, 168, 67);
-  doc.setGState(doc.GState({ opacity: 0.05 }));
-  doc.ellipse(-10, PH - 30, 70, 50, 'F');
+  // Top half dark
+  doc.setFillColor(...C.ink);
+  doc.rect(0, 0, PW, 148, 'F');
+
+  // Bottom half cream/white
+  doc.setFillColor(...C.cream);
+  doc.rect(0, 148, PW, PH - 148, 'F');
+
+  // Dark red diagonal accent top-right
+  doc.setFillColor(...C.red);
+  doc.setGState(doc.GState({ opacity: 0.18 }));
+  doc.triangle(PW, 0, PW, 90, PW - 70, 0, 'F');
   doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Logo image (centered, white-ish)
-  try {
-    // Place logo in center of page
-    const logoW = 80;
-    const logoH = 36;
-    const logoX = PW/2 - logoW/2;
-    const logoY = 72;
-    doc.addImage(LOGO_B64, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
-  } catch {
-    // Fallback text if logo fails
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(52);
-    doc.setTextColor(...C.white);
-    const wLEB = doc.getTextWidth('LEB');
-    doc.text('LEB', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2, 105);
-    doc.setTextColor(...C.red);
-    doc.text('TEX', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2 + wLEB, 105);
+  // Gold dot pattern top-left
+  doc.setFillColor(...C.gold);
+  doc.setGState(doc.GState({ opacity: 0.06 }));
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+    doc.circle(12 + c*14, 12 + r*14, 1.5, 'F');
   }
+  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Divider under logo
-  doc.setDrawColor(...C.red);
-  doc.setLineWidth(1);
-  doc.line(PW/2 - 35, 116, PW/2 + 35, 116);
+  // Year badge top-left
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.gold);
+  doc.text(`${year}`, 16, 16);
 
+  // ── White logo card centered ──────────────────────────────────────────────
+  const logoCardW = 110, logoCardH = 55;
+  const logoCardX = PW/2 - logoCardW/2;
+  const logoCardY = 42;
+
+  // Card shadow (simulate)
+  doc.setFillColor(0, 0, 0);
+  doc.setGState(doc.GState({ opacity: 0.25 }));
+  doc.roundedRect(logoCardX + 2, logoCardY + 2, logoCardW, logoCardH, 4, 4, 'F');
+  doc.setGState(doc.GState({ opacity: 1 }));
+
+  // White card
+  doc.setFillColor(...C.white);
+  doc.roundedRect(logoCardX, logoCardY, logoCardW, logoCardH, 4, 4, 'F');
+
+  // Red top line on card
+  doc.setFillColor(...C.red);
+  doc.roundedRect(logoCardX, logoCardY, logoCardW, 2.5, 2, 2, 'F');
+  doc.rect(logoCardX, logoCardY + 1, logoCardW, 1.5, 'F');
+
+  // Logo inside white card
+  try {
+    const lW = 82, lH = 37;
+    doc.addImage(LOGO_B64, 'PNG', logoCardX + logoCardW/2 - lW/2, logoCardY + (logoCardH - lH)/2 + 1, lW, lH, undefined, 'FAST');
+  } catch { /* skip */ }
+
+  // ── Bottom white section content ──────────────────────────────────────────
   // Tagline
   doc.setFont('helvetica','normal');
-  doc.setFontSize(11);
-  doc.setGState(doc.GState({ opacity: 0.45 }));
-  doc.setTextColor(...C.white);
-  doc.text('Mercerie & Accessoires Textiles', PW/2, 126, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setFontSize(10);
+  doc.setTextColor(...C.dark);
+  doc.text('Mercerie & Accessoires Textiles', PW/2, 164, { align:'center' });
 
-  // Label pill
-  const pillText = `CATALOGUE PRODUITS ${year}`;
+  // Red divider
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(1.2);
+  doc.line(PW/2 - 20, 170, PW/2 + 20, 170);
+
+  // Catalogue label
   doc.setFont('helvetica','bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...C.gold);
-  const pillW = doc.getTextWidth(pillText) + 14;
-  doc.setDrawColor(...C.gold);
-  doc.setGState(doc.GState({ opacity: 0.5 }));
-  doc.roundedRect(PW/2 - pillW/2, 138, pillW, 9, 4, 4, 'S');
-  doc.setGState(doc.GState({ opacity: 1 }));
-  doc.text(pillText, PW/2, 144.2, { align:'center' });
+  doc.setFontSize(8);
+  doc.setTextColor(...C.gray);
+  const labelTxt = `CATALOGUE PRODUITS ${year}`;
+  const labelW = doc.getTextWidth(labelTxt) + 10;
+  doc.setDrawColor(...C.lgray);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(PW/2 - labelW/2, 175, labelW, 8, 3, 3, 'S');
+  doc.text(labelTxt, PW/2, 180.5, { align:'center' });
 
-  // Stat boxes
-  const stats = [
+  // Stats — 3 boxes
+  const statItems = [
     { val: String(totalProducts),   lbl: 'Produits' },
     { val: String(sections.length), lbl: 'Catégories' },
+    { val: dateStr.split(' ')[2],   lbl: 'Édition' },
   ];
-  const bW = 42, bH = 26, bGap = 12;
-  const bTW = stats.length * bW + (stats.length-1)*bGap;
-  const bSX = PW/2 - bTW/2;
-  stats.forEach((s, i) => {
-    const bx = bSX + i*(bW+bGap), by = 164;
-    doc.setGState(doc.GState({ opacity: 0.1 }));
+  const bW = 48, bGap = 6;
+  const bTotal = statItems.length * bW + (statItems.length-1)*bGap;
+  const bSX = PW/2 - bTotal/2;
+
+  statItems.forEach((s, i) => {
+    const bx = bSX + i*(bW+bGap), by = 196;
+    // Box
     doc.setFillColor(...C.white);
-    doc.roundedRect(bx, by, bW, bH, 4, 4, 'F');
-    doc.setGState(doc.GState({ opacity: 1 }));
-    doc.setDrawColor(255,255,255);
-    doc.setGState(doc.GState({ opacity: 0.12 }));
-    doc.setLineWidth(0.4);
-    doc.roundedRect(bx, by, bW, bH, 4, 4, 'S');
-    doc.setGState(doc.GState({ opacity: 1 }));
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(bx, by, bW, 24, 3, 3, 'FD');
+    // Accent top
+    const acc = i === 0 ? C.red : i === 1 ? C.gold : C.dark;
+    doc.setFillColor(...acc);
+    doc.roundedRect(bx + bW/2 - 10, by - 1, 20, 3, 1, 1, 'F');
+    // Value
     doc.setFont('helvetica','bold');
-    doc.setFontSize(20);
-    doc.setTextColor(...C.white);
-    doc.text(s.val, bx+bW/2, by+15, { align:'center' });
+    doc.setFontSize(18);
+    doc.setTextColor(...C.black);
+    doc.text(s.val, bx + bW/2, by + 14, { align:'center' });
+    // Label
     doc.setFont('helvetica','normal');
     doc.setFontSize(6.5);
-    doc.setGState(doc.GState({ opacity: 0.4 }));
-    doc.text(s.lbl, bx+bW/2, by+22, { align:'center' });
-    doc.setGState(doc.GState({ opacity: 1 }));
+    doc.setTextColor(...C.gray);
+    doc.text(s.lbl, bx + bW/2, by + 20, { align:'center' });
   });
 
-  // Contact
+  // Contact at bottom
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
-  doc.setGState(doc.GState({ opacity: 0.28 }));
-  doc.setTextColor(...C.white);
-  doc.text('lebtex.ma  ·  +212 760 998 347', PW/2, 218, { align:'center' });
+  doc.setTextColor(...C.gray);
+  doc.text('lebtex.ma  ·  +212 760 998 347', PW/2, 238, { align:'center' });
+
+  // Bottom dark strip
+  doc.setFillColor(...C.ink);
+  doc.rect(0, PH - 16, PW, 16, 'F');
+  doc.setFont('helvetica','normal');
   doc.setFontSize(6.5);
-  doc.setGState(doc.GState({ opacity: 0.16 }));
-  doc.text(`Généré le ${dateStr}`, PW/2, PH - 10, { align:'center' });
+  doc.setTextColor(255,255,255);
+  doc.setGState(doc.GState({ opacity: 0.3 }));
+  doc.text(`Généré le ${dateStr}`, PW/2, PH - 7, { align:'center' });
   doc.setGState(doc.GState({ opacity: 1 }));
 
   onProgress?.(10, 'Couverture créée…');
 
-  // ══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════
   // PAGE 2 — SOMMAIRE
-  // ══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════
   doc.addPage();
   band(doc, C.red);
 
@@ -254,7 +260,6 @@ export async function generateCataloguePDF(
     }
     const accent = sec.category.color ? hexRgb(sec.category.color) : C.red;
 
-    // Number badge
     doc.setFillColor(...accent);
     doc.roundedRect(ML, sy, 11, 11, 2, 2, 'F');
     doc.setFont('helvetica','bold');
@@ -262,7 +267,6 @@ export async function generateCataloguePDF(
     doc.setTextColor(...C.white);
     doc.text(String(i+1).padStart(2,'0'), ML+5.5, sy+7, { align:'center' });
 
-    // Name
     doc.setFont('helvetica','bold');
     doc.setFontSize(11);
     doc.setTextColor(...C.black);
@@ -275,7 +279,6 @@ export async function generateCataloguePDF(
       doc.text(clip(sec.category.description, 80), ML+15, sy+9.5);
     }
 
-    // Products count
     doc.setFont('helvetica','bold');
     doc.setFontSize(11);
     doc.setTextColor(...accent);
@@ -291,12 +294,11 @@ export async function generateCataloguePDF(
     sy += 19;
   });
   drawFooter(doc, dateStr);
-
   onProgress?.(18, 'Sommaire créé…');
 
-  // ══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════
   // SECTIONS
-  // ══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════
   for (let si = 0; si < sections.length; si++) {
     const sec    = sections[si];
     const cat    = sec.category;
@@ -306,40 +308,35 @@ export async function generateCataloguePDF(
     const pBase = 18 + (si / sections.length) * 72;
     onProgress?.(Math.round(pBase), `Chargement images: ${cat.name}…`);
 
-    // ── Load all product images ───────────────────────────────────────────────
+    // Load all images
     const imgCache: Record<string, string|null> = {};
     await Promise.all(
       prods.map(async p => {
         const url = (p.images||[])[0];
         if (url && !(url in imgCache)) {
-          imgCache[url] = await imgToBase64(url);
+          imgCache[url] = await loadImg(url);
         }
       })
     );
 
-    // ══════════════════════════════════════════════════════
-    // ── Category header page ──────────────────────────────
-    // ══════════════════════════════════════════════════════
+    // ── Category header page ─────────────────────────────────────────────────
     doc.addPage();
     band(doc, accent);
-
-    // Header background
     doc.setFillColor(...C.cream);
     doc.rect(0, 3, PW, 40, 'F');
 
-    // Section number badge
     doc.setFillColor(...accent);
-    doc.roundedRect(ML, 10, 22, 22, 3, 3, 'F');
+    doc.roundedRect(ML, 9, 22, 22, 3, 3, 'F');
     doc.setFont('helvetica','bold');
     doc.setFontSize(15);
     doc.setTextColor(...C.white);
-    doc.text(String(si+1).padStart(2,'0'), ML+11, 23, { align:'center' });
+    doc.text(String(si+1).padStart(2,'0'), ML+11, 22, { align:'center' });
 
-    // Category name & description
     doc.setFont('helvetica','bold');
     doc.setFontSize(20);
     doc.setTextColor(...C.black);
     doc.text(cat.name, ML+27, 21);
+
     if (cat.description) {
       doc.setFont('helvetica','normal');
       doc.setFontSize(8);
@@ -348,7 +345,6 @@ export async function generateCataloguePDF(
       doc.text(dl, ML+27, 29);
     }
 
-    // Products count (right)
     doc.setFont('helvetica','bold');
     doc.setFontSize(16);
     doc.setTextColor(...accent);
@@ -358,28 +354,17 @@ export async function generateCataloguePDF(
     doc.setTextColor(...C.gray);
     doc.text(`produit${prods.length>1?'s':''}`, PW-MR-3, 26, { align:'right' });
 
-    onProgress?.(Math.round(pBase + 1), `Section ${si+1}/${sections.length}: ${cat.name}…`);
-
-    // ══════════════════════════════════════════════════════
-    // ── Products — 2 columns with photo ──────────────────
-    // ══════════════════════════════════════════════════════
-    const CARD_H  = 62;
-    const CARD_GAP = 5;
-    const IMG_W   = 42;
-    const IMG_H   = 42;
-    const COLS    = 2;
-    const COL_W   = (CW - CARD_GAP) / COLS;
-
+    // ── Products 2-column grid ───────────────────────────────────────────────
+    const CARD_H = 64, CARD_GAP = 5;
+    const IMG_W = 44, IMG_H = 44;
+    const COLS = 2;
+    const COL_W = (CW - CARD_GAP) / COLS;
     let py = 50;
 
     for (let pi = 0; pi < prods.length; pi++) {
       const p   = prods[pi];
       const col = pi % COLS;
-
-      // New row: advance Y
       if (col === 0 && pi > 0) py += CARD_H + CARD_GAP;
-
-      // Page break
       if (py + CARD_H > PH - 18) {
         drawFooter(doc, dateStr);
         doc.addPage();
@@ -391,90 +376,81 @@ export async function generateCataloguePDF(
       const cy = py;
 
       // Card
-      doc.setFillColor(...C.cream);
+      doc.setFillColor(...C.white);
       doc.setDrawColor(...C.silk);
       doc.setLineWidth(0.2);
       doc.roundedRect(cx, cy, COL_W, CARD_H, 2.5, 2.5, 'FD');
 
-      // Accent top strip
+      // Accent left strip
       doc.setFillColor(...accent);
-      doc.roundedRect(cx, cy, COL_W, 3, 2.5, 2.5, 'F');
-      doc.rect(cx, cy+1.5, COL_W, 1.5, 'F');
+      doc.roundedRect(cx, cy, 2.5, CARD_H, 2.5, 2.5, 'F');
+      doc.rect(cx+1.2, cy, 1.3, CARD_H, 'F');
 
-      // ── Photo ──────────────────────────────────────────────────────────────
+      // Photo area
+      const IX = cx + 6, IY = cy + 5;
+      doc.setFillColor(240, 236, 232);
+      doc.roundedRect(IX, IY, IMG_W, IMG_H, 2, 2, 'F');
+
       const imgUrl  = (p.images||[])[0];
       const imgData = imgUrl ? imgCache[imgUrl] : null;
-      const IX = cx + 3;
-      const IY = cy + 6;
-
-      doc.setFillColor(228, 224, 220);
-      doc.roundedRect(IX, IY, IMG_W, IMG_H, 2, 2, 'F');
       if (imgData) {
-        drawImg(doc, imgData, IX, IY, IMG_W, IMG_H);
+        safeImg(doc, imgData, IX, IY, IMG_W, IMG_H);
       } else {
-        // Photo placeholder icon
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(8);
+        // Placeholder with product initial
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(16);
         doc.setTextColor(...C.lgray);
-        doc.text('Photo', IX + IMG_W/2, IY + IMG_H/2 + 3, { align:'center' });
+        doc.text(p.name.charAt(0).toUpperCase(), IX + IMG_W/2, IY + IMG_H/2 + 5, { align:'center' });
       }
 
-      // ── Right: product info ─────────────────────────────────────────────────
-      const RX = cx + IMG_W + 7;
-      const RW = COL_W - IMG_W - 10;
+      // Right side
+      const RX = cx + IMG_W + 10;
+      const RW = COL_W - IMG_W - 13;
       let ry = cy + 7;
 
-      // Ref
+      // Ref badge
       if (p.sku) {
-        doc.setFont('helvetica','normal');
+        doc.setFillColor(...C.silk);
+        const refW = doc.getTextWidth(`Réf: ${p.sku}`) + 6;
+        doc.roundedRect(RX, ry - 1, refW, 5.5, 1.5, 1.5, 'F');
+        doc.setFont('helvetica','bold');
         doc.setFontSize(5.5);
         doc.setTextColor(...C.gray);
-        doc.text(`Réf: ${p.sku}`, RX, ry);
-        ry += 4;
+        doc.text(`Réf: ${p.sku}`, RX + 3, ry + 3.2);
+        ry += 7;
       }
 
       // Name
       doc.setFont('helvetica','bold');
       doc.setFontSize(8.5);
       doc.setTextColor(...C.black);
-      const nameLines = doc.splitTextToSize(clip(p.name, 55), RW);
+      const nameLines = doc.splitTextToSize(clip(p.name, 50), RW);
       doc.text(nameLines.slice(0,2), RX, ry);
-      ry += Math.min(nameLines.length, 2) * 4 + 1;
+      ry += Math.min(nameLines.length, 2)*4 + 1;
 
-      // Short desc
-      if (p.shortDescription && ry < cy + CARD_H - 14) {
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(6.5);
-        doc.setTextColor(...C.dark);
-        const sdLines = doc.splitTextToSize(clip(p.shortDescription, 100), RW);
-        doc.text(sdLines.slice(0,2), RX, ry);
-        ry += Math.min(sdLines.length, 2) * 3.5 + 1.5;
-      }
+      // Specs
+      const specs: [string,string][] = [
+        ['Matériau', p.material||''],
+        ['Type',     p.typeProduit||''],
+        ['Couleur',  p.couleur||''],
+        ['Largeur',  p.width||''],
+        ['Longueur', p.longueur||''],
+        ['Poids',    p.weight ? `${p.weight}g` : ''],
+      ].filter(([,v])=>v) as [string,string][];
 
-      // 4 key specs
-      const keySpecs: [string,string][] = [
-        ['Matériau',  p.material||''],
-        ['Type',      p.typeProduit||''],
-        ['Couleur',   p.couleur||''],
-        ['Largeur',   p.width||''],
-        ['Longueur',  p.longueur||''],
-        ['Poids',     p.weight ? `${p.weight}g` : ''],
-        ['Emballage', p.packaging||''],
-      ].filter(([,v]) => v) as [string,string][];
-
-      keySpecs.slice(0,4).forEach(([lbl, val]) => {
-        if (ry > cy + CARD_H - 8) return;
+      specs.slice(0, 4).forEach(([lbl, val]) => {
+        if (ry > cy + CARD_H - 7) return;
         doc.setFont('helvetica','bold');
         doc.setFontSize(5.5);
         doc.setTextColor(...C.gray);
         doc.text(`${lbl}:`, RX, ry);
         doc.setFont('helvetica','normal');
-        doc.setTextColor(...C.black);
-        doc.text(clip(val, 28), RX + doc.getTextWidth(`${lbl}: `), ry);
-        ry += 4;
+        doc.setTextColor(...C.dark);
+        doc.text(clip(val, 26), RX + doc.getTextWidth(`${lbl}: `), ry);
+        ry += 4.2;
       });
 
-      // Coloris & tailles
+      // Variants
       if (p.variants?.length > 0 && ry < cy + CARD_H - 7) {
         const colors = [...new Set(p.variants.filter(v=>v.color).map(v=>v.color!))];
         const sizes  = [...new Set(p.variants.filter(v=>v.size).map(v=>v.size!))];
@@ -482,21 +458,18 @@ export async function generateCataloguePDF(
         doc.setFontSize(5.5);
         doc.setTextColor(...accent);
         if (colors.length && ry < cy + CARD_H - 7) {
-          doc.text(`Coloris: ${clip(colors.join(', '), 30)}`, RX, ry);
+          doc.text(`Coloris: ${clip(colors.join(', '), 26)}`, RX, ry);
           ry += 4;
         }
         if (sizes.length && ry < cy + CARD_H - 7) {
-          doc.text(`Tailles: ${clip(sizes.join(', '), 30)}`, RX, ry);
+          doc.text(`Tailles: ${clip(sizes.join(', '), 26)}`, RX, ry);
         }
       }
     }
 
-    // Close last row
     if (prods.length > 0) drawFooter(doc, dateStr);
 
-    // ══════════════════════════════════════════════════════
-    // ── Fiches techniques détaillées ─────────────────────
-    // ══════════════════════════════════════════════════════
+    // ── Fiches techniques ────────────────────────────────────────────────────
     const richProds = prods.filter(p =>
       p.description || p.material || p.typeProduit || p.specification ||
       p.applications || p.avantages || p.conseilsEntretien || p.informationCommerciale
@@ -506,8 +479,6 @@ export async function generateCataloguePDF(
 
     doc.addPage();
     band(doc, accent);
-
-    // Section title bar
     doc.setFillColor(...C.cream);
     doc.rect(0, 3, PW, 15, 'F');
     doc.setFont('helvetica','bold');
@@ -516,13 +487,12 @@ export async function generateCataloguePDF(
     doc.text(`${cat.name} — Fiches Techniques`, ML, 13);
     doc.setDrawColor(...accent);
     doc.setLineWidth(0.6);
-    doc.line(ML, 16.5, ML+55, 16.5);
+    doc.line(ML, 16.5, ML+50, 16.5);
 
     let dy = 24;
 
     for (const p of richProds) {
-      // Page break check
-      if (dy + 52 > PH - 18) {
+      if (dy + 55 > PH - 18) {
         drawFooter(doc, dateStr);
         doc.addPage();
         band(doc, accent);
@@ -532,12 +502,11 @@ export async function generateCataloguePDF(
       const imgUrl  = (p.images||[])[0];
       const imgData = imgUrl ? imgCache[imgUrl] : null;
 
-      // ── Name header ─────────────────────────────────────────────────────────
+      // Name bar
       doc.setFillColor(...accent);
-      doc.setGState(doc.GState({ opacity: 0.14 }));
+      doc.setGState(doc.GState({ opacity: 0.12 }));
       doc.roundedRect(ML, dy, CW, 9.5, 2, 2, 'F');
       doc.setGState(doc.GState({ opacity: 1 }));
-      // Left accent strip
       doc.setFillColor(...accent);
       doc.rect(ML, dy+1.5, 2.5, 6.5, 'F');
       doc.setFont('helvetica','bold');
@@ -548,23 +517,20 @@ export async function generateCataloguePDF(
         doc.setFont('helvetica','normal');
         doc.setFontSize(6.5);
         doc.setTextColor(...C.gray);
-        doc.text(`Réf: ${p.sku}`, ML+CW-2, dy+6.8, { align:'right' });
+        doc.text(`Réf: ${p.sku}`, ML+CW-1, dy+6.8, { align:'right' });
       }
       dy += 13;
 
-      // ── Body: photo left + specs right ──────────────────────────────────────
-      const ISW = 34, ISH = 34;
-      const hasImg = !!imgData;
-
-      // Photo
-      if (hasImg) {
-        doc.setFillColor(228, 224, 220);
+      // Photo + specs
+      const ISW = 36, ISH = 36;
+      if (imgData) {
+        doc.setFillColor(240, 236, 232);
         doc.roundedRect(ML, dy, ISW, ISH, 2, 2, 'F');
-        drawImg(doc, imgData!, ML, dy, ISW, ISH);
+        safeImg(doc, imgData, ML, dy, ISW, ISH);
       }
 
-      const SX = ML + (hasImg ? ISW + 5 : 0);
-      const SW = CW - (hasImg ? ISW + 5 : 0);
+      const SX = ML + (imgData ? ISW + 6 : 0);
+      const SW = CW - (imgData ? ISW + 6 : 0);
       let sy2 = dy;
 
       // Description
@@ -572,66 +538,68 @@ export async function generateCataloguePDF(
         doc.setFont('helvetica','italic');
         doc.setFontSize(7);
         doc.setTextColor(...C.dark);
-        const dl = doc.splitTextToSize(clip(p.description, 320), SW);
+        const dl = doc.splitTextToSize(clip(p.description, 280), SW);
         doc.text(dl.slice(0,3), SX, sy2 + 4);
-        sy2 += Math.min(dl.length, 3) * 3.8 + 5;
+        sy2 += Math.min(dl.length,3)*3.8 + 5;
       }
 
-      // Technical specs — 2 columns
+      // Tech specs 2-col
       const techPairs: [string,string][] = [
         ['Matériau',          p.material||''],
         ['Type de produit',   p.typeProduit||''],
         ['Spécification',     p.specification||''],
         ['Couleur',           p.couleur||''],
         ['Largeur',           p.width||''],
-        ['Largeur maille',    p.largeurMaille||''],
-        ['Longueur',          p.longueur||''],
+        ['Largeur maille',    (p as any).largeurMaille||''],
+        ['Longueur',          (p as any).longueur||''],
         ['Poids',             p.weight ? `${p.weight}g` : ''],
         ['Emballage',         p.packaging||''],
-        ['Matière/Mailles',   p.matiereMailles||''],
-        ['Composition ruban', p.compositionRuban||''],
-        ['Type',              (p as any).type||''],
-        ['Design',            (p as any).design||''],
+        ['Matière/Mailles',   (p as any).matiereMailles||''],
+        ['Composition ruban', (p as any).compositionRuban||''],
         ['Résistance',        (p as any).resistance||''],
         ['Sécurité',          (p as any).securite||''],
         ['Compatible avec',   (p as any).compatibleAvec||''],
         ['Pays de fabrication',(p as any).paysFabrication||''],
-      ].filter(([,v]) => v) as [string,string][];
+      ].filter(([,v])=>v) as [string,string][];
 
       if (techPairs.length > 0) {
-        if (sy2 < dy + (hasImg ? ISH : 0) + 2) sy2 = dy + (hasImg ? 0 : 0);
-
         doc.setFont('helvetica','bold');
         doc.setFontSize(6.5);
         doc.setTextColor(...accent);
         doc.text('CARACTÉRISTIQUES TECHNIQUES', SX, sy2 + 3);
-        sy2 += 6;
+        sy2 += 7;
 
-        const halfW = (SW - 4) / 2;
-        let lastRow = sy2;
-
+        const halfW = (SW - 5) / 2;
         for (let ti = 0; ti < techPairs.length; ti++) {
           const col = ti % 2;
-          if (col === 0 && ti > 0) { sy2 += 9; lastRow = sy2; }
-          if (sy2 > dy + 52) break;
-          const sx2 = SX + col*(halfW + 4);
-          specRow(doc, techPairs[ti][0], techPairs[ti][1], sx2, sy2, halfW);
+          if (col === 0 && ti > 0) sy2 += 9;
+          if (sy2 > PH - 20) break;
+          const sx3 = SX + col*(halfW + 5);
+          // Label
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(5.2);
+          doc.setTextColor(...C.gray);
+          doc.text(techPairs[ti][0].toUpperCase(), sx3, sy2);
+          // Value
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(7);
+          doc.setTextColor(...C.black);
+          doc.text(clip(techPairs[ti][1], 35), sx3, sy2 + 4.5);
         }
-        sy2 = (techPairs.length % 2 !== 0) ? lastRow + 9 : sy2 + 9;
+        sy2 += 9;
       }
 
-      // Advance dy beyond photo & content
       dy = Math.max(dy + ISH + 4, sy2 + 4);
 
-      // ── Additional info ──────────────────────────────────────────────────────
-      const infoPairs: [string,string][] = [
-        ['Applications',         p.applications||''],
-        ['Avantages',            p.avantages||''],
-        ["Conseils d'entretien", p.conseilsEntretien||''],
+      // Additional info
+      const infos: [string,string][] = [
+        ['Applications',           p.applications||''],
+        ['Avantages',              p.avantages||''],
+        ["Conseils d'entretien",   p.conseilsEntretien||''],
         ['Information commerciale', p.informationCommerciale||''],
-      ].filter(([,v]) => v) as [string,string][];
+      ].filter(([,v])=>v) as [string,string][];
 
-      if (infoPairs.length > 0) {
+      if (infos.length > 0) {
         if (dy + 10 > PH - 18) {
           drawFooter(doc, dateStr);
           doc.addPage(); band(doc, accent); dy = 10;
@@ -640,9 +608,9 @@ export async function generateCataloguePDF(
         doc.setFontSize(6.5);
         doc.setTextColor(...accent);
         doc.text('INFORMATIONS COMPLÉMENTAIRES', ML, dy + 3);
-        dy += 6;
+        dy += 7;
 
-        for (const [lbl, val] of infoPairs) {
+        for (const [lbl, val] of infos) {
           if (dy > PH - 18) {
             drawFooter(doc, dateStr);
             doc.addPage(); band(doc, accent); dy = 10;
@@ -656,80 +624,97 @@ export async function generateCataloguePDF(
           doc.setTextColor(...C.gray);
           const il = doc.splitTextToSize(clip(val, 240), CW-4);
           doc.text(il.slice(0,4), ML, dy+7);
-          dy += Math.min(il.length, 4)*3.5 + 6;
+          dy += Math.min(il.length,4)*3.5 + 6;
         }
       }
 
-      // Divider
       doc.setDrawColor(...C.silk);
       doc.setLineWidth(0.2);
       doc.line(ML, dy, ML+CW, dy);
       dy += 7;
     }
-
     drawFooter(doc, dateStr);
   }
 
   onProgress?.(93, 'Page de contact…');
 
-  // ══════════════════════════════════════════════════════
-  // LAST PAGE — CONTACT
-  // ══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════
+  // LAST PAGE — CONTACT (same split design as cover)
+  // ═══════════════════════════════════════════════════
   doc.addPage();
-  doc.setFillColor(12, 12, 12);
-  doc.rect(0, 0, PW, PH, 'F');
 
+  // Top dark
+  doc.setFillColor(...C.ink);
+  doc.rect(0, 0, PW, 148, 'F');
+  // Bottom cream
+  doc.setFillColor(...C.cream);
+  doc.rect(0, 148, PW, PH-148, 'F');
+
+  // Red accent
   doc.setFillColor(...C.red);
-  doc.setGState(doc.GState({ opacity: 0.06 }));
-  doc.ellipse(PW/2, PH/2 - 20, 80, 70, 'F');
+  doc.setGState(doc.GState({ opacity: 0.18 }));
+  doc.triangle(PW, 0, PW, 90, PW-70, 0, 'F');
   doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Logo on contact page too
+  // Logo card (smaller)
+  const lc2W = 90, lc2H = 45, lc2X = PW/2 - lc2W/2, lc2Y = 40;
+  doc.setFillColor(0,0,0);
+  doc.setGState(doc.GState({ opacity: 0.2 }));
+  doc.roundedRect(lc2X+2, lc2Y+2, lc2W, lc2H, 4, 4, 'F');
+  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setFillColor(...C.white);
+  doc.roundedRect(lc2X, lc2Y, lc2W, lc2H, 4, 4, 'F');
+  doc.setFillColor(...C.red);
+  doc.roundedRect(lc2X, lc2Y, lc2W, 2.5, 2, 2, 'F');
+  doc.rect(lc2X, lc2Y+1, lc2W, 1.5, 'F');
   try {
-    doc.addImage(LOGO_B64, 'PNG', PW/2 - 35, 72, 70, 32, undefined, 'FAST');
-  } catch { /* skip */ }
+    const lW2 = 70, lH2 = 31;
+    doc.addImage(LOGO_B64, 'PNG', lc2X + lc2W/2 - lW2/2, lc2Y + (lc2H - lH2)/2 + 1, lW2, lH2, undefined, 'FAST');
+  } catch {}
 
+  // Title
   doc.setFont('helvetica','bold');
-  doc.setFontSize(28);
+  doc.setFontSize(26);
   doc.setTextColor(...C.white);
-  doc.text("Besoin d'informations ?", PW/2, 124, { align:'center' });
-
+  doc.text("Besoin d'informations ?", PW/2, 118, { align:'center' });
   doc.setFont('helvetica','normal');
   doc.setFontSize(8.5);
   doc.setGState(doc.GState({ opacity: 0.38 }));
-  doc.text('Contactez-nous pour les tarifs, quantités et conditions.', PW/2, 135, { align:'center' });
+  doc.text('Contactez-nous pour les tarifs, quantités et conditions.', PW/2, 128, { align:'center' });
   doc.setGState(doc.GState({ opacity: 1 }));
 
-  // WhatsApp CTA
+  // WhatsApp
   doc.setFillColor(37, 211, 102);
-  doc.roundedRect(PW/2-50, 148, 100, 14, 7, 7, 'F');
+  doc.roundedRect(PW/2-50, 158, 100, 14, 7, 7, 'F');
   doc.setFont('helvetica','bold');
   doc.setFontSize(9.5);
   doc.setTextColor(...C.white);
-  doc.text('Demander les prix — WhatsApp', PW/2, 157.5, { align:'center' });
+  doc.text('Demander les prix — WhatsApp', PW/2, 167, { align:'center' });
 
-  // Phone
-  doc.setGState(doc.GState({ opacity: 0.15 }));
-  doc.setDrawColor(...C.white);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(PW/2-36, 172, 72, 11, 5, 5, 'S');
-  doc.setGState(doc.GState({ opacity: 0.6 }));
+  // Phone box
+  doc.setFillColor(...C.white);
+  doc.setDrawColor(...C.silk);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(PW/2-40, 184, 80, 13, 4, 4, 'FD');
   doc.setFont('helvetica','bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...C.white);
-  doc.text('+212 760 998 347', PW/2, 179, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 0.28 }));
+  doc.setFontSize(11);
+  doc.setTextColor(...C.black);
+  doc.text('+212 760 998 347', PW/2, 192, { align:'center' });
+
+  // Website
   doc.setFont('helvetica','normal');
-  doc.setFontSize(8.5);
-  doc.text('lebtex.ma', PW/2, 193, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 0.07 }));
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(38);
-  doc.text('LEBTEX', PW/2, PH-32, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 0.16 }));
+  doc.setFontSize(9);
+  doc.setTextColor(...C.gray);
+  doc.text('lebtex.ma', PW/2, 212, { align:'center' });
+
+  // Bottom strip
+  doc.setFillColor(...C.ink);
+  doc.rect(0, PH-16, PW, 16, 'F');
   doc.setFont('helvetica','normal');
   doc.setFontSize(6.5);
-  doc.text(`© ${year} LEBTEX — Tous droits réservés`, PW/2, PH-20, { align:'center' });
+  doc.setGState(doc.GState({ opacity: 0.3 }));
+  doc.setTextColor(...C.white);
+  doc.text(`© ${year} LEBTEX — Tous droits réservés`, PW/2, PH-7, { align:'center' });
   doc.setGState(doc.GState({ opacity: 1 }));
 
   onProgress?.(100, 'Téléchargement…');
