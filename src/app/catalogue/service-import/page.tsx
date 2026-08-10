@@ -81,13 +81,13 @@ export default function ServiceImportPage() {
               
               <div className="relative z-10 w-3/4 max-w-[280px] -ml-20 md:-ml-32 mt-20 transform -rotate-6 group">
                 <div className="rounded-[2.5rem] border-[6px] border-[#151515] bg-[#111] overflow-hidden shadow-2xl shadow-black/50 transition-transform duration-500 group-hover:-translate-y-4 group-hover:-rotate-3">
-                  <img src="/app-preview-login.png" alt="App Login" className="w-full h-full object-cover" />
+                  <img src="/images/client-portal-login.png" alt="App Login" className="w-full h-full object-cover" />
                 </div>
               </div>
               
               <div className="absolute z-20 w-3/4 max-w-[280px] ml-20 md:ml-32 -mt-20 transform rotate-3 group">
                 <div className="rounded-[2.5rem] border-[6px] border-[#151515] bg-[#111] overflow-hidden shadow-2xl shadow-black/50 transition-transform duration-500 group-hover:-translate-y-4 group-hover:rotate-0">
-                  <img src="/app-preview-dashboard.png" alt="App Dashboard" className="w-full h-full object-cover" />
+                  <img src="/images/client-portal-dashboard.jpg" alt="App Dashboard" className="w-full h-full object-cover" />
                 </div>
               </div>
             </div>
