@@ -85,34 +85,50 @@ export default function AboutPage() {
         <div className="mb-16">
           <h2 className="text-3xl font-bold mb-8 text-center">Nos Magasins</h2>
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-              <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#C8102E]/10 rounded-full blur-2xl"></div>
-              <Store className="w-12 h-12 text-[#C8102E] mb-6" />
-              <h3 className="text-2xl font-bold text-white mb-2">Magasin Principal</h3>
-              <div className="flex items-start text-gray-300 mb-6">
-                <MapPin className="w-5 h-5 mr-2 mt-1 shrink-0 text-gray-500" />
-                <p>Boulevard Haïfa<br />Casablanca, Maroc</p>
+            <div className="bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/10 rounded-3xl overflow-hidden relative group">
+              <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#C8102E]/10 rounded-full blur-2xl z-0"></div>
+              <div className="h-48 w-full relative z-10 overflow-hidden">
+                <img src="/boutiques/haifa-1.jpg" alt="Magasin Boulevard Haïfa" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#151515] to-transparent"></div>
               </div>
-              <ul className="space-y-3">
-                <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#D4A843] mr-2" /> Toute la gamme de produits</li>
-                <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#D4A843] mr-2" /> Spécialité fermetures & mercerie</li>
-                <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#D4A843] mr-2" /> Espace professionnels</li>
-              </ul>
+              <div className="p-8 relative z-10 -mt-12">
+                <div className="bg-[#C8102E]/20 w-12 h-12 rounded-xl flex items-center justify-center backdrop-blur-md border border-[#C8102E]/30 mb-6">
+                  <Store className="w-6 h-6 text-[#C8102E]" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Magasin Principal</h3>
+                <div className="flex items-start text-gray-300 mb-6">
+                  <MapPin className="w-5 h-5 mr-2 mt-1 shrink-0 text-gray-500" />
+                  <p>Boulevard Haïfa<br />Casablanca, Maroc</p>
+                </div>
+                <ul className="space-y-3">
+                  <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#D4A843] mr-2" /> Toute la gamme de produits</li>
+                  <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#D4A843] mr-2" /> Spécialité fermetures & mercerie</li>
+                  <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#D4A843] mr-2" /> Espace professionnels</li>
+                </ul>
+              </div>
             </div>
 
-            <div className="bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-              <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#D4A843]/10 rounded-full blur-2xl"></div>
-              <Store className="w-12 h-12 text-[#D4A843] mb-6" />
-              <h3 className="text-2xl font-bold text-white mb-2">Succursale Derb Omar</h3>
-              <div className="flex items-start text-gray-300 mb-6">
-                <MapPin className="w-5 h-5 mr-2 mt-1 shrink-0 text-gray-500" />
-                <p>Quartier Derb Omar<br />Casablanca, Maroc</p>
+            <div className="bg-gradient-to-br from-white/5 to-transparent backdrop-blur-md border border-white/10 rounded-3xl overflow-hidden relative group">
+              <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#D4A843]/10 rounded-full blur-2xl z-0"></div>
+              <div className="h-48 w-full relative z-10 overflow-hidden">
+                <img src="/boutiques/derb-omar-1.webp" alt="Magasin Derb Omar" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#151515] to-transparent"></div>
               </div>
-              <ul className="space-y-3">
-                <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#C8102E] mr-2" /> Vente au Détail & Gros</li>
-                <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#C8102E] mr-2" /> Spécialité fils, rubans et accessoires</li>
-                <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#C8102E] mr-2" /> Stock disponible sur place</li>
-              </ul>
+              <div className="p-8 relative z-10 -mt-12">
+                <div className="bg-[#D4A843]/20 w-12 h-12 rounded-xl flex items-center justify-center backdrop-blur-md border border-[#D4A843]/30 mb-6">
+                  <Store className="w-6 h-6 text-[#D4A843]" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Succursale Derb Omar</h3>
+                <div className="flex items-start text-gray-300 mb-6">
+                  <MapPin className="w-5 h-5 mr-2 mt-1 shrink-0 text-gray-500" />
+                  <p>Quartier Derb Omar<br />Casablanca, Maroc</p>
+                </div>
+                <ul className="space-y-3">
+                  <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#C8102E] mr-2" /> Vente au Détail & Gros</li>
+                  <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#C8102E] mr-2" /> Spécialité fils, rubans et accessoires</li>
+                  <li className="flex items-center text-gray-300"><CheckCircle className="w-4 h-4 text-[#C8102E] mr-2" /> Stock disponible sur place</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>

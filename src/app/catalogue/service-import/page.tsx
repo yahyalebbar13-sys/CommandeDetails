@@ -76,56 +76,18 @@ export default function ServiceImportPage() {
               </ul>
             </div>
             
-            <div className="relative">
-              <div className="aspect-[9/16] md:aspect-square bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl border border-gray-700 shadow-2xl overflow-hidden relative">
-                {/* Mockup App Interface */}
-                <div className="absolute inset-0 p-6 flex flex-col">
-                  <div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-4">
-                    <div className="font-bold">Commande #8492</div>
-                    <div className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-bold">En transit</div>
-                  </div>
-                  
-                  <div className="space-y-6 flex-1">
-                    <div className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                        <div className="w-0.5 h-12 bg-green-500"></div>
-                      </div>
-                      <div>
-                        <div className="font-bold">Production Terminée</div>
-                        <div className="text-sm text-gray-400">12 Août 2026</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                        <div className="w-0.5 h-12 bg-green-500"></div>
-                      </div>
-                      <div>
-                        <div className="font-bold">Contrôle Qualité Validé</div>
-                        <div className="text-sm text-gray-400">14 Août 2026 (Voir les 12 photos)</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="w-4 h-4 rounded-full bg-[#D4A843] animate-pulse"></div>
-                        <div className="w-0.5 h-12 bg-gray-700"></div>
-                      </div>
-                      <div>
-                        <div className="font-bold text-[#D4A843]">Embarquement Navire</div>
-                        <div className="text-sm text-gray-400">Prévu le 18 Août 2026</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-4 opacity-50">
-                      <div className="flex flex-col items-center">
-                        <div className="w-4 h-4 rounded-full bg-gray-700"></div>
-                      </div>
-                      <div>
-                        <div className="font-bold">Arrivée Port de Casablanca</div>
-                        <div className="text-sm text-gray-400">Est. 22 Septembre 2026</div>
-                      </div>
-                    </div>
-                  </div>
+            <div className="relative h-[500px] md:h-[600px] flex items-center justify-center">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#0052cc]/10 to-transparent rounded-full blur-3xl"></div>
+              
+              <div className="relative z-10 w-3/4 max-w-[280px] -ml-20 md:-ml-32 mt-20 transform -rotate-6 group">
+                <div className="rounded-[2.5rem] border-[6px] border-[#151515] bg-[#111] overflow-hidden shadow-2xl shadow-black/50 transition-transform duration-500 group-hover:-translate-y-4 group-hover:-rotate-3">
+                  <img src="/app-preview-login.png" alt="App Login" className="w-full h-full object-cover" />
+                </div>
+              </div>
+              
+              <div className="absolute z-20 w-3/4 max-w-[280px] ml-20 md:ml-32 -mt-20 transform rotate-3 group">
+                <div className="rounded-[2.5rem] border-[6px] border-[#151515] bg-[#111] overflow-hidden shadow-2xl shadow-black/50 transition-transform duration-500 group-hover:-translate-y-4 group-hover:rotate-0">
+                  <img src="/app-preview-dashboard.png" alt="App Dashboard" className="w-full h-full object-cover" />
                 </div>
               </div>
             </div>
