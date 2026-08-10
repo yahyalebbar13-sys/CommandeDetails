@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
@@ -10,6 +11,7 @@ import { formatPrice } from '@/lib/shop-utils';
 
 // ─── Inline ProductCard ────────────────────────────────────────────────────────
 const ProductCard = React.memo(function ProductCard({ product }: { product: ShopProduct }) {
+  const router = useRouter();
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
@@ -31,9 +33,9 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
   };
 
   return (
-    <Link
-      href={`/shop/produit/${product.id}`}
-      className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl relative group flex flex-col h-full no-underline"
+    <div
+      onClick={() => router.push(`/shop/produit/${product.id}`)}
+      className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl relative group flex flex-col h-full no-underline cursor-pointer touch-manipulation"
     >
       <div className="relative aspect-square bg-gray-50 overflow-hidden">
         <img
@@ -52,7 +54,7 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
         {/* Wishlist */}
         <button
           onClick={e => { e.preventDefault(); e.stopPropagation(); setWished(!wished); }}
-          className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-10"
+          className="absolute top-3 right-3 w-11 h-11 lg:w-8 lg:h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-10 cursor-pointer touch-manipulation"
         >
           <span className={`text-base ${wished ? 'text-red-500' : 'text-gray-400'}`}>
             {wished ? '♥' : '♡'}
@@ -63,11 +65,11 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
           <button
             onClick={handleAdd}
             disabled={added}
-            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
+            className={`lg:hidden absolute bottom-3 right-3 z-10 w-11 h-11 rounded-full shadow-md flex items-center justify-center transition-all cursor-pointer touch-manipulation ${
               added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
             }`}
           >
-            {added ? <span className="text-[10px] font-bold">✓</span> : <ShoppingBag className="w-4 h-4" />}
+            {added ? <span className="text-[10px] font-bold">✓</span> : <ShoppingBag className="w-5 h-5" />}
           </button>
         )}
         
@@ -75,7 +77,7 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
         <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
           <button
             onClick={handleAdd}
-            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${
+            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all cursor-pointer touch-manipulation ${
               added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'
             }`}
           >
@@ -109,13 +111,14 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
           <span className="text-xs text-gray-500">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 });
 
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function CategoryPage({ params }: { params: any }) {
+  const router = useRouter();
   const rawSlug: string = React.use(params).slug as string;
   // Decode URL encoding (e.g. %20 → space) AND normalize to match stored slugs
   const slug = decodeURIComponent(rawSlug);
@@ -291,10 +294,10 @@ export default function CategoryPage({ params }: { params: any }) {
       <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-[#E8E4DF] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <button
-            onClick={() => window.history.back()}
+            onClick={() => window.history.length > 1 ? window.history.back() : router.push('/shop/categories')}
             aria-label="Retour"
             title="Retour"
-            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 touch-manipulation"
+            className="w-11 h-11 lg:w-10 lg:h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 cursor-pointer touch-manipulation"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>

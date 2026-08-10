@@ -84,7 +84,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             style={{ fontFamily: "'Inter', sans-serif", background: '#FBF8F3' }}
           >
             {/* Construction Banner */}
-            <div className="bg-[#C8102E] text-white text-center py-2.5 px-4 text-xs sm:text-sm font-bold shadow-sm z-[100] relative flex items-center justify-center gap-2">
+            <div className="bg-[#C8102E] text-white text-center py-2.5 px-4 text-xs sm:text-sm font-bold shadow-sm relative flex items-center justify-center gap-2">
               <span className="text-base">🚧</span>
               Ce site est en cours de construction et n'est pas encore fonctionnel. Aucune commande ne sera traitée.
             </div>

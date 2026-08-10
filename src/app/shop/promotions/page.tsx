@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
@@ -12,6 +13,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
+  const router = useRouter();
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
 
   const handleAdd = (e: React.MouseEvent) => {
@@ -23,9 +25,9 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   };
 
   return (
-    <Link
-      href={`/shop/produit/${product.id}`}
-      className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full no-underline"
+    <div
+      onClick={() => router.push(`/shop/produit/${product.id}`)}
+      className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full no-underline cursor-pointer"
     >
       <div className="relative aspect-square bg-gray-50 shop-img-zoom">
         <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
@@ -40,7 +42,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           <button
             onClick={handleAdd}
             disabled={added}
-            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all ${
+            className={`lg:hidden absolute bottom-3 right-3 z-10 w-11 h-11 rounded-full shadow-md flex items-center justify-center transition-all cursor-pointer touch-manipulation ${
               added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
             }`}
           >
@@ -50,7 +52,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
         {/* Desktop Quick add overlay */}
         <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
           <button onClick={handleAdd}
-            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
+            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'}`}>
             {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
           </button>
         </div>
@@ -62,7 +64,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           <span className="font-black text-[#C8102E] text-lg">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 });
 
@@ -125,7 +127,7 @@ export default function PromotionsPage() {
         <div className="flex gap-2 mb-8 overflow-x-auto">
           {tabs.map(({ key, label, count }) => (
             <button key={key} onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap transition-all cursor-pointer touch-manipulation ${
                 activeTab === key ? 'bg-[#C8102E] text-white shadow-lg shadow-[#C8102E]/20' : 'bg-white border border-[#E8E4DF] text-[#6B6B6B] hover:border-[#C8102E]'
               }`}>
               {label}

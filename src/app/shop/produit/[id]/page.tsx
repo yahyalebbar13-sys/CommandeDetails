@@ -17,7 +17,7 @@ function Accordion({ title, icon, defaultOpen = false, children }: { title: stri
     <div className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shadow-sm mb-4">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-6 py-4 transition-colors hover:bg-[#FBF8F3] text-left"
+        className="w-full flex items-center justify-between px-6 py-4 transition-colors hover:bg-[#FBF8F3] text-left cursor-pointer"
         style={{ background: isOpen ? 'linear-gradient(135deg, #FBF8F3 0%, #F3EFE8 100%)' : 'white' }}
       >
         <div className="flex items-center gap-3">
@@ -139,7 +139,7 @@ function MultiVariantSelector({
               <button
                 key={sz}
                 onClick={() => setSelectedSize(sz)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border-2 
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border-2 cursor-pointer touch-manipulation
                   ${selectedSize === sz
                     ? 'border-[#C8102E] bg-red-50 text-[#C8102E]'
                     : 'border-[#E8E4DF] bg-white text-[#6B6B6B] hover:border-[#D4A843]'
@@ -220,7 +220,7 @@ function MultiVariantSelector({
                         }}
                         disabled={outOfStock}
                         title={outOfStock ? (language === 'ar' ? 'نفد' : 'Épuisé') : (v.size ? `${v.size} - ${language === 'ar' && v.colorAr ? v.colorAr : v.color}` : (language === 'ar' && v.colorAr ? v.colorAr : v.color))}
-                        className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative cursor-pointer
+                        className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative cursor-pointer touch-manipulation
                           ${v.image 
                             ? 'w-20 h-20 rounded-xl border-2' 
                             : 'w-14 h-14 rounded-full border-4'}
@@ -259,14 +259,14 @@ function MultiVariantSelector({
                     <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-8' : 'opacity-0 h-0 overflow-hidden'}`}>
                       {isSelected && (
                         <>
-                          <button onClick={() => setQty(v._safeId, -1, v.stock)}
-                            className="w-8 h-8 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all">
+                          <button onClick={(e) => { e.stopPropagation(); setQty(v._safeId, -1, v.stock); }}
+                            className="w-9 h-9 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all cursor-pointer touch-manipulation">
                             <Minus className="w-3.5 h-3.5" />
                           </button>
                           <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
-                          <button onClick={() => setQty(v._safeId, 1, v.stock)}
+                          <button onClick={(e) => { e.stopPropagation(); setQty(v._safeId, 1, v.stock); }}
                             disabled={qty >= v.stock}
-                            className="w-8 h-8 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all">
+                            className="w-9 h-9 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all cursor-pointer touch-manipulation">
                             <Plus className="w-3.5 h-3.5" />
                           </button>
                         </>
@@ -449,7 +449,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             onClick={() => window.history.back()} 
             aria-label="Retour"
             title="Retour"
-            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#D4A843] hover:text-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A]"
+            className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#D4A843] hover:text-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -478,7 +478,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             <div className="flex gap-2">
               {product.images?.map((img, i) => (
                 <button key={i} onClick={() => setMainImg(i)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${mainImg === i ? 'border-[#C8102E]' : 'border-[#E8E4DF] hover:border-[#D4A843]'}`}>
+                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${mainImg === i ? 'border-[#C8102E]' : 'border-[#E8E4DF] hover:border-[#D4A843]'}`}>
                   <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </button>
               ))}

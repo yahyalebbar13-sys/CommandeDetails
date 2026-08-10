@@ -202,7 +202,7 @@ export default function ShopHeader() {
               {/* Language Toggle */}
               <button
                 onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-red-50 transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-red-50 transition-all cursor-pointer"
                 aria-label={language === 'fr' ? 'Passer en arabe' : 'التبديل إلى الفرنسية'}
               >
                 <span className="text-base">{language === 'ar' ? '🇲🇦' : '🇫🇷'}</span>
@@ -212,7 +212,7 @@ export default function ShopHeader() {
               {/* Search Toggle - Mobile/Tablet only */}
               <button
                 onClick={() => setIsSearchOpen(true)}
-                className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all"
+                className="lg:hidden p-2.5 rounded-xl text-gray-600 hover:text-[#C8102E] hover:bg-gray-50 transition-all cursor-pointer"
                 aria-label="Rechercher"
               >
                 <Search className="w-5 h-5" />
@@ -232,7 +232,7 @@ export default function ShopHeader() {
               {/* Cart Button */}
               <button
                 onClick={openCart}
-                className="relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group"
+                className="relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group cursor-pointer"
                 aria-label={`Panier — ${itemCount} article${itemCount !== 1 ? "s" : ""}`}
               >
                 <ShoppingCart className="w-6 h-6 transition-transform group-hover:scale-110" />
@@ -249,7 +249,7 @@ export default function ShopHeader() {
               {/* Mobile hamburger */}
               <button
                 onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="lg:hidden p-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors"
+                className="lg:hidden p-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
                 aria-label="Menu"
                 aria-expanded={isMobileMenuOpen}
               >
@@ -273,8 +273,7 @@ export default function ShopHeader() {
                   <div key={link.labelKey} ref={dropdownRef} className="relative h-full flex items-center">
                     <button
                       onClick={() => setIsCategoriesOpen((v) => !v)}
-                      onMouseEnter={() => setIsCategoriesOpen(true)}
-                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 ${
+                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 cursor-pointer ${
                         isActive(link.href)
                           ? "border-[#C8102E] text-[#C8102E]"
                           : "border-transparent text-gray-700 hover:text-[#C8102E]"
@@ -348,8 +347,7 @@ export default function ShopHeader() {
                   <div key={link.labelKey} className="relative h-full flex items-center">
                     <button
                       onClick={() => setIsMoreOpen((v) => !v)}
-                      onMouseEnter={() => setIsMoreOpen(true)}
-                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 border-transparent text-gray-700 hover:text-[#C8102E]`}
+                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 border-transparent text-gray-700 hover:text-[#C8102E] cursor-pointer`}
                     >
                       {t(link.labelKey)}
                       <ChevronDown

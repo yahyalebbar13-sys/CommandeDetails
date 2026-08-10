@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { ShoppingCart, Heart, Star, StarHalf, Package, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
@@ -45,6 +46,7 @@ interface ProductCardProps {
 
 // ─── ProductCard ──────────────────────────────────────────────────────────────
 export default React.memo(function ProductCard({ product, showAddToCart = true }: ProductCardProps) {
+  const router = useRouter();
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [wishlisted, setWishlisted] = useState(false);
@@ -88,10 +90,9 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const productUrl = `/shop/produit/${product.id}`;
 
   return (
-    <Link
-      href={productUrl}
-      prefetch={false}
-      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline active:scale-[0.98] transition-transform duration-200 touch-manipulation"
+    <div
+      onClick={() => router.push(productUrl)}
+      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full cursor-pointer active:scale-[0.98] transition-transform duration-200 touch-manipulation"
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
@@ -120,7 +121,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         <button
           onClick={handleWishlist}
           aria-label={wishlisted ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
         >
           <Heart
             className={`w-4 h-4 transition-colors duration-200 ${
@@ -135,7 +136,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             onClick={handleAddToCart}
             disabled={added}
             aria-label="Ajouter au panier"
-            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all duration-200 active:scale-95 ${
+            className={`lg:hidden absolute bottom-3 right-3 z-10 w-9 h-9 rounded-full shadow-md flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer ${
               added ? 'bg-emerald-500 text-white' : 'bg-white text-[#0F0F0F] active:bg-gray-100'
             }`}
           >
@@ -152,7 +153,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
             <button
               onClick={handleAddToCart}
               disabled={!product.inStock || added}
-              className={`pointer-events-auto flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg transition-all duration-200 shop-btn-press ${
+              className={`pointer-events-auto flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg transition-all duration-200 shop-btn-press cursor-pointer ${
                 added
                   ? 'bg-emerald-500 text-white'
                   : product.inStock
@@ -251,7 +252,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           <button
             onClick={handleAddToCart}
             disabled={!product.inStock || added}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shop-btn-press ${
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shop-btn-press cursor-pointer ${
               added
                 ? 'bg-emerald-500 text-white shadow-md'
                 : product.inStock
@@ -276,6 +277,6 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           </button>
         </div>
       )}
-    </Link>
+    </div>
   );
 });
