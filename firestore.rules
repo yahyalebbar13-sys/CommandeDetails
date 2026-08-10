@@ -208,6 +208,12 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
     }
 
+    // shop_catalogue_settings: public read, admin-only write
+    match /shop_catalogue_settings/{settingId} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
+
     // shop_orders: anyone can create (guest checkout), owner & admin can read/update
     match /shop_orders/{orderId} {
       // Anyone can create an order (guest + logged-in customers)
