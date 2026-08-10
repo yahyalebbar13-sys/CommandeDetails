@@ -284,13 +284,6 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                     <MessageCircle className="w-4 h-4" />
                     Demander les prix
                   </a>
-                  <Link
-                    href={`/shop/produit/${product.slug}`}
-                    className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl border-2 border-[#E8E4DF] text-[#1A1A1A] text-sm font-bold hover:border-[#C8102E] hover:text-[#C8102E] transition-all"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Voir en boutique
-                  </Link>
                 </div>
               </div>
             </div>

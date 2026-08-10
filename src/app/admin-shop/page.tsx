@@ -3467,7 +3467,7 @@ function CatalogueAdminView() {
         </div>
         <div className="flex items-center gap-3">
           <a
-            href="/shop/catalogue"
+            href="/catalogue"
             target="_blank"
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:border-white/20 text-xs font-medium transition-all"
           >
