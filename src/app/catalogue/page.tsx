@@ -8,6 +8,7 @@ import {
   ArrowDown, ArrowUp, Phone, ChevronDown, Search, X,
   Eye, Star, Info, Ruler, Weight, Box, Tag,
   Shield, Wrench, Globe, Palette, ChevronLeft, Download, FileText, Loader2,
+  Store, Ship,
 } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
@@ -541,10 +542,19 @@ export default function CataloguePage() {
           style={{ background: '#D4A843' }} />
 
         <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-20 sm:py-28 text-center">
-          <nav className="flex items-center justify-center gap-1.5 text-[11px] text-white/25 mb-10">
-            <Link href="/shop" className="hover:text-white/50 transition-colors">Accueil</Link>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-white/50">Catalogue</span>
+          <nav className="flex items-center justify-center gap-2 mb-10 flex-wrap">
+            <Link href="/shop/a-propos"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/12 text-white/50 hover:text-white text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
+              <Store className="w-3 h-3" /> À propos
+            </Link>
+            <Link href="/shop/precommande"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8 hover:bg-[#D4A843]/15 text-[#D4A843]/70 hover:text-[#D4A843] text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
+              <Ship className="w-3 h-3" /> Service Import
+            </Link>
+            <Link href="/shop/contact"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/15 text-emerald-400/70 hover:text-emerald-400 text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
+              <MessageCircle className="w-3 h-3" /> Contact
+            </Link>
           </nav>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 mb-8">
