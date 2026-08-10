@@ -565,7 +565,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         <div className="mt-10 mb-12">
           <div className="space-y-4">
             {/* ── Caractéristiques Techniques (Hyper Pro) ── */}
-            {(product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.paysFabrication) && (
+            {(product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.conditionnementUnitaire || product.conditionnementGros) && (
               <Accordion title={language === 'ar' ? 'معلومات تفصيلية' : 'Informations Détaillées'} icon={<Package className="w-5 h-5 text-[#10B981]" />} defaultOpen={true}>
                 <div className="p-6 space-y-3 text-sm">
                   {product.typeProduit && (
@@ -626,6 +626,18 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
                       <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'متوافق مع:' : 'Compatible avec:'}</span>
                       <span className="text-[#6B6B6B]">{product.compatibleAvec}</span>
+                    </div>
+                  )}
+                  {product.conditionnementUnitaire && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'التعبئة والتغليف (وحدة):' : 'Cond. unitaire:'}</span>
+                      <span className="text-[#6B6B6B]">{product.conditionnementUnitaire}</span>
+                    </div>
+                  )}
+                  {product.conditionnementGros && (
+                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
+                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'التعبئة والتغليف (جملة):' : 'Cond. gros:'}</span>
+                      <span className="text-[#6B6B6B]">{product.conditionnementGros}</span>
                     </div>
                   )}
                 </div>

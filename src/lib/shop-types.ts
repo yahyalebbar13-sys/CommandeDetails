@@ -86,7 +86,8 @@ export interface ShopProduct {
   securite?: string;
   resistance?: string;
   compatibleAvec?: string;
-  paysFabrication?: string;
+  conditionnementUnitaire?: string;
+  conditionnementGros?: string;
 
   createdAt?: any;
   updatedAt?: any;

@@ -2118,7 +2118,7 @@ function ProduitsView() {
       if ((editForm as any).width) base.width = (editForm as any).width;
       if ((editForm as any).packaging) base.packaging = (editForm as any).packaging;
 
-      ['applications', 'avantages', 'conseilsEntretien', 'informationCommerciale', 'motsCles', 'typeProduit', 'matiereMailles', 'compositionRuban', 'couleur', 'largeurMaille', 'longueur', 'type', 'design', 'securite', 'resistance', 'compatibleAvec', 'paysFabrication'].forEach(k => {
+      ['applications', 'avantages', 'conseilsEntretien', 'informationCommerciale', 'motsCles', 'typeProduit', 'matiereMailles', 'compositionRuban', 'couleur', 'largeurMaille', 'longueur', 'type', 'design', 'securite', 'resistance', 'compatibleAvec', 'conditionnementUnitaire', 'conditionnementGros'].forEach(k => {
         if ((editForm as any)[k] !== undefined) base[k] = (editForm as any)[k];
       });
 
@@ -2566,6 +2566,8 @@ Cette action est irréversible.`)) return;
                         { key: 'securite', label: 'Sécurité' },
                         { key: 'resistance', label: 'Résistance' },
                         { key: 'compatibleAvec', label: 'Compatible avec' },
+                        { key: 'conditionnementUnitaire', label: 'Cond. unitaire' },
+                        { key: 'conditionnementGros', label: 'Cond. gros' },
                       ].map(({ key, label }) => (
                         <div key={key} className="space-y-1.5">
                           <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider truncate block" title={label}>{label}</label>
@@ -2650,6 +2652,8 @@ function NouveauProduitModal({
     securite: '',
     resistance: '',
     compatibleAvec: '',
+    conditionnementUnitaire: '',
+    conditionnementGros: '',
     paysFabrication: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
@@ -2767,6 +2771,8 @@ function NouveauProduitModal({
         ...(form.securite.trim() ? { securite: form.securite.trim() } : {}),
         ...(form.resistance.trim() ? { resistance: form.resistance.trim() } : {}),
         ...(form.compatibleAvec.trim() ? { compatibleAvec: form.compatibleAvec.trim() } : {}),
+        ...(form.conditionnementUnitaire?.trim() ? { conditionnementUnitaire: form.conditionnementUnitaire.trim() } : {}),
+        ...(form.conditionnementGros?.trim() ? { conditionnementGros: form.conditionnementGros.trim() } : {}),
         ...(form.paysFabrication.trim() ? { paysFabrication: form.paysFabrication.trim() } : {}),
       };
       await setDoc(doc(db, 'shop_custom_products', id), product);
@@ -2926,6 +2932,8 @@ function NouveauProduitModal({
                 { key: 'securite', label: 'Sécurité' },
                 { key: 'resistance', label: 'Résistance' },
                 { key: 'compatibleAvec', label: 'Compatible avec' },
+                { key: 'conditionnementUnitaire', label: 'Cond. unitaire' },
+                { key: 'conditionnementGros', label: 'Cond. gros' },
               ].map(({ key, label }) => (
                 <div key={key} className="space-y-1.5">
                   <label className="text-[9px] font-bold text-gray-500 uppercase tracking-wider truncate block" title={label}>{label}</label>

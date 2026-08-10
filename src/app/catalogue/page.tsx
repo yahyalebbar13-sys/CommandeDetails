@@ -81,7 +81,8 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
     { label: 'Résistance', value: product.resistance || '', icon: <Shield className="w-3.5 h-3.5" /> },
     { label: 'Sécurité', value: product.securite || '', icon: <Shield className="w-3.5 h-3.5" /> },
     { label: 'Compatible avec', value: product.compatibleAvec || '', icon: <Wrench className="w-3.5 h-3.5" /> },
-    { label: 'Pays de fabrication', value: product.paysFabrication || '', icon: <Globe className="w-3.5 h-3.5" /> },
+    { label: 'Conditionnement unitaire', value: product.conditionnementUnitaire || '', icon: <Box className="w-3.5 h-3.5" /> },
+    { label: 'Conditionnement gros', value: product.conditionnementGros || '', icon: <Box className="w-3.5 h-3.5" /> },
   ].filter(s => s.value);
 
   const infoSpecs: { label: string; value: string }[] = [

@@ -854,7 +854,8 @@ export async function generateCataloguePDF(
         ['Résistance',        (p as any).resistance||''],
         ['Sécurité',          (p as any).securite||''],
         ['Compatible avec',   (p as any).compatibleAvec||''],
-        ['Pays de fabrication',(p as any).paysFabrication||''],
+        ['Conditionnement unitaire', (p as any).conditionnementUnitaire||''],
+        ['Conditionnement gros', (p as any).conditionnementGros||''],
       ].filter(([,v])=>v) as [string,string][];
 
       if (techPairs.length > 0) {

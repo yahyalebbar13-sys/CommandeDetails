@@ -62,7 +62,8 @@ export interface ProductOverride {
   securite?: string;
   resistance?: string;
   compatibleAvec?: string;
-  paysFabrication?: string;
+  conditionnementUnitaire?: string;
+  conditionnementGros?: string;
 }
 
 interface ShopProductsContextType {
@@ -142,7 +143,8 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.securite && { securite: ov.securite }),
         ...(ov.resistance && { resistance: ov.resistance }),
         ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
-        ...(ov.paysFabrication && { paysFabrication: ov.paysFabrication }),
+        ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
+        ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -203,7 +205,8 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.securite && { securite: ov.securite }),
           ...(ov.resistance && { resistance: ov.resistance }),
           ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
-          ...(ov.paysFabrication && { paysFabrication: ov.paysFabrication }),
+          ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
+          ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];
