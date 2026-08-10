@@ -99,97 +99,430 @@ export async function generateCataloguePDF(
   onProgress?.(3, 'Préparation…');
 
   // ══════════════════════════════════════════════════════
-  // PAGE 1 — COUVERTURE
+  // PAGE 1 — COUVERTURE (fond blanc + vrai logo)
   // ══════════════════════════════════════════════════════
-  doc.setFillColor(12, 12, 12);
+  // White background
+  doc.setFillColor(...C.white);
   doc.rect(0, 0, PW, PH, 'F');
 
-  // Red glow top-right
-  doc.setFillColor(200, 16, 46);
-  doc.setGState(doc.GState({ opacity: 0.08 }));
-  doc.ellipse(PW + 10, 30, 85, 65, 'F');
-  // Gold glow bottom-left
-  doc.setFillColor(212, 168, 67);
-  doc.setGState(doc.GState({ opacity: 0.05 }));
-  doc.ellipse(-10, PH - 30, 70, 50, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
+  // Subtle top accent line
+  doc.setFillColor(...C.red);
+  doc.rect(0, 0, PW, 3, 'F');
 
-  // Logo text
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(52);
-  doc.setTextColor(...C.white);
-  const wLEB = doc.getTextWidth('LEB');
-  doc.text('LEB', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2, 105);
-  doc.setTextColor(...C.red);
-  doc.text('TEX', PW/2 - doc.getTextWidth('LEB')/2 - doc.getTextWidth('TEX')/2 + wLEB, 105);
+  // Decorative corner elements
+  doc.setDrawColor(...C.silk);
+  doc.setLineWidth(0.3);
+  doc.line(ML, 18, ML+30, 18);
+  doc.line(ML, 18, ML, 48);
+  doc.line(PW-MR, 18, PW-MR-30, 18);
+  doc.line(PW-MR, 18, PW-MR, 48);
 
-  // Divider under logo
+  // Real logo centered
+  try {
+    const lW = 100, lH = 45;
+    doc.addImage(LOGO_B64, 'PNG', PW/2 - lW/2, 60, lW, lH, undefined, 'FAST');
+  } catch {}
+
+  // Red divider under logo
   doc.setDrawColor(...C.red);
-  doc.setLineWidth(1);
-  doc.line(PW/2 - 35, 116, PW/2 + 35, 116);
+  doc.setLineWidth(1.2);
+  doc.line(PW/2 - 30, 115, PW/2 + 30, 115);
 
   // Tagline
   doc.setFont('helvetica','normal');
   doc.setFontSize(11);
-  doc.setGState(doc.GState({ opacity: 0.45 }));
-  doc.setTextColor(...C.white);
+  doc.setTextColor(...C.dark);
   doc.text('Mercerie & Accessoires Textiles', PW/2, 126, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
 
-  // Label pill
+  // Catalogue label
   const pillText = `CATALOGUE PRODUITS ${year}`;
   doc.setFont('helvetica','bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...C.gold);
+  doc.setFontSize(8);
+  doc.setTextColor(...C.red);
   const pillW = doc.getTextWidth(pillText) + 14;
-  doc.setDrawColor(...C.gold);
-  doc.setGState(doc.GState({ opacity: 0.5 }));
-  doc.roundedRect(PW/2 - pillW/2, 138, pillW, 9, 4, 4, 'S');
-  doc.setGState(doc.GState({ opacity: 1 }));
-  doc.text(pillText, PW/2, 144.2, { align:'center' });
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(PW/2 - pillW/2, 136, pillW, 9, 4, 4, 'S');
+  doc.text(pillText, PW/2, 142, { align:'center' });
 
-  // Stat boxes
+  // Stat boxes on white
   const stats = [
-    { val: String(totalProducts),   lbl: 'Produits' },
+    { val: String(totalProducts), lbl: 'Produits' },
     { val: String(sections.length), lbl: 'Catégories' },
+    { val: '+15', lbl: "Ans d'expérience" },
   ];
-  const bW = 42, bH = 26, bGap = 12;
+  const bW = 44, bH = 28, bGap = 8;
   const bTW = stats.length * bW + (stats.length-1)*bGap;
   const bSX = PW/2 - bTW/2;
   stats.forEach((s, i) => {
-    const bx = bSX + i*(bW+bGap), by = 164;
-    doc.setGState(doc.GState({ opacity: 0.1 }));
-    doc.setFillColor(...C.white);
-    doc.roundedRect(bx, by, bW, bH, 4, 4, 'F');
-    doc.setGState(doc.GState({ opacity: 1 }));
-    doc.setDrawColor(255,255,255);
-    doc.setGState(doc.GState({ opacity: 0.12 }));
-    doc.setLineWidth(0.4);
-    doc.roundedRect(bx, by, bW, bH, 4, 4, 'S');
-    doc.setGState(doc.GState({ opacity: 1 }));
+    const bx = bSX + i*(bW+bGap), by = 160;
+    doc.setFillColor(...C.cream);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(bx, by, bW, bH, 3, 3, 'FD');
+    // Accent top
+    const acc = i === 0 ? C.red : i === 1 ? C.gold : C.dark;
+    doc.setFillColor(...acc);
+    doc.roundedRect(bx + bW/2 - 8, by - 1, 16, 2.5, 1, 1, 'F');
+    // Value
     doc.setFont('helvetica','bold');
-    doc.setFontSize(20);
-    doc.setTextColor(...C.white);
-    doc.text(s.val, bx+bW/2, by+15, { align:'center' });
+    doc.setFontSize(18);
+    doc.setTextColor(...C.black);
+    doc.text(s.val, bx+bW/2, by+16, { align:'center' });
+    // Label
     doc.setFont('helvetica','normal');
-    doc.setFontSize(6.5);
-    doc.setGState(doc.GState({ opacity: 0.4 }));
-    doc.text(s.lbl, bx+bW/2, by+22, { align:'center' });
-    doc.setGState(doc.GState({ opacity: 1 }));
+    doc.setFontSize(6);
+    doc.setTextColor(...C.gray);
+    doc.text(s.lbl, bx+bW/2, by+23, { align:'center' });
   });
 
-  // Contact
+  // Contact at bottom
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
-  doc.setGState(doc.GState({ opacity: 0.28 }));
-  doc.setTextColor(...C.white);
-  doc.text('lebtex.ma  ·  +212 760 998 347', PW/2, 218, { align:'center' });
-  doc.setFontSize(6.5);
-  doc.setGState(doc.GState({ opacity: 0.16 }));
-  doc.text(`Généré le ${dateStr}`, PW/2, PH - 10, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setTextColor(...C.gray);
+  doc.text('lebtex.ma  ·  +212 760 998 347  ·  contact@lebtex.ma', PW/2, 215, { align:'center' });
 
-  onProgress?.(10, 'Couverture créée…');
+  // Bottom decorative
+  doc.setDrawColor(...C.silk);
+  doc.setLineWidth(0.3);
+  doc.line(ML, PH-30, ML+30, PH-30);
+  doc.line(PW-MR, PH-30, PW-MR-30, PH-30);
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.lgray);
+  doc.text(`Généré le ${dateStr}`, PW/2, PH - 12, { align:'center' });
+
+  onProgress?.(5, 'Couverture créée…');
+
+  // ══════════════════════════════════════════════════════
+  // PAGE — À PROPOS
+  // ══════════════════════════════════════════════════════
+  doc.addPage();
+  band(doc, C.red);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(22);
+  doc.setTextColor(...C.black);
+  doc.text('À Propos de LEBTEX', ML, 22);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.gray);
+  doc.text('Votre spécialiste en accessoires textiles et mercerie au Maroc, depuis plus de 15 ans.', ML, 29);
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(0.7);
+  doc.line(ML, 33, ML+35, 33);
+
+  let ay = 42;
+
+  // Notre histoire
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...C.red);
+  doc.text('NOTRE HISTOIRE', ML, ay);
+  ay += 7;
+
+  const aboutTexts = [
+    "LEBTEX est née de la passion pour le textile et la mercerie. Fondée à Casablanca, notre entreprise s'est donnée pour mission de rendre accessibles les meilleurs accessoires de couture à tous les professionnels et amateurs du Maroc.",
+    "Nous travaillons directement avec des fournisseurs de renommée internationale pour vous proposer des fermetures éclair, boutons, élastiques, rubans et bien plus encore — à des prix compétitifs, sans compromis sur la qualité.",
+    "Aujourd'hui, LEBTEX livre dans tout le Maroc et accompagne des centaines de couturiers, stylistes, ateliers et entreprises textiles dans leur activité quotidienne.",
+  ];
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.dark);
+  for (const txt of aboutTexts) {
+    const lines = doc.splitTextToSize(txt, CW);
+    doc.text(lines, ML, ay);
+    ay += lines.length * 4 + 4;
+  }
+
+  ay += 4;
+
+  // Values
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...C.red);
+  doc.text('NOS VALEURS', ML, ay);
+  ay += 8;
+
+  const values = [
+    { title: 'Qualité avant tout', desc: 'Chaque produit est soigneusement sélectionné auprès de fournisseurs certifiés pour garantir la meilleure qualité.' },
+    { title: 'Réactivité', desc: "Commandes traitées le jour même, équipe disponible 7j/7 sur WhatsApp pour répondre à toutes vos questions." },
+    { title: 'Prix compétitifs', desc: "Meilleurs prix du marché grâce à nos partenariats directs avec les fabricants. Semi-gros et détail." },
+    { title: 'Partenariat durable', desc: "Nous construisons des relations durables avec nos clients. Votre satisfaction est notre priorité absolue." },
+  ];
+
+  const valHW = (CW - 6) / 2;
+  for (let vi = 0; vi < values.length; vi++) {
+    const col = vi % 2;
+    if (col === 0 && vi > 0) ay += 24;
+    const vx = ML + col * (valHW + 6);
+    // Box
+    doc.setFillColor(...C.cream);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(vx, ay, valHW, 22, 2, 2, 'FD');
+    doc.setFillColor(...C.red);
+    doc.rect(vx, ay+1, 2, 20, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...C.black);
+    doc.text(values[vi].title, vx+5, ay+6);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.gray);
+    const vl = doc.splitTextToSize(values[vi].desc, valHW-8);
+    doc.text(vl.slice(0,3), vx+5, ay+11);
+  }
+  ay += 28;
+
+  // Stores
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...C.red);
+  doc.text('NOS MAGASINS À CASABLANCA', ML, ay);
+  ay += 8;
+
+  const stores = [
+    { name: 'Boulevard Haïfa', badge: 'Magasin Principal', spec: 'Tous les produits · Spécialiste fermetures & mercerie', addr: 'Boulevard Haïfa, Casablanca', hours: 'Lun–Sam : 8h30–18h30', stats: '5 000+ références · 15+ ans · 2 000+ clients' },
+    { name: 'Derb Omar', badge: 'Vente Détail & Gros', spec: 'Détail & Semi-gros · Fils, rubans, accessoires couture', addr: 'Derb Omar, Casablanca', hours: 'Lun–Sam : 8h30–18h30', stats: 'Vente détail & gros · 1 000+ fils & rubans' },
+  ];
+
+  for (const st of stores) {
+    if (ay > PH - 50) { drawFooter(doc, dateStr); doc.addPage(); band(doc, C.red); ay = 12; }
+    doc.setFillColor(...C.cream);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(ML, ay, CW, 30, 2, 2, 'FD');
+    // Badge
+    doc.setFillColor(...C.red);
+    doc.roundedRect(ML+3, ay+3, doc.getTextWidth(st.badge)+8, 6, 2, 2, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...C.white);
+    doc.text(st.badge, ML+7, ay+7);
+    // Name
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...C.black);
+    doc.text(st.name, ML+3, ay+16);
+    // Spec
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...C.gray);
+    doc.text(st.spec, ML+3, ay+21);
+    // Right side info
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.dark);
+    doc.text(`📍 ${st.addr}`, ML + CW/2, ay+8);
+    doc.text(`🕐 ${st.hours}`, ML + CW/2, ay+13);
+    doc.text(`📞 +212 760 998 347`, ML + CW/2, ay+18);
+    doc.setFont('helvetica','italic');
+    doc.setFontSize(6);
+    doc.setTextColor(...C.gray);
+    doc.text(st.stats, ML + CW/2, ay+24);
+    ay += 34;
+  }
+
+  drawFooter(doc, dateStr);
+  onProgress?.(8, 'Page À propos créée…');
+
+  // ══════════════════════════════════════════════════════
+  // PAGE — SERVICE IMPORT & PRÉCOMMANDES
+  // ══════════════════════════════════════════════════════
+  doc.addPage();
+  band(doc, C.gold);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...C.gold);
+  doc.text('SERVICE PROFESSIONNEL B2B', ML, 14);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(20);
+  doc.setTextColor(...C.black);
+  doc.text("Service Import & Précommandes", ML, 24);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.gray);
+  const impSub = doc.splitTextToSize("Optimisez vos coûts de production grâce à notre service d'import direct de Chine. Commandez nos produits ou des accessoires sur mesure en grande quantité et profitez de tarifs défiant toute concurrence locale.", CW);
+  doc.text(impSub, ML, 31);
+  doc.setDrawColor(...C.gold);
+  doc.setLineWidth(0.7);
+  doc.line(ML, 42, ML+30, 42);
+
+  let iy = 50;
+
+  // Features
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...C.gold);
+  doc.text('POURQUOI CHOISIR NOTRE SERVICE ?', ML, iy);
+  iy += 9;
+
+  const impFeats = [
+    { title: "Tarifs Directs d'Usine", desc: "En commandant directement de Chine, vous bénéficiez de nos prix d'importateur, imbattables sur le marché local.", col: C.red },
+    { title: 'Sourcing Sur Mesure', desc: "Au-delà de nos produits standards, nous pouvons sourcer et importer n'importe quel accessoire de mercerie spécifique à vos besoins.", col: C.gold },
+    { title: 'App de Suivi Exclusive', desc: "Dès que votre commande est validée, accédez à une application dédiée pour suivre la fabrication et l'acheminement en temps réel.", col: C.dark },
+    { title: 'Qualité Garantie', desc: "Nous contrôlons la qualité directement à la source. Vous recevez exactement ce que vous avez commandé, sans mauvaises surprises.", col: [16,185,129] as [number,number,number] },
+  ];
+
+  for (let fi = 0; fi < impFeats.length; fi++) {
+    const col = fi % 2;
+    if (col === 0 && fi > 0) iy += 30;
+    const fx = ML + col * (valHW + 6);
+    doc.setFillColor(...C.cream);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(fx, iy, valHW, 28, 2, 2, 'FD');
+    doc.setFillColor(...impFeats[fi].col);
+    doc.roundedRect(fx, iy, 2.5, 28, 2, 2, 'F');
+    doc.rect(fx+1.2, iy, 1.3, 28, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.black);
+    doc.text(impFeats[fi].title, fx+6, iy+7);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.gray);
+    const fl = doc.splitTextToSize(impFeats[fi].desc, valHW-10);
+    doc.text(fl.slice(0,4), fx+6, iy+12);
+  }
+  iy += 35;
+
+  // App tracking section
+  doc.setFillColor(...C.cream);
+  doc.setDrawColor(...C.silk);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(ML, iy, CW, 40, 3, 3, 'FD');
+  doc.setFillColor(...C.gold);
+  doc.roundedRect(ML+4, iy+4, doc.getTextWidth('Innovation LEBTEX')+8, 6, 2, 2, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(5.5);
+  doc.setTextColor(...C.white);
+  doc.text('Innovation LEBTEX', ML+8, iy+8.2);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...C.black);
+  doc.text('Votre commande dans le creux de votre main.', ML+4, iy+18);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.dark);
+  const appFeats = ['Suivi de la production en usine', 'Photos et vidéos du contrôle qualité', 'Statut du fret maritime et localisation du conteneur', 'Date de livraison estimée à votre atelier'];
+  appFeats.forEach((f, i) => {
+    doc.setTextColor(...C.red);
+    doc.text('✓', ML+6, iy+24+i*4.5);
+    doc.setTextColor(...C.dark);
+    doc.text(f, ML+10, iy+24+i*4.5);
+  });
+  iy += 45;
+
+  // Commercial office
+  if (iy + 25 > PH - 18) { drawFooter(doc, dateStr); doc.addPage(); band(doc, C.gold); iy = 12; }
+  doc.setFillColor(...C.cream);
+  doc.roundedRect(ML, iy, CW, 22, 2, 2, 'FD');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.black);
+  doc.text('Bureau Commercial — LEBTEX Hay Chrifa', ML+4, iy+7);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.gray);
+  doc.text('📍 Hay Chrifa, Casablanca   ·   🕐 Lun–Sam : 09h00–18h00   ·   📞 +212 760 998 347', ML+4, iy+14);
+
+  drawFooter(doc, dateStr);
+  onProgress?.(10, 'Pages info créées…');
+
+  // ══════════════════════════════════════════════════════
+  // PAGE — CONTACT
+  // ══════════════════════════════════════════════════════
+  doc.addPage();
+  band(doc, C.red);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(22);
+  doc.setTextColor(...C.black);
+  doc.text('Contactez-nous', ML, 22);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.gray);
+  doc.text("Notre équipe répond dans l'heure sur WhatsApp", ML, 29);
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(0.7);
+  doc.line(ML, 33, ML+30, 33);
+
+  let cy2 = 42;
+
+  // Contact cards
+  const contacts = [
+    { label: 'WhatsApp (Recommandé)', value: '+212 760 998 347', color: [37,211,102] as [number,number,number] },
+    { label: 'Téléphone', value: '0760 998 347', color: C.red },
+    { label: 'Email', value: 'contact@lebtex.ma', color: [59,130,246] as [number,number,number] },
+    { label: 'Adresse', value: 'Casablanca, Maroc', color: C.gold },
+  ];
+
+  const cCardW = (CW - 6) / 2;
+  for (let ci = 0; ci < contacts.length; ci++) {
+    const col = ci % 2;
+    if (col === 0 && ci > 0) cy2 += 18;
+    const ccx = ML + col * (cCardW + 6);
+    doc.setFillColor(...C.cream);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(ccx, cy2, cCardW, 16, 2, 2, 'FD');
+    doc.setFillColor(...contacts[ci].color);
+    doc.roundedRect(ccx+3, cy2+3, 4, 4, 1, 1, 'F');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(6);
+    doc.setTextColor(...C.gray);
+    doc.text(contacts[ci].label, ccx+10, cy2+5.5);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...C.black);
+    doc.text(contacts[ci].value, ccx+10, cy2+11.5);
+  }
+  cy2 += 24;
+
+  // Horaires
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...C.red);
+  doc.text('HORAIRES', ML, cy2);
+  cy2 += 7;
+
+  doc.setFillColor(...C.cream);
+  doc.roundedRect(ML, cy2, CW, 28, 2, 2, 'FD');
+  const hours = [
+    { day: 'Lundi – Vendredi', h: '8h00 – 20h00' },
+    { day: 'Samedi', h: '9h00 – 18h00' },
+    { day: 'Dimanche', h: '10h00 – 16h00' },
+  ];
+  hours.forEach((hr, i) => {
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...C.gray);
+    doc.text(hr.day, ML+5, cy2+7+i*7);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(...C.black);
+    doc.text(hr.h, ML+CW-5, cy2+7+i*7, { align:'right' });
+  });
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(37,211,102);
+  doc.text('WhatsApp disponible 7j/7', ML+5, cy2+25);
+  cy2 += 34;
+
+  // CTA
+  doc.setFillColor(37, 211, 102);
+  doc.roundedRect(ML, cy2, CW, 14, 5, 5, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.white);
+  doc.text('Contactez-nous sur WhatsApp — +212 760 998 347', PW/2, cy2+9, { align:'center' });
+
+  drawFooter(doc, dateStr);
+  onProgress?.(12, 'Page contact créée…');
 
   // ═══════════════════════════════════════════════════
   // PAGE 2 — SOMMAIRE
@@ -596,83 +929,94 @@ export async function generateCataloguePDF(
   onProgress?.(93, 'Page de contact…');
 
   // ═══════════════════════════════════════════════════
-  // LAST PAGE — CONTACT (same split design as cover)
+  // LAST PAGE — CONTACT (fond blanc + vrai logo)
   // ═══════════════════════════════════════════════════
   doc.addPage();
 
-  // Top dark
-  doc.setFillColor(...C.ink);
-  doc.rect(0, 0, PW, 148, 'F');
-  // Bottom cream
-  doc.setFillColor(...C.cream);
-  doc.rect(0, 148, PW, PH-148, 'F');
-
-  // Red accent
-  doc.setFillColor(...C.red);
-  doc.setGState(doc.GState({ opacity: 0.18 }));
-  doc.triangle(PW, 0, PW, 90, PW-70, 0, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // Logo card (smaller)
-  const lc2W = 90, lc2H = 45, lc2X = PW/2 - lc2W/2, lc2Y = 40;
-  doc.setFillColor(0,0,0);
-  doc.setGState(doc.GState({ opacity: 0.2 }));
-  doc.roundedRect(lc2X+2, lc2Y+2, lc2W, lc2H, 4, 4, 'F');
-  doc.setGState(doc.GState({ opacity: 1 }));
+  // White background
   doc.setFillColor(...C.white);
-  doc.roundedRect(lc2X, lc2Y, lc2W, lc2H, 4, 4, 'F');
+  doc.rect(0, 0, PW, PH, 'F');
+
+  // Top accent line
   doc.setFillColor(...C.red);
-  doc.roundedRect(lc2X, lc2Y, lc2W, 2.5, 2, 2, 'F');
-  doc.rect(lc2X, lc2Y+1, lc2W, 1.5, 'F');
+  doc.rect(0, 0, PW, 3, 'F');
+
+  // Real logo
   try {
-    const lW2 = 70, lH2 = 31;
-    doc.addImage(LOGO_B64, 'PNG', lc2X + lc2W/2 - lW2/2, lc2Y + (lc2H - lH2)/2 + 1, lW2, lH2, undefined, 'FAST');
+    const lW2 = 90, lH2 = 40;
+    doc.addImage(LOGO_B64, 'PNG', PW/2 - lW2/2, 45, lW2, lH2, undefined, 'FAST');
   } catch {}
+
+  // Red divider
+  doc.setDrawColor(...C.red);
+  doc.setLineWidth(1);
+  doc.line(PW/2 - 25, 95, PW/2 + 25, 95);
 
   // Title
   doc.setFont('helvetica','bold');
-  doc.setFontSize(26);
-  doc.setTextColor(...C.white);
-  doc.text("Besoin d'informations ?", PW/2, 118, { align:'center' });
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(8.5);
-  doc.setGState(doc.GState({ opacity: 0.38 }));
-  doc.text('Contactez-nous pour les tarifs, quantités et conditions.', PW/2, 128, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
-
-  // WhatsApp
-  doc.setFillColor(37, 211, 102);
-  doc.roundedRect(PW/2-50, 158, 100, 14, 7, 7, 'F');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...C.white);
-  doc.text('Demander les prix — WhatsApp', PW/2, 167, { align:'center' });
-
-  // Phone box
-  doc.setFillColor(...C.white);
-  doc.setDrawColor(...C.silk);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(PW/2-40, 184, 80, 13, 4, 4, 'FD');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
+  doc.setFontSize(24);
   doc.setTextColor(...C.black);
-  doc.text('+212 760 998 347', PW/2, 192, { align:'center' });
-
-  // Website
+  doc.text("Besoin d'informations ?", PW/2, 112, { align:'center' });
   doc.setFont('helvetica','normal');
   doc.setFontSize(9);
   doc.setTextColor(...C.gray);
-  doc.text('lebtex.ma', PW/2, 212, { align:'center' });
+  doc.text('Contactez-nous pour les tarifs, quantités et conditions.', PW/2, 120, { align:'center' });
 
-  // Bottom strip
-  doc.setFillColor(...C.ink);
-  doc.rect(0, PH-16, PW, 16, 'F');
+  // WhatsApp CTA
+  doc.setFillColor(37, 211, 102);
+  doc.roundedRect(PW/2-55, 135, 110, 15, 7, 7, 'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...C.white);
+  doc.text('Demander les prix — WhatsApp', PW/2, 145, { align:'center' });
+
+  // Contact info boxes
+  const lastContacts = [
+    { label: 'WhatsApp / Téléphone', value: '+212 760 998 347', col: C.red },
+    { label: 'Email', value: 'contact@lebtex.ma', col: [59,130,246] as [number,number,number] },
+    { label: 'Site Web', value: 'lebtex.ma', col: C.gold },
+  ];
+  const lcW = 50, lcGap = 6;
+  const lcTot = lastContacts.length * lcW + (lastContacts.length-1) * lcGap;
+  const lcSX = PW/2 - lcTot/2;
+
+  lastContacts.forEach((c, i) => {
+    const cx = lcSX + i*(lcW+lcGap), cyy = 165;
+    doc.setFillColor(...C.cream);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(cx, cyy, lcW, 20, 2, 2, 'FD');
+    doc.setFillColor(...c.col);
+    doc.roundedRect(cx + lcW/2 - 6, cyy - 1, 12, 2.5, 1, 1, 'F');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...C.gray);
+    doc.text(c.label, cx + lcW/2, cyy + 7, { align:'center' });
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...C.black);
+    doc.text(c.value, cx + lcW/2, cyy + 14, { align:'center' });
+  });
+
+  // Stores
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.dark);
+  doc.text('Nos magasins à Casablanca', PW/2, 200, { align:'center' });
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.gray);
+  doc.text('📍 Boulevard Haïfa  ·  📍 Derb Omar  ·  📍 Bureau B2B: Hay Chrifa', PW/2, 207, { align:'center' });
+  doc.text('Lun–Sam : 8h30–18h30', PW/2, 213, { align:'center' });
+
+  // Bottom
+  doc.setDrawColor(...C.silk);
+  doc.setLineWidth(0.3);
+  doc.line(ML, PH-30, PW-MR, PH-30);
   doc.setFont('helvetica','normal');
   doc.setFontSize(6.5);
-  doc.setGState(doc.GState({ opacity: 0.3 }));
-  doc.setTextColor(...C.white);
-  doc.text(`© ${year} LEBTEX — Tous droits réservés`, PW/2, PH-7, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setTextColor(...C.lgray);
+  doc.text(`© ${year} LEBTEX — Tous droits réservés`, PW/2, PH-20, { align:'center' });
 
   onProgress?.(100, 'Téléchargement…');
 
