@@ -21,13 +21,14 @@ const C = {
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image via browser fetch (no SSL issues unlike Node.js) ──────────────
+// ─── Load image via our API proxy (bypasses SSL issues server-side) ────────────
 async function loadImg(originalUrl: string): Promise<string | null> {
   if (!originalUrl) return null;
   try {
-    // Browser fetch handles SSL fine — no UNABLE_TO_VERIFY_LEAF_SIGNATURE
-    const resp = await fetch(originalUrl, { mode: 'cors' });
-    if (!resp.ok) throw new Error('fetch failed');
+    // Use our own proxy — same origin, no CORS, SSL handled server-side
+    const proxyUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error('proxy fetch failed');
     const blob = await resp.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -36,25 +37,7 @@ async function loadImg(originalUrl: string): Promise<string | null> {
       reader.readAsDataURL(blob);
     });
   } catch {
-    // Fallback: try loading via <img> + canvas (works if CORS headers present)
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width  = img.naturalWidth  || 400;
-          canvas.height = img.naturalHeight || 400;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) { resolve(null); return; }
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/jpeg', 0.82));
-        } catch { resolve(null); }
-      };
-      img.onerror = () => resolve(null);
-      img.src = originalUrl;
-      setTimeout(() => resolve(null), 10000);
-    });
+    return null;
   }
 }
 
