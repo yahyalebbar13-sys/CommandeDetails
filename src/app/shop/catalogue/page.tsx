@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight, Package, Zap, CheckCircle, XCircle,
   MessageCircle, RefreshCw, Layers, Sparkles, BookOpen,
   ArrowDown, ArrowUp, Phone, ChevronDown, Search, X,
   Eye, Star, Info, Ruler, Weight, Box, Tag,
-  Shield, Wrench, Globe, Palette, ChevronLeft,
+  Shield, Wrench, Globe, Palette, ChevronLeft, Download, FileText, Loader2,
 } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
@@ -460,6 +460,31 @@ export default function CataloguePage() {
   const { products, categories, isLoading } = useShopProducts();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [pdfStatus, setPdfStatus] = useState('');
+
+  const handleExportPDF = useCallback(async () => {
+    setPdfExporting(true);
+    setPdfProgress(0);
+    setPdfStatus('Chargement...');
+    try {
+      const { generateCataloguePDF } = await import('@/lib/catalogue-pdf');
+      await generateCataloguePDF(
+        categorySections,
+        totalProducts,
+        inStockCount,
+        (percent, status) => {
+          setPdfProgress(percent);
+          setPdfStatus(status);
+        },
+      );
+    } catch (err) {
+      console.error('PDF export error:', err);
+    } finally {
+      setTimeout(() => setPdfExporting(false), 800);
+    }
+  }, [categorySections, totalProducts, inStockCount]);
 
   const rootCats = useMemo(() => categories.filter(c => !c.parentSlug), [categories]);
 
@@ -522,9 +547,23 @@ export default function CataloguePage() {
             <span className="text-white/50">Catalogue</span>
           </nav>
 
-          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full mb-8 border border-[#D4A843]/25 bg-[#D4A843]/8">
-            <BookOpen className="w-4 h-4 text-[#D4A843]" />
-            <span className="text-[#D4A843] text-xs font-bold tracking-[0.15em] uppercase">Catalogue Produits {new Date().getFullYear()}</span>
+          <div className="flex flex-col sm:flex-row items-center gap-3 mb-8">
+            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8">
+              <BookOpen className="w-4 h-4 text-[#D4A843]" />
+              <span className="text-[#D4A843] text-xs font-bold tracking-[0.15em] uppercase">Catalogue Produits {new Date().getFullYear()}</span>
+            </div>
+            <button
+              onClick={handleExportPDF}
+              disabled={pdfExporting || isLoading}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-semibold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-sm cursor-pointer"
+            >
+              {pdfExporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              {pdfExporting ? 'Export en cours...' : 'Télécharger PDF'}
+            </button>
           </div>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-[1.05] tracking-tight"
@@ -750,6 +789,31 @@ export default function CataloguePage() {
           </button>
         </div>
       </section>
+
+      {/* ─── PDF Export Progress Modal ───────────────────────────────────── */}
+      {pdfExporting && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden p-8 text-center"
+            style={{ animation: 'sheetIn 0.3s ease' }}>
+            <div className="w-16 h-16 rounded-2xl bg-[#C8102E]/8 flex items-center justify-center mx-auto mb-5">
+              <FileText className="w-8 h-8 text-[#C8102E]" />
+            </div>
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-2" style={{ fontFamily: "'Outfit', sans-serif" }}>Génération du PDF</h3>
+            <p className="text-sm text-gray-500 mb-6">{pdfStatus}</p>
+            <div className="w-full h-2.5 bg-[#F0ECE8] rounded-full overflow-hidden mb-3">
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: `${pdfProgress}%`,
+                  background: 'linear-gradient(90deg, #C8102E, #D4A843)',
+                }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 font-medium">{pdfProgress}%</p>
+          </div>
+        </div>
+      )}
 
       {/* Footer note */}
       <div className="bg-[#0F0F0F] py-6">
