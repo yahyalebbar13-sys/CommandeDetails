@@ -567,77 +567,77 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             {/* ── Caractéristiques Techniques (Hyper Pro) ── */}
             {(product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.conditionnementUnitaire || product.conditionnementGros) && (
               <Accordion title={language === 'ar' ? 'معلومات تفصيلية' : 'Informations Détaillées'} icon={<Package className="w-5 h-5 text-[#10B981]" />} defaultOpen={true}>
-                <div className="p-6 space-y-3 text-sm">
+                <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-3">
                   {product.typeProduit && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'نوع المنتج:' : 'Type de produit:'}</span>
-                      <span className="text-[#6B6B6B]">{product.typeProduit}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'نوع المنتج' : 'Type de produit'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.typeProduit}</span>
                     </div>
                   )}
                   {product.matiereMailles && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'مادة:' : 'Matière:'}</span>
-                      <span className="text-[#6B6B6B]">{product.matiereMailles}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'مادة' : 'Matière'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.matiereMailles}</span>
                     </div>
                   )}
                   {product.compositionRuban && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'تركيبة:' : 'Composition:'}</span>
-                      <span className="text-[#6B6B6B]">{product.compositionRuban}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'تركيبة' : 'Composition'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.compositionRuban}</span>
                     </div>
                   )}
                   {product.largeurMaille && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'العرض:' : 'Largeur:'}</span>
-                      <span className="text-[#6B6B6B]">{product.largeurMaille}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'العرض' : 'Largeur'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.largeurMaille}</span>
                     </div>
                   )}
                   {product.longueur && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'الطول:' : 'Longueur:'}</span>
-                      <span className="text-[#6B6B6B]">{product.longueur}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الطول' : 'Longueur'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.longueur}</span>
                     </div>
                   )}
                   {product.type && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'النوع:' : 'Type:'}</span>
-                      <span className="text-[#6B6B6B]">{product.type}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'النوع' : 'Type'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.type}</span>
                     </div>
                   )}
                   {product.design && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'التصميم:' : 'Design:'}</span>
-                      <span className="text-[#6B6B6B]">{product.design}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التصميم' : 'Design'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.design}</span>
                     </div>
                   )}
                   {product.securite && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'الأمان:' : 'Sécurité:'}</span>
-                      <span className="text-[#6B6B6B]">{product.securite}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الأمان' : 'Sécurité'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.securite}</span>
                     </div>
                   )}
                   {product.resistance && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'المقاومة:' : 'Résistance:'}</span>
-                      <span className="text-[#6B6B6B]">{product.resistance}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'المقاومة' : 'Résistance'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.resistance}</span>
                     </div>
                   )}
                   {product.compatibleAvec && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'متوافق مع:' : 'Compatible avec:'}</span>
-                      <span className="text-[#6B6B6B]">{product.compatibleAvec}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'متوافق مع' : 'Compatible avec'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.compatibleAvec}</span>
                     </div>
                   )}
                   {product.conditionnementUnitaire && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'التعبئة والتغليف (وحدة):' : 'Cond. unitaire:'}</span>
-                      <span className="text-[#6B6B6B]">{product.conditionnementUnitaire}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف (وحدة)' : 'Cond. unitaire'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.conditionnementUnitaire}</span>
                     </div>
                   )}
                   {product.conditionnementGros && (
-                    <div className="flex items-start gap-2 border-b border-[#F3EFE8] pb-2">
-                      <span className="font-semibold text-[#1A1A1A] min-w-[140px]">{language === 'ar' ? 'التعبئة والتغليف (جملة):' : 'Cond. gros:'}</span>
-                      <span className="text-[#6B6B6B]">{product.conditionnementGros}</span>
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف (جملة)' : 'Cond. gros'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.conditionnementGros}</span>
                     </div>
                   )}
                 </div>

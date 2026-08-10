@@ -46,13 +46,13 @@ function StockDot({ inStock }: { inStock: boolean }) {
 function SpecRow({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-[#F0ECE8] last:border-0">
-      <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-[#C8102E] mt-0.5">
-        {icon || <Info className="w-3.5 h-3.5" />}
+    <div className="bg-white rounded-xl border border-[#F0ECE8] p-3 flex items-start gap-3 transition-all hover:shadow-sm hover:border-[#C8102E]/20">
+      <div className="w-8 h-8 rounded-lg bg-[#FDFBF8] border border-[#F0ECE8] flex items-center justify-center flex-shrink-0 text-[#C8102E]">
+        {icon || <Info className="w-4 h-4" />}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-0.5">{label}</p>
-        <p className="text-sm text-[#1A1A1A] leading-relaxed">{value}</p>
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold mb-0.5">{label}</p>
+        <p className="text-[12px] font-bold text-[#1A1A1A] leading-snug">{value}</p>
       </div>
     </div>
   );
@@ -236,7 +236,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                   <h3 className="text-[10px] font-bold text-[#C8102E] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                     <Wrench className="w-3 h-3" /> Caractéristiques techniques
                   </h3>
-                  <div className="bg-[#FDFBF8] rounded-xl border border-[#F0ECE8] px-4 divide-y divide-[#F0ECE8]">
+                  <div className="grid grid-cols-2 gap-3">
                     {technicalSpecs.map(spec => (
                       <SpecRow key={spec.label} label={spec.label} value={spec.value} icon={spec.icon} />
                     ))}
