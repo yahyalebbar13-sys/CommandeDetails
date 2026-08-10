@@ -21,29 +21,67 @@ const C = {
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image: local URLs direct, external URLs via proxy ───────────────────
+// ─── Load image: local direct, external via proxy with browser fallback ───────
 async function loadImg(originalUrl: string): Promise<string | null> {
   if (!originalUrl) return null;
-  try {
-    let fetchUrl: string;
-    if (originalUrl.startsWith('/') || originalUrl.startsWith('blob:')) {
-      // Local URL — fetch directly (same origin, no CORS/SSL issues)
-      fetchUrl = originalUrl;
-    } else if (originalUrl.startsWith('http')) {
-      // External URL — use our proxy to bypass SSL issues
-      fetchUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
-    } else {
-      return null;
-    }
-    const resp = await fetch(fetchUrl);
-    if (!resp.ok) throw new Error(`fetch failed: ${resp.status}`);
+
+  const toB64 = async (resp: Response): Promise<string | null> => {
+    if (!resp.ok) return null;
     const blob = await resp.blob();
+    if (blob.size < 100) return null; // too small = probably error
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = () => resolve(null);
       reader.readAsDataURL(blob);
     });
+  };
+
+  try {
+    if (originalUrl.startsWith('/') || originalUrl.startsWith('blob:')) {
+      // Local URL — fetch directly
+      const resp = await fetch(originalUrl);
+      return await toB64(resp);
+    }
+
+    if (originalUrl.startsWith('http')) {
+      // Try 1: proxy (handles SSL bypass server-side)
+      try {
+        const proxyUrl = `/api/img-proxy?url=${encodeURIComponent(originalUrl)}`;
+        const resp = await fetch(proxyUrl);
+        const result = await toB64(resp);
+        if (result) return result;
+      } catch { /* proxy failed, try direct */ }
+
+      // Try 2: direct browser fetch (browser handles SSL/redirects natively)
+      try {
+        const resp = await fetch(originalUrl, { mode: 'cors' });
+        const result = await toB64(resp);
+        if (result) return result;
+      } catch { /* direct also failed */ }
+
+      // Try 3: img tag + canvas (last resort)
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const c = document.createElement('canvas');
+            c.width = img.naturalWidth || 300;
+            c.height = img.naturalHeight || 300;
+            const ctx = c.getContext('2d');
+            if (!ctx) { resolve(null); return; }
+            ctx.drawImage(img, 0, 0);
+            resolve(c.toDataURL('image/jpeg', 0.8));
+          } catch { resolve(null); }
+        };
+        img.onerror = () => resolve(null);
+        img.src = originalUrl;
+        setTimeout(() => resolve(null), 12000);
+      });
+    }
+
+    return null;
   } catch (e) {
     console.warn('loadImg failed:', originalUrl, e);
     return null;

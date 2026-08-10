@@ -536,42 +536,49 @@ export default function CataloguePage() {
         <div className="absolute inset-0" style={{ background: 'linear-gradient(160deg, #0C0C0C 0%, #1A1A1A 40%, #1C0A0D 100%)' }} />
         <div className="absolute inset-0 opacity-[0.02]"
           style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-        <div className="absolute -top-32 -right-32 w-[400px] h-[400px] rounded-full opacity-[0.06] blur-[100px]"
+        <div className="absolute -top-20 -right-20 w-[350px] h-[350px] rounded-full opacity-[0.07] blur-[80px]"
           style={{ background: '#C8102E' }} />
+        <div className="absolute -bottom-20 -left-20 w-[280px] h-[280px] rounded-full opacity-[0.05] blur-[70px]"
+          style={{ background: '#D4A843' }} />
 
-        <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-10 sm:py-14 text-center">
-          <nav className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+        <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-14 sm:py-20 text-center">
+
+          {/* Navigation buttons */}
+          <nav className="flex items-center justify-center gap-2.5 mb-8 flex-wrap">
             <Link href="/shop/a-propos"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/12 text-white/50 hover:text-white text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
-              <Store className="w-3 h-3" /> À propos
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:bg-white/12 text-white/50 hover:text-white text-[11px] font-medium tracking-wide transition-all duration-300 backdrop-blur-sm hover:border-white/30">
+              <Store className="w-3.5 h-3.5" /> À propos
             </Link>
             <Link href="/shop/precommande"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8 hover:bg-[#D4A843]/15 text-[#D4A843]/70 hover:text-[#D4A843] text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
-              <Ship className="w-3 h-3" /> Service Import
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#D4A843]/30 bg-[#D4A843]/8 hover:bg-[#D4A843]/18 text-[#D4A843]/70 hover:text-[#D4A843] text-[11px] font-medium tracking-wide transition-all duration-300 backdrop-blur-sm">
+              <Ship className="w-3.5 h-3.5" /> Service Import
             </Link>
             <Link href="/shop/contact"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/15 text-emerald-400/70 hover:text-emerald-400 text-[11px] font-medium tracking-wide transition-all duration-200 backdrop-blur-sm">
-              <MessageCircle className="w-3 h-3" /> Contact
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/18 text-emerald-400/70 hover:text-emerald-400 text-[11px] font-medium tracking-wide transition-all duration-300 backdrop-blur-sm">
+              <MessageCircle className="w-3.5 h-3.5" /> Contact
             </Link>
           </nav>
 
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-3 leading-[1.1] tracking-tight"
+          {/* Logo */}
+          <h1 className="text-5xl sm:text-6xl font-black text-white mb-2 leading-[1.05] tracking-tight"
             style={{ fontFamily: "'Outfit', sans-serif" }}>
             LEB<span style={{ color: '#C8102E' }}>TEX</span>
           </h1>
-          <p className="text-lg text-white/30 font-light mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
+          <div className="w-12 h-[2px] bg-[#C8102E] mx-auto mb-3" />
+          <p className="text-lg sm:text-xl text-white/30 font-light mb-6" style={{ fontFamily: "'Outfit', sans-serif" }}>
             Mercerie & Accessoires Textiles
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8">
-              <BookOpen className="w-3.5 h-3.5 text-[#D4A843]" />
-              <span className="text-[#D4A843] text-[11px] font-bold tracking-[0.12em] uppercase">Catalogue {new Date().getFullYear()}</span>
+          {/* Action row */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#D4A843]/25 bg-[#D4A843]/8">
+              <BookOpen className="w-4 h-4 text-[#D4A843]" />
+              <span className="text-[#D4A843] text-xs font-bold tracking-[0.12em] uppercase">Catalogue Produits {new Date().getFullYear()}</span>
             </div>
             <button
               onClick={handleExportPDF}
               disabled={pdfExporting || isLoading}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[11px] font-semibold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-sm cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[#C8102E] hover:bg-[#a50d25] text-white text-xs font-bold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-[#C8102E]/25 cursor-pointer"
             >
               {pdfExporting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -582,17 +589,33 @@ export default function CataloguePage() {
             </button>
           </div>
 
-          <div className="flex items-center justify-center gap-6 text-[11px] text-white/25">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-              </span>
-              <span className="text-emerald-400/60">Stock en direct</span>
+          {/* PDF progress bar */}
+          {pdfExporting && (
+            <div className="max-w-xs mx-auto mb-4">
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-[#C8102E] rounded-full transition-all duration-300"
+                  style={{ width: `${pdfProgress}%` }} />
+              </div>
+              <p className="text-white/30 text-[10px] mt-1.5">{pdfStatus}</p>
             </div>
-            <span>{totalProducts} produits</span>
-            <span>{inStockCount} disponibles</span>
-            <span>{rootCats.length} catégories</span>
+          )}
+
+          {/* Stats */}
+          <div className="flex items-center justify-center gap-6 sm:gap-8 text-[11px] text-white/30">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-emerald-400/60 font-medium">Stock en direct</span>
+            </div>
+            <span><strong className="text-white/50">{totalProducts}</strong> produits</span>
+            <span><strong className="text-white/50">{inStockCount}</strong> disponibles</span>
+            <span><strong className="text-white/50">{rootCats.length}</strong> catégories</span>
+          </div>
+
+          <div className="mt-8 animate-bounce">
+            <ArrowDown className="w-4 h-4 text-white/15 mx-auto" />
           </div>
         </div>
       </section>
