@@ -21,28 +21,41 @@ const C = {
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image via Next.js proxy (same-origin → no CORS issues) ──────────────
+// ─── Load image via browser fetch (no SSL issues unlike Node.js) ──────────────
 async function loadImg(originalUrl: string): Promise<string | null> {
   if (!originalUrl) return null;
-  // Use Next.js image endpoint as proxy — same origin, no CORS
-  const proxyUrl = `/_next/image?url=${encodeURIComponent(originalUrl)}&w=400&q=80`;
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width  = img.naturalWidth  || 400;
-        canvas.height = img.naturalHeight || 400;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { resolve(null); return; }
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
-      } catch { resolve(null); }
-    };
-    img.onerror = () => resolve(null);
-    img.src = proxyUrl;
-    setTimeout(() => resolve(null), 10000);
-  });
+  try {
+    // Browser fetch handles SSL fine — no UNABLE_TO_VERIFY_LEAF_SIGNATURE
+    const resp = await fetch(originalUrl, { mode: 'cors' });
+    if (!resp.ok) throw new Error('fetch failed');
+    const blob = await resp.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    // Fallback: try loading via <img> + canvas (works if CORS headers present)
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width  = img.naturalWidth  || 400;
+          canvas.height = img.naturalHeight || 400;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(null); return; }
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = originalUrl;
+      setTimeout(() => resolve(null), 10000);
+    });
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
