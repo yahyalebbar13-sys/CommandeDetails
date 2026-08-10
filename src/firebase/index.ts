@@ -32,25 +32,11 @@ export function initializeFirebase() {
   return getSdks(getApp());
 }
 
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
-
 export function getSdks(firebaseApp: FirebaseApp) {
-  let firestore;
-  try {
-    firestore = initializeFirestore(firebaseApp, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    });
-  } catch (e) {
-    // Fallback if already initialized or not supported
-    firestore = getFirestore(firebaseApp);
-  }
-
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
-    firestore
+    firestore: getFirestore(firebaseApp)
   };
 }
 
