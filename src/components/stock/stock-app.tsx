@@ -267,49 +267,55 @@ export default function StockApp() {
   const [activeView, setActiveView] = useState<StockView>('dashboard');
 
   const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL'>('ALL');
-  const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED'>('UNAUTHORIZED');
+  const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED' | 'LOADING'>('LOADING');
   const [adminUid, setAdminUid] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.email) {
-      if (user.email === 'yahya.lebbar13@gmail.com') {
-        setUserRole('ADMIN');
-        setActiveStore('ALL');
-        setAdminUid(user.uid);
-        if (firestore) {
-          setDoc(doc(firestore, 'publicConfig', 'adminConfig'), { adminUid: user.uid }, { merge: true }).catch(() => {});
-        }
-        if (activeView === 'dashboard' && userRole !== 'ADMIN') setActiveView('dashboard');
-      } else {
-        if (!firestore) return;
-        const checkStoreAccess = async () => {
-          try {
-            const snap = await getDoc(doc(firestore, 'storeAccess', user.email!));
-            if (snap.exists()) {
-              const data = snap.data();
-              setUserRole(data.role || 'COMMERCIAL');
-              setActiveStore(data.storeId);
-              if (activeView === 'dashboard') setActiveView('sale');
-              if (data.adminUid) {
-                setAdminUid(data.adminUid);
-              } else if (!adminUid) {
-                const adminSnap = await getDoc(doc(firestore, 'publicConfig', 'adminConfig'));
-                if (adminSnap.exists()) {
-                  setAdminUid(adminSnap.data().adminUid);
-                }
-              }
-            } else {
-              setUserRole('UNAUTHORIZED');
-            }
-          } catch (error) {
-            console.error('Error checking store access:', error);
-            setUserRole('UNAUTHORIZED');
-          }
-        };
-        checkStoreAccess();
+    if (!user?.email) return;
+
+    if (user.email === 'yahya.lebbar13@gmail.com') {
+      setUserRole('ADMIN');
+      setActiveStore('ALL');
+      setAdminUid(user.uid);
+      if (firestore) {
+        setDoc(doc(firestore, 'publicConfig', 'adminConfig'), { adminUid: user.uid }, { merge: true }).catch(() => {});
       }
+      return;
     }
-  }, [user, activeView, userRole, firestore, adminUid]);
+
+    if (!firestore) return;
+
+    // Reset to LOADING so we don't flash UNAUTHORIZED while checking
+    setUserRole('LOADING');
+
+    const checkStoreAccess = async () => {
+      try {
+        const snap = await getDoc(doc(firestore, 'storeAccess', user.email!.toLowerCase()));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.adminUid) {
+            setAdminUid(data.adminUid);
+          } else {
+            // fallback: read from publicConfig
+            try {
+              const adminSnap = await getDoc(doc(firestore, 'publicConfig', 'adminConfig'));
+              if (adminSnap.exists()) setAdminUid(adminSnap.data().adminUid);
+            } catch (_) {}
+          }
+          setActiveStore(data.storeId);
+          setActiveView('sale');
+          setUserRole(data.role || 'COMMERCIAL');
+        } else {
+          setUserRole('UNAUTHORIZED');
+        }
+      } catch (error: any) {
+        console.error('Error checking store access:', error);
+        setUserRole('UNAUTHORIZED');
+      }
+    };
+    checkStoreAccess();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, user?.email, firestore]);
 
   // ── Collections Firestore ──────────────────────────────────────────────────
   const articlesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'articles'),         [firestore, adminUid, user]);
@@ -570,7 +576,7 @@ export default function StockApp() {
   }, [user, firestore, adminUid, toast]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
-  if (isUserLoading) return (
+  if (isUserLoading || userRole === 'LOADING') return (
     <div className="min-h-screen flex items-center justify-center bg-[#f0faf4]">
       <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
     </div>
