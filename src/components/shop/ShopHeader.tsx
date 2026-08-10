@@ -142,7 +142,7 @@ export default function ShopHeader() {
         }`}
       >
         {/* ── Desktop Collapsible Header Section ──────────────────────────── */}
-        <div className={`transition-all duration-500 ease-in-out origin-top overflow-hidden ${isScrolled ? 'lg:max-h-0 lg:opacity-0' : 'max-h-[500px] opacity-100'}`}>
+        <div className={`transition-all duration-200 ease-in-out origin-top overflow-hidden ${isScrolled ? 'lg:max-h-0 lg:opacity-0' : 'max-h-[500px] opacity-100'}`}>
           {/* ── Promo Banner ──────────────────────────────────────────────── */}
           <div
             className="text-white text-xs font-medium py-2 overflow-hidden select-none"
@@ -267,7 +267,9 @@ export default function ShopHeader() {
         {/* ── Bottom Row: Navigation Bar (Desktop Only) ────────────────── */}
         <div className="hidden lg:block border-t border-gray-100 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center justify-center gap-10 lg:gap-20 h-14">
+            <nav className="flex items-center h-14 relative">
+              {/* Centered nav links */}
+              <div className="flex-1 flex items-center justify-center gap-10 lg:gap-20">
               {NAV_LINKS.map((link) =>
                 link.hasDropdown ? (
                   <div key={link.labelKey} ref={dropdownRef} className="relative h-full flex items-center">
@@ -384,59 +386,34 @@ export default function ShopHeader() {
                   </Link>
                 )
               )}
-            </nav>
-
-            {/* ── Desktop Sticky Search Overlay ────────────────────────────── */}
-            {isScrolled && isSearchOpen && (
-              <div className="absolute inset-0 bg-white z-20 flex items-center px-4 rounded-b-lg">
-                <form onSubmit={(e) => { setIsSearchOpen(false); handleSearchSubmit(e); }} className="w-full max-w-3xl mx-auto flex items-center shadow-sm rounded-full overflow-hidden border border-gray-200 focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/20 transition-all bg-gray-50">
-                  <div className="pl-4 text-gray-400">
-                    <Search className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher des produits..."
-                    className="w-full px-3 py-2.5 text-sm focus:outline-none bg-transparent text-gray-700"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsSearchOpen(false)}
-                    className="px-4 py-2 text-gray-500 hover:text-[#C8102E] transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </form>
               </div>
-            )}
 
-            {/* ── Mini Actions (Visible only on scroll) ────────────────── */}
-            <div className={`absolute right-4 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2 flex items-center gap-5 transition-opacity duration-500 delay-100 ${isScrolled ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-               <button
-                 onClick={() => setIsSearchOpen(true)}
-                 className="p-1 text-gray-600 hover:text-[#C8102E] transition-colors"
-                 aria-label="Rechercher"
-               >
-                 <Search className="w-5 h-5" />
-               </button>
-               <button
-                 onClick={openCart}
-                 className="p-1 relative text-gray-600 hover:text-[#C8102E] transition-colors group"
-                 aria-label={`Panier`}
-               >
-                 <ShoppingCart className="w-5 h-5 transition-transform group-hover:scale-110" />
-                 {itemCount > 0 && (
-                   <span
-                     className="absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-white text-[9px] font-bold px-1"
-                     style={{ backgroundColor: "#C8102E" }}
-                   >
-                     {itemCount > 99 ? "99+" : itemCount}
-                   </span>
-                 )}
-               </button>
-            </div>
+              {/* ── Mini Actions (right side, visible on scroll) ────────────── */}
+              <div className={`flex items-center gap-4 ml-auto transition-opacity duration-200 ${isScrolled ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                 <button
+                   onClick={() => setIsSearchOpen(true)}
+                   className="p-2 text-gray-600 hover:text-[#C8102E] transition-colors cursor-pointer"
+                   aria-label="Rechercher"
+                 >
+                   <Search className="w-5 h-5" />
+                 </button>
+                 <button
+                   onClick={openCart}
+                   className="p-2 relative text-gray-600 hover:text-[#C8102E] transition-colors group cursor-pointer"
+                   aria-label={`Panier`}
+                 >
+                   <ShoppingCart className="w-5 h-5 transition-transform group-hover:scale-110" />
+                   {itemCount > 0 && (
+                     <span
+                       className="absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-white text-[9px] font-bold px-1"
+                       style={{ backgroundColor: "#C8102E" }}
+                     >
+                       {itemCount > 99 ? "99+" : itemCount}
+                     </span>
+                   )}
+                 </button>
+              </div>
+            </nav>
           </div>
         </div>
       </header>
