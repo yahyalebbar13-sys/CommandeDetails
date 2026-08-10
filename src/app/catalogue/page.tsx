@@ -544,18 +544,18 @@ export default function CataloguePage() {
         <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-14 sm:py-20 text-center">
 
           {/* Navigation buttons */}
-          <nav className="flex items-center justify-center gap-2.5 mb-8 flex-wrap">
-            <Link href="/shop/a-propos"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:bg-white/12 text-white/50 hover:text-white text-[11px] font-medium tracking-wide transition-all duration-300 backdrop-blur-sm hover:border-white/30">
-              <Store className="w-3.5 h-3.5" /> À propos
+          <nav className="flex items-center justify-center gap-3 mb-10 flex-wrap">
+            <Link href="/catalogue/a-propos"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white text-sm font-semibold tracking-wide transition-all duration-300 backdrop-blur-md shadow-lg shadow-white/5 hover:shadow-white/10 hover:scale-[1.03]">
+              <Store className="w-4 h-4" /> À propos
             </Link>
-            <Link href="/shop/precommande"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#D4A843]/30 bg-[#D4A843]/8 hover:bg-[#D4A843]/18 text-[#D4A843]/70 hover:text-[#D4A843] text-[11px] font-medium tracking-wide transition-all duration-300 backdrop-blur-sm">
-              <Ship className="w-3.5 h-3.5" /> Service Import
+            <Link href="/catalogue/service-import"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#D4A843]/15 border border-[#D4A843]/40 hover:bg-[#D4A843]/25 text-[#D4A843] text-sm font-semibold tracking-wide transition-all duration-300 backdrop-blur-md shadow-lg shadow-[#D4A843]/10 hover:shadow-[#D4A843]/20 hover:scale-[1.03]">
+              <Ship className="w-4 h-4" /> Service Import
             </Link>
-            <Link href="/shop/contact"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-emerald-500/25 bg-emerald-500/8 hover:bg-emerald-500/18 text-emerald-400/70 hover:text-emerald-400 text-[11px] font-medium tracking-wide transition-all duration-300 backdrop-blur-sm">
-              <MessageCircle className="w-3.5 h-3.5" /> Contact
+            <Link href="/catalogue/contact"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 hover:bg-emerald-500/25 text-emerald-400 text-sm font-semibold tracking-wide transition-all duration-300 backdrop-blur-md shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 hover:scale-[1.03]">
+              <MessageCircle className="w-4 h-4" /> Contact
             </Link>
           </nav>
 
