@@ -96,7 +96,28 @@ export async function generateCataloguePDF(
   const year = now.getFullYear();
   const dateStr = now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
 
-  onProgress?.(3, 'Préparation…');
+  onProgress?.(3, 'Chargement des images…');
+
+  // ── Pre-load category images & store photos ─────────────────────────────────
+  const catImgCache: Record<string, string|null> = {};
+  await Promise.all(
+    sections.map(async sec => {
+      if (sec.category.image) {
+        catImgCache[sec.category.image] = await loadImg(sec.category.image);
+      }
+    })
+  );
+
+  // Store photos
+  const storePhotos: Record<string, string|null> = {};
+  const storeUrls = ['/boutiques/haifa-1.jpg', '/boutiques/derb-omar-1.webp'];
+  await Promise.all(
+    storeUrls.map(async url => {
+      storePhotos[url] = await loadImg(url);
+    })
+  );
+
+  onProgress?.(6, 'Préparation du PDF…');
 
   // ══════════════════════════════════════════════════════
   // PAGE 1 — COUVERTURE (fond blanc + vrai logo)
@@ -285,45 +306,66 @@ export async function generateCataloguePDF(
   ay += 8;
 
   const stores = [
-    { name: 'Boulevard Haïfa', badge: 'Magasin Principal', spec: 'Tous les produits · Spécialiste fermetures & mercerie', addr: 'Boulevard Haïfa, Casablanca', hours: 'Lun–Sam : 8h30–18h30', stats: '5 000+ références · 15+ ans · 2 000+ clients' },
-    { name: 'Derb Omar', badge: 'Vente Détail & Gros', spec: 'Détail & Semi-gros · Fils, rubans, accessoires couture', addr: 'Derb Omar, Casablanca', hours: 'Lun–Sam : 8h30–18h30', stats: 'Vente détail & gros · 1 000+ fils & rubans' },
+    { name: 'Boulevard Haïfa', badge: 'Magasin Principal', spec: 'Tous les produits · Spécialiste fermetures & mercerie', addr: 'Boulevard Haïfa, Casablanca', hours: 'Lun–Sam : 8h30–18h30', stats: '5 000+ références · 15+ ans · 2 000+ clients', photo: '/boutiques/haifa-1.jpg' },
+    { name: 'Derb Omar', badge: 'Vente Détail & Gros', spec: 'Détail & Semi-gros · Fils, rubans, accessoires couture', addr: 'Derb Omar, Casablanca', hours: 'Lun–Sam : 8h30–18h30', stats: 'Vente détail & gros · 1 000+ fils & rubans', photo: '/boutiques/derb-omar-1.webp' },
   ];
 
   for (const st of stores) {
-    if (ay > PH - 50) { drawFooter(doc, dateStr); doc.addPage(); band(doc, C.red); ay = 12; }
+    if (ay > PH - 55) { drawFooter(doc, dateStr); doc.addPage(); band(doc, C.red); ay = 12; }
+    const stH = 38;
+    const photoW = 40;
     doc.setFillColor(...C.cream);
     doc.setDrawColor(...C.silk);
     doc.setLineWidth(0.2);
-    doc.roundedRect(ML, ay, CW, 30, 2, 2, 'FD');
+    doc.roundedRect(ML, ay, CW, stH, 2, 2, 'FD');
+
+    // Store photo
+    const sPhoto = storePhotos[st.photo];
+    if (sPhoto) {
+      try {
+        doc.addImage(sPhoto, 'JPEG', ML+2, ay+2, photoW-4, stH-4, `store-${st.name}`, 'FAST');
+        doc.setDrawColor(...C.silk);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(ML+2, ay+2, photoW-4, stH-4, 2, 2, 'S');
+      } catch {}
+    } else {
+      doc.setFillColor(...C.lgray);
+      doc.roundedRect(ML+2, ay+2, photoW-4, stH-4, 2, 2, 'F');
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(6);
+      doc.setTextColor(...C.gray);
+      doc.text('Photo', ML+2+(photoW-4)/2, ay+stH/2, { align:'center' });
+    }
+
+    const infoX = ML + photoW + 2;
     // Badge
     doc.setFillColor(...C.red);
-    doc.roundedRect(ML+3, ay+3, doc.getTextWidth(st.badge)+8, 6, 2, 2, 'F');
+    const bw = doc.getTextWidth(st.badge)+8;
+    doc.roundedRect(infoX, ay+3, bw, 6, 2, 2, 'F');
     doc.setFont('helvetica','bold');
     doc.setFontSize(5.5);
     doc.setTextColor(...C.white);
-    doc.text(st.badge, ML+7, ay+7);
+    doc.text(st.badge, infoX+4, ay+7);
     // Name
     doc.setFont('helvetica','bold');
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(...C.black);
-    doc.text(st.name, ML+3, ay+16);
+    doc.text(st.name, infoX, ay+16);
     // Spec
     doc.setFont('helvetica','normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setTextColor(...C.gray);
-    doc.text(st.spec, ML+3, ay+21);
-    // Right side info
+    doc.text(st.spec, infoX, ay+21);
+    // Info
     doc.setFont('helvetica','normal');
     doc.setFontSize(6.5);
     doc.setTextColor(...C.dark);
-    doc.text(`📍 ${st.addr}`, ML + CW/2, ay+8);
-    doc.text(`🕐 ${st.hours}`, ML + CW/2, ay+13);
-    doc.text(`📞 +212 760 998 347`, ML + CW/2, ay+18);
+    doc.text(`${st.addr}  ·  ${st.hours}  ·  +212 760 998 347`, infoX, ay+27);
     doc.setFont('helvetica','italic');
     doc.setFontSize(6);
     doc.setTextColor(...C.gray);
-    doc.text(st.stats, ML + CW/2, ay+24);
-    ay += 34;
+    doc.text(st.stats, infoX, ay+32);
+    ay += stH + 4;
   }
 
   drawFooter(doc, dateStr);
@@ -352,7 +394,28 @@ export async function generateCataloguePDF(
   doc.setLineWidth(0.7);
   doc.line(ML, 42, ML+30, 42);
 
+  // Product images showcase strip
+  const catImgs = Object.values(catImgCache).filter(Boolean) as string[];
   let iy = 50;
+  if (catImgs.length > 0) {
+    const stripH = 28, stripGap = 3;
+    const maxImgs = Math.min(catImgs.length, 5);
+    const stripImgW = (CW - (maxImgs-1)*stripGap) / maxImgs;
+    let sx = ML;
+    const sy2 = 47;
+    doc.setFillColor(...C.cream);
+    doc.roundedRect(ML-1, sy2-1, CW+2, stripH+2, 3, 3, 'F');
+    for (let si = 0; si < maxImgs; si++) {
+      try {
+        doc.addImage(catImgs[si], 'JPEG', sx, sy2, stripImgW, stripH, `imp-strip-${si}`, 'FAST');
+        doc.setDrawColor(...C.silk);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(sx, sy2, stripImgW, stripH, 2, 2, 'S');
+      } catch {}
+      sx += stripImgW + stripGap;
+    }
+    iy = sy2 + stripH + 6;
+  }
 
   // Features
   doc.setFont('helvetica','bold');
@@ -456,44 +519,70 @@ export async function generateCataloguePDF(
 
   let sy = 48;
   sections.forEach((sec, i) => {
-    if (sy > PH - 28) {
+    const rowH = 22;
+    if (sy > PH - 30) {
       drawFooter(doc, dateStr);
       doc.addPage(); band(doc, C.red); sy = 16;
     }
     const accent = sec.category.color ? hexRgb(sec.category.color) : C.red;
+    const imgSz = 18;
+    const imgB64 = sec.category.image ? catImgCache[sec.category.image] : null;
 
-    doc.setFillColor(...accent);
-    doc.roundedRect(ML, sy, 11, 11, 2, 2, 'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...C.white);
-    doc.text(String(i+1).padStart(2,'0'), ML+5.5, sy+7, { align:'center' });
+    // Category image or colored fallback
+    if (imgB64) {
+      try {
+        // Clip background
+        doc.setFillColor(...C.cream);
+        doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'F');
+        doc.addImage(imgB64, 'JPEG', ML, sy, imgSz, imgSz, `cat-${i}`, 'FAST');
+        // Border
+        doc.setDrawColor(...C.silk);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'S');
+      } catch {
+        doc.setFillColor(...accent);
+        doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'F');
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...C.white);
+        doc.text(String(i+1).padStart(2,'0'), ML+imgSz/2, sy+imgSz/2+2.5, { align:'center' });
+      }
+    } else {
+      doc.setFillColor(...accent);
+      doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...C.white);
+      doc.text(String(i+1).padStart(2,'0'), ML+imgSz/2, sy+imgSz/2+2.5, { align:'center' });
+    }
+
+    const tx = ML + imgSz + 5;
 
     doc.setFont('helvetica','bold');
     doc.setFontSize(11);
     doc.setTextColor(...C.black);
-    doc.text(sec.category.name, ML+15, sy+5);
+    doc.text(sec.category.name, tx, sy+6);
 
     if (sec.category.description) {
       doc.setFont('helvetica','normal');
       doc.setFontSize(7);
       doc.setTextColor(...C.gray);
-      doc.text(clip(sec.category.description, 80), ML+15, sy+9.5);
+      doc.text(clip(sec.category.description, 75), tx, sy+11);
     }
 
     doc.setFont('helvetica','bold');
     doc.setFontSize(11);
     doc.setTextColor(...accent);
-    doc.text(String(sec.products.length), PW-MR, sy+5, { align:'right' });
+    doc.text(String(sec.products.length), PW-MR, sy+6, { align:'right' });
     doc.setFont('helvetica','normal');
     doc.setFontSize(6.5);
     doc.setTextColor(...C.gray);
-    doc.text(`produit${sec.products.length>1?'s':''}`, PW-MR, sy+9.5, { align:'right' });
+    doc.text(`produit${sec.products.length>1?'s':''}`, PW-MR, sy+11, { align:'right' });
 
     doc.setDrawColor(...C.silk);
     doc.setLineWidth(0.2);
-    doc.line(ML+15, sy+13, PW-MR, sy+13);
-    sy += 19;
+    doc.line(tx, sy+rowH-2, PW-MR, sy+rowH-2);
+    sy += rowH + 3;
   });
   drawFooter(doc, dateStr);
   onProgress?.(18, 'Sommaire créé…');
