@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, addDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
