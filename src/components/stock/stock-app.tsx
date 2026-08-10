@@ -402,7 +402,7 @@ export default function StockApp() {
   // Pass-to-stock modal (depuis onglet Arrivages)
   const [passToStockId, setPassToStockId] = useState<string | null>(null);
 
-  const isLoading = isUserLoading || loadingArt || loadingCat || loadingMov || loadingSales;
+  const isLoading = isUserLoading || loadingArt || loadingCat;
 
   // ─── Handlers ────────────────────────────────────────────────────────────
   const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>) => {
