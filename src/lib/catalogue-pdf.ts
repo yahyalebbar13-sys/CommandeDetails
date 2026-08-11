@@ -524,6 +524,8 @@ export async function generateCataloguePDF(
   // ═══════════════════════════════════════════════════
   // PAGE 2 — SOMMAIRE
   // ═══════════════════════════════════════════════════
+  const categoryStartPages: Record<string, number> = {};
+  const sommairePageNumTasks: { page: number; x: number; y: number; slug: string; accent: [number,number,number] }[] = [];
   doc.addPage();
   band(doc, C.red);
 
@@ -585,17 +587,42 @@ export async function generateCataloguePDF(
     doc.setTextColor(...C.black);
     doc.text(sec.category.name, tx, sy+6);
 
+    let currentH = 14;
+
     if (sec.category.description) {
       doc.setFont('helvetica','normal');
       doc.setFontSize(7);
       doc.setTextColor(...C.gray);
-      doc.text(clip(sec.category.description, 75), tx, sy+11);
+      const descLines = doc.splitTextToSize(clip(sec.category.description, 75), CW - imgSz - 15);
+      doc.text(descLines, tx, sy+11);
+      currentH = 11 + descLines.length * 3.5;
     }
 
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...accent);
-    doc.text(String(sec.products.length), PW-MR, sy+6, { align:'right' });
+    const items = sec.subCategories?.length > 0 
+      ? sec.subCategories.map(sc => sc.name)
+      : sec.products.map(p => p.catalogueName || p.name);
+    
+    if (items.length > 0) {
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(7);
+      doc.setTextColor(...C.gray);
+      const itemsText = clip(items.join('  •  '), 180);
+      const itemsLines = doc.splitTextToSize(itemsText, CW - imgSz - 15);
+      doc.text(itemsLines, tx, sy + currentH);
+      currentH += itemsLines.length * 3.5 + 2;
+    }
+    
+    rowH = Math.max(rowH, currentH + 4);
+
+    // Save task to draw page number later
+    sommairePageNumTasks.push({
+      page: _pg + 1, // doc.addPage() was just called or it's the current _pg
+      x: PW-MR,
+      y: sy+6,
+      slug: sec.category.slug,
+      accent: accent
+    });
+    
     doc.setFont('helvetica','normal');
     doc.setFontSize(6.5);
     doc.setTextColor(...C.gray);
@@ -634,6 +661,7 @@ export async function generateCataloguePDF(
 
     // ── Category header page ─────────────────────────────────────────────────
     doc.addPage();
+    categoryStartPages[cat.slug] = _pg + 1;
     band(doc, accent);
     doc.setFillColor(...C.cream);
     doc.rect(0, 3, PW, 40, 'F');
@@ -1031,6 +1059,23 @@ export async function generateCataloguePDF(
   doc.setDrawColor(...C.silk);
   doc.setLineWidth(0.3);
   doc.line(ML, PH-30, PW-MR, PH-30);
+  // ═══════════════════════════════════════════════════
+  // DRAW PAGE NUMBERS IN SOMMAIRE (TWO-PASS)
+  // ═══════════════════════════════════════════════════
+  for (const task of sommairePageNumTasks) {
+    doc.setPage(task.page);
+    const startPg = categoryStartPages[task.slug];
+    if (startPg) {
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(11);
+      doc.setTextColor(...task.accent);
+      doc.text(`p. ${startPg}`, task.x, task.y, { align:'right' });
+    }
+  }
+
+  // Go back to the last page so adding new pages later wouldn't break, though we are done.
+  doc.setPage(doc.internal.getNumberOfPages());
+
   doc.setFont('helvetica','normal');
   doc.setFontSize(6.5);
   doc.setTextColor(...C.lgray);
