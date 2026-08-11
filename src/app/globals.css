@@ -101,16 +101,13 @@
   animation: gradientShift 8s ease infinite;
 }
 
-/* Product card hover & hardware acceleration */
+/* Product card hover */
 .shop-product-card {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform, box-shadow;
-  transform: translateZ(0); /* force GPU acceleration */
+  transition: box-shadow 0.2s ease;
 }
 
 .shop-product-card:hover {
-  transform: translateY(-4px) translateZ(0);
-  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
+  box-shadow: 0 12px 24px -6px rgba(0,0,0,0.12);
 }
 
 /* Shimmer loading effect */

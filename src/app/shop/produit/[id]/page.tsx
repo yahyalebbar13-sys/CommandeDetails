@@ -41,9 +41,9 @@ function Accordion({ title, icon, defaultOpen = false, children }: { title: stri
 
 function SimilarProductCard({ product }: { product: any }) {
   return (
-    <Link href={`/shop/produit/${product.id}`} className="block bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all">
+    <Link href={`/shop/produit/${product.id}`} className="block bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden hover:shadow-lg touch-manipulation">
       <div className="aspect-square overflow-hidden bg-gray-50 relative">
-        <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+        <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
       </div>
       <div className="p-3">
         <p className="text-xs text-[#D4A843] font-semibold mb-1">{product.categoryName}</p>

@@ -91,7 +91,7 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
     <Link
       href={productUrl}
       prefetch={false}
-      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline cursor-pointer active:scale-[0.98] transition-transform duration-200 touch-manipulation"
+      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline cursor-pointer touch-manipulation"
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
