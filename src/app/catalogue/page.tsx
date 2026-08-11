@@ -789,8 +789,8 @@ export default function CataloguePage() {
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                   </div>
-                  {/* Sub-categories list */}
-                  {subCats.length > 0 && (
+                  {/* Sub-categories list OR product names if no sub-cats */}
+                  {subCats.length > 0 ? (
                     <div className="mt-3 pt-3 border-t border-[#F0ECE8] ml-14 space-y-1">
                       {subCats.map(sub => {
                         const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
@@ -811,6 +811,24 @@ export default function CataloguePage() {
                           </div>
                         );
                       })}
+                    </div>
+                  ) : section.products.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-[#F0ECE8] ml-14 space-y-1">
+                      {section.products.map(p => (
+                        <div
+                          key={p.id}
+                          onClick={(e) => { e.stopPropagation(); scrollTo(cat.slug); }}
+                          className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[#F8F5F0] cursor-pointer transition-colors group/sub"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: accentColor }} />
+                            <span className="text-[11px] font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors truncate">{p.catalogueName || p.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <StockDot inStock={p.inStock} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </button>
