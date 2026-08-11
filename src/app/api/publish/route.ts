@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST() {
   try {
     const deployHookUrl = process.env.VERCEL_DEPLOY_HOOK_URL;
     
     if (!deployHookUrl) {
       return NextResponse.json(
-        { error: "Le lien de déploiement Vercel n'est pas configuré." },
+        { error: "Configuration manquante: VERCEL_DEPLOY_HOOK_URL n'est pas défini dans les variables d'environnement." },
+        { status: 500 }
+      );
+    }
+
+    if (!deployHookUrl.startsWith('http')) {
+      return NextResponse.json(
+        { error: "Configuration invalide: l'URL VERCEL_DEPLOY_HOOK_URL ne commence pas par http." },
         { status: 500 }
       );
     }

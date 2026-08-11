@@ -3805,8 +3805,9 @@ function PublishButton() {
       if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
       setStatus('success');
       setTimeout(() => setStatus('idle'), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert("Erreur de publication : " + err.message);
       setStatus('error');
       setTimeout(() => setStatus('idle'), 3000);
     } finally {
