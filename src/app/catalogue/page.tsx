@@ -557,6 +557,7 @@ export default function CataloguePage() {
   const [pdfExporting, setPdfExporting] = useState(false);
   const [pdfProgress, setPdfProgress] = useState(0);
   const [pdfStatus, setPdfStatus] = useState('');
+  const [showBackToSommaire, setShowBackToSommaire] = useState(false);
 
   const rootCats = useMemo(() => categories.filter(c => !c.parentSlug), [categories]);
 
@@ -589,6 +590,19 @@ export default function CataloguePage() {
   const inStockCount = products.filter(p => p.inStock).length;
   const lastUpdate = new Date();
 
+  // Track scroll to show/hide floating sommaire button
+  useEffect(() => {
+    const handleScroll = () => {
+      const sommaireEl = document.getElementById('catalogue-sommaire');
+      if (sommaireEl) {
+        const rect = sommaireEl.getBoundingClientRect();
+        setShowBackToSommaire(rect.bottom < -100);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleExportPDF = useCallback(async () => {
     setPdfExporting(true);
     setPdfProgress(0);
@@ -613,6 +627,11 @@ export default function CataloguePage() {
 
   const scrollTo = (slug: string) => {
     const el = document.getElementById(`cat-${slug}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToSommaire = () => {
+    const el = document.getElementById('catalogue-sommaire');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -730,36 +749,38 @@ export default function CataloguePage() {
       </div>
 
       {/* ─── SOMMAIRE ─────────────────────────────────────────────────────── */}
-      <section className="bg-white border-b border-[#E8E4DF]">
-        <div className="max-w-6xl mx-auto px-6 sm:px-10 py-10">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#C8102E]/8 flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-[#C8102E]" />
+      <section id="catalogue-sommaire" className="relative scroll-mt-0" style={{ background: 'linear-gradient(180deg, #111111 0%, #1A1A1A 100%)' }}>
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+        <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-12">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-1 h-5 rounded-full bg-[#C8102E]" />
+                <span className="text-[10px] font-bold text-[#C8102E] uppercase tracking-[0.2em]">Navigation</span>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-[#1A1A1A]" style={{ fontFamily: "'Outfit', sans-serif" }}>Sommaire</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{categorySections.length} sections · {totalProducts} produits · Cliquez pour naviguer</p>
-              </div>
+              <h2 className="text-2xl font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>Sommaire du catalogue</h2>
+              <p className="text-white/30 text-xs mt-1">{categorySections.length} catégories · {totalProducts} produits · Cliquez pour naviguer</p>
             </div>
-            <div className="relative hidden sm:block w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" />
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
               <input
                 id="catalogue-search"
                 type="text"
                 placeholder="Rechercher un produit…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E8E4DF] text-sm text-[#1A1A1A] placeholder-gray-300 focus:outline-none focus:border-[#C8102E]/40 bg-[#FDFBF8] transition-all"
+                className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-white/10 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#C8102E]/50 bg-white/5 backdrop-blur-sm transition-all"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
           </div>
 
+          {/* Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
             {categorySections.map((section, i) => {
               const cat = section.category;
@@ -772,60 +793,61 @@ export default function CataloguePage() {
                 <button
                   key={cat.slug}
                   onClick={() => scrollTo(cat.slug)}
-                  className="group flex flex-col gap-3 p-4 rounded-xl border border-[#E8E4DF] bg-[#FDFBF8] hover:bg-white hover:border-[#C8102E]/20 hover:shadow-md transition-all duration-200 text-left"
+                  className="group flex flex-col gap-0 p-0 rounded-xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-200 text-left overflow-hidden"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-black"
-                      style={{ background: `${accentColor}10`, color: accentColor }}>
+                  {/* Category row */}
+                  <div className="flex items-center gap-3.5 px-4 py-3.5">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black"
+                      style={{ background: `${accentColor}20`, color: accentColor }}>
                       {String(i + 1).padStart(2, '0')}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-[#1A1A1A] truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
+                      <h3 className="text-[13px] font-bold text-white truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
+                      <div className="flex items-center gap-2 text-[10px] text-white/30 mt-0.5">
                         <span>{section.products.length} produit{section.products.length > 1 ? 's' : ''}</span>
-                        <span className="w-0.5 h-0.5 rounded-full bg-gray-300" />
-                        <span className="text-emerald-500 font-medium">{availableCount} dispo</span>
+                        <span className="w-0.5 h-0.5 rounded-full bg-white/20" />
+                        <span className="text-emerald-400/70 font-medium">{availableCount} dispo</span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-white/15 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                   </div>
-                  {/* Sub-categories list OR product names if no sub-cats */}
-                  {subCats.length > 0 ? (
-                    <div className="mt-3 pt-3 border-t border-[#F0ECE8] ml-14 space-y-1">
-                      {subCats.map(sub => {
-                        const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
-                        return (
+                  {/* Items list */}
+                  {(subCats.length > 0 || section.products.length > 0) && (
+                    <div className="border-t border-white/5 px-4 py-2.5 space-y-0.5">
+                      {subCats.length > 0 ? (
+                        subCats.map(sub => {
+                          const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
+                          return (
+                            <div
+                              key={sub.slug}
+                              onClick={(e) => { e.stopPropagation(); const el = document.getElementById(`subcat-${sub.slug}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                              className="flex items-center justify-between py-1.5 px-2.5 -mx-1 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group/sub"
+                            >
+                              <div className="flex items-start gap-2">
+                                <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.35rem]" style={{ background: accentColor, opacity: 0.6 }} />
+                                <span className="text-[11px] leading-snug font-medium text-white/45 group-hover/sub:text-white/80 transition-colors">{sub.name}</span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <span className="text-[9px] font-bold text-white/20">{subProductCount}</span>
+                                <ChevronRight className="w-2.5 h-2.5 text-white/10 group-hover/sub:text-[#C8102E] transition-colors" />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        section.products.map(p => (
                           <div
-                            key={sub.slug}
-                            onClick={(e) => { e.stopPropagation(); const el = document.getElementById(`subcat-${sub.slug}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-                            className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[#F8F5F0] cursor-pointer transition-colors group/sub"
+                            key={p.id}
+                            onClick={(e) => { e.stopPropagation(); scrollTo(cat.slug); }}
+                            className="flex items-center py-1.5 px-2.5 -mx-1 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group/sub"
                           >
-                            <div className="flex items-start gap-2.5">
-                              <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.4rem]" style={{ background: accentColor }} />
-                              <span className="text-[11px] leading-snug font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors pr-2">{sub.name}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
-                              <span className="text-[9px] font-bold text-[#C8102E]/70">{subProductCount}</span>
-                              <ChevronRight className="w-3 h-3 text-gray-300 group-hover/sub:text-[#C8102E] transition-colors" />
+                            <div className="flex items-start gap-2">
+                              <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.35rem]" style={{ background: accentColor, opacity: 0.6 }} />
+                              <span className="text-[11px] leading-snug font-medium text-white/45 group-hover/sub:text-white/80 transition-colors">{p.catalogueName || p.name}</span>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  ) : section.products.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-[#F0ECE8] ml-14 space-y-1">
-                      {section.products.map(p => (
-                        <div
-                          key={p.id}
-                          onClick={(e) => { e.stopPropagation(); scrollTo(cat.slug); }}
-                          className="flex items-center py-1.5 px-3 rounded-lg hover:bg-[#F8F5F0] cursor-pointer transition-colors group/sub"
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.4rem]" style={{ background: accentColor }} />
-                            <span className="text-[11px] leading-snug font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors">{p.catalogueName || p.name}</span>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   )}
                 </button>
@@ -970,6 +992,24 @@ export default function CataloguePage() {
           </div>
         </div>
       )}
+
+      {/* ─── Floating Back to Sommaire Button ──────────────────────────── */}
+      <button
+        onClick={scrollToSommaire}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl text-white text-xs font-bold shadow-2xl transition-all duration-300 cursor-pointer"
+        style={{
+          background: 'linear-gradient(135deg, #1A1A1A 0%, #0C0C0C 100%)',
+          border: '1px solid rgba(200,16,46,0.3)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)',
+          opacity: showBackToSommaire ? 1 : 0,
+          pointerEvents: showBackToSommaire ? 'auto' : 'none',
+          transform: showBackToSommaire ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.9)',
+        }}
+      >
+        <ArrowUp className="w-3.5 h-3.5 text-[#C8102E]" />
+        <span className="hidden sm:inline">Sommaire</span>
+        <BookOpen className="w-3.5 h-3.5 text-white/40 sm:hidden" />
+      </button>
 
       {/* Footer note */}
       <div className="bg-[#0F0F0F] py-6">
