@@ -760,7 +760,7 @@ export default function CataloguePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
             {categorySections.map((section, i) => {
               const cat = section.category;
               const accentColor = cat.color || '#C8102E';
@@ -800,11 +800,11 @@ export default function CataloguePage() {
                             onClick={(e) => { e.stopPropagation(); const el = document.getElementById(`subcat-${sub.slug}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                             className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[#F8F5F0] cursor-pointer transition-colors group/sub"
                           >
-                            <div className="flex items-center gap-2.5">
-                              <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: accentColor }} />
-                              <span className="text-[11px] font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors">{sub.name}</span>
+                            <div className="flex items-start gap-2.5">
+                              <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.4rem]" style={{ background: accentColor }} />
+                              <span className="text-[11px] leading-snug font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors pr-2">{sub.name}</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
                               <span className="text-[9px] font-bold text-[#C8102E]/70">{subProductCount}</span>
                               <ChevronRight className="w-3 h-3 text-gray-300 group-hover/sub:text-[#C8102E] transition-colors" />
                             </div>
@@ -820,9 +820,9 @@ export default function CataloguePage() {
                           onClick={(e) => { e.stopPropagation(); scrollTo(cat.slug); }}
                           className="flex items-center py-1.5 px-3 rounded-lg hover:bg-[#F8F5F0] cursor-pointer transition-colors group/sub"
                         >
-                          <div className="flex items-center gap-2.5">
-                            <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: accentColor }} />
-                            <span className="text-[11px] font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors truncate">{p.catalogueName || p.name}</span>
+                          <div className="flex items-start gap-2.5">
+                            <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.4rem]" style={{ background: accentColor }} />
+                            <span className="text-[11px] leading-snug font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors">{p.catalogueName || p.name}</span>
                           </div>
                         </div>
                       ))}
