@@ -939,8 +939,9 @@ export async function generateCataloguePDF(
       doc.setLineWidth(0.2);
       doc.line(ML, dy, ML+CW, dy);
       dy += 7;
+      
+      drawFooter(doc, dateStr);
     }
-    drawFooter(doc, dateStr);
   }
 
   onProgress?.(93, 'Page de contact…');
