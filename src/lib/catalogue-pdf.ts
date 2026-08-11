@@ -758,14 +758,22 @@ export async function generateCataloguePDF(
       const SW = CW - (imgData ? ISW + 6 : 0);
       let sy2 = dy;
 
-      // Description
+      // Description — full, no clip
       if (p.description) {
+        const dl = doc.splitTextToSize(p.description, SW);
         doc.setFont('helvetica','italic');
-        doc.setFontSize(7);
+        doc.setFontSize(7.5);
         doc.setTextColor(...C.dark);
-        const dl = doc.splitTextToSize(clip(p.description, 280), SW);
-        doc.text(dl.slice(0,3), SX, sy2 + 4);
-        sy2 += Math.min(dl.length,3)*3.8 + 5;
+        for (const line of dl) {
+          if (sy2 > PH - 20) {
+            // Flush image area before overflow
+            dy = Math.max(dy + ISH + 4, sy2 + 4);
+            doc.addPage(); band(doc, accent); dy = 10; sy2 = dy;
+          }
+          doc.text(line, SX, sy2 + 4);
+          sy2 += 4;
+        }
+        sy2 += 4;
       }
 
       // Tech specs 2-col
@@ -843,12 +851,19 @@ export async function generateCataloguePDF(
           doc.setFontSize(6.2);
           doc.setTextColor(...C.dark);
           doc.text(lbl, ML, dy + 3);
+          dy += 6;
           doc.setFont('helvetica','normal');
           doc.setFontSize(6.5);
           doc.setTextColor(...C.gray);
-          const il = doc.splitTextToSize(clip(val, 240), CW-4);
-          doc.text(il.slice(0,4), ML, dy+7);
-          dy += Math.min(il.length,4)*3.5 + 6;
+          const il = doc.splitTextToSize(val, CW - 4);
+          for (const line of il) {
+            if (dy > PH - 18) {
+              doc.addPage(); band(doc, accent); dy = 10;
+            }
+            doc.text(line, ML, dy);
+            dy += 3.8;
+          }
+          dy += 4;
         }
       }
 
