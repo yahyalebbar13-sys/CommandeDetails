@@ -205,6 +205,21 @@ export default function DPView({ articles, factures, subCategories, generalCateg
     }
   }, [selectedFactureId, firestore, user, puMap, categoryLines, freightInput]);
 
+  const handleUnlockDP = async () => {
+    if (!selectedFactureId || !user || !firestore) return;
+    if (!confirm('SECRET: Voulez-vous vraiment déverrouiller cette déclaration ?')) return;
+    
+    try {
+      await setDoc(
+        doc(firestore, 'users', user.uid, 'dp_declarations', selectedFactureId),
+        { dpLocked: false, dpLockedAt: null },
+        { merge: true }
+      );
+      setLockedDP(null);
+    } catch (e) {
+      console.error('Unlock error:', e);
+    }
+  };
 
   const lines = categoryLines.map(line => ({
     ...line,
@@ -316,7 +331,11 @@ export default function DPView({ articles, factures, subCategories, generalCateg
                   </button>
                 </>
               ) : (
-                <div className="h-12 px-5 flex items-center gap-2 bg-emerald-500/10 text-emerald-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-500/30 shrink-0">
+                <div
+                  onDoubleClick={handleUnlockDP}
+                  title="Double-cliquez pour déverrouiller secrètement"
+                  className="h-12 px-5 flex items-center gap-2 bg-emerald-500/10 text-emerald-400 font-black text-[10px] uppercase tracking-widest rounded-xl border border-emerald-500/30 shrink-0 cursor-default"
+                >
                   <ShieldCheck className="w-4 h-4" />
                   Déclaration définitive
                 </div>
