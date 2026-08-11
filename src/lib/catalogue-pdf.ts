@@ -952,20 +952,25 @@ export async function generateCataloguePDF(
   // ═══════════════════════════════════════════════════
 
   const TOC_TOP = 48, TOC_BOT = PH - 22;
-  const ROW_H = 9, ROW_SUB = 5.5, ROW_PROD = 5.5, ROW_GAP = 4;
+  const ROW_H = 9, ROW_SUB_H = 7, ROW_PROD_H = 5.5, ROW_GAP = 4;
 
-  // --- Build structured TOC from tocData ---
-  interface TocProduct { name: string; recordedIdx: number; }
-  interface TocCategoryEntry {
-    title: string;
-    recordedIdx: number;
+  // --- Build hierarchical TOC: cross-reference sections (structure) with tocData (page numbers) ---
+  interface TocProd { name: string; recordedIdx: number; }
+  interface TocSubCat { name: string; slug: string; products: TocProd[]; }
+  interface TocCatEntry {
+    title: string; recordedIdx: number;
     accent: [number,number,number];
-    subCategories: string[];
-    products: TocProduct[];
+    subCats: TocSubCat[];
+    directProds: TocProd[];
   }
-  interface TocInfoEntry {
-    title: string;
-    recordedIdx: number;
+  interface TocInfoEntry { title: string; recordedIdx: number; }
+
+  // Map product name → recorded jsPDF page index (from tocData)
+  const prodPageMap = new Map<string, number>();
+  for (const item of tocData) {
+    if (!item.isCategory && item.title !== 'À Propos de LEBTEX' && item.title !== 'Service Import & Précommandes') {
+      prodPageMap.set(item.title, item.recordedIdx);
+    }
   }
 
   const tocInfoPages: TocInfoEntry[] = [
@@ -973,253 +978,174 @@ export async function generateCataloguePDF(
     { title: 'Service Import & Précommandes', recordedIdx: 3 },
   ];
 
-  const tocCategories: TocCategoryEntry[] = [];
-
-  // Parse tocData: categories are isCategory=true, products follow until next category
-  let currentCatEntry: TocCategoryEntry | null = null;
+  const tocCatEntries: TocCatEntry[] = [];
   for (const item of tocData) {
-    if (item.isCategory) {
-      // Save previous
-      if (currentCatEntry) tocCategories.push(currentCatEntry);
-      const sec = sections.find(s => s.category.name.toUpperCase() === item.title);
-      const accent = sec?.category.color ? hexRgb(sec.category.color) : C.red;
-      const subs = item.details ? item.details.split('  •  ').map(s => s.trim()).filter(Boolean) : [];
-      // If this category has sub-categories, use them; otherwise subs stays empty
-      const hasRealSubs = sec ? sec.subCategories.length > 0 : false;
-      currentCatEntry = {
-        title: item.title,
-        recordedIdx: item.recordedIdx,
-        accent,
-        subCategories: hasRealSubs ? subs : [],
-        products: [],
-      };
-    } else if (item.title !== 'À Propos de LEBTEX' && item.title !== 'Service Import & Précommandes') {
-      // It's a product fiche
-      if (currentCatEntry) {
-        currentCatEntry.products.push({ name: item.title, recordedIdx: item.recordedIdx });
-      }
-    }
-  }
-  if (currentCatEntry) tocCategories.push(currentCatEntry);
+    if (!item.isCategory) continue;
+    const sec = sections.find(s => s.category.name.toUpperCase() === item.title);
+    if (!sec) continue;
+    const accent = sec.category.color ? hexRgb(sec.category.color) : C.red;
 
-  // --- Dry-run: measure how many sommaire pages we need ---
-  function measureEntry(cat: TocCategoryEntry): number {
-    let h = ROW_H; // category row
-    if (cat.subCategories.length > 0) {
-      h += 5 + cat.subCategories.length * ROW_SUB; // label + subs
+    // Sub-categories with their products
+    const subCats: TocSubCat[] = sec.subCategories.map(sub => ({
+      name: sub.name,
+      slug: sub.slug,
+      products: sec.products
+        .filter(p => p.categorySlug === sub.slug)
+        .map(p => { const n = p.catalogueName || p.name; return { name: n, recordedIdx: prodPageMap.get(n) ?? 0 }; })
+        .filter(p => p.recordedIdx > 0),
+    })).filter(sc => sc.products.length > 0);
+
+    // Products directly under category (not in any sub-category)
+    const subSlugs = new Set(sec.subCategories.map(s => s.slug));
+    const directProds = sec.products
+      .filter(p => !subSlugs.has(p.categorySlug) || p.categorySlug === sec.category.slug)
+      .map(p => { const n = p.catalogueName || p.name; return { name: n, recordedIdx: prodPageMap.get(n) ?? 0 }; })
+      .filter(p => p.recordedIdx > 0);
+
+    tocCatEntries.push({ title: item.title, recordedIdx: item.recordedIdx, accent, subCats, directProds });
+  }
+
+  // --- Dry-run to count pages needed ---
+  function measureCat(cat: TocCatEntry): number {
+    let h = ROW_H;
+    for (const sub of cat.subCats) {
+      h += ROW_SUB_H;
+      h += sub.products.length * ROW_PROD_H;
     }
-    if (cat.products.length > 0) {
-      h += 5 + cat.products.length * ROW_PROD; // label + products
-    }
-    h += ROW_GAP; // separator
+    h += cat.directProds.length * ROW_PROD_H;
+    h += ROW_GAP;
     return h;
   }
 
   let dryY = TOC_TOP;
   let dryPages = 1;
-  // Info pages take ~2 rows
-  dryY += (ROW_H + 2) * tocInfoPages.length + 4;
-  for (const cat of tocCategories) {
-    const h = measureEntry(cat);
-    if (dryY + h > TOC_BOT) { dryPages++; dryY = 16; }
+  dryY += (ROW_H + 2) * tocInfoPages.length + 6;
+  for (const cat of tocCatEntries) {
+    const h = measureCat(cat);
+    if (dryY + h > TOC_BOT) { dryPages++; dryY = 18; }
     dryY += h;
   }
   const tocPagesCount = dryPages;
   const tocStartIdx = doc.internal.getNumberOfPages() + 1;
 
-  // --- Helper: draw dotted leader ---
+  // --- Helpers ---
   function drawLeader(d: jsPDF, fromX: number, toX: number, y: number) {
     if (fromX + 3 >= toX) return;
-    d.setDrawColor(...C.lgray);
-    d.setLineWidth(0.15);
+    d.setDrawColor(...C.lgray); d.setLineWidth(0.15);
     d.setLineDashPattern([0.5, 1.5], 0);
     d.line(fromX, y, toX, y);
     d.setLineDashPattern([], 0);
   }
 
-  // --- Page number: all pages shift right by tocPagesCount since sommaire goes to position 2 ---
   function printedPage(recordedIdx: number): number {
     return recordedIdx - 1 + tocPagesCount;
   }
 
-  // --- Header ---
   function drawTocHeader(d: jsPDF, isFirst: boolean) {
     band(d, C.red);
     if (isFirst) {
-      d.setFont('helvetica','bold');
-      d.setFontSize(22);
-      d.setTextColor(...C.black);
+      d.setFont('helvetica','bold'); d.setFontSize(22); d.setTextColor(...C.black);
       d.text('Sommaire', ML, 18);
-      d.setFont('helvetica','normal');
-      d.setFontSize(8);
-      d.setTextColor(...C.gray);
+      d.setFont('helvetica','normal'); d.setFontSize(8); d.setTextColor(...C.gray);
       d.text(`${sections.length} catégories  ·  ${totalProducts} produits`, ML, 25);
-      d.setDrawColor(...C.red);
-      d.setLineWidth(0.6);
-      d.line(ML, 29, ML + 25, 29);
-      // Column labels
-      d.setFont('helvetica','bold');
-      d.setFontSize(7);
-      d.setTextColor(...C.gray);
-      d.text('SECTION', ML + 10, 40);
-      d.text('PAGE', PW - MR, 40, { align: 'right' });
-      d.setDrawColor(...C.silk);
-      d.setLineWidth(0.3);
-      d.line(ML, 43, PW - MR, 43);
+      d.setDrawColor(...C.red); d.setLineWidth(0.6); d.line(ML, 29, ML + 25, 29);
+      d.setFont('helvetica','bold'); d.setFontSize(7); d.setTextColor(...C.gray);
+      d.text('SECTION', ML + 10, 40); d.text('PAGE', PW - MR, 40, { align: 'right' });
+      d.setDrawColor(...C.silk); d.setLineWidth(0.3); d.line(ML, 43, PW - MR, 43);
     } else {
-      d.setFont('helvetica','bold');
-      d.setFontSize(10);
-      d.setTextColor(...C.gray);
+      d.setFont('helvetica','bold'); d.setFontSize(10); d.setTextColor(...C.gray);
       d.text('Sommaire (suite)', ML, 12);
-      d.setDrawColor(...C.silk);
-      d.setLineWidth(0.2);
-      d.line(ML, 14, PW - MR, 14);
+      d.setDrawColor(...C.silk); d.setLineWidth(0.2); d.line(ML, 14, PW - MR, 14);
     }
   }
 
-  // --- Check page break ---
+  let tocY = TOC_TOP;
   function tocPageBreak(needed: number) {
-    if (tocY + needed > TOC_BOT) {
-      doc.addPage();
-      drawTocHeader(doc, false);
-      tocY = 18;
-    }
+    if (tocY + needed > TOC_BOT) { doc.addPage(); drawTocHeader(doc, false); tocY = 18; }
   }
 
-  // --- Start drawing ---
+  function drawProdRow(prod: TocProd, indent: number) {
+    tocPageBreak(ROW_PROD_H);
+    const prodPg = printedPage(prod.recordedIdx);
+    doc.setFillColor(...C.lgray); doc.circle(indent + 2, tocY + 2, 0.5, 'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
+    const label = clip(prod.name, 56);
+    doc.text(label, indent + 5, tocY + 2.8);
+    const tw = doc.getTextWidth(label);
+    drawLeader(doc, indent + 5 + tw + 2, PW - MR - 7, tocY + 2.8);
+    doc.text(String(prodPg), PW - MR, tocY + 2.8, { align: 'right' });
+    tocY += ROW_PROD_H;
+  }
+
+  // --- Draw ---
   doc.addPage();
   drawTocHeader(doc, true);
-  let tocY = TOC_TOP;
 
-  // Info pages
+  // Info pages section
   for (const info of tocInfoPages) {
     tocPageBreak(ROW_H);
     const pg = printedPage(info.recordedIdx);
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...C.dark);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.dark);
     doc.text(info.title, ML + 10, tocY + 4);
     const tw = doc.getTextWidth(info.title);
     drawLeader(doc, ML + 10 + tw + 3, PW - MR - 12, tocY + 4);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...C.gray);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.gray);
     doc.text(String(pg), PW - MR, tocY + 4, { align: 'right' });
     tocY += ROW_H + 2;
   }
-
-  // Separator after info pages
   tocY += 2;
-  doc.setDrawColor(...C.silk);
-  doc.setLineWidth(0.3);
-  doc.line(ML, tocY, PW - MR, tocY);
+  doc.setDrawColor(...C.silk); doc.setLineWidth(0.3); doc.line(ML, tocY, PW - MR, tocY);
   tocY += ROW_GAP;
 
   // Categories
   let catIdx = 0;
-  for (const cat of tocCategories) {
-    const entryH = measureEntry(cat);
-    tocPageBreak(Math.min(entryH, ROW_H + 8)); // At least fit the category header
-
+  for (const cat of tocCatEntries) {
+    tocPageBreak(ROW_H + 4);
     catIdx++;
     const pg = printedPage(cat.recordedIdx);
 
-    // Badge
+    // Colored number badge
     doc.setFillColor(...cat.accent);
     doc.roundedRect(ML, tocY - 1, 7, 7, 1.5, 1.5, 'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(...C.white);
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.white);
     doc.text(String(catIdx).padStart(2, '0'), ML + 3.5, tocY + 3.5, { align: 'center' });
 
-    // Category name
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...C.black);
+    // Category name + leader + page
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...C.black);
     doc.text(cat.title, ML + 10, tocY + 4);
-
-    // Leader + page
     const catTW = doc.getTextWidth(cat.title);
     drawLeader(doc, ML + 10 + catTW + 3, PW - MR - 12, tocY + 4);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...C.black);
     doc.text(String(pg), PW - MR, tocY + 4, { align: 'right' });
-
     tocY += ROW_H;
 
-    // Sub-categories
-    if (cat.subCategories.length > 0) {
-      tocPageBreak(5);
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(6.5);
-      doc.setTextColor(...cat.accent);
-      doc.text('Sous-catégories :', ML + 15, tocY + 2);
-      tocY += 4;
-
-      for (const sub of cat.subCategories) {
-        tocPageBreak(ROW_SUB);
-        doc.setFillColor(...C.lgray);
-        doc.circle(ML + 17, tocY + 1.5, 0.5, 'F');
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(7);
-        doc.setTextColor(...C.gray);
-        doc.text(clip(sub, 65), ML + 20, tocY + 2.5);
-        tocY += ROW_SUB;
-      }
-      tocY += 1;
+    // Sub-categories, each with their products
+    for (const sub of cat.subCats) {
+      tocPageBreak(ROW_SUB_H);
+      // Sub-cat accent bar + name
+      doc.setFillColor(...cat.accent);
+      doc.roundedRect(ML + 10, tocY, 2.5, 6, 0.8, 0.8, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...cat.accent);
+      doc.text(clip(sub.name, 55), ML + 15, tocY + 4.2);
+      tocY += ROW_SUB_H;
+      // Products under this sub-category
+      for (const prod of sub.products) drawProdRow(prod, ML + 18);
     }
 
-    // Products with individual page numbers
-    if (cat.products.length > 0) {
-      tocPageBreak(5);
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(6.5);
-      doc.setTextColor(...C.dark);
-      doc.text('Fiches produits :', ML + 15, tocY + 2);
-      tocY += 4;
-
-      for (const prod of cat.products) {
-        tocPageBreak(ROW_PROD);
-        const prodPg = printedPage(prod.recordedIdx);
-        // Small dash
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(7);
-        doc.setTextColor(...C.gray);
-        doc.text('–', ML + 17, tocY + 2.5);
-        doc.text(clip(prod.name, 55), ML + 20, tocY + 2.5);
-        // Leader to page number
-        const prodTW = doc.getTextWidth(clip(prod.name, 55));
-        drawLeader(doc, ML + 20 + prodTW + 2, PW - MR - 8, tocY + 2.5);
-        doc.setFont('helvetica','normal');
-        doc.setFontSize(7);
-        doc.setTextColor(...C.gray);
-        doc.text(String(prodPg), PW - MR, tocY + 2.5, { align: 'right' });
-        tocY += ROW_PROD;
-      }
-      tocY += 1;
-    }
+    // Direct products (not under any sub-cat)
+    for (const prod of cat.directProds) drawProdRow(prod, ML + 10);
 
     // Separator
-    doc.setDrawColor(...C.silk);
-    doc.setLineWidth(0.15);
-    doc.line(ML, tocY, PW - MR, tocY);
+    doc.setDrawColor(...C.silk); doc.setLineWidth(0.15); doc.line(ML, tocY, PW - MR, tocY);
     tocY += ROW_GAP;
   }
 
-  // Move TOC pages to position 2 (right after cover page)
+  // Move TOC to position 2 (right after cover page)
   const tocActualPages = doc.internal.getNumberOfPages() - tocStartIdx + 1;
-  for (let i = 0; i < tocActualPages; i++) {
-    doc.movePage(tocStartIdx + i, 2 + i);
-  }
-  
-  // Draw all footers
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 2; i <= totalPages; i++) {
-    doc.setPage(i);
-    drawFooter(doc, dateStr, i - 1);
-  }
+  for (let i = 0; i < tocActualPages; i++) { doc.movePage(tocStartIdx + i, 2 + i); }
 
+  // Footers on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 2; i <= totalPages; i++) { doc.setPage(i); drawFooter(doc, dateStr, i - 1); }
   doc.setPage(totalPages);
 
   doc.setFont('helvetica','normal');
