@@ -3795,6 +3795,7 @@ function AdminLogin() {
 function PublishButton() {
   const [publishing, setPublishing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errMsg, setErrMsg] = useState('');
 
   const handlePublish = async () => {
     setPublishing(true);
