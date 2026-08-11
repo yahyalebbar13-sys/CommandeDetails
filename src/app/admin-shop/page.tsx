@@ -3792,6 +3792,52 @@ function AdminLogin() {
   );
 }
 
+function PublishButton() {
+  const [publishing, setPublishing] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handlePublish = async () => {
+    setPublishing(true);
+    setStatus('idle');
+    try {
+      const res = await fetch('/api/publish', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur inconnue');
+      setStatus('success');
+      setTimeout(() => setStatus('idle'), 3000);
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 3000);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handlePublish}
+      disabled={publishing}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+        status === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+        status === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+        'bg-[#C8102E]/10 border-[#C8102E]/20 text-[#C8102E] hover:bg-[#C8102E]/20'
+      }`}
+    >
+      {publishing ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : status === 'success' ? (
+        <CheckCircle2 className="w-3.5 h-3.5" />
+      ) : status === 'error' ? (
+        <AlertCircle className="w-3.5 h-3.5" />
+      ) : (
+        <Globe className="w-3.5 h-3.5" />
+      )}
+      {publishing ? 'En cours...' : status === 'success' ? 'Lancé !' : status === 'error' ? 'Erreur' : 'Publier en ligne'}
+    </button>
+  );
+}
+
 // ─── Main Admin Page ───────────────────────────────────────────────────────────
 export default function AdminShopPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -3874,6 +3920,7 @@ export default function AdminShopPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <PublishButton />
             {/* Pending badge */}
             {pendingCount > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
