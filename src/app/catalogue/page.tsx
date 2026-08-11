@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ChevronRight, Package, Zap, CheckCircle, XCircle,
   MessageCircle, RefreshCw, Layers, Sparkles, BookOpen,
@@ -139,7 +140,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
               {/* Main image */}
               <div className="aspect-square rounded-2xl overflow-hidden bg-[#F0ECE8] mb-3 relative">
                 {images[activeImg] ? (
-                  <img src={images[activeImg]} alt={product.name} className="w-full h-full object-cover" />
+                  <Image src={images[activeImg]} alt={product.name} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Package className="w-16 h-16 text-gray-200" />
@@ -168,7 +169,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                         i === activeImg ? 'border-[#C8102E] shadow-md' : 'border-[#E8E4DF] hover:border-[#C8102E]/30'
                       }`}
                     >
-                      <img src={img} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
+                      <Image src={img} alt={`${product.name} ${i + 1}`} fill sizes="100px" className="object-cover" />
                     </button>
                   ))}
                 </div>
@@ -312,7 +313,7 @@ function CatalogueProductCard({ product, onOpenSheet }: { product: ShopProduct; 
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-[#F8F5F0]">
         {img ? (
-          <img src={img} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+          <Image src={img} alt={product.name} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F0ECE8] to-[#E8E4DF]">
             <Package className="w-10 h-10 text-gray-300" />
@@ -454,7 +455,7 @@ function CategorySection({
       <div className="relative mb-8 overflow-hidden rounded-2xl">
         <div className="h-32 sm:h-40 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${accentColor}18 0%, ${accentColor}08 100%)` }}>
           {category.image && (
-            <img src={category.image} alt={category.name} className="absolute inset-0 w-full h-full object-cover opacity-15" />
+            <Image src={category.image} alt={category.name} fill className="object-cover opacity-15" />
           )}
           <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${accentColor}12 0%, transparent 70%)` }} />
           <div className="absolute bottom-0 left-0 right-0 h-1" style={{ background: `linear-gradient(90deg, ${accentColor}, transparent)` }} />
