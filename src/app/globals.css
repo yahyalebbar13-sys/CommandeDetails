@@ -207,12 +207,12 @@
    Protection anti-copie / anti-inspection
    ════════════════════════════════════════ */
 
-/* Désactiver la sélection globale */
-* {
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
+/* Désactiver la sélection sur les images uniquement */
+img {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 /* Bloquer le glisser-déposer des images uniquement (sans casser l'affichage) */

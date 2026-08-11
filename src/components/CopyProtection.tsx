@@ -52,28 +52,15 @@ export default function CopyProtection() {
     };
 
     /* ── 3. Bloquer le glisser-déposer ── */
-    const blockDrag = (e: DragEvent) => {
-      e.preventDefault();
-      return false;
-    };
-
-    /* ── 4. Bloquer la sélection de texte via souris (Désactivé pour permettre la copie) ── */
-    // const blockSelectStart = (e: Event) => {
-    //   e.preventDefault();
-    //   return false;
-    // };
+    /* Géré via CSS (user-drag: none sur img) — pas besoin de JS qui casse les taps mobiles */
 
     // Enregistrement des listeners
     document.addEventListener('contextmenu', blockContextMenu);
     document.addEventListener('keydown', blockShortcuts);
-    document.addEventListener('dragstart', blockDrag);
-    // document.addEventListener('selectstart', blockSelectStart);
 
     return () => {
       document.removeEventListener('contextmenu', blockContextMenu);
       document.removeEventListener('keydown', blockShortcuts);
-      document.removeEventListener('dragstart', blockDrag);
-      // document.removeEventListener('selectstart', blockSelectStart);
     };
   }, []);
 
