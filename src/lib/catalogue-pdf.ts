@@ -772,27 +772,20 @@ export async function generateCataloguePDF(
 
     if (richProds.length === 0) continue;
 
-    doc.addPage();
-    band(doc, accent);
-    doc.setFillColor(...C.cream);
-    doc.rect(0, 3, PW, 15, 'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(13);
-    doc.setTextColor(...C.black);
-    doc.text(`${cat.name} — Fiches Techniques`, ML, 13);
-    doc.setDrawColor(...accent);
-    doc.setLineWidth(0.6);
-    doc.line(ML, 16.5, ML+50, 16.5);
-
-    let dy = 24;
-
     for (const p of richProds) {
-      if (dy + 55 > PH - 18) {
-        drawFooter(doc, dateStr);
-        doc.addPage();
-        band(doc, accent);
-        dy = 10;
-      }
+      doc.addPage();
+      band(doc, accent);
+      doc.setFillColor(...C.cream);
+      doc.rect(0, 3, PW, 15, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(13);
+      doc.setTextColor(...C.black);
+      doc.text(`${cat.name} — Fiches Techniques`, ML, 13);
+      doc.setDrawColor(...accent);
+      doc.setLineWidth(0.6);
+      doc.line(ML, 16.5, ML+50, 16.5);
+
+      let dy = 24;
 
       const imgUrl  = (p.images||[])[0];
       const imgData = imgUrl ? imgCache[imgUrl] : null;
