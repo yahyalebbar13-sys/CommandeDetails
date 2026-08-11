@@ -765,30 +765,46 @@ export default function CataloguePage() {
               const cat = section.category;
               const accentColor = cat.color || '#C8102E';
               const availableCount = section.products.filter(p => p.inStock).length;
-              const subCount = section.subCategories.length;
+              const subCats = section.subCategories.filter(sub =>
+                section.products.some(p => p.categorySlug === sub.slug)
+              );
               return (
                 <button
                   key={cat.slug}
                   onClick={() => scrollTo(cat.slug)}
-                  className="group flex items-center gap-4 p-4 rounded-xl border border-[#E8E4DF] bg-[#FDFBF8] hover:bg-white hover:border-[#C8102E]/20 hover:shadow-md transition-all duration-200 text-left"
+                  className="group flex flex-col gap-3 p-4 rounded-xl border border-[#E8E4DF] bg-[#FDFBF8] hover:bg-white hover:border-[#C8102E]/20 hover:shadow-md transition-all duration-200 text-left"
                 >
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-black"
-                    style={{ background: `${accentColor}10`, color: accentColor }}>
-                    {String(i + 1).padStart(2, '0')}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-base leading-none">{cat.icon || '🧵'}</span>
-                      <h3 className="text-sm font-bold text-[#1A1A1A] truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-black"
+                      style={{ background: `${accentColor}10`, color: accentColor }}>
+                      {String(i + 1).padStart(2, '0')}
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                      <span>{section.products.length} produit{section.products.length > 1 ? 's' : ''}</span>
-                      <span>·</span>
-                      <span className="text-emerald-500 font-medium">{availableCount} dispo</span>
-                      {subCount > 0 && <><span>·</span><span>{subCount} sous-cat.</span></>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-base leading-none">{cat.icon || '🧵'}</span>
+                        <h3 className="text-sm font-bold text-[#1A1A1A] truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                        <span>{section.products.length} produit{section.products.length > 1 ? 's' : ''}</span>
+                        <span>·</span>
+                        <span className="text-emerald-500 font-medium">{availableCount} dispo</span>
+                      </div>
                     </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                  {/* Sub-categories */}
+                  {subCats.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pl-14">
+                      {subCats.map(sub => {
+                        const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
+                        return (
+                          <span key={sub.slug} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-semibold bg-white border border-[#E8E4DF] text-gray-500">
+                            {sub.icon || '📂'} {sub.name} <span className="text-[#C8102E]">{subProductCount}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </button>
               );
             })}
