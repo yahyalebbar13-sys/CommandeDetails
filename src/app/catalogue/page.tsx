@@ -301,6 +301,114 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
   );
 }
 
+// ─── Product Card (reusable in catalogue) ─────────────────────────────────────
+function CatalogueProductCard({ product, onOpenSheet }: { product: ShopProduct; onOpenSheet: (p: ShopProduct) => void }) {
+  const img = product.images?.[0];
+  return (
+    <button
+      onClick={() => onOpenSheet(product)}
+      className="group relative flex flex-col bg-white rounded-xl overflow-hidden border border-[#E8E4DF] hover:border-[#C8102E]/25 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-left"
+    >
+      {/* Image */}
+      <div className="relative aspect-square overflow-hidden bg-[#F8F5F0]">
+        {img ? (
+          <img src={img} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F0ECE8] to-[#E8E4DF]">
+            <Package className="w-10 h-10 text-gray-300" />
+          </div>
+        )}
+
+        {!product.inStock && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
+            <span className="px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-500 text-[10px] font-bold uppercase tracking-wider">
+              Indisponible
+            </span>
+          </div>
+        )}
+
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {product.isNew && (
+            <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-[#3B82F6] text-white">New</span>
+          )}
+        </div>
+
+        {/* Hover */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
+          <span className="flex items-center gap-1 px-3 py-1 rounded-lg bg-white/95 text-[#1A1A1A] text-[10px] font-semibold shadow-md backdrop-blur-sm">
+            <BookOpen className="w-3 h-3" /> Fiche produit
+          </span>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="p-3 flex flex-col flex-1">
+        <h3 className="text-xs sm:text-sm font-bold text-[#1A1A1A] leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors flex-1">
+          {product.catalogueName || product.name}
+        </h3>
+        {product.shortDescription && (
+          <p className="text-[10px] text-gray-400 line-clamp-1 mt-1">{product.shortDescription}</p>
+        )}
+        <div className="mt-2.5 pt-2 border-t border-[#F0ECE8] flex items-center justify-between">
+          <StockDot inStock={product.inStock} />
+          <span className="text-[9px] text-[#C8102E] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
+            Voir la fiche →
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── Sub-Category Block ───────────────────────────────────────────────────────
+function SubCategoryBlock({
+  subCategory,
+  products,
+  accentColor,
+  onOpenSheet,
+}: {
+  subCategory: ShopCategory;
+  products: ShopProduct[];
+  accentColor: string;
+  onOpenSheet: (p: ShopProduct) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  if (products.length === 0) return null;
+
+  return (
+    <div className="mb-8 last:mb-0">
+      {/* Sub-category header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="group w-full flex items-center gap-3 mb-4 px-4 py-3 rounded-xl bg-gradient-to-r from-[#FDFBF8] to-white border border-[#E8E4DF] hover:border-[#C8102E]/20 hover:shadow-sm transition-all"
+      >
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: `${accentColor}10` }}>
+          <span className="text-base">{subCategory.icon || '📂'}</span>
+        </div>
+        <div className="flex-1 text-left">
+          <h3 className="text-sm font-bold text-[#1A1A1A] group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            {subCategory.name}
+          </h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {products.length} produit{products.length > 1 ? 's' : ''} · {products.filter(p => p.inStock).length} disponible{products.filter(p => p.inStock).length > 1 ? 's' : ''}
+          </p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Products */}
+      {expanded && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 pl-0 sm:pl-2">
+          {products.map(product => (
+            <CatalogueProductCard key={product.id} product={product} onOpenSheet={onOpenSheet} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Category Section ─────────────────────────────────────────────────────────
 function CategorySection({
   category,
@@ -320,6 +428,17 @@ function CategorySection({
   const { ref, visible } = useReveal();
   const accentColor = category.color || '#C8102E';
   const availableCount = products.filter(p => p.inStock).length;
+
+  // Separate products: those in sub-categories vs directly in the parent category
+  const parentProducts = products.filter(p => p.categorySlug === category.slug);
+  const subCategoryGroups = subCategories
+    .map(sub => ({
+      subCategory: sub,
+      products: products.filter(p => p.categorySlug === sub.slug),
+    }))
+    .filter(g => g.products.length > 0);
+
+  const hasSubCategories = subCategoryGroups.length > 0;
 
   return (
     <section
@@ -365,82 +484,62 @@ function CategorySection({
         </div>
       </div>
 
-      {/* Sub-categories */}
-      {subCategories.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6 px-1">
-          {subCategories.map(sub => {
-            const subCount = allProducts.filter(p => p.categorySlug === sub.slug).length;
-            return (
-              <span key={sub.slug} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#F0ECE8] text-gray-600 border border-[#E8E4DF]">
-                {sub.icon || '📂'} {sub.name}
-                <span className="text-gray-400 ml-0.5">({subCount})</span>
-              </span>
-            );
-          })}
+      {/* Sub-categories summary pills */}
+      {hasSubCategories && (
+        <div className="flex flex-wrap gap-2 mb-8 px-1">
+          {subCategoryGroups.map(g => (
+            <span key={g.subCategory.slug} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-gray-600 border border-[#E8E4DF] shadow-sm">
+              {g.subCategory.icon || '📂'} {g.subCategory.name}
+              <span className="text-[#C8102E] font-bold ml-0.5">{g.products.length}</span>
+            </span>
+          ))}
         </div>
       )}
 
-      {/* Products grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
-        {products.map((product, pi) => {
-          const img = product.images?.[0];
-          return (
-            <button
-              key={product.id}
-              onClick={() => onOpenSheet(product)}
-              className="group relative flex flex-col bg-white rounded-xl overflow-hidden border border-[#E8E4DF] hover:border-[#C8102E]/25 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-left"
-            >
-              {/* Image */}
-              <div className="relative aspect-square overflow-hidden bg-[#F8F5F0]">
-                {img ? (
-                  <img src={img} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F0ECE8] to-[#E8E4DF]">
-                    <Package className="w-10 h-10 text-gray-300" />
-                  </div>
-                )}
+      {/* Products grouped by sub-category */}
+      {hasSubCategories ? (
+        <div className="space-y-2">
+          {/* Sub-category blocks */}
+          {subCategoryGroups.map(g => (
+            <SubCategoryBlock
+              key={g.subCategory.slug}
+              subCategory={g.subCategory}
+              products={g.products}
+              accentColor={accentColor}
+              onOpenSheet={onOpenSheet}
+            />
+          ))}
 
-                {!product.inStock && (
-                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
-                    <span className="px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-500 text-[10px] font-bold uppercase tracking-wider">
-                      Indisponible
-                    </span>
-                  </div>
-                )}
-
-                <div className="absolute top-2 left-2 flex flex-col gap-1">
-                  {product.isNew && (
-                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-[#3B82F6] text-white">New</span>
-                  )}
+          {/* Products directly under parent (no sub-category) */}
+          {parentProducts.length > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4 px-4 py-3 rounded-xl bg-gradient-to-r from-[#FDFBF8] to-white border border-[#E8E4DF]">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-100">
+                  <Package className="w-4 h-4 text-gray-400" />
                 </div>
-
-                {/* Hover */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
-                  <span className="flex items-center gap-1 px-3 py-1 rounded-lg bg-white/95 text-[#1A1A1A] text-[10px] font-semibold shadow-md backdrop-blur-sm">
-                    <BookOpen className="w-3 h-3" /> Fiche produit
-                  </span>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-[#1A1A1A]" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Autres produits
+                  </h3>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{parentProducts.length} produit{parentProducts.length > 1 ? 's' : ''}</p>
                 </div>
               </div>
-
-              {/* Info */}
-              <div className="p-3 flex flex-col flex-1">
-                <h3 className="text-xs sm:text-sm font-bold text-[#1A1A1A] leading-snug line-clamp-2 group-hover:text-[#C8102E] transition-colors flex-1">
-                  {product.catalogueName || product.name}
-                </h3>
-                {product.shortDescription && (
-                  <p className="text-[10px] text-gray-400 line-clamp-1 mt-1">{product.shortDescription}</p>
-                )}
-                <div className="mt-2.5 pt-2 border-t border-[#F0ECE8] flex items-center justify-between">
-                  <StockDot inStock={product.inStock} />
-                  <span className="text-[9px] text-[#C8102E] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">
-                    Voir la fiche →
-                  </span>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+                {parentProducts.map(product => (
+                  <CatalogueProductCard key={product.id} product={product} onOpenSheet={onOpenSheet} />
+                ))}
               </div>
-            </button>
-          );
-        })}
-      </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* No sub-categories: show flat grid */
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+          {products.map(product => (
+            <CatalogueProductCard key={product.id} product={product} onOpenSheet={onOpenSheet} />
+          ))}
+        </div>
+      )}
 
       {/* Divider */}
       <div className="mt-14 flex items-center gap-4">
