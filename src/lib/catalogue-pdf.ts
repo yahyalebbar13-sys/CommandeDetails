@@ -483,8 +483,6 @@ export async function generateCataloguePDF(
   doc.text('Votre commande B2B dans le creux de votre main.', ML+4, iy+18);
   
   doc.setFont('helvetica','normal');
-  doc.setFontSize(7);
-  doc.setTextColor(...C.dark);
   const appFeats = [
     'Suivi de la production en usine en temps réel',
     'Photos et vidéos de validation du contrôle qualité',
@@ -492,26 +490,28 @@ export async function generateCataloguePDF(
     'Date de livraison estimée à votre atelier/entrepôt'
   ];
   appFeats.forEach((f, i) => {
+    doc.setFontSize(9);
     doc.setTextColor(...C.red);
-    doc.text('✓', ML+6, iy+26+i*5);
+    doc.text('✓', ML+4, iy+28+i*6.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(...C.dark);
-    doc.text(f, ML+10, iy+26+i*5);
+    doc.text(f, ML+8, iy+27.5+i*6.5);
   });
 
   const appImg1 = storePhotos['/images/client-portal-login.png'];
   const appImg2 = storePhotos['/images/client-portal-dashboard.jpg'];
   
   if (appImg1) {
-    doc.setDrawColor(...C.black);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(ML + CW - 70, iy + 6, 28, 60, 2, 2, 'D');
-    safeImg(doc, appImg1, ML + CW - 70, iy + 6, 28, 60);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(ML + CW - 92, iy + 7, 25, 52, 2, 2, 'S');
+    safeImg(doc, appImg1, ML + CW - 92, iy + 7, 25, 52);
   }
   if (appImg2) {
-    doc.setDrawColor(...C.black);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(ML + CW - 35, iy + 6, 28, 60, 2, 2, 'D');
-    safeImg(doc, appImg2, ML + CW - 35, iy + 6, 28, 60);
+    doc.setDrawColor(...C.silk);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(ML + CW - 60, iy + 16, 55, 34, 2, 2, 'S');
+    safeImg(doc, appImg2, ML + CW - 60, iy + 16, 55, 34);
   }
 
   iy += 85;
@@ -616,7 +616,7 @@ export async function generateCataloguePDF(
 
     // Save task to draw page number later
     sommairePageNumTasks.push({
-      page: _pg + 1, // doc.addPage() was just called or it's the current _pg
+      page: doc.internal.getNumberOfPages(), // Store the ACTUAL jsPDF page number!
       x: PW-MR,
       y: sy+6,
       slug: sec.category.slug,
