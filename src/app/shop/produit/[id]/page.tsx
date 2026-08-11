@@ -347,8 +347,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [wished, setWished] = React.useState(false);
   const [added, setAdded] = React.useState(false);
   const [similar, setSimilar] = React.useState<typeof products>([]);
-  const [similarTitle, setSimilarTitle] = React.useState("Vous aimerez aussi");
-  const [similarLink, setSimilarLink] = React.useState("/shop");
+  const [discover, setDiscover] = React.useState<typeof products>([]);
 
   React.useEffect(() => {
     setMainImg(0);
@@ -361,23 +360,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   React.useEffect(() => {
     if (!product || products.length === 0) return;
-    let sim = products
+    // Same category
+    const sameCategory = products
       .filter(p => p.categorySlug === product.categorySlug && p.id !== product.id)
       .sort(() => 0.5 - Math.random())
       .slice(0, 4);
-    if (sim.length === 0) {
-      sim = products
-        .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
-        .sort(() => 0.5 - Math.random())
-        .slice(0, 4);
-      setSimilarTitle(language === 'ar' ? 'اكتشف فئات أخرى' : "Découvrez d'autres catégories");
-      setSimilarLink("/shop");
-    } else {
-      setSimilarTitle(language === 'ar' ? 'قد يعجبك أيضاً' : "Vous aimerez aussi");
-      setSimilarLink(`/shop/categorie/${product.categorySlug}`);
-    }
-    setSimilar(sim);
-  }, [product?.id, products, language]);
+    setSimilar(sameCategory);
+    // Other categories
+    const otherCategories = products
+      .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 4);
+    setDiscover(otherCategories);
+  }, [product?.id, products]);
 
   if (isLoading || directLoading) {
     return (
@@ -693,92 +688,38 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
         </div>
 
-        {/* ── Similar Products — Premium Section ── */}
+        {/* ── Section 1 : Vous aimerez aussi (même catégorie) ── */}
         {similar.length > 0 && (
-          <div className="mt-16 -mx-4 md:-mx-0">
-            <div className="bg-gradient-to-br from-[#1A1A1A] via-[#252525] to-[#1A1A1A] rounded-none md:rounded-3xl px-4 sm:px-8 py-10 md:py-14 relative overflow-hidden">
-              {/* Decorative elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-[#C8102E]/5 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#D4A843]/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl sm:text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                {language === 'ar' ? 'قد يعجبك أيضاً' : 'Vous aimerez aussi'}
+              </h2>
+              <Link href={`/shop/categorie/${product.categorySlug}`}
+                className="text-sm text-[#C8102E] font-semibold hover:underline cursor-pointer">
+                {language === 'ar' ? 'عرض الكل →' : 'Voir tout →'}
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {similar.map(p => <SimilarProductCard key={p.id} product={p} />)}
+            </div>
+          </div>
+        )}
 
-              {/* Header */}
-              <div className="flex items-center justify-between mb-8 relative z-10">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-0.5 bg-[#D4A843] rounded-full" />
-                    <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#D4A843]">
-                      {language === 'ar' ? 'منتجات مقترحة' : 'Sélection pour vous'}
-                    </span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                    {similarTitle}
-                  </h2>
-                </div>
-                <Link
-                  href={similarLink}
-                  className="hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white border border-white/20 hover:bg-white hover:text-[#1A1A1A] transition-all duration-200 cursor-pointer"
-                >
-                  {language === 'ar' ? 'عرض الكل' : 'Voir tout'}
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
-              </div>
-
-              {/* Product Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5 relative z-10">
-                {similar.map(p => (
-                  <Link
-                    key={p.id}
-                    href={`/shop/produit/${p.id}`}
-                    className="group bg-white/[0.07] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:bg-white/[0.12] hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/30 transition-all duration-300 cursor-pointer"
-                  >
-                    <div className="aspect-square overflow-hidden bg-white/5 relative">
-                      <img
-                        src={p.images?.[0] || '/placeholder.png'}
-                        alt={p.name}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
-                      {/* Category badge */}
-                      <div className="absolute top-2 left-2">
-                        <span className="bg-black/60 backdrop-blur-sm text-white/90 text-[9px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">
-                          {language === 'ar' && p.categoryNameAr ? p.categoryNameAr : p.categoryName}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4">
-                      <h4
-                        className="font-bold text-white text-xs sm:text-sm line-clamp-2 mb-2 group-hover:text-[#D4A843] transition-colors"
-                        style={{ fontFamily: 'Outfit, sans-serif' }}
-                      >
-                        {language === 'ar' && p.nameAr ? p.nameAr : p.name}
-                      </h4>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#C8102E]">
-                          {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-[10px] text-emerald-400 font-medium">
-                            {language === 'ar' ? 'متوفر' : 'En stock'}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-
-              {/* Mobile CTA */}
-              <div className="sm:hidden mt-6 relative z-10">
-                <Link
-                  href={similarLink}
-                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold text-white border border-white/20 hover:bg-white hover:text-[#1A1A1A] transition-all cursor-pointer"
-                >
-                  {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
-              </div>
+        {/* ── Section 2 : Découvrez plus (autres catégories) ── */}
+        {discover.length > 0 && (
+          <div className="mt-14">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl sm:text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                {language === 'ar' ? 'اكتشف المزيد' : 'Découvrez plus'}
+              </h2>
+              <Link href="/shop/boutique"
+                className="text-sm text-[#C8102E] font-semibold hover:underline cursor-pointer">
+                {language === 'ar' ? 'تصفح الكل →' : 'Tout parcourir →'}
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {discover.map(p => <SimilarProductCard key={p.id} product={p} />)}
             </div>
           </div>
         )}
