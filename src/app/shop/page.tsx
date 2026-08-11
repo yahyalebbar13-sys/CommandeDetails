@@ -25,7 +25,7 @@ export default function ShopPage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative h-[200px] sm:h-[240px] lg:h-[280px] overflow-hidden">
         <Image
-          src="/hero-banner.webp"
+          src="/hero-banner-new.jpg"
           alt="LEBTEX mercerie"
           fill
           className="object-cover"
