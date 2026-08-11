@@ -66,11 +66,8 @@ function hexRgb(hex: string): [number, number, number] {
 }
 function clip(t: string, n: number) { return t && t.length > n ? t.slice(0, n-1)+'…' : (t||''); }
 
-let _pg = 0;
-
-function drawFooter(doc: jsPDF, dateStr: string) {
+function drawFooter(doc: jsPDF, dateStr: string, pageNum: number) {
   const PW = 210, PH = 297, ML = 14, MR = 14;
-  _pg++;
   doc.setDrawColor(...C.lgray);
   doc.setLineWidth(0.2);
   doc.line(ML, PH-13, PW-MR, PH-13);
@@ -80,8 +77,8 @@ function drawFooter(doc: jsPDF, dateStr: string) {
   doc.text('LEBTEX — Mercerie & Accessoires Textiles', ML, PH-9);
   doc.text(dateStr, 105, PH-9, { align:'center' });
   doc.setFont('helvetica','bold');
-  doc.setTextColor(...C.red);
-  doc.text(String(_pg), PW-MR, PH-9, { align:'right' });
+  doc.setTextColor(...C.gray);
+  doc.text(String(pageNum), PW-MR, PH-9, { align:'right' });
   doc.setFont('helvetica','italic');
   doc.setFontSize(5);
   doc.setTextColor(...C.lgray);
@@ -107,7 +104,8 @@ export async function generateCataloguePDF(
   _ignored: number,
   onProgress?: ProgressCb,
 ) {
-  _pg = 0;
+  interface TOCItem { title: string; recordedIdx: number; isCategory: boolean; }
+  const tocData: TOCItem[] = [];
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
   const PW = 210, PH = 297, ML = 14, MR = 14, CW = PW - ML - MR;
   const now = new Date();
@@ -398,7 +396,7 @@ export async function generateCataloguePDF(
     ay += stH + 4;
   }
 
-  drawFooter(doc, dateStr);
+
   onProgress?.(8, 'Page À propos créée…');
 
   // ══════════════════════════════════════════════════════
@@ -516,75 +514,10 @@ export async function generateCataloguePDF(
 
   iy += 85;
 
-  drawFooter(doc, dateStr);
+  tocData.push({ title: 'À Propos de LEBTEX', recordedIdx: 2, isCategory: false });
+  tocData.push({ title: 'Service Import & Précommandes', recordedIdx: 3, isCategory: false });
+
   onProgress?.(10, 'Pages info créées…');
-
-  onProgress?.(12, 'Pages info créées…');
-
-  // ═══════════════════════════════════════════════════
-  // PAGE 2 — SOMMAIRE
-  // ═══════════════════════════════════════════════════
-  const categoryStartPages: Record<string, number> = {};
-  const sommairePageNumTasks: { page: number; x: number; y: number; slug: string; accent: [number,number,number] }[] = [];
-  doc.addPage();
-  band(doc, C.red);
-
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(26);
-  doc.setTextColor(...C.black);
-  doc.text('Sommaire', ML, 26);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...C.gray);
-  doc.text(`${sections.length} catégories · ${totalProducts} produits`, ML, 33);
-  const tableBody = sections.map((sec) => {
-    const items = sec.subCategories?.length > 0 
-      ? sec.subCategories.map(sc => sc.name)
-      : sec.products.map(p => p.catalogueName || p.name);
-      
-    return [
-      { content: sec.category.name, styles: { fontStyle: 'bold', textColor: C.black } },
-      { content: items.join('  •  '), styles: { textColor: C.dark, fontSize: 7.5 } },
-      { content: `${sec.products.length}`, styles: { halign: 'center' } },
-      { content: '', styles: { halign: 'center' } }
-    ];
-  });
-
-  autoTable(doc, {
-    startY: 42,
-    head: [['Catégorie', 'Contenu (Sous-catégories / Produits)', 'Qté', 'Page']],
-    body: tableBody,
-    theme: 'grid',
-    headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: 45, valign: 'middle' },
-      1: { cellWidth: 'auto', valign: 'middle' },
-      2: { cellWidth: 12, halign: 'center', valign: 'middle' },
-      3: { cellWidth: 15, halign: 'center', valign: 'middle' }
-    },
-    alternateRowStyles: { fillColor: [250, 248, 245] },
-    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: 0.1 },
-    margin: { left: ML, right: MR, top: 25, bottom: 25 },
-    didDrawPage: (data) => {
-      drawFooter(doc, dateStr);
-      band(doc, C.red);
-    },
-    didDrawCell: (data) => {
-      if (data.section === 'body' && data.column.index === 3) {
-        const slug = sections[data.row.index].category.slug;
-        const accent = sections[data.row.index].category.color ? hexRgb(sections[data.row.index].category.color) : C.red;
-        sommairePageNumTasks.push({
-          page: doc.internal.getNumberOfPages(),
-          x: data.cell.x + data.cell.width / 2,
-          y: data.cell.y + data.cell.height / 2 + 1.2,
-          slug: slug,
-          accent: accent
-        });
-      }
-    }
-  });
-
-  onProgress?.(18, 'Sommaire créé…');
 
   // ═══════════════════════════════════════════════════
   // SECTIONS
@@ -609,9 +542,8 @@ export async function generateCataloguePDF(
       })
     );
 
-    // ── Category header page ─────────────────────────────────────────────────
     doc.addPage();
-    categoryStartPages[cat.slug] = _pg + 1;
+    tocData.push({ title: cat.name.toUpperCase(), recordedIdx: doc.internal.getNumberOfPages(), isCategory: true });
     band(doc, accent);
     doc.setFillColor(...C.cream);
     doc.rect(0, 3, PW, 40, 'F');
@@ -657,7 +589,6 @@ export async function generateCataloguePDF(
       const col = pi % COLS;
       if (col === 0 && pi > 0) py += CARD_H + CARD_GAP;
       if (py + CARD_H > PH - 18) {
-        drawFooter(doc, dateStr);
         doc.addPage();
         band(doc, accent);
         py = 10;
@@ -758,7 +689,7 @@ export async function generateCataloguePDF(
       }
     }
 
-    if (prods.length > 0) drawFooter(doc, dateStr);
+
 
     // ── Fiches techniques ────────────────────────────────────────────────────
     const richProds = prods.filter(p =>
@@ -770,6 +701,7 @@ export async function generateCataloguePDF(
 
     for (const p of richProds) {
       doc.addPage();
+      tocData.push({ title: p.catalogueName || p.name, recordedIdx: doc.internal.getNumberOfPages(), isCategory: false });
       band(doc, accent);
       doc.setFillColor(...C.cream);
       doc.rect(0, 3, PW, 15, 'F');
@@ -886,7 +818,6 @@ export async function generateCataloguePDF(
 
       if (infos.length > 0) {
         if (dy + 10 > PH - 18) {
-          drawFooter(doc, dateStr);
           doc.addPage(); band(doc, accent); dy = 10;
         }
         doc.setFont('helvetica','bold');
@@ -897,7 +828,6 @@ export async function generateCataloguePDF(
 
         for (const [lbl, val] of infos) {
           if (dy > PH - 18) {
-            drawFooter(doc, dateStr);
             doc.addPage(); band(doc, accent); dy = 10;
           }
           doc.setFont('helvetica','bold');
@@ -917,8 +847,6 @@ export async function generateCataloguePDF(
       doc.setLineWidth(0.2);
       doc.line(ML, dy, ML+CW, dy);
       dy += 7;
-      
-      drawFooter(doc, dateStr);
     }
   }
 
@@ -1010,21 +938,86 @@ export async function generateCataloguePDF(
   doc.setLineWidth(0.3);
   doc.line(ML, PH-30, PW-MR, PH-30);
   // ═══════════════════════════════════════════════════
-  // DRAW PAGE NUMBERS IN SOMMAIRE (TWO-PASS)
+  // GENERATE TABLE OF CONTENTS (SOMMAIRE) AT END
   // ═══════════════════════════════════════════════════
-  for (const task of sommairePageNumTasks) {
-    doc.setPage(task.page);
-    const startPg = categoryStartPages[task.slug];
-    if (startPg) {
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(11);
-      doc.setTextColor(...task.accent);
-      doc.text(`p. ${startPg}`, task.x, task.y, { align:'right' });
+  const dummyDoc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  let dummyBody = tocData.map(item => [
+    { content: item.isCategory ? item.title : `    ${item.title}`, styles: item.isCategory ? { fontStyle: 'bold', textColor: [0,0,0] } : { textColor: [100,100,100] } },
+    { content: '999', styles: { halign: 'center' } }
+  ]);
+  
+  autoTable(dummyDoc, {
+    startY: 42,
+    body: dummyBody,
+    theme: 'grid',
+    headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
+    columnStyles: {
+      0: { cellWidth: 'auto', valign: 'middle' },
+      1: { cellWidth: 20, halign: 'center', valign: 'middle' }
+    },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: 0.1 },
+    margin: { left: ML, right: MR, top: 25, bottom: 25 }
+  });
+  
+  const tocPagesCount = dummyDoc.internal.getNumberOfPages();
+  const tocStartIdx = doc.internal.getNumberOfPages() + 1;
+  
+  doc.addPage();
+  band(doc, C.red);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(26);
+  doc.setTextColor(...C.black);
+  doc.text('Sommaire', ML, 26);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.gray);
+  doc.text(`Résumé du document`, ML, 33);
+  
+  const realBody = tocData.map(item => {
+    let printedPage = item.recordedIdx - 1; // Base printed page
+    if (item.recordedIdx >= 4) {
+      printedPage += tocPagesCount;
     }
+    return [
+      { content: item.isCategory ? item.title : `    ${item.title}`, styles: item.isCategory ? { fontStyle: 'bold', textColor: [0,0,0] } : { textColor: [100,100,100] } },
+      { content: String(printedPage), styles: { halign: 'center', textColor: [0,0,0] } } // Neutral color
+    ];
+  });
+  
+  autoTable(doc, {
+    startY: 42,
+    head: [['Contenu', 'Page']],
+    body: realBody,
+    theme: 'grid',
+    headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
+    columnStyles: {
+      0: { cellWidth: 'auto', valign: 'middle' },
+      1: { cellWidth: 20, halign: 'center', valign: 'middle' }
+    },
+    alternateRowStyles: { fillColor: [250, 248, 245] },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: 0.1 },
+    margin: { left: ML, right: MR, top: 25, bottom: 25 },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+         band(doc, C.red);
+      }
+    }
+  });
+  
+  // Move TOC pages to front
+  for (let i = 0; i < tocPagesCount; i++) {
+    doc.movePage(tocStartIdx + i, 4 + i);
+  }
+  
+  // Draw all footers at the end
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 2; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(doc, dateStr, i - 1);
   }
 
   // Go back to the last page so adding new pages later wouldn't break, though we are done.
-  doc.setPage(doc.internal.getNumberOfPages());
+  doc.setPage(totalPages);
 
   doc.setFont('helvetica','normal');
   doc.setFontSize(6.5);
