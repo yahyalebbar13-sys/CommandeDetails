@@ -181,10 +181,8 @@
   background-clip: text;
 }
 
-/* Image zoom container */
-.shop-img-zoom { overflow: hidden; transform: translateZ(0); }
-.shop-img-zoom img { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); will-change: transform; transform: translateZ(0); }
-.shop-img-zoom:hover img { transform: scale(1.08) translateZ(0); }
+/* Image zoom container — simplified for performance */
+.shop-img-zoom { overflow: hidden; }
 
 /* Sticky add-to-cart bar */
 @keyframes slideUpBar {
@@ -225,4 +223,31 @@ img {
     display: none !important;
   }
 }
-a, button, [role='button'], input[type='button'], input[type='submit'], input[type='reset'] { touch-action: manipulation; }
+/* ══════════════════════════════════════
+   TEMU-STYLE PERFORMANCE: Instant clicks
+   ══════════════════════════════════════ */
+
+/* 1. Eliminate 300ms tap delay on ALL elements */
+* { touch-action: manipulation; }
+
+/* 2. Force clickable elements: only transition color/opacity/shadow, NEVER transform/layout */
+a, button, [role='button'], input, select, textarea, label,
+summary, [tabindex], [onclick], .cursor-pointer {
+  transition-property: color, background-color, border-color, opacity, box-shadow !important;
+  transition-duration: 0.15s !important;
+  transition-timing-function: ease !important;
+}
+
+/* 3. On touch devices, disable all transform-based hover effects that cause jank */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hover\:-translate-y-1:hover,
+  .hover\:scale-105:hover,
+  .hover\:scale-110:hover,
+  .group:hover .group-hover\:scale-105,
+  .group:hover .group-hover\:scale-110 {
+    transform: none !important;
+  }
+}
