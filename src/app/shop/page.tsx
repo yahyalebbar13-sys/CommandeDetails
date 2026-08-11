@@ -25,12 +25,12 @@ export default function ShopPage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative h-[200px] sm:h-[240px] lg:h-[280px] overflow-hidden">
         <Image
-          src="/hero-banner-new.jpg"
+          src="/hero-banner.webp"
           alt="LEBTEX mercerie"
           fill
-          className="object-cover"
+          className="object-cover object-center"
           priority
-          quality={80}
+          quality={85}
           sizes="100vw"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F]/80 via-[#0F0F0F]/50 to-transparent" />
