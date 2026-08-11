@@ -1,9 +1,17 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import CopyProtection from '@/components/CopyProtection';
 import ProgressBar from '@/components/ProgressBar';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: '#C8102E',
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://lebtex.ma'),
