@@ -133,9 +133,14 @@ export async function generateCataloguePDF(
   );
   console.log('[PDF] catImgCache keys:', Object.keys(catImgCache), 'non-null:', Object.values(catImgCache).filter(Boolean).length);
 
-  // Store photos
+  // Store photos & App photos
   const storePhotos: Record<string, string|null> = {};
-  const storeUrls = ['/boutiques/haifa-1.jpg', '/boutiques/derb-omar-1.webp'];
+  const storeUrls = [
+    '/boutiques/haifa-1.jpg', 
+    '/boutiques/derb-omar-1.webp',
+    '/images/client-portal-login.png',
+    '/images/client-portal-dashboard.jpg'
+  ];
   await Promise.all(
     storeUrls.map(async url => {
       storePhotos[url] = await loadImg(url);
@@ -462,41 +467,54 @@ export async function generateCataloguePDF(
   doc.setFillColor(...C.cream);
   doc.setDrawColor(...C.silk);
   doc.setLineWidth(0.2);
-  doc.roundedRect(ML, iy, CW, 40, 3, 3, 'FD');
+  doc.roundedRect(ML, iy, CW, 75, 3, 3, 'FD');
+  
   doc.setFillColor(...C.gold);
-  doc.roundedRect(ML+4, iy+4, doc.getTextWidth('Innovation LEBTEX')+8, 6, 2, 2, 'F');
+  const tagText = 'Application LEBTEX Client';
+  doc.roundedRect(ML+4, iy+4, doc.getTextWidth(tagText)+8, 6, 2, 2, 'F');
   doc.setFont('helvetica','bold');
   doc.setFontSize(5.5);
   doc.setTextColor(...C.white);
-  doc.text('Innovation LEBTEX', ML+8, iy+8.2);
+  doc.text(tagText, ML+8, iy+8.2);
+  
   doc.setFont('helvetica','bold');
   doc.setFontSize(12);
   doc.setTextColor(...C.black);
-  doc.text('Votre commande dans le creux de votre main.', ML+4, iy+18);
+  doc.text('Votre commande B2B dans le creux de votre main.', ML+4, iy+18);
+  
   doc.setFont('helvetica','normal');
   doc.setFontSize(7);
   doc.setTextColor(...C.dark);
-  const appFeats = ['Suivi de la production en usine', 'Photos et vidéos du contrôle qualité', 'Statut du fret maritime et localisation du conteneur', 'Date de livraison estimée à votre atelier'];
+  const appFeats = [
+    'Suivi de la production en usine en temps réel',
+    'Photos et vidéos de validation du contrôle qualité',
+    'Statut du fret maritime et suivi douanier',
+    'Date de livraison estimée à votre atelier/entrepôt'
+  ];
   appFeats.forEach((f, i) => {
     doc.setTextColor(...C.red);
-    doc.text('✓', ML+6, iy+24+i*4.5);
+    doc.text('✓', ML+6, iy+26+i*5);
     doc.setTextColor(...C.dark);
-    doc.text(f, ML+10, iy+24+i*4.5);
+    doc.text(f, ML+10, iy+26+i*5);
   });
-  iy += 45;
 
-  // Commercial office
-  if (iy + 25 > PH - 18) { drawFooter(doc, dateStr); doc.addPage(); band(doc, C.gold); iy = 12; }
-  doc.setFillColor(...C.cream);
-  doc.roundedRect(ML, iy, CW, 22, 2, 2, 'FD');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...C.black);
-  doc.text('Bureau Commercial — LEBTEX Hay Chrifa', ML+4, iy+7);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(7);
-  doc.setTextColor(...C.gray);
-  doc.text('📍 Hay Chrifa, Casablanca   ·   🕐 Lun–Sam : 09h00–18h00   ·   📞 +212 760 998 347', ML+4, iy+14);
+  const appImg1 = storePhotos['/images/client-portal-login.png'];
+  const appImg2 = storePhotos['/images/client-portal-dashboard.jpg'];
+  
+  if (appImg1) {
+    doc.setDrawColor(...C.black);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(ML + CW - 70, iy + 6, 28, 60, 2, 2, 'D');
+    safeImg(doc, appImg1, ML + CW - 70, iy + 6, 28, 60);
+  }
+  if (appImg2) {
+    doc.setDrawColor(...C.black);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(ML + CW - 35, iy + 6, 28, 60, 2, 2, 'D');
+    safeImg(doc, appImg2, ML + CW - 35, iy + 6, 28, 60);
+  }
+
+  iy += 85;
 
   drawFooter(doc, dateStr);
   onProgress?.(10, 'Pages info créées…');
