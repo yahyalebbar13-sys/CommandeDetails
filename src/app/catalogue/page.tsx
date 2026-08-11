@@ -165,7 +165,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                     <button
                       key={i}
                       onClick={() => setActiveImg(i)}
-                      className={`w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all ${
+                      className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all ${
                         i === activeImg ? 'border-[#C8102E] shadow-md' : 'border-[#E8E4DF] hover:border-[#C8102E]/30'
                       }`}
                     >
