@@ -230,9 +230,10 @@ img {
 /* 1. Eliminate 300ms tap delay on ALL elements */
 * { touch-action: manipulation; }
 
-/* 2. Force clickable elements: only transition color/opacity/shadow, NEVER transform/layout */
-a, button, [role='button'], input, select, textarea, label,
-summary, [tabindex], [onclick], .cursor-pointer {
+/* 2. Force clickable elements: pointer cursor + only transition color/opacity/shadow */
+a, button, [role='button'], input[type='button'], input[type='submit'], input[type='reset'],
+summary, [tabindex], .cursor-pointer {
+  cursor: pointer !important;
   transition-property: color, background-color, border-color, opacity, box-shadow !important;
   transition-duration: 0.15s !important;
   transition-timing-function: ease !important;
