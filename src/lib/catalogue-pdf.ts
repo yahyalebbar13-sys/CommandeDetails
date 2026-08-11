@@ -104,7 +104,7 @@ export async function generateCataloguePDF(
   _ignored: number,
   onProgress?: ProgressCb,
 ) {
-  interface TOCItem { title: string; recordedIdx: number; isCategory: boolean; }
+  interface TOCItem { title: string; recordedIdx: number; isCategory: boolean; details?: string; }
   const tocData: TOCItem[] = [];
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
   const PW = 210, PH = 297, ML = 14, MR = 14, CW = PW - ML - MR;
@@ -542,8 +542,17 @@ export async function generateCataloguePDF(
       })
     );
 
+    const items = sec.subCategories?.length > 0 
+      ? sec.subCategories.map(sc => sc.name)
+      : sec.products.map(p => p.catalogueName || p.name);
+
     doc.addPage();
-    tocData.push({ title: cat.name.toUpperCase(), recordedIdx: doc.internal.getNumberOfPages(), isCategory: true });
+    tocData.push({ 
+      title: cat.name.toUpperCase(), 
+      recordedIdx: doc.internal.getNumberOfPages(), 
+      isCategory: true,
+      details: items.length > 0 ? items.join('  •  ') : ''
+    });
     band(doc, accent);
     doc.setFillColor(...C.cream);
     doc.rect(0, 3, PW, 40, 'F');
@@ -943,20 +952,27 @@ export async function generateCataloguePDF(
   const dummyDoc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
   let dummyBody = tocData.map(item => [
     { content: item.isCategory ? item.title : `    ${item.title}`, styles: item.isCategory ? { fontStyle: 'bold', textColor: [0,0,0] } : { textColor: [100,100,100] } },
+    { content: item.details || '', styles: { textColor: [100,100,100], fontSize: 7 } },
     { content: '999', styles: { halign: 'center' } }
   ]);
   
-  autoTable(dummyDoc, {
+  const commonTableOpts: any = {
     startY: 42,
-    body: dummyBody,
-    theme: 'grid',
+    theme: 'plain',
     headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
     columnStyles: {
-      0: { cellWidth: 'auto', valign: 'middle' },
-      1: { cellWidth: 20, halign: 'center', valign: 'middle' }
+      0: { cellWidth: 50, valign: 'middle' },
+      1: { cellWidth: 'auto', valign: 'middle' },
+      2: { cellWidth: 15, halign: 'center', valign: 'middle' }
     },
-    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: 0.1 },
+    alternateRowStyles: { fillColor: [252, 250, 248] },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: { bottom: 0.2 } },
     margin: { left: ML, right: MR, top: 25, bottom: 25 }
+  };
+
+  autoTable(dummyDoc, {
+    ...commonTableOpts,
+    body: dummyBody
   });
   
   const tocPagesCount = dummyDoc.internal.getNumberOfPages();
@@ -980,24 +996,16 @@ export async function generateCataloguePDF(
     }
     return [
       { content: item.isCategory ? item.title : `    ${item.title}`, styles: item.isCategory ? { fontStyle: 'bold', textColor: [0,0,0] } : { textColor: [100,100,100] } },
-      { content: String(printedPage), styles: { halign: 'center', textColor: [0,0,0] } } // Neutral color
+      { content: item.details || '', styles: { textColor: [100,100,100], fontSize: 7 } },
+      { content: String(printedPage), styles: { halign: 'center', textColor: [0,0,0], fontStyle: 'bold' } } 
     ];
   });
   
   autoTable(doc, {
-    startY: 42,
-    head: [['Contenu', 'Page']],
+    ...commonTableOpts,
+    head: [['Section / Catégorie', 'Détails', 'Page']],
     body: realBody,
-    theme: 'grid',
-    headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: 'auto', valign: 'middle' },
-      1: { cellWidth: 20, halign: 'center', valign: 'middle' }
-    },
-    alternateRowStyles: { fillColor: [250, 248, 245] },
-    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: 0.1 },
-    margin: { left: ML, right: MR, top: 25, bottom: 25 },
-    didDrawPage: (data) => {
+    didDrawPage: (data: any) => {
       if (data.pageNumber > 1) {
          band(doc, C.red);
       }
