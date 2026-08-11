@@ -780,13 +780,10 @@ export default function CataloguePage() {
                       {String(i + 1).padStart(2, '0')}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-base leading-none">{cat.icon || '🧵'}</span>
-                        <h3 className="text-sm font-bold text-[#1A1A1A] truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <h3 className="text-sm font-bold text-[#1A1A1A] truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
                         <span>{section.products.length} produit{section.products.length > 1 ? 's' : ''}</span>
-                        <span>·</span>
+                        <span className="w-0.5 h-0.5 rounded-full bg-gray-300" />
                         <span className="text-emerald-500 font-medium">{availableCount} dispo</span>
                       </div>
                     </div>
@@ -798,8 +795,10 @@ export default function CataloguePage() {
                       {subCats.map(sub => {
                         const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
                         return (
-                          <span key={sub.slug} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-semibold bg-white border border-[#E8E4DF] text-gray-500">
-                            {sub.icon || '📂'} {sub.name} <span className="text-[#C8102E]">{subProductCount}</span>
+                          <span key={sub.slug} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-semibold bg-white border border-[#E8E4DF] text-gray-500">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: accentColor, opacity: 0.5 }} />
+                            {sub.name}
+                            <span className="text-[#C8102E] font-bold">{subProductCount}</span>
                           </span>
                         );
                       })}
