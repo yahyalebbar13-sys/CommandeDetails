@@ -537,103 +537,53 @@ export async function generateCataloguePDF(
   doc.setFontSize(8);
   doc.setTextColor(...C.gray);
   doc.text(`${sections.length} catégories · ${totalProducts} produits`, ML, 33);
-  doc.setDrawColor(...C.red);
-  doc.setLineWidth(0.7);
-  doc.line(ML, 37, ML+28, 37);
-
-  let sy = 48;
-  sections.forEach((sec, i) => {
-    const rowH = 22;
-    if (sy > PH - 30) {
-      drawFooter(doc, dateStr);
-      doc.addPage(); band(doc, C.red); sy = 16;
-    }
-    const accent = sec.category.color ? hexRgb(sec.category.color) : C.red;
-    const imgSz = 18;
-    const imgB64 = catImgCache[sec.category.slug] || null;
-
-    // Category image or colored fallback
-    if (imgB64) {
-      try {
-        // Clip background
-        doc.setFillColor(...C.cream);
-        doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'F');
-        doc.addImage(imgB64, 'JPEG', ML, sy, imgSz, imgSz, `cat-${i}`, 'FAST');
-        // Border
-        doc.setDrawColor(...C.silk);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'S');
-      } catch {
-        doc.setFillColor(...accent);
-        doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'F');
-        doc.setFont('helvetica','bold');
-        doc.setFontSize(8);
-        doc.setTextColor(...C.white);
-        doc.text(String(i+1).padStart(2,'0'), ML+imgSz/2, sy+imgSz/2+2.5, { align:'center' });
-      }
-    } else {
-      doc.setFillColor(...accent);
-      doc.roundedRect(ML, sy, imgSz, imgSz, 2.5, 2.5, 'F');
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(8);
-      doc.setTextColor(...C.white);
-      doc.text(String(i+1).padStart(2,'0'), ML+imgSz/2, sy+imgSz/2+2.5, { align:'center' });
-    }
-
-    const tx = ML + imgSz + 5;
-
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...C.black);
-    doc.text(sec.category.name, tx, sy+6);
-
-    let currentH = 14;
-
-    if (sec.category.description) {
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(7);
-      doc.setTextColor(...C.gray);
-      const descLines = doc.splitTextToSize(clip(sec.category.description, 75), CW - imgSz - 15);
-      doc.text(descLines, tx, sy+11);
-      currentH = 11 + descLines.length * 3.5;
-    }
-
+  const tableBody = sections.map((sec) => {
     const items = sec.subCategories?.length > 0 
       ? sec.subCategories.map(sc => sc.name)
       : sec.products.map(p => p.catalogueName || p.name);
-    
-    if (items.length > 0) {
-      doc.setFont('helvetica','italic');
-      doc.setFontSize(7);
-      doc.setTextColor(...C.gray);
-      const itemsText = clip(items.join('  •  '), 180);
-      const itemsLines = doc.splitTextToSize(itemsText, CW - imgSz - 15);
-      doc.text(itemsLines, tx, sy + currentH);
-      currentH += itemsLines.length * 3.5 + 2;
-    }
-    
-    rowH = Math.max(rowH, currentH + 4);
-
-    // Save task to draw page number later
-    sommairePageNumTasks.push({
-      page: doc.internal.getNumberOfPages(), // Store the ACTUAL jsPDF page number!
-      x: PW-MR,
-      y: sy+6,
-      slug: sec.category.slug,
-      accent: accent
-    });
-    
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(6.5);
-    doc.setTextColor(...C.gray);
-    doc.text(`produit${sec.products.length>1?'s':''}`, PW-MR, sy+11, { align:'right' });
-
-    doc.setDrawColor(...C.silk);
-    doc.setLineWidth(0.2);
-    doc.line(tx, sy+rowH-2, PW-MR, sy+rowH-2);
-    sy += rowH + 3;
+      
+    return [
+      { content: sec.category.name, styles: { fontStyle: 'bold', textColor: C.black } },
+      { content: items.join('  •  '), styles: { textColor: C.dark, fontSize: 7.5 } },
+      { content: `${sec.products.length}`, styles: { halign: 'center' } },
+      { content: '', styles: { halign: 'center' } }
+    ];
   });
-  drawFooter(doc, dateStr);
+
+  autoTable(doc, {
+    startY: 42,
+    head: [['Catégorie', 'Contenu (Sous-catégories / Produits)', 'Qté', 'Page']],
+    body: tableBody,
+    theme: 'grid',
+    headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
+    columnStyles: {
+      0: { cellWidth: 45, valign: 'middle' },
+      1: { cellWidth: 'auto', valign: 'middle' },
+      2: { cellWidth: 12, halign: 'center', valign: 'middle' },
+      3: { cellWidth: 15, halign: 'center', valign: 'middle' }
+    },
+    alternateRowStyles: { fillColor: [250, 248, 245] },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: 0.1 },
+    margin: { left: ML, right: MR, top: 25, bottom: 25 },
+    didDrawPage: (data) => {
+      drawFooter(doc, dateStr);
+      band(doc, C.red);
+    },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 3) {
+        const slug = sections[data.row.index].category.slug;
+        const accent = sections[data.row.index].category.color ? hexRgb(sections[data.row.index].category.color) : C.red;
+        sommairePageNumTasks.push({
+          page: doc.internal.getNumberOfPages(),
+          x: data.cell.x + data.cell.width / 2,
+          y: data.cell.y + data.cell.height / 2 + 1.2,
+          slug: slug,
+          accent: accent
+        });
+      }
+    }
+  });
+
   onProgress?.(18, 'Sommaire créé…');
 
   // ═══════════════════════════════════════════════════
