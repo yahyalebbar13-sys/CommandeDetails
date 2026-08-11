@@ -376,7 +376,7 @@ function SubCategoryBlock({
   if (products.length === 0) return null;
 
   return (
-    <div className="mb-8 last:mb-0">
+    <div id={`subcat-${subCategory.slug}`} className="mb-8 last:mb-0 scroll-mt-24">
       {/* Sub-category header */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -384,7 +384,7 @@ function SubCategoryBlock({
       >
         <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: `${accentColor}10` }}>
-          <span className="text-base">{subCategory.icon || '📂'}</span>
+          <Layers className="w-3.5 h-3.5" style={{ color: accentColor }} />
         </div>
         <div className="flex-1 text-left">
           <h3 className="text-sm font-bold text-[#1A1A1A] group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -789,17 +789,26 @@ export default function CataloguePage() {
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                   </div>
-                  {/* Sub-categories */}
+                  {/* Sub-categories list */}
                   {subCats.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pl-14">
+                    <div className="mt-3 pt-3 border-t border-[#F0ECE8] ml-14 space-y-1">
                       {subCats.map(sub => {
                         const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
                         return (
-                          <span key={sub.slug} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-semibold bg-white border border-[#E8E4DF] text-gray-500">
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: accentColor, opacity: 0.5 }} />
-                            {sub.name}
-                            <span className="text-[#C8102E] font-bold">{subProductCount}</span>
-                          </span>
+                          <div
+                            key={sub.slug}
+                            onClick={(e) => { e.stopPropagation(); const el = document.getElementById(`subcat-${sub.slug}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                            className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[#F8F5F0] cursor-pointer transition-colors group/sub"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: accentColor }} />
+                              <span className="text-[11px] font-semibold text-gray-600 group-hover/sub:text-[#C8102E] transition-colors">{sub.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-[#C8102E]/70">{subProductCount}</span>
+                              <ChevronRight className="w-3 h-3 text-gray-300 group-hover/sub:text-[#C8102E] transition-colors" />
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
