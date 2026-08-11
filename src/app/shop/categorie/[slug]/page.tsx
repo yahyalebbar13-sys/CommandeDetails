@@ -11,7 +11,6 @@ import { formatPrice } from '@/lib/shop-utils';
 
 // ─── Inline ProductCard ────────────────────────────────────────────────────────
 const ProductCard = React.memo(function ProductCard({ product }: { product: ShopProduct }) {
-  const router = useRouter();
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
@@ -33,8 +32,9 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
   };
 
   return (
-    <div
-      onClick={() => router.push(`/shop/produit/${product.id}`)}
+    <Link
+      href={`/shop/produit/${product.id}`}
+      prefetch={false}
       className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl relative group flex flex-col h-full no-underline cursor-pointer touch-manipulation"
     >
       <div className="relative aspect-square bg-gray-50 overflow-hidden">
@@ -111,7 +111,7 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Shop
           <span className="text-xs text-gray-500">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 });
 

@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Tag, Clock, Zap, ShoppingBag } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { formatPrice, getDiscountPercent } from '@/lib/shop-utils';
@@ -13,7 +12,6 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [added, setAdded] = useState(false);
-  const router = useRouter();
   const discount = product.comparePrice ? getDiscountPercent(product.price, product.comparePrice) : 0;
 
   const handleAdd = (e: React.MouseEvent) => {
@@ -25,9 +23,10 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
   };
 
   return (
-    <div
-      onClick={() => router.push(`/shop/produit/${product.id}`)}
-      className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full no-underline cursor-pointer"
+    <Link
+      href={`/shop/produit/${product.id}`}
+      prefetch={false}
+      className="bg-white border border-[#E8E4DF] rounded-2xl overflow-hidden shop-product-card relative group flex flex-col h-full no-underline cursor-pointer touch-manipulation"
     >
       <div className="relative aspect-square bg-gray-50 shop-img-zoom">
         <img src={product.images?.[0] || '/placeholder.png'} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
@@ -64,7 +63,7 @@ const PromoCard = React.memo(function PromoCard({ product }: { product: ShopProd
           <span className="font-black text-[#C8102E] text-lg">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 });
 

@@ -3,7 +3,6 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import CopyProtection from '@/components/CopyProtection';
-import AppLoader from '@/components/AppLoader';
 import ProgressBar from '@/components/ProgressBar';
 
 export const metadata: Metadata = {
@@ -30,10 +29,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <head>
-        {/* ── Anti-cache : toujours servir la version la plus récente ─────── */}
-        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-        <meta httpEquiv="Pragma" content="no-cache" />
-        <meta httpEquiv="Expires" content="0" />
+
         {/* ── Désactiver service worker s'il en existe un ────────────────── */}
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator) {
@@ -48,9 +44,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased select-none">
-        {/* Masque le flash de l'ancienne version pendant l'initialisation React */}
-        <AppLoader />
+      <body className="font-body antialiased">
         <ProgressBar />
         <CopyProtection />
         <FirebaseClientProvider>

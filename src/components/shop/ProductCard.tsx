@@ -3,7 +3,6 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { ShoppingCart, Heart, Star, StarHalf, Package, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useLanguage } from '@/contexts/language-context';
@@ -46,7 +45,6 @@ interface ProductCardProps {
 
 // ─── ProductCard ──────────────────────────────────────────────────────────────
 export default React.memo(function ProductCard({ product, showAddToCart = true }: ProductCardProps) {
-  const router = useRouter();
   const { language } = useLanguage();
   const { addItem } = useShopCartActions();
   const [wishlisted, setWishlisted] = useState(false);
@@ -90,9 +88,10 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
   const productUrl = `/shop/produit/${product.id}`;
 
   return (
-    <div
-      onClick={() => router.push(productUrl)}
-      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full cursor-pointer active:scale-[0.98] transition-transform duration-200 touch-manipulation"
+    <Link
+      href={productUrl}
+      prefetch={false}
+      className="shop-product-card group relative bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm flex flex-col h-full no-underline cursor-pointer active:scale-[0.98] transition-transform duration-200 touch-manipulation"
     >
       {/* ── Image Section ─────────────────────────────────────── */}
       <div className="shop-img-zoom relative aspect-square bg-gray-100 overflow-hidden">
@@ -277,6 +276,6 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
           </button>
         </div>
       )}
-    </div>
+    </Link>
   );
 });
