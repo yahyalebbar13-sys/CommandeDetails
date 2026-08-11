@@ -49,9 +49,9 @@ function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string
   if (line.includes('ONE') || prefix === 'ONEY')
     return { url: `https://ecomm.one-line.com/one-ecom/manage-shipment/cargo-tracking?trakNoParam=${bl}`, needsCopy: false };
 
-  // Yang Ming — direct link supported
+  // Yang Ming — direct link not supported, must copy & paste
   if (line.includes('YANG MING') || prefix === 'YMLU')
-    return { url: `https://www.yangming.com/e-service/Track_Trace/track_trace_cargo_tracking.aspx?bl=${bl}`, needsCopy: false };
+    return { url: `https://www.yangming.com/en/esolution/cargo_tracking`, needsCopy: true };
 
   // Evergreen — no direct URL param, must copy & paste
   if (line.includes('EVERGREEN') || prefix === 'EGLV' || prefix === 'EGHU')

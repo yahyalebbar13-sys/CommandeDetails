@@ -2342,7 +2342,7 @@ const SHIPPING_LINE_TRACKING: Record<string, { name: string; getUrl: (bl: string
   },
   'YANG MING': {
     name: 'Yang Ming',
-    getUrl: (bl) => `https://www.yangming.com/e-service/track-trace/track-trace.aspx?rdoquery=BL&txtBL=${encodeURIComponent(bl)}`,
+    getUrl: (bl) => `https://www.yangming.com/en/esolution/cargo_tracking`,
     logo: '🟡',
   },
   'ARKAS': {
