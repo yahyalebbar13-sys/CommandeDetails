@@ -947,73 +947,205 @@ export async function generateCataloguePDF(
   doc.setLineWidth(0.3);
   doc.line(ML, PH-30, PW-MR, PH-30);
   // ═══════════════════════════════════════════════════
-  // GENERATE TABLE OF CONTENTS (SOMMAIRE) AT END
+  // GENERATE SOMMAIRE (hand-drawn, premium design)
   // ═══════════════════════════════════════════════════
-  const dummyDoc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-  let dummyBody = tocData.map(item => [
-    { content: item.isCategory ? item.title : `    ${item.title}`, styles: item.isCategory ? { fontStyle: 'bold', textColor: [0,0,0] } : { textColor: [100,100,100] } },
-    { content: item.details || '', styles: { textColor: [100,100,100], fontSize: 7 } },
-    { content: '999', styles: { halign: 'center' } }
-  ]);
-  
-  const commonTableOpts: any = {
-    startY: 42,
-    theme: 'plain',
-    headStyles: { fillColor: C.red, textColor: C.white, fontStyle: 'bold', halign: 'center', fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: 50, valign: 'middle' },
-      1: { cellWidth: 'auto', valign: 'middle' },
-      2: { cellWidth: 15, halign: 'center', valign: 'middle' }
-    },
-    alternateRowStyles: { fillColor: [252, 250, 248] },
-    styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.silk, lineWidth: { bottom: 0.2 } },
-    margin: { left: ML, right: MR, top: 25, bottom: 25 }
-  };
 
-  autoTable(dummyDoc, {
-    ...commonTableOpts,
-    body: dummyBody
-  });
-  
-  const tocPagesCount = dummyDoc.internal.getNumberOfPages();
+  // --- Step 1: Dry-run to count how many TOC pages we need ---
+  // We simulate drawing to figure out how many pages it takes, 
+  // so we can offset real page numbers correctly.
+  const TOC_TOP = 48, TOC_BOT = PH - 22;
+  const ROW_CAT = 10, ROW_SUB = 5.5, ROW_GAP_AFTER_CAT = 3;
+
+  // Build structured TOC entries from sections
+  interface TocEntry {
+    type: 'info' | 'category';
+    title: string;
+    recordedIdx: number;
+    details: string[]; // sub-categories or product names
+    accent: [number,number,number];
+  }
+  const tocEntries: TocEntry[] = [];
+
+  // Info pages
+  tocEntries.push({ type: 'info', title: 'À Propos de LEBTEX', recordedIdx: 2, details: [], accent: C.red });
+  tocEntries.push({ type: 'info', title: 'Service Import & Précommandes', recordedIdx: 3, details: [], accent: C.gold });
+
+  // Categories from tocData
+  for (const item of tocData) {
+    if (item.isCategory) {
+      const detailsList = item.details ? item.details.split('  •  ').map(s => s.trim()).filter(Boolean) : [];
+      const sec = sections.find(s => s.category.name.toUpperCase() === item.title);
+      const accent = sec?.category.color ? hexRgb(sec.category.color) : C.red;
+      tocEntries.push({ type: 'category', title: item.title, recordedIdx: item.recordedIdx, details: detailsList, accent });
+    }
+  }
+
+  // Dry-run: measure pages needed
+  let dryY = TOC_TOP;
+  let dryPages = 1;
+  for (const entry of tocEntries) {
+    const entryH = ROW_CAT + (entry.details.length > 0 ? entry.details.length * ROW_SUB + 2 : 0) + ROW_GAP_AFTER_CAT;
+    if (dryY + entryH > TOC_BOT) { dryPages++; dryY = 16; }
+    dryY += entryH;
+  }
+  const tocPagesCount = dryPages;
   const tocStartIdx = doc.internal.getNumberOfPages() + 1;
-  
+
+  // --- Step 2: Draw the sommaire pages ---
+  let catIdx = 0;
+
+  function drawTocHeader(d: jsPDF, isFirst: boolean) {
+    band(d, C.red);
+    if (isFirst) {
+      // Title
+      d.setFont('helvetica','bold');
+      d.setFontSize(22);
+      d.setTextColor(...C.black);
+      d.text('Sommaire', ML, 18);
+      // Subtitle
+      d.setFont('helvetica','normal');
+      d.setFontSize(8);
+      d.setTextColor(...C.gray);
+      d.text(`${sections.length} catégories  ·  ${totalProducts} produits`, ML, 25);
+      // Red underline
+      d.setDrawColor(...C.red);
+      d.setLineWidth(0.6);
+      d.line(ML, 29, ML + 25, 29);
+      // Column headers
+      d.setFont('helvetica','bold');
+      d.setFontSize(7);
+      d.setTextColor(...C.gray);
+      d.text('SECTION', ML + 10, 40);
+      d.text('PAGE', PW - MR, 40, { align: 'right' });
+      d.setDrawColor(...C.silk);
+      d.setLineWidth(0.3);
+      d.line(ML, 43, PW - MR, 43);
+    } else {
+      // Continuation header
+      d.setFont('helvetica','bold');
+      d.setFontSize(10);
+      d.setTextColor(...C.gray);
+      d.text('Sommaire (suite)', ML, 12);
+    }
+  }
+
   doc.addPage();
-  band(doc, C.red);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(26);
-  doc.setTextColor(...C.black);
-  doc.text('Sommaire', ML, 26);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...C.gray);
-  doc.text(`Résumé du document`, ML, 33);
-  
-  const realBody = tocData.map(item => {
-    let printedPage = item.recordedIdx - 1; // Base printed page
-    if (item.recordedIdx >= 4) {
-      printedPage += tocPagesCount;
+  drawTocHeader(doc, true);
+  let tocY = TOC_TOP;
+
+  for (const entry of tocEntries) {
+    const detailCount = entry.details.length;
+    const entryH = ROW_CAT + (detailCount > 0 ? detailCount * ROW_SUB + 2 : 0) + ROW_GAP_AFTER_CAT;
+
+    // Page break check
+    if (tocY + entryH > TOC_BOT) {
+      doc.addPage();
+      drawTocHeader(doc, false);
+      tocY = 16;
     }
-    return [
-      { content: item.isCategory ? item.title : `    ${item.title}`, styles: item.isCategory ? { fontStyle: 'bold', textColor: [0,0,0] } : { textColor: [100,100,100] } },
-      { content: item.details || '', styles: { textColor: [100,100,100], fontSize: 7 } },
-      { content: String(printedPage), styles: { halign: 'center', textColor: [0,0,0], fontStyle: 'bold' } } 
-    ];
-  });
-  
-  autoTable(doc, {
-    ...commonTableOpts,
-    head: [['Section / Catégorie', 'Détails', 'Page']],
-    body: realBody,
-    didDrawPage: (data: any) => {
-      if (data.pageNumber > 1) {
-         band(doc, C.red);
+
+    // Compute printed page number
+    let pageNum = entry.recordedIdx - 1;
+    if (entry.recordedIdx >= 4) {
+      pageNum += tocPagesCount;
+    }
+
+    if (entry.type === 'info') {
+      // Info row — simple, no number badge
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...C.dark);
+      doc.text(entry.title, ML + 10, tocY + 4);
+
+      // Dotted leader line
+      const textW = doc.getTextWidth(entry.title);
+      const dotStart = ML + 10 + textW + 3;
+      const dotEnd = PW - MR - 12;
+      doc.setDrawColor(...C.lgray);
+      doc.setLineWidth(0.15);
+      doc.setLineDashPattern([0.5, 1.5], 0);
+      doc.line(dotStart, tocY + 4, dotEnd, tocY + 4);
+      doc.setLineDashPattern([], 0);
+
+      // Page number
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...C.gray);
+      doc.text(String(pageNum), PW - MR, tocY + 4, { align: 'right' });
+
+      tocY += ROW_CAT + ROW_GAP_AFTER_CAT;
+
+    } else {
+      // Category row
+      catIdx++;
+
+      // Number badge
+      doc.setFillColor(...entry.accent);
+      doc.roundedRect(ML, tocY - 1, 7, 7, 1.5, 1.5, 'F');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...C.white);
+      doc.text(String(catIdx).padStart(2, '0'), ML + 3.5, tocY + 3.5, { align: 'center' });
+
+      // Category name
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...C.black);
+      doc.text(entry.title, ML + 10, tocY + 4);
+
+      // Dotted leader
+      const catTextW = doc.getTextWidth(entry.title);
+      const catDotStart = ML + 10 + catTextW + 3;
+      const catDotEnd = PW - MR - 12;
+      if (catDotStart < catDotEnd) {
+        doc.setDrawColor(...C.lgray);
+        doc.setLineWidth(0.15);
+        doc.setLineDashPattern([0.5, 1.5], 0);
+        doc.line(catDotStart, tocY + 4, catDotEnd, tocY + 4);
+        doc.setLineDashPattern([], 0);
       }
+
+      // Page number
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...C.black);
+      doc.text(String(pageNum), PW - MR, tocY + 4, { align: 'right' });
+
+      tocY += ROW_CAT;
+
+      // Sub-items (sub-categories or products)
+      if (detailCount > 0) {
+        tocY += 1;
+        for (const sub of entry.details) {
+          if (tocY + ROW_SUB > TOC_BOT) {
+            doc.addPage();
+            drawTocHeader(doc, false);
+            tocY = 16;
+          }
+          // Small dot
+          doc.setFillColor(...C.lgray);
+          doc.circle(ML + 12, tocY + 1.5, 0.6, 'F');
+          // Sub-item name
+          doc.setFont('helvetica','normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(...C.gray);
+          doc.text(clip(sub, 70), ML + 15, tocY + 2.5);
+          tocY += ROW_SUB;
+        }
+        tocY += 1;
+      }
+
+      // Separator line
+      doc.setDrawColor(...C.silk);
+      doc.setLineWidth(0.15);
+      doc.line(ML, tocY, PW - MR, tocY);
+      tocY += ROW_GAP_AFTER_CAT;
     }
-  });
-  
-  // Move TOC pages to front
-  for (let i = 0; i < tocPagesCount; i++) {
+  }
+
+  // Move TOC pages to position 4 (after cover, about, service-import)
+  const tocActualPages = doc.internal.getNumberOfPages() - tocStartIdx + 1;
+  for (let i = 0; i < tocActualPages; i++) {
     doc.movePage(tocStartIdx + i, 4 + i);
   }
   
@@ -1024,7 +1156,7 @@ export async function generateCataloguePDF(
     drawFooter(doc, dateStr, i - 1);
   }
 
-  // Go back to the last page so adding new pages later wouldn't break, though we are done.
+  // Go back to the last page
   doc.setPage(totalPages);
 
   doc.setFont('helvetica','normal');
