@@ -25,14 +25,18 @@ export async function POST() {
     });
 
     if (!res.ok) {
-      throw new Error(`Erreur lors du déclenchement du déploiement: ${res.statusText}`);
+      const errorText = await res.text().catch(() => 'pas de détails');
+      return NextResponse.json(
+        { error: `Vercel a refusé la requête (${res.status}): ${errorText}` },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ success: true, message: "Déploiement lancé avec succès !" });
   } catch (error: any) {
     console.error('Publish error:', error);
     return NextResponse.json(
-      { error: "Une erreur est survenue lors du lancement de la publication." },
+      { error: "Erreur interne: " + error.message },
       { status: 500 }
     );
   }
