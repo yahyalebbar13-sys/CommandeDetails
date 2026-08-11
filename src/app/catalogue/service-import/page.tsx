@@ -44,17 +44,17 @@ export default function ServiceImportPage() {
           ))}
         </div>
 
-        <div className="bg-gradient-to-r from-[#111111] to-[#1A1A1A] border border-white/10 rounded-3xl p-8 md:p-12 mb-12 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-[#111111] to-[#1A1A1A] border border-white/10 rounded-3xl p-8 md:p-12 mb-24 relative overflow-hidden">
           <div className="absolute right-0 top-0 w-1/2 h-full bg-gradient-to-l from-[#C8102E]/5 to-transparent pointer-events-none"></div>
           
           <div className="grid md:grid-cols-2 gap-12 items-center relative z-10">
             <div>
               <div className="inline-block bg-[#D4A843]/20 text-[#D4A843] font-bold px-3 py-1 rounded-full text-sm mb-6">
-                Innovation Exclusive
+                Innovation LEBTEX
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">Application LEBTEX Client</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">Une transparence totale sur votre production</h2>
               <p className="text-lg text-gray-300 mb-8">
-                Ne restez plus dans le flou. Grâce à notre application dédiée LEBTEX Client, vous êtes informé de chaque étape de votre importation, comme si vous y étiez. Suivez vos commandes B2B en toute simplicité.
+                Ne restez plus dans le flou. Grâce à notre système de suivi, vous êtes informé de chaque étape de votre importation, comme si vous y étiez.
               </p>
               
               <ul className="space-y-6">
@@ -91,6 +91,36 @@ export default function ServiceImportPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-[#C8102E] rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl"></div>
+          <div className="mb-8 md:mb-0 relative z-10">
+            <h2 className="text-3xl font-bold mb-4">Prêt à optimiser vos coûts ?</h2>
+            <p className="text-white/80 text-lg max-w-lg">
+              Prenez rendez-vous avec notre bureau d'import pour discuter de vos besoins spécifiques.
+            </p>
+          </div>
+          <div className="relative z-10 flex flex-col space-y-4 min-w-[300px]">
+            <div className="flex items-center bg-black/20 p-4 rounded-xl backdrop-blur-sm">
+              <MapPin className="w-6 h-6 mr-4 text-[#D4A843]" />
+              <div>
+                <div className="font-bold">Bureau Import</div>
+                <div className="text-sm text-white/80">LEBTEX Hay Chrifa, Casablanca</div>
+              </div>
+            </div>
+            <div className="flex items-center bg-black/20 p-4 rounded-xl backdrop-blur-sm">
+              <Clock className="w-6 h-6 mr-4 text-[#D4A843]" />
+              <div>
+                <div className="font-bold">Lun-Sam 09h-18h</div>
+                <div className="text-sm text-white/80">Sur rendez-vous uniquement</div>
+              </div>
+            </div>
+            <a href="tel:+212760998347" className="flex items-center justify-center bg-white text-[#C8102E] font-bold py-4 px-6 rounded-xl hover:bg-gray-100 transition-colors shadow-lg">
+              <Phone className="w-5 h-5 mr-2" />
+              +212 760 998 347
+            </a>
           </div>
         </div>
       </div>
