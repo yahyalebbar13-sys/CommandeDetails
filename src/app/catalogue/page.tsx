@@ -749,9 +749,8 @@ export default function CataloguePage() {
       </div>
 
       {/* ─── SOMMAIRE ─────────────────────────────────────────────────────── */}
-      <section id="catalogue-sommaire" className="relative scroll-mt-0" style={{ background: 'linear-gradient(180deg, #111111 0%, #1A1A1A 100%)' }}>
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-        <div className="relative max-w-6xl mx-auto px-6 sm:px-10 py-12">
+      <section id="catalogue-sommaire" className="relative scroll-mt-0 border-b border-[#E8E4DF]" style={{ background: 'linear-gradient(180deg, #F8F5F0 0%, #FDFBF8 100%)' }}>
+        <div className="max-w-6xl mx-auto px-6 sm:px-10 py-12">
           {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
@@ -759,21 +758,21 @@ export default function CataloguePage() {
                 <div className="w-1 h-5 rounded-full bg-[#C8102E]" />
                 <span className="text-[10px] font-bold text-[#C8102E] uppercase tracking-[0.2em]">Navigation</span>
               </div>
-              <h2 className="text-2xl font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>Sommaire du catalogue</h2>
-              <p className="text-white/30 text-xs mt-1">{categorySections.length} catégories · {totalProducts} produits · Cliquez pour naviguer</p>
+              <h2 className="text-2xl font-black text-[#1A1A1A]" style={{ fontFamily: "'Outfit', sans-serif" }}>Sommaire du catalogue</h2>
+              <p className="text-gray-400 text-xs mt-1">{categorySections.length} catégories · {totalProducts} produits · Cliquez pour naviguer</p>
             </div>
             <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" />
               <input
                 id="catalogue-search"
                 type="text"
                 placeholder="Rechercher un produit…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-white/10 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#C8102E]/50 bg-white/5 backdrop-blur-sm transition-all"
+                className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-[#E8E4DF] text-sm text-[#1A1A1A] placeholder-gray-300 focus:outline-none focus:border-[#C8102E]/40 bg-white transition-all shadow-sm"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -793,27 +792,27 @@ export default function CataloguePage() {
                 <button
                   key={cat.slug}
                   onClick={() => scrollTo(cat.slug)}
-                  className="group flex flex-col gap-0 p-0 rounded-xl border border-white/8 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/15 transition-all duration-200 text-left overflow-hidden"
+                  className="group flex flex-col gap-0 p-0 rounded-xl border border-[#E8E4DF] bg-white hover:border-[#C8102E]/25 hover:shadow-md transition-all duration-200 text-left overflow-hidden"
                 >
                   {/* Category row */}
                   <div className="flex items-center gap-3.5 px-4 py-3.5">
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-black"
-                      style={{ background: `${accentColor}20`, color: accentColor }}>
+                      style={{ background: `${accentColor}12`, color: accentColor }}>
                       {String(i + 1).padStart(2, '0')}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-[13px] font-bold text-white truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
-                      <div className="flex items-center gap-2 text-[10px] text-white/30 mt-0.5">
+                      <h3 className="text-[13px] font-bold text-[#1A1A1A] truncate group-hover:text-[#C8102E] transition-colors">{cat.name}</h3>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
                         <span>{section.products.length} produit{section.products.length > 1 ? 's' : ''}</span>
-                        <span className="w-0.5 h-0.5 rounded-full bg-white/20" />
-                        <span className="text-emerald-400/70 font-medium">{availableCount} dispo</span>
+                        <span className="w-0.5 h-0.5 rounded-full bg-gray-300" />
+                        <span className="text-emerald-500 font-medium">{availableCount} dispo</span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-white/15 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#C8102E] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                   </div>
                   {/* Items list */}
                   {(subCats.length > 0 || section.products.length > 0) && (
-                    <div className="border-t border-white/5 px-4 py-2.5 space-y-0.5">
+                    <div className="border-t border-[#F0ECE8] px-4 py-2.5 space-y-0.5 bg-[#FDFBF8]">
                       {subCats.length > 0 ? (
                         subCats.map(sub => {
                           const subProductCount = section.products.filter(p => p.categorySlug === sub.slug).length;
@@ -821,15 +820,15 @@ export default function CataloguePage() {
                             <div
                               key={sub.slug}
                               onClick={(e) => { e.stopPropagation(); const el = document.getElementById(`subcat-${sub.slug}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-                              className="flex items-center justify-between py-1.5 px-2.5 -mx-1 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group/sub"
+                              className="flex items-center justify-between py-1.5 px-2.5 -mx-1 rounded-lg hover:bg-[#F0ECE8] cursor-pointer transition-colors group/sub"
                             >
                               <div className="flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.35rem]" style={{ background: accentColor, opacity: 0.6 }} />
-                                <span className="text-[11px] leading-snug font-medium text-white/45 group-hover/sub:text-white/80 transition-colors">{sub.name}</span>
+                                <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.35rem]" style={{ background: accentColor, opacity: 0.5 }} />
+                                <span className="text-[11px] leading-snug font-medium text-gray-500 group-hover/sub:text-[#C8102E] transition-colors">{sub.name}</span>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                <span className="text-[9px] font-bold text-white/20">{subProductCount}</span>
-                                <ChevronRight className="w-2.5 h-2.5 text-white/10 group-hover/sub:text-[#C8102E] transition-colors" />
+                                <span className="text-[9px] font-bold text-[#C8102E]/50">{subProductCount}</span>
+                                <ChevronRight className="w-2.5 h-2.5 text-gray-300 group-hover/sub:text-[#C8102E] transition-colors" />
                               </div>
                             </div>
                           );
@@ -839,11 +838,11 @@ export default function CataloguePage() {
                           <div
                             key={p.id}
                             onClick={(e) => { e.stopPropagation(); scrollTo(cat.slug); }}
-                            className="flex items-center py-1.5 px-2.5 -mx-1 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group/sub"
+                            className="flex items-center py-1.5 px-2.5 -mx-1 rounded-lg hover:bg-[#F0ECE8] cursor-pointer transition-colors group/sub"
                           >
                             <div className="flex items-start gap-2">
-                              <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.35rem]" style={{ background: accentColor, opacity: 0.6 }} />
-                              <span className="text-[11px] leading-snug font-medium text-white/45 group-hover/sub:text-white/80 transition-colors">{p.catalogueName || p.name}</span>
+                              <span className="w-1 h-1 rounded-full flex-shrink-0 mt-[0.35rem]" style={{ background: accentColor, opacity: 0.5 }} />
+                              <span className="text-[11px] leading-snug font-medium text-gray-500 group-hover/sub:text-[#C8102E] transition-colors">{p.catalogueName || p.name}</span>
                             </div>
                           </div>
                         ))
