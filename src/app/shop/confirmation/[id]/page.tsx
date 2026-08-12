@@ -50,7 +50,15 @@ export default function ConfirmationPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  const whatsappLink = buildWhatsAppLink(order.orderNumber, order.total, order.shippingAddress?.fullName || '');
+  const whatsappLink = buildWhatsAppLink(
+    order.orderNumber,
+    order.total,
+    order.shippingAddress?.fullName || '',
+    order.items,
+    order.shippingAddress,
+    order.deliveryFee,
+    order.subtotal,
+  );
   const deliveryDays = order.shippingAddress?.city ? getDeliveryDays(order.shippingAddress.city) : '3-5 jours';
   const steps = [
     { icon: CheckCircle, title: 'Commande reçue', desc: 'Votre commande a été enregistrée.', status: 'done' },

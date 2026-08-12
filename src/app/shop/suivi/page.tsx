@@ -194,9 +194,19 @@ function OrderCard({ order }: { order: ShopOrder }) {
     : '—';
   const itemCount = order.items?.reduce((s, i) => s + i.quantity, 0) || 0;
 
-  const whatsappText = encodeURIComponent(
-    `Bonjour LEBTEX 👋\n\nJe souhaite des informations sur ma commande :\n📦 N° ${order.orderNumber}\n\nMerci !`
-  );
+  let whatsappMsg = `Bonjour LEBTEX 👋\n\nJe souhaite des informations sur ma commande :\n\n📦 *N° ${order.orderNumber}*\n`;
+  if (order.items && order.items.length > 0) {
+    whatsappMsg += `\n🛒 *Articles :*\n`;
+    order.items.forEach((item: any, i: number) => {
+      const variant = [item.variant?.color, item.variant?.size].filter(Boolean).join(' / ');
+      whatsappMsg += `${i + 1}. ${item.productName}`;
+      if (variant) whatsappMsg += ` (${variant})`;
+      whatsappMsg += ` × ${item.quantity}\n`;
+    });
+  }
+  if (order.total) whatsappMsg += `\n💰 Total : ${formatPrice(order.total)}\n`;
+  whatsappMsg += `\nMerci !`;
+  const whatsappText = encodeURIComponent(whatsappMsg);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all">

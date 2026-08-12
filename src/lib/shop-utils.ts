@@ -72,12 +72,51 @@ export function getDiscountPercent(price: number, comparePrice: number): number 
 }
 
 // WhatsApp link builder
-export function buildWhatsAppLink(orderNumber: string, total: number, customerName: string): string {
+export function buildWhatsAppLink(
+  orderNumber: string,
+  total: number,
+  customerName: string,
+  items?: Array<{ productName: string; quantity: number; price: number; variant?: { color?: string; size?: string } }>,
+  shippingAddress?: { address?: string; city?: string; phone?: string },
+  deliveryFee?: number,
+  subtotal?: number,
+): string {
   const phone = '212760998347';
-  const message = encodeURIComponent(
-    `Bonjour LEBTEX 👋\n\nJe souhaite confirmer ma commande :\n📦 N° ${orderNumber}\n👤 ${customerName}\n💰 Total : ${formatPrice(total)}\n\nMerci !`
-  );
-  return `https://wa.me/${phone}?text=${message}`;
+
+  let msg = `Bonjour LEBTEX 👋\n\nJe souhaite confirmer ma commande :\n\n`;
+  msg += `📦 *N° ${orderNumber}*\n`;
+  msg += `👤 ${customerName}\n`;
+
+  // List each product
+  if (items && items.length > 0) {
+    msg += `\n🛒 *Détail de la commande :*\n`;
+    items.forEach((item, i) => {
+      const variant = [item.variant?.color, item.variant?.size].filter(Boolean).join(' / ');
+      msg += `${i + 1}. ${item.productName}`;
+      if (variant) msg += ` (${variant})`;
+      msg += ` × ${item.quantity} = ${formatPrice(item.price * item.quantity)}\n`;
+    });
+  }
+
+  // Totals
+  msg += `\n`;
+  if (subtotal !== undefined) {
+    msg += `📋 Sous-total : ${formatPrice(subtotal)}\n`;
+  }
+  if (deliveryFee !== undefined) {
+    msg += `🚚 Livraison : ${deliveryFee === 0 ? 'GRATUITE ✅' : formatPrice(deliveryFee)}\n`;
+  }
+  msg += `💰 *Total à payer : ${formatPrice(total)}*\n`;
+
+  // Shipping address
+  if (shippingAddress) {
+    msg += `\n📍 *Adresse :* ${shippingAddress.address || ''}, ${shippingAddress.city || ''}\n`;
+    if (shippingAddress.phone) msg += `📞 ${shippingAddress.phone}\n`;
+  }
+
+  msg += `\n💵 Paiement à la livraison\nMerci ! 🙏`;
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
 
 // WhatsApp contact link
