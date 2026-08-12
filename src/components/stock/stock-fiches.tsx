@@ -122,6 +122,9 @@ function ProductFiche({
   const totalIn  = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
   const totalOut = variants.reduce((s, v) => s + v.mouvementsOut, 0);
   const currentQty = variants.reduce((s, v) => s + v.currentQty, 0);
+  const totalValue = variants.reduce((s, v) => s + (v.currentQty * (v.purchasePricePerUnit || 0)), 0);
+  const avgCost = currentQty > 0 ? totalValue / currentQty : (article.purchasePricePerUnit || 0);
+
   const isAlert   = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
   const pct       = totalIn > 0 ? Math.min(100, Math.round((currentQty / totalIn) * 100)) : 100;
 
@@ -136,13 +139,15 @@ function ProductFiche({
             totalIn: v.initialQty + v.mouvementsIn,
             totalOut: v.mouvementsOut,
             currentQty: v.currentQty,
-            minThreshold: v.minThreshold
+            minThreshold: v.minThreshold,
+            totalValue: v.currentQty * (v.purchasePricePerUnit || 0)
           });
         } else {
           const e = map.get(key);
           e.totalIn += (v.initialQty + v.mouvementsIn);
           e.totalOut += v.mouvementsOut;
           e.currentQty += v.currentQty;
+          e.totalValue += (v.currentQty * (v.purchasePricePerUnit || 0));
         }
         return map;
       }, new Map<string, any>()).values()
@@ -168,20 +173,29 @@ function ProductFiche({
             <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{article.categoryId}</p>
             <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.productName}</h3>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-4 justify-end">
             <div className="text-center">
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Entrées</p>
               <p className="text-lg font-black text-emerald-600">+{fmt(totalIn)}</p>
             </div>
-            <div className="w-px h-8 bg-stone-100"></div>
+            <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Sorties</p>
               <p className="text-lg font-black text-rose-600">{totalOut > 0 ? `-${fmt(totalOut)}` : '0'}</p>
             </div>
-            <div className="w-px h-8 bg-stone-100"></div>
+            <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
             <div className="text-center">
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">En Stock</p>
               <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
+            </div>
+            <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
+            <div className="text-center bg-stone-50 rounded-xl px-4 py-2 border border-stone-100">
+              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Coût unitaire moy.</p>
+              <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[10px] text-stone-400">MAD</span></p>
+            </div>
+            <div className="text-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100">
+              <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">Valeur du Stock</p>
+              <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[10px] text-emerald-400">MAD</span></p>
             </div>
           </div>
         </div>
@@ -206,6 +220,8 @@ function ProductFiche({
                 <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
                 <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
                 <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[9px]">Stock Réel</th>
+                <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[8px]">Coût Unitaire</th>
+                <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Valeur</th>
                 <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Statut</th>
               </tr>
             </thead>
@@ -227,6 +243,8 @@ function ProductFiche({
                     <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
                     <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
                     <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
+                    <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>
+                    <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>
                     <td className="px-6 py-4 text-right">
                       {isRupt ? (
                         <span className="text-[9px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
