@@ -552,7 +552,8 @@ export async function generateSimpleCataloguePDF(
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 15000); // Wait 15s before revoking to guarantee Chrome saves it
+  // Intentionally NOT revoking the URL here. Chrome Antivirus/Disk writers sometimes
+  // take a long time to process the Blob. Revoking it causes ERR_FILE_NOT_FOUND.
   
   return fname;
 }
