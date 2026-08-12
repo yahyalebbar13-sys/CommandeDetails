@@ -34,27 +34,49 @@ async function loadImg(originalUrl: string): Promise<string | null> {
       return null;
     }
 
-    console.log('[loadImg] fetching:', fetchUrl.substring(0, 80));
     const resp = await fetch(fetchUrl);
-    console.log('[loadImg] response:', resp.status, resp.headers.get('content-type'));
-    if (!resp.ok) { console.warn('[loadImg] not ok:', resp.status); return null; }
+    if (!resp.ok) return null;
 
     const blob = await resp.blob();
-    console.log('[loadImg] blob size:', blob.size, 'type:', blob.type);
     if (blob.size < 100) return null;
 
+    const objUrl = URL.createObjectURL(blob);
     return new Promise<string | null>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        console.log('[loadImg] base64 length:', result?.length || 0, 'starts:', result?.substring(0, 30));
-        resolve(result || null);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          // Scale down very large images to save PDF size (max 200px since thumbnails are 36mm)
+          const MAX_SIZE = 200;
+          let w = img.width;
+          let h = img.height;
+          if (w > MAX_SIZE || h > MAX_SIZE) {
+            const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(null); return; }
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          URL.revokeObjectURL(objUrl);
+          resolve(dataUrl);
+        } catch {
+          URL.revokeObjectURL(objUrl);
+          resolve(null);
+        }
       };
-      reader.onerror = () => { console.warn('[loadImg] FileReader error'); resolve(null); };
-      reader.readAsDataURL(blob);
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        resolve(null);
+      };
+      img.src = objUrl;
     });
   } catch (e) {
-    console.warn('[loadImg] error:', originalUrl, e);
     return null;
   }
 }

@@ -35,8 +35,8 @@ async function loadImg(url: string): Promise<string | null> {
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
-          // Scale down very large images to save PDF size (max 800px)
-          const MAX_SIZE = 800;
+          // Scale down very large images to save PDF size (max 150px since thumbnails are 22mm)
+          const MAX_SIZE = 150;
           let w = img.width;
           let h = img.height;
           if (w > MAX_SIZE || h > MAX_SIZE) {
