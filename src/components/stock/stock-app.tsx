@@ -63,8 +63,7 @@ export function computeStockItems(
   includeAll: boolean = false
 ): StockItem[] {
   const stockArticles = includeAll ? articles : articles.filter(a => {
-    if (!a.stockEntryDate) return false;
-    return movements.some(m => m.articleId === a.id && m.type === 'IN');
+    return a.stockEntryDate || movements.some(m => m.articleId === a.id);
   });
 
   const results: StockItem[] = [];
@@ -835,10 +834,10 @@ export default function StockApp() {
               <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
             )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={allStockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
+              <StockAlerts stockItems={allStockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'transfers' && (
               <TransferOrdersView
