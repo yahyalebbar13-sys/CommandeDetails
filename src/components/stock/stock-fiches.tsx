@@ -400,8 +400,8 @@ function ProductFiche({
                   <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
                   <td className="px-5 py-3 text-right font-black text-rose-400">{totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
                   <td className="px-5 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
-                  <td className="px-5 py-3 text-right font-black text-violet-300">{cost > 0 ? fmtDec(cost) : '—'}</td>
-                  <td className="px-5 py-3 text-right font-black text-emerald-400">{fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—'}</td>
+                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-violet-300">{cost > 0 ? fmtDec(cost) : '—'}</td>}
+                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-emerald-400">{fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—'}</td>}
                   <td className="px-5 py-3"></td>
                 </tr>
               </tfoot>
