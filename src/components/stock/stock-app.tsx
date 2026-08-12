@@ -59,11 +59,10 @@ export function computeStockItems(
   articles: any[],
   movements: StockMovement[],
   categories: any[],
-  activeStore: StoreLocation | 'ALL'
+  activeStore: StoreLocation | 'ALL',
+  includeAll: boolean = false
 ): StockItem[] {
-  // Un article entre en stock UNIQUEMENT s'il a été validé via PassToStockModal
-  // = il a une stockEntryDate ET au moins un mouvement IN enregistré
-  const stockArticles = articles.filter(a => {
+  const stockArticles = includeAll ? articles : articles.filter(a => {
     if (!a.stockEntryDate) return false;
     return movements.some(m => m.articleId === a.id && m.type === 'IN');
   });
@@ -383,7 +382,12 @@ export default function StockApp() {
   }), [allMovements]);
 
   const stockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore),
+    computeStockItems(articles, movements, categories, activeStore, false),
+    [articles, movements, categories, activeStore]
+  );
+
+  const allStockItems = useMemo(() =>
+    computeStockItems(articles, movements, categories, activeStore, true),
     [articles, movements, categories, activeStore]
   );
 
@@ -805,7 +809,7 @@ export default function StockApp() {
               <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
             )}
             {activeView === 'inventory' && (
-              <StockInventory userRole={userRole} adminUid={adminUid} activeStore={activeStore} stores={stores} stockItems={stockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+              <StockInventory userRole={userRole} adminUid={adminUid} activeStore={activeStore} stores={stores} stockItems={stockItems} allStockItems={allStockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'treasury' && (
               <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />

@@ -17,6 +17,7 @@ import StockMovementModal from './stock-movement-modal';
 
 interface StockInventoryProps {
   stockItems: StockItem[];
+  allStockItems?: StockItem[];
   articles: any[];
   categories: any[];
   generalCategories: any[];
@@ -45,7 +46,7 @@ const LEVEL_BADGE: Record<string, { label: string; className: string }> = {
   unknown: { label: '—',       className: 'bg-stone-100 text-stone-400 border-stone-200' },
 };
 
-export default function StockInventory({ stockItems, articles, categories, generalCategories, stores, activeStore, userRole = 'ADMIN', adminUid, onAddMovement }: StockInventoryProps) {
+export default function StockInventory({ stockItems, allStockItems = [], articles, categories, generalCategories, stores, activeStore, userRole = 'ADMIN', adminUid, onAddMovement }: StockInventoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -96,13 +97,14 @@ export default function StockInventory({ stockItems, articles, categories, gener
   // Catégories disponibles
   const catOptions = useMemo(() => {
     const s = new Set<string>();
-    stockItems.forEach(i => { if (i.categoryId) s.add(i.categoryId); });
+    const source = inventoryMode ? allStockItems : stockItems;
+    source.forEach(i => { if (i.categoryId) s.add(i.categoryId); });
     return Array.from(s).sort();
-  }, [stockItems]);
+  }, [stockItems, allStockItems, inventoryMode]);
 
   // Filtres + tri
   const filtered = useMemo(() => {
-    let r = [...stockItems];
+    let r = inventoryMode ? [...allStockItems] : [...stockItems];
     if (search) {
       const q = search.toLowerCase();
       r = r.filter(i =>
@@ -127,7 +129,7 @@ export default function StockInventory({ stockItems, articles, categories, gener
       return a.productName.localeCompare(b.productName);
     });
     return r;
-  }, [stockItems, search, filterGroup, filterCat, filterLevel, sortBy, categories]);
+  }, [stockItems, allStockItems, inventoryMode, search, filterGroup, filterCat, filterLevel, sortBy, categories]);
 
   const totalFilteredValue = filtered.reduce((s, i) => s + i.totalValue, 0);
 
@@ -377,9 +379,9 @@ export default function StockInventory({ stockItems, articles, categories, gener
               <Boxes className="w-8 h-8 text-stone-300" />
             </div>
             <p className="text-stone-400 font-black uppercase text-[10px] tracking-widest">
-              {stockItems.length === 0 ? 'Aucun article en stock' : 'Aucun résultat'}
+              {(inventoryMode ? allStockItems.length : stockItems.length) === 0 ? 'Aucun article trouvé' : 'Aucun résultat'}
             </p>
-            {stockItems.length === 0 && (
+            {(inventoryMode ? allStockItems.length : stockItems.length) === 0 && !inventoryMode && (
               <p className="text-stone-300 text-[10px] font-bold text-center max-w-xs">
                 Validez un arrivage dans StockVue pour que les articles apparaissent ici.
               </p>
@@ -683,7 +685,7 @@ export default function StockInventory({ stockItems, articles, categories, gener
             {/* Footer */}
             <div className="px-4 py-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
               <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
-                {filtered.length} / {stockItems.length} référence{stockItems.length > 1 ? 's' : ''}
+                {filtered.length} / {inventoryMode ? allStockItems.length : stockItems.length} référence{(inventoryMode ? allStockItems.length : stockItems.length) > 1 ? 's' : ''}
               </span>
               <div className="flex items-center gap-2">
                 <DollarSign className="w-3 h-3 text-emerald-500" />
