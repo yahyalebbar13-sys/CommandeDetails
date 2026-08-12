@@ -113,7 +113,7 @@ function MultiVariantSelector({
           productId,
           productName,
           productNameAr: productNameAr || undefined,
-          productImage: v.image || productImage,
+          productImage: productImage,
           price: itemPrice,
           originalPrice: v.price ?? basePrice,
           wholesalePrice,
@@ -421,7 +421,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       productId: product.id,
       productName: product.name,
       productNameAr: product.nameAr,
-      productImage: product.images?.[mainImg] || product.images?.[0] || '',
+      productImage: product.images?.[0] || '',
       price: currentPrice,
       originalPrice: product.price,
       wholesalePrice: product.wholesalePrice,
@@ -523,7 +523,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 productId={product.id}
                 productName={product.name}
                 productNameAr={product.nameAr}
-                productImage={product.images?.[mainImg] || product.images?.[0] || ''}
+                productImage={product.images?.[0] || ''}
                 wholesalePrice={product.wholesalePrice}
                 minOrderQty={product.minOrderQty}
                 onAdd={handleAddVariantsToCart}
