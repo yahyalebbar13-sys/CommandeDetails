@@ -154,6 +154,16 @@ function ProductFiche({
     ).sort((a: any, b: any) => b.currentQty - a.currentQty);
   }, [variants]);
 
+  const variantsBySize = useMemo(() => {
+    const map = new Map<string, any[]>();
+    groupedVariantsDetails.forEach(v => {
+      const sizeKey = v.size || 'STANDARD';
+      if (!map.has(sizeKey)) map.set(sizeKey, []);
+      map.get(sizeKey)!.push(v);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [groupedVariantsDetails]);
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb — caché en mode inline */}
@@ -204,62 +214,70 @@ function ProductFiche({
         </div>
       </div>
 
-      {/* ── Tableau des variantes clair et direct ── */}
-      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-2">
-          <Package className="w-4 h-4 text-stone-500" />
-          <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">État des Variantes</h4>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-stone-100">
-                <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Couleur</th>
-                <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>
-                <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Seuil Min.</th>
-                <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
-                <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
-                <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[9px]">Stock Réel</th>
-                <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[8px]">Coût Unitaire</th>
-                <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Valeur</th>
-                <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Statut</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-50">
-              {groupedVariantsDetails.map((v: any, i: number) => {
-                const isRupt = v.currentQty <= 0;
-                const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
-                return (
-                  <tr key={i} className="hover:bg-stone-50 transition-colors">
-                    <td className="px-6 py-4">
-                      {v.color ? <span className="font-bold text-stone-700">{v.color}</span> : <span className="text-stone-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4">
-                      {v.size ? <span className="font-bold text-stone-700">{v.size}</span> : <span className="text-stone-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {v.minThreshold != null ? <span className="font-bold text-stone-400">{fmt(v.minThreshold)}</span> : <span className="text-stone-300">—</span>}
-                    </td>
-                    <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
-                    <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
-                    <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
-                    <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>
-                    <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>
-                    <td className="px-6 py-4 text-right">
-                      {isRupt ? (
-                        <span className="text-[9px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
-                      ) : isAlerte ? (
-                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase">Alerte</span>
-                      ) : (
-                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase">OK</span>
-                      )}
-                    </td>
+      {/* ── Tableaux des variantes par taille ── */}
+      <div className="space-y-4">
+        {variantsBySize.map(([sizeName, sizeVariants], sIdx) => (
+          <div key={sIdx} className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-2">
+              <Package className="w-4 h-4 text-stone-500" />
+              <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">
+                {sizeName === 'STANDARD' ? 'État des Variantes' : `Taille : ${sizeName}`}
+              </h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-stone-100">
+                    <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Couleur</th>
+                    {sizeName === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>}
+                    <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Seuil Min.</th>
+                    <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
+                    <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
+                    <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[9px]">Stock Réel</th>
+                    <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[8px]">Coût Unitaire</th>
+                    <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Valeur</th>
+                    <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Statut</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody className="divide-y divide-stone-50">
+                  {sizeVariants.map((v: any, i: number) => {
+                    const isRupt = v.currentQty <= 0;
+                    const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
+                    return (
+                      <tr key={i} className="hover:bg-stone-50 transition-colors">
+                        <td className="px-6 py-4">
+                          {v.color ? <span className="font-bold text-stone-700">{v.color}</span> : <span className="text-stone-300">—</span>}
+                        </td>
+                        {sizeName === 'STANDARD' && (
+                          <td className="px-6 py-4">
+                            {v.size ? <span className="font-bold text-stone-700">{v.size}</span> : <span className="text-stone-300">—</span>}
+                          </td>
+                        )}
+                        <td className="px-6 py-4 text-right">
+                          {v.minThreshold != null ? <span className="font-bold text-stone-400">{fmt(v.minThreshold)}</span> : <span className="text-stone-300">—</span>}
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
+                        <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
+                        <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
+                        <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>
+                        <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>
+                        <td className="px-6 py-4 text-right">
+                          {isRupt ? (
+                            <span className="text-[9px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
+                          ) : isAlerte ? (
+                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase">Alerte</span>
+                          ) : (
+                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase">OK</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ── Historique des mouvements récent ── */}
