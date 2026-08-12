@@ -277,7 +277,7 @@ export async function generateSimpleCataloguePDF(
       const p = item.prod;
       const accent = item.accent;
 
-      // Compute specs first to know card height
+      // Compute specs first to know card height and prevent negative width crashes
       const allSpecs: [string, string][] = [
         ['Matériau',       p.material||''],
         ['Type',           p.typeProduit||''],
@@ -298,13 +298,36 @@ export async function generateSimpleCataloguePDF(
         ['Sécurité',       (p as any).securite||''],
       ].filter(([,v]) => v) as [string, string][];
 
-      // Dynamic card height: name (10) + specs (3.2 each) + padding (6)
-      const nameH = 10;
-      const specsH = allSpecs.length * 3.2;
+      const RW = COL_W - 4.5 - IMG_SIZE - 5;
+      
+      // Calculate specs height properly by measuring lines
+      const specLinesData: { lbl: string, lines: string[], lblW: number }[] = [];
+      let specsH = 0;
+      
+      for (const [lbl, val] of allSpecs) {
+        doc.setFont('helvetica','bold'); doc.setFontSize(4.5);
+        const lblW = doc.getTextWidth(lbl + ': ');
+        const maxValW = Math.max(10, RW - lblW - 1);
+        doc.setFont('helvetica','normal'); doc.setFontSize(5);
+        const lines = doc.splitTextToSize(val, maxValW);
+        specLinesData.push({ lbl, lines, lblW });
+        specsH += lines.length * 3.2;
+      }
+
+      // Dynamic card height
+      doc.setFont('helvetica','bold'); doc.setFontSize(7);
+      const nameLines = doc.splitTextToSize(p.catalogueName || p.name, RW);
+      const nameH = Math.min(nameLines.length, 3) * 3 + 2;
       const cardH = Math.max(IMG_SIZE + 6, nameH + specsH + 6);
 
-      if (col === 0 && needSpace(cardH + 2)) newPage();
-      if (!pageStarted) newPage();
+      // Now we know cardH, check if it fits. If col === 1, we must check if BOTH cards fit.
+      // But rowMaxH tracks the first card. If this card is taller, it might overflow.
+      // To be safe, check needSpace(cardH + 2) anyway, and if it overflows, force a new page.
+      if (needSpace(cardH + 2)) {
+        newPage();
+      } else if (!pageStarted) {
+        newPage();
+      }
 
       const cx = ML + col * (COL_W + COL_GAP);
       const cy = y;
@@ -327,25 +350,20 @@ export async function generateSimpleCataloguePDF(
 
       // Right side
       const RX = cx + 4.5 + IMG_SIZE + 3;
-      const RW = COL_W - 4.5 - IMG_SIZE - 5;
       let ry = cy + 3.5;
 
-      // Product name — full text
+      // Product name
       doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.black);
-      const nameLines = doc.splitTextToSize(p.catalogueName || p.name, RW);
       doc.text(nameLines.slice(0, 3), RX, ry + 3);
-      ry += Math.min(nameLines.length, 3) * 3 + 2;
+      ry += nameH;
 
-      // ALL tech specs — no break, no truncation
-      for (const [lbl, val] of allSpecs) {
+      // ALL tech specs — no break, full wrap
+      for (const itemData of specLinesData) {
         doc.setFont('helvetica','bold'); doc.setFontSize(4.5); doc.setTextColor(...C.gray);
-        doc.text(lbl + ':', RX, ry);
+        doc.text(itemData.lbl + ':', RX, ry);
         doc.setFont('helvetica','normal'); doc.setFontSize(5); doc.setTextColor(...C.dark);
-        const lblW = doc.getTextWidth(lbl + ': ');
-        const maxValW = RW - lblW - 1;
-        const valLines = doc.splitTextToSize(val, maxValW);
-        doc.text(valLines[0] || val, RX + lblW, ry);
-        ry += 3.2;
+        doc.text(itemData.lines, RX + itemData.lblW, ry);
+        ry += itemData.lines.length * 3.2;
       }
 
       // Advance position — track max height per row
