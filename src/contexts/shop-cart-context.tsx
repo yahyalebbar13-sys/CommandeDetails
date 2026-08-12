@@ -82,7 +82,17 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return { ...state, isOpen: false };
     case 'LOAD_CART': {
       const safeItems = Array.isArray(action.payload) ? action.payload.filter(i => i && typeof i === 'object') : [];
-      return { ...state, items: safeItems };
+      const merged: CartItem[] = [];
+      for (const item of safeItems) {
+        const key = cartKey(item.productId, item.variant?.variantId);
+        const existing = merged.findIndex(i => cartKey(i.productId, i.variant?.variantId) === key);
+        if (existing >= 0) {
+          merged[existing] = { ...merged[existing], quantity: merged[existing].quantity + item.quantity };
+        } else {
+          merged.push(item);
+        }
+      }
+      return { ...state, items: merged };
     }
     default:
       return state;
