@@ -542,6 +542,17 @@ export async function generateSimpleCataloguePDF(
 
   onProgress?.(100, 'Téléchargement…');
   const fname = `LEBTEX_Catalogue_Simple_${year}.pdf`;
-  doc.save(fname);
+  
+  // Custom safe download mechanism to prevent ERR_FILE_NOT_FOUND
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 15000); // Wait 15s before revoking to guarantee Chrome saves it
+  
   return fname;
 }

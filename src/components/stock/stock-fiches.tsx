@@ -580,11 +580,12 @@ function ProductsTable({
 
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
-  stockItems, movements, categories, generalCategories, factures, userRole = 'ADMIN'
+  stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'ADMIN'
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
 }) {
+  const stockItems = useMemo(() => rawStockItems.filter(i => i.currentQty > 0), [rawStockItems]);
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selSubCat, setSelSubCat] = useState<string | null>(null);
 

@@ -32,10 +32,11 @@ import InvoiceView      from './invoice-view';
 import SalesPos         from './sales-pos';
 import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
+import StockWarehouses  from './stock-warehouses';
 import TreasuryDashboard from './treasury-dashboard';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'treasury';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
@@ -660,8 +661,9 @@ export default function StockApp() {
     { id: 'treasury',  label: 'Trésorerie',    icon: Landmark,        color: 'emerald', adminOnly: true, pointOfSaleOnly: true },
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    icon: Truck,           color: 'blue' },
-    { id: 'stores',    label: 'Magasins',      icon: StoreIcon,       color: 'emerald', adminOnly: true },
-    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
+    { id: 'warehouses',label: 'Entrepôts',     icon: StoreIcon,       color: 'blue', adminOrMainOnly: true },
+    { id: 'stores',    label: 'Config Lieux',  icon: StoreIcon,       color: 'emerald', adminOnly: true },
+    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount, adminOnly: true },
   ], [pendingArrivals, openInvoices, alertCount]);
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
@@ -676,8 +678,9 @@ export default function StockApp() {
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
     if (item.commercialOnly && userRole === 'ADMIN') return false;
     if (item.pointOfSaleOnly && isWarehouse) return false;
+    if (item.adminOrMainOnly && userRole !== 'ADMIN' && !(userRole === 'COMMERCIAL' && stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')))) return false;
     return true;
-  }), [navItemsRaw, userRole, isWarehouse]);
+  }), [navItemsRaw, userRole, isWarehouse, stores, userStoreId]);
 
   // Si on est sur une vue cachée par le changement de magasin (ex: WAREHOUSE), on switch
   useEffect(() => {
@@ -740,37 +743,11 @@ export default function StockApp() {
             </div>
           </div>
 
-          {/* Store Selector (Admin & Main Store) */}
-          {(userRole === 'ADMIN' || (userRole === 'COMMERCIAL' && stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')))) ? (
-            <div className="hidden md:flex items-center gap-2 ml-4">
-              <select
-                value={activeStore}
-                onChange={e => setActiveStore(e.target.value as any)}
-                className="bg-stone-100 border border-stone-200 text-stone-700 text-xs font-black uppercase rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                {userRole === 'ADMIN' ? (
-                  <option value="ALL">🌐 Vue Globale (Total)</option>
-                ) : (
-                  <option value="ALL_MAIN">🌐 Tous (Magasin + Entrepôts)</option>
-                )}
-                {stores
-                  .filter(s => userRole === 'ADMIN' || s.id === userStoreId || s.type === 'WAREHOUSE')
-                  .map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.type === 'WAREHOUSE' ? '🏭' : '🏪'} {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            userRole === 'COMMERCIAL' && (
-              <div className="hidden md:flex items-center gap-2 ml-4">
-                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-emerald-200">
-                  📍 {activeStore.replace('_', ' ')}
-                </span>
-              </div>
-            )
-          )}
+          <div className="hidden md:flex items-center ml-4 px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-lg">
+            <span className="text-[10px] font-black text-stone-500 uppercase tracking-widest">
+              {activeStore === 'ALL' ? '🌐 Vue Globale' : activeStore === 'ALL_MAIN' ? '🌐 Tous (Magasin + Entrepôts)' : stores.find(s => s.id === activeStore)?.name || activeStore}
+            </span>
+          </div>
 
           {/* Nav desktop */}
           <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center px-4">
@@ -920,6 +897,19 @@ export default function StockApp() {
                 userRole={userRole}
                 activeStore={activeStore}
                 adminUid={adminUid}
+              />
+            )}
+            {activeView === 'warehouses' && (
+              <StockWarehouses
+                stores={stores}
+                stockItems={stockItems}
+                movements={filteredMovements}
+                userRole={userRole}
+                userStoreId={userStoreId}
+                onSelectStore={(storeId) => {
+                  setActiveStore(storeId as any);
+                  setActiveView('inventory');
+                }}
               />
             )}
             {activeView === 'stores' && (

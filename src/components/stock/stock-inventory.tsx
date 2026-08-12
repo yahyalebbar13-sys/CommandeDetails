@@ -113,6 +113,9 @@ export default function StockInventory({ stockItems, allStockItems = [], article
         i.color?.toLowerCase().includes(q) ||
         i.size?.toLowerCase().includes(q)
       );
+    } else if (!inventoryMode) {
+      // Masquer les produits à 0 par défaut (sauf si recherche ou inventaire)
+      r = r.filter(i => i.currentQty > 0);
     }
     // Filtre groupe (catégorie générale)
     if (filterGroup !== 'all') {
