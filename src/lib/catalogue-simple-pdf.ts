@@ -222,7 +222,7 @@ export async function generateSimpleCataloguePDF(
 
   // Track which page we're on (will adjust later after sommaire insert)
   function currentPageIdx(): number {
-    return doc.internal.getNumberOfPages();
+    return (doc.internal as any).getNumberOfPages();
   }
 
   for (const item of renderItems) {
@@ -395,7 +395,7 @@ export async function generateSimpleCataloguePDF(
   onProgress?.(93, 'Sommaire…');
 
   // ─── SOMMAIRE (generated at end, inserted at page 2) ─────────────────────
-  const tocStartIdx = doc.internal.getNumberOfPages() + 1;
+  const tocStartIdx = (doc.internal as any).getNumberOfPages() + 1;
 
   // Dry-run to estimate pages
   const TOC_TOP = 45, TOC_BOT = PH - 22;
@@ -473,13 +473,13 @@ export async function generateSimpleCataloguePDF(
   }
 
   // Move sommaire to page 2
-  const tocActualPages = doc.internal.getNumberOfPages() - tocStartIdx + 1;
+  const tocActualPages = (doc.internal as any).getNumberOfPages() - tocStartIdx + 1;
   for (let i = 0; i < tocActualPages; i++) {
-    doc.movePage(tocStartIdx + i, 2 + i);
+    (doc as any).movePage(tocStartIdx + i, 2 + i);
   }
 
   // Footers on all pages
-  const totalPages = doc.internal.getNumberOfPages();
+  const totalPages = (doc.internal as any).getNumberOfPages();
   for (let i = 2; i <= totalPages; i++) {
     doc.setPage(i);
     drawFooter(doc, dateStr, i - 1);
