@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useRouter } from 'next/navigation';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -472,6 +473,7 @@ function ProductsTable({
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void;
 }) {
+  const router = useRouter();
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
   const groupedVariants = useMemo(() => {
@@ -490,35 +492,22 @@ function ProductsTable({
   const alertCount = items.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
   if (groupedVariants.length === 1) {
-    const variants = groupedVariants[0];
-    const a = variants[0];
+    const a = groupedVariants[0][0];
+    const id = a._realArticleId || a.articleId;
+    router.push(`/gestion/produit/${id}`);
     return (
-      <div className="animate-in fade-in duration-300">
-        <ProductFiche
-          article={a}
-          variants={variants}
-          movements={movements}
-          factures={factures}
-          color={UI_COLORS[0]}
-          onBack={onBack}
-          inline={false}
-        />
+      <div className="flex items-center justify-center py-20 animate-in fade-in">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   if (selectedArticle) {
+    const id = selectedArticle._realArticleId || selectedArticle.articleId;
+    router.push(`/gestion/produit/${id}`);
     return (
-      <div className="animate-in fade-in duration-300">
-        <ProductFiche
-          article={selectedArticle}
-          variants={selectedArticle._variants || [selectedArticle]}
-          movements={movements}
-          factures={factures}
-          color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length] || UI_COLORS[0]}
-          onBack={() => setSelectedArticle(null)}
-          inline={false}
-        />
+      <div className="flex items-center justify-center py-20 animate-in fade-in">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
