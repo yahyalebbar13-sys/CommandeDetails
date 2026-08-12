@@ -27,11 +27,44 @@ async function loadImg(url: string): Promise<string | null> {
     if (!resp.ok) return null;
     const blob = await resp.blob();
     if (blob.size < 100) return null;
-    return new Promise<string | null>(resolve => {
-      const r = new FileReader();
-      r.onloadend = () => resolve(r.result as string || null);
-      r.onerror = () => resolve(null);
-      r.readAsDataURL(blob);
+    
+    // Create an object URL and load it into an Image
+    const objUrl = URL.createObjectURL(blob);
+    return new Promise<string | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          // Scale down very large images to save PDF size (max 800px)
+          const MAX_SIZE = 800;
+          let w = img.width;
+          let h = img.height;
+          if (w > MAX_SIZE || h > MAX_SIZE) {
+            const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(null); return; }
+          // Fill white background (in case of transparent PNG/WEBP)
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          URL.revokeObjectURL(objUrl);
+          resolve(dataUrl);
+        } catch {
+          URL.revokeObjectURL(objUrl);
+          resolve(null);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        resolve(null);
+      };
+      img.src = objUrl;
     });
   } catch { return null; }
 }
