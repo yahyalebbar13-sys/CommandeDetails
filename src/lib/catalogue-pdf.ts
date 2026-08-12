@@ -763,9 +763,9 @@ export async function generateCataloguePDF(
         doc.setFont('helvetica','italic');
         doc.setFontSize(7);
         doc.setTextColor(...C.dark);
-        const dl = doc.splitTextToSize(clip(p.description, 280), SW);
-        doc.text(dl.slice(0,3), SX, sy2 + 4);
-        sy2 += Math.min(dl.length,3)*3.8 + 5;
+        const dl = doc.splitTextToSize(p.description, SW);
+        doc.text(dl.slice(0,4), SX, sy2 + 4);
+        sy2 += Math.min(dl.length,4)*3.8 + 5;
       }
 
       // Tech specs 2-col
@@ -799,18 +799,20 @@ export async function generateCataloguePDF(
         for (let ti = 0; ti < techPairs.length; ti++) {
           const col = ti % 2;
           if (col === 0 && ti > 0) sy2 += 9;
-          if (sy2 > PH - 20) break;
+          if (sy2 > PH - 22) {
+            dy = Math.max(dy + ISH + 4, sy2 + 4);
+            doc.addPage(); band(doc, accent); dy = 10; sy2 = dy;
+          }
           const sx3 = SX + col*(halfW + 5);
-          // Label
           doc.setFont('helvetica','bold');
           doc.setFontSize(5.2);
           doc.setTextColor(...C.gray);
           doc.text(techPairs[ti][0].toUpperCase(), sx3, sy2);
-          // Value
           doc.setFont('helvetica','normal');
           doc.setFontSize(7);
           doc.setTextColor(...C.black);
-          doc.text(clip(techPairs[ti][1], 35), sx3, sy2 + 4.5);
+          const valLines = doc.splitTextToSize(techPairs[ti][1], halfW - 1);
+          doc.text(valLines.slice(0,2), sx3, sy2 + 4.5);
         }
         sy2 += 9;
       }
@@ -846,9 +848,9 @@ export async function generateCataloguePDF(
           doc.setFont('helvetica','normal');
           doc.setFontSize(6.5);
           doc.setTextColor(...C.gray);
-          const il = doc.splitTextToSize(clip(val, 240), CW-4);
-          doc.text(il.slice(0,4), ML, dy+7);
-          dy += Math.min(il.length,4)*3.5 + 6;
+          const il = doc.splitTextToSize(val, CW-4);
+          doc.text(il, ML, dy+7);
+          dy += il.length*3.5 + 6;
         }
       }
 
