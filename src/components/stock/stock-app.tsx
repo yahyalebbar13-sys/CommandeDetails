@@ -63,8 +63,7 @@ export function computeStockItems(
   includeAll: boolean = false
 ): StockItem[] {
   const stockArticles = includeAll ? articles : articles.filter(a => {
-    if (!a.stockEntryDate) return false;
-    return movements.some(m => m.articleId === a.id && m.type === 'IN');
+    return a.stockEntryDate || movements.some(m => m.articleId === a.id);
   });
 
   const results: StockItem[] = [];
