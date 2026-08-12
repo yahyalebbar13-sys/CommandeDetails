@@ -385,10 +385,10 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, headerProp
+  items, subCatName, movements, factures, onBack, headerProp, userRole = 'ADMIN'
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
-  onBack: () => void; headerProp?: React.ReactNode;
+  onBack: () => void; headerProp?: React.ReactNode; userRole?: string;
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
@@ -614,6 +614,7 @@ export default function StockFiches({
           movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
           headerProp={<StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />}
+          userRole={userRole}
         />
       </div>
     );
