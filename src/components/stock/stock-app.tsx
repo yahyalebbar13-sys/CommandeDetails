@@ -393,12 +393,12 @@ export default function StockApp() {
 
   // Initialize default stores if empty
   useEffect(() => {
-    if (userRole !== 'ADMIN' || !firestore || !adminUid || loadingStores) return;
+    if (!firestore || !adminUid || loadingStores) return;
     const isDerbWarehouse = stores.some(s => s.id === 'DERB_OMAR' && s.type === 'WAREHOUSE');
     if (stores.length > 0 && !isDerbWarehouse) return;
     const initStores = async () => {
       const defaults = [
-        { id: 'CHRIFA', name: 'Magasin Lebtex (Principal)', type: 'STORE', isMain: true },
+        { id: 'CHRIFA', name: 'Magasin Chrifa (Principal)', type: 'STORE', isMain: true },
         { id: 'DERB_OMAR', name: 'Magasin Derb Omar', type: 'STORE', isMain: false },
         { id: 'AL_IDAA', name: 'Magasin Al Idaa', type: 'STORE', isMain: false },
         { id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE' },
