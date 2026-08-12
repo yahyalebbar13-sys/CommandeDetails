@@ -467,13 +467,12 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack
+  items, subCatName, movements, onSelect, onBack
 }: {
-  items: any[]; subCatName: string; movements: any[]; factures: any[];
+  items: any[]; subCatName: string; movements: any[];
+  onSelect: (variants: any[]) => void;
   onBack: () => void;
 }) {
-  const [_, setSelectedArticle] = useState<any | null>(null); // Keep it just in case, but no-op
-
   const groupedVariants = useMemo(() => {
     const grouped = new Map<string, any[]>();
     items.forEach(i => {
@@ -523,26 +522,88 @@ function ProductsTable({
             <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
           </div>
         </div>
-        <div className="flex flex-col gap-12 p-6 bg-stone-50/30">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
           {groupedVariants.length === 0 ? (
-            <div className="py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
+            <div className="col-span-full py-16 text-center text-stone-300 text-[9px] font-black uppercase tracking-widest">
               Aucun article validé dans cette sous-catégorie
             </div>
           ) : (
             groupedVariants.map((variants, idx) => {
               const a = variants[0];
+              const isMulti = variants.length > 1;
               const color  = UI_COLORS[idx % UI_COLORS.length];
+              const cost   = a.purchasePricePerUnit || 0;
+              const totalIn = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
+              const totalCurrent = variants.reduce((s, v) => s + v.currentQty, 0);
+              const pct    = totalIn > 0 ? Math.min(100, Math.round((totalCurrent / totalIn) * 100)) : 100;
+              const artIN  = movements.filter(m => variants.some(v => m.articleId === v.articleId) && m.type === 'IN');
+              const artOUT = movements.filter(m => variants.some(v => m.articleId === v.articleId) && m.type === 'OUT');
+              const batches = computeFIFO(artIN, artOUT, cost);
+              const fifoVal = batches.reduce((s, b) => s + b.batchValue, 0);
+              const isAlert = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
+              const isRupture = totalCurrent === 0;
+              const pctColor = pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981';
+
               return (
-                <ProductFiche
-                  key={a._realArticleId || a.articleId}
-                  article={a}
-                  variants={variants}
-                  movements={movements}
-                  factures={factures}
-                  color={color}
-                  onBack={() => {}}
-                  inline={true}
-                />
+                <div key={a._realArticleId || a.articleId} 
+                  onClick={() => onSelect(variants)}
+                  className="group flex flex-col bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-stone-100 overflow-hidden cursor-pointer relative"
+                >
+                  <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
+                  <div className="p-5 flex-1 flex flex-col">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
+                        <Package className="w-5 h-5" style={{ color }} />
+                      </div>
+                      {isAlert ? (
+                        <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Alerte
+                        </div>
+                      ) : isRupture ? (
+                        <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                          Rupture
+                        </div>
+                      ) : (
+                        <div className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase">
+                          OK
+                        </div>
+                      )}
+                    </div>
+                    
+                    <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">{a.productName}</h3>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
+                      {isMulti ? (
+                        <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">
+                          {variants.length} variantes
+                        </span>
+                      ) : (
+                        <>
+                          {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
+                          {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="mt-auto pt-4 border-t border-stone-100">
+                      <div className="flex justify-between items-end mb-3">
+                        <div>
+                          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
+                          <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
+                            {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
+                          <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
+                        </div>
+                      </div>
+
+                      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               );
             })
           )}
@@ -552,7 +613,7 @@ function ProductsTable({
   );
 }
 
-// ── Vue principale — navigation 3 niveaux ────────────────────────────────────
+// ── Vue principale — navigation 4 niveaux ────────────────────────────────────
 export default function StockFiches({
   stockItems, movements, categories, generalCategories, factures
 }: {
@@ -561,6 +622,7 @@ export default function StockFiches({
 }) {
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selSubCat, setSelSubCat] = useState<string | null>(null);
+  const [selArticleVariants, setSelArticleVariants] = useState<any[] | null>(null);
 
   const stockByCategory = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -586,7 +648,26 @@ export default function StockFiches({
   const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
-  // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
+  // ── Niveau 4 : Détail complet d'un produit (Page dédiée) ─────────────────
+  if (selArticleVariants) {
+    const a = selArticleVariants[0];
+    const color = UI_COLORS[0]; // You can compute color based on index if needed, but default is fine for detail
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <ProductFiche
+          article={a}
+          variants={selArticleVariants}
+          movements={movements}
+          factures={factures}
+          color={color}
+          onBack={() => setSelArticleVariants(null)}
+          inline={false}
+        />
+      </div>
+    );
+  }
+
+  // ── Niveau 3 : tableau produits (Cartes) ───────────────────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
     const items  = stockByCategory[subCat?.name || selSubCat] || [];
@@ -595,7 +676,8 @@ export default function StockFiches({
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
         <ProductsTable
           items={items} subCatName={subCat?.name || selSubCat}
-          movements={movements} factures={factures}
+          movements={movements}
+          onSelect={setSelArticleVariants}
           onBack={() => setSelSubCat(null)}
         />
       </div>
