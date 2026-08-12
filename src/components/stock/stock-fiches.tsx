@@ -294,11 +294,20 @@ function ProductFiche({
                       <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
                       <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
                       <td className="px-6 py-4 text-left">
-                        {v.qtyByStore && Object.entries(v.qtyByStore).map(([sId, q]: any) => q > 0 && (
-                          <div key={sId} className="text-[9px] text-stone-500 whitespace-nowrap">
-                            <span className="font-bold">{sId.replace('_', ' ')}:</span> {q}
+                        {v.qtyByStore && Object.entries(v.qtyByStore).some(([_, q]: any) => q > 0) ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(v.qtyByStore).map(([sId, q]: any) => q > 0 && (
+                              <div key={sId} className="flex items-center gap-1 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md">
+                                <span className="text-[8px] font-black uppercase text-stone-500 tracking-wider">
+                                  {sId === 'ENTREPOT' ? 'ENT. PRINCIPAL' : sId.replace('_', ' ')}:
+                                </span>
+                                <span className="text-[10px] font-bold text-stone-700">{fmt(q)}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <span className="text-stone-300">—</span>
+                        )}
                       </td>
                       {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>}
                       {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>}

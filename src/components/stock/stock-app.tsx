@@ -39,17 +39,29 @@ type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'c
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
-function getInitialQtyForStore(item: any, activeStore: string): number {
+function getInitialQtyForStore(item: any, activeStore: string, userStoreId: string, stores: any[]): number {
   const byStore = item.initialQtyByStore;
   const legacyQty = Number(item.rolls || item.quantity || 0);
 
   if (!byStore) {
-    if (activeStore === 'ALL' || activeStore === 'ENTREPOT') return legacyQty;
+    if (activeStore === 'ALL' || activeStore === 'ALL_MAIN' || activeStore === 'ENTREPOT') return legacyQty;
     return 0;
   }
 
   if (activeStore === 'ALL') {
-    return (byStore.ENTREPOT || 0) + (byStore.DERB_OMAR || 0) + (byStore.CHRIFA || 0);
+    return Object.values(byStore).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+  }
+
+  if (activeStore === 'ALL_MAIN') {
+    let sum = 0;
+    if (byStore[userStoreId]) sum += byStore[userStoreId];
+    if (byStore['ENTREPOT']) sum += byStore['ENTREPOT'];
+    for (const s of stores) {
+      if (s.type === 'WAREHOUSE' && byStore[s.id]) {
+        sum += byStore[s.id];
+      }
+    }
+    return sum;
   }
 
   return byStore[activeStore] || 0;
@@ -59,21 +71,25 @@ export function computeStockItems(
   articles: any[],
   movements: StockMovement[],
   categories: any[],
-  activeStore: StoreLocation | 'ALL',
+  activeStore: StoreLocation | 'ALL' | 'ALL_MAIN',
   includeAll: boolean = false,
   userRole: string = 'ADMIN',
-  stores: any[] = []
+  stores: any[] = [],
+  userStoreId: string = ''
 ): StockItem[] {
   const isVisibleForUser = (storeId: string | undefined) => {
     if (activeStore === 'ALL') return true;
     const sId = storeId || 'ENTREPOT';
-    if (sId === activeStore) return true;
-    if (userRole === 'COMMERCIAL') {
+    
+    if (activeStore === 'ALL_MAIN') {
+      if (sId === userStoreId) return true;
+      if (sId === 'ENTREPOT') return true;
       const s = stores.find(x => x.id === sId);
       if (s && s.type === 'WAREHOUSE') return true;
-      if (sId === 'ENTREPOT') return true; // Fallback
+      return false;
     }
-    return false;
+
+    return sId === activeStore;
   };
 
   const computeQtyByStoreHelper = (itemRow: any, targetMovs: any[]) => {
@@ -122,7 +138,7 @@ export function computeStockItems(
         const colorLabel = (row.colorCode || row.description || row.color || '').trim();
         if (!colorLabel) continue;
 
-        const initialQty = getInitialQtyForStore(row, activeStore);
+        const initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
 
         // Mouvements filtrés : ceux qui mentionnent cette couleur spécifiquement
         // ou bien les mouvements globaux de l'article proportionnellement
@@ -184,7 +200,7 @@ export function computeStockItems(
         const sizeLabel = (row.size || '').trim();
         if (!sizeLabel) continue;
 
-        const initialQty = getInitialQtyForStore(row, activeStore);
+        const initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
         const sizeMov = artMovements.filter(m =>
           m.size?.toLowerCase() === sizeLabel.toLowerCase()
         );
@@ -250,7 +266,7 @@ export function computeStockItems(
         }
       }
     }
-    const initialQty = getInitialQtyForStore(a, activeStore);
+    const initialQty = getInitialQtyForStore(a, activeStore, userStoreId, stores);
     const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
@@ -298,9 +314,11 @@ export default function StockApp() {
   const { toast } = useToast();
   const [activeView, setActiveView] = useState<StockView>('dashboard');
 
-  const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL'>('ALL');
+  const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL' | 'ALL_MAIN'>('ALL');
+  const [hasInitMain, setHasInitMain] = useState(false);
   const [userRole, setUserRole] = useState<'ADMIN' | 'COMMERCIAL' | 'UNAUTHORIZED' | 'LOADING'>('LOADING');
   const [adminUid, setAdminUid] = useState<string | null>(null);
+  const [userStoreId, setUserStoreId] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
   const checkAccess = useCallback(async () => {
@@ -332,6 +350,7 @@ export default function StockApp() {
           } catch (_) {}
         }
         setActiveStore(data.storeId);
+        setUserStoreId(data.storeId);
         setUserRole(data.role || 'COMMERCIAL');
         // activeView sera déterminé dynamiquement dans le useEffect ci-dessous
       } else {
@@ -390,6 +409,17 @@ export default function StockApp() {
   const factures        = rawFactures    || [];
   const transferOrders  = (rawTransfers  || []) as TransferOrder[];
   const stores          = rawStores      || [];
+
+  // Initialisation sur ALL_MAIN si le commercial est le magasin principal
+  useEffect(() => {
+    if (userRole === 'COMMERCIAL' && stores.length > 0 && !hasInitMain && userStoreId) {
+      const s = stores.find(x => x.id === userStoreId);
+      if (s?.isMain) {
+        setActiveStore('ALL_MAIN');
+      }
+      setHasInitMain(true);
+    }
+  }, [userRole, stores, userStoreId, hasInitMain]);
 
   // Initialize default stores if empty
   useEffect(() => {
@@ -710,29 +740,36 @@ export default function StockApp() {
             </div>
           </div>
 
-          {/* Store Selector (Admin Only) */}
-          {userRole === 'ADMIN' && (
+          {/* Store Selector (Admin & Main Store) */}
+          {(userRole === 'ADMIN' || (userRole === 'COMMERCIAL' && stores.find(s => s.id === userStoreId)?.isMain)) ? (
             <div className="hidden md:flex items-center gap-2 ml-4">
               <select
                 value={activeStore}
                 onChange={e => setActiveStore(e.target.value as any)}
                 className="bg-stone-100 border border-stone-200 text-stone-700 text-xs font-black uppercase rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="ALL">🌐 Vue Globale (Total)</option>
-                {stores.map(s => (
+                {userRole === 'ADMIN' ? (
+                  <option value="ALL">🌐 Vue Globale (Total)</option>
+                ) : (
+                  <option value="ALL_MAIN">🌐 Tous (Magasin + Entrepôts)</option>
+                )}
+                {stores
+                  .filter(s => userRole === 'ADMIN' || s.id === userStoreId || s.type === 'WAREHOUSE')
+                  .map(s => (
                   <option key={s.id} value={s.id}>
                     {s.type === 'WAREHOUSE' ? '🏭' : '🏪'} {s.name}
                   </option>
                 ))}
               </select>
             </div>
-          )}
-          {userRole === 'COMMERCIAL' && (
-            <div className="hidden md:flex items-center gap-2 ml-4">
-              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-emerald-200">
-                📍 {activeStore.replace('_', ' ')}
-              </span>
-            </div>
+          ) : (
+            userRole === 'COMMERCIAL' && (
+              <div className="hidden md:flex items-center gap-2 ml-4">
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-emerald-200">
+                  📍 {activeStore.replace('_', ' ')}
+                </span>
+              </div>
+            )
           )}
 
           {/* Nav desktop */}
