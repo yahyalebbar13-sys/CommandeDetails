@@ -674,12 +674,15 @@ export default function StockApp() {
     (currentStore && currentStore.name.toLowerCase().includes('entrepôt'));
 
   const navItems = useMemo(() => navItemsRaw.filter(item => {
+    if (activeStore !== 'ALL') {
+      if (item.id !== 'inventory' && item.id !== 'warehouses') return false;
+    }
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
     if (item.commercialOnly && userRole === 'ADMIN') return false;
     if (item.pointOfSaleOnly && isWarehouse) return false;
     if (item.adminOrMainOnly && userRole !== 'ADMIN' && !(userRole === 'COMMERCIAL' && stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')))) return false;
     return true;
-  }), [navItemsRaw, userRole, isWarehouse, stores, userStoreId]);
+  }), [navItemsRaw, userRole, isWarehouse, stores, userStoreId, activeStore]);
 
   // Si on est sur une vue cachée par le changement de magasin (ex: WAREHOUSE), on switch
   useEffect(() => {
