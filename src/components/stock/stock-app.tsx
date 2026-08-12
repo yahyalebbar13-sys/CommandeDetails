@@ -631,7 +631,7 @@ export default function StockApp() {
   ];
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
-  const isWarehouse = currentStore?.type === 'WAREHOUSE';
+  const isWarehouse = currentStore?.type === 'WAREHOUSE' || activeStore === 'ENTREPOT';
 
   const navItems = navItemsRaw.filter(item => {
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
