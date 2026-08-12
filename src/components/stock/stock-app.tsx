@@ -674,7 +674,7 @@ export default function StockApp() {
     (currentStore && currentStore.name.toLowerCase().includes('entrepôt'));
 
   const navItems = useMemo(() => navItemsRaw.filter(item => {
-    if (activeStore !== 'ALL') {
+    if (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') {
       if (item.id !== 'inventory' && item.id !== 'warehouses') return false;
     }
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
