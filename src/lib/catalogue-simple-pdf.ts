@@ -204,6 +204,7 @@ export async function generateSimpleCataloguePDF(
   let y = PAGE_BOT; // Force first new page
   let col = 0;
   let pageStarted = false;
+  let rowMaxH = 0;
 
   // Track page numbers for sommaire
   interface TocItem { title: string; isCategory: boolean; page: number; accent: [number,number,number]; }
@@ -228,7 +229,7 @@ export async function generateSimpleCataloguePDF(
   for (const item of renderItems) {
     if (item.type === 'category') {
       // Always start fresh row for category
-      if (col !== 0) { col = 0; y += CARD_H + CARD_GAP_Y; }
+      if (col !== 0) { col = 0; y += rowMaxH + CARD_GAP_Y; rowMaxH = 0; }
       if (!pageStarted || needSpace(CAT_HEADER_H + CARD_H + 10)) newPage();
 
       const accent = item.accent;
@@ -252,7 +253,7 @@ export async function generateSimpleCataloguePDF(
 
     } else if (item.type === 'subcategory') {
       // Start fresh row for sub-category
-      if (col !== 0) { col = 0; y += CARD_H + CARD_GAP_Y; }
+      if (col !== 0) { col = 0; y += rowMaxH + CARD_GAP_Y; rowMaxH = 0; }
       if (needSpace(SUBCAT_HEADER_H + CARD_H + 5)) newPage();
 
       const accent = item.accent;
@@ -272,44 +273,12 @@ export async function generateSimpleCataloguePDF(
       col = 0;
 
     } else {
-      // PRODUCT CARD
-      if (col === 0 && needSpace(CARD_H + 2)) newPage();
-      if (!pageStarted) newPage();
-
+      // PRODUCT CARD — height adapts to content
       const p = item.prod;
       const accent = item.accent;
-      const cx = ML + col * (COL_W + COL_GAP);
-      const cy = y;
 
-      // Card border
-      doc.setFillColor(...C.white); doc.setDrawColor(...C.silk); doc.setLineWidth(0.2);
-      doc.roundedRect(cx, cy, COL_W, CARD_H, 1.5, 1.5, 'FD');
-
-      // Accent left strip
-      doc.setFillColor(...accent);
-      doc.rect(cx, cy + 1.5, 2, CARD_H - 3, 'F');
-
-      // Image
-      const imgUrl = (p.images||[])[0];
-      const imgData = imgUrl ? imgCache[imgUrl] : null;
-      const IX = cx + 4.5, IY = cy + (CARD_H - IMG_SIZE) / 2;
-      doc.setFillColor(245, 242, 238);
-      doc.roundedRect(IX, IY, IMG_SIZE, IMG_SIZE, 1, 1, 'F');
-      if (imgData) safeImg(doc, imgData, IX, IY, IMG_SIZE, IMG_SIZE);
-
-      // Right side
-      const RX = cx + 4.5 + IMG_SIZE + 3;
-      const RW = COL_W - 4.5 - IMG_SIZE - 5;
-      let ry = cy + 3.5;
-
-      // Product name — full, no clip, up to 3 lines
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.black);
-      const nameLines = doc.splitTextToSize(p.catalogueName || p.name, RW);
-      doc.text(nameLines.slice(0, 3), RX, ry + 3);
-      ry += Math.min(nameLines.length, 3) * 3 + 2;
-
-      // All tech specs — show as many as fit
-      const specs: [string, string][] = [
+      // Compute specs first to know card height
+      const allSpecs: [string, string][] = [
         ['Matériau',       p.material||''],
         ['Type',           p.typeProduit||''],
         ['Spécification',  p.specification||''],
@@ -326,33 +295,66 @@ export async function generateSimpleCataloguePDF(
         ['Design',         (p as any).design||''],
         ['Cond. unitaire', (p as any).conditionnementUnitaire||''],
         ['Cond. gros',     (p as any).conditionnementGros||''],
+        ['Sécurité',       (p as any).securite||''],
       ].filter(([,v]) => v) as [string, string][];
 
-      for (const [lbl, val] of specs) {
-        if (ry > cy + CARD_H - 5) break;
+      // Dynamic card height: name (10) + specs (3.2 each) + padding (6)
+      const nameH = 10;
+      const specsH = allSpecs.length * 3.2;
+      const cardH = Math.max(IMG_SIZE + 6, nameH + specsH + 6);
+
+      if (col === 0 && needSpace(cardH + 2)) newPage();
+      if (!pageStarted) newPage();
+
+      const cx = ML + col * (COL_W + COL_GAP);
+      const cy = y;
+
+      // Card border
+      doc.setFillColor(...C.white); doc.setDrawColor(...C.silk); doc.setLineWidth(0.2);
+      doc.roundedRect(cx, cy, COL_W, cardH, 1.5, 1.5, 'FD');
+
+      // Accent left strip
+      doc.setFillColor(...accent);
+      doc.rect(cx, cy + 1.5, 2, cardH - 3, 'F');
+
+      // Image
+      const imgUrl = (p.images||[])[0];
+      const imgData = imgUrl ? imgCache[imgUrl] : null;
+      const IX = cx + 4.5, IY = cy + (cardH - IMG_SIZE) / 2;
+      doc.setFillColor(245, 242, 238);
+      doc.roundedRect(IX, IY, IMG_SIZE, IMG_SIZE, 1, 1, 'F');
+      if (imgData) safeImg(doc, imgData, IX, IY, IMG_SIZE, IMG_SIZE);
+
+      // Right side
+      const RX = cx + 4.5 + IMG_SIZE + 3;
+      const RW = COL_W - 4.5 - IMG_SIZE - 5;
+      let ry = cy + 3.5;
+
+      // Product name — full text
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.black);
+      const nameLines = doc.splitTextToSize(p.catalogueName || p.name, RW);
+      doc.text(nameLines.slice(0, 3), RX, ry + 3);
+      ry += Math.min(nameLines.length, 3) * 3 + 2;
+
+      // ALL tech specs — no break, no truncation
+      for (const [lbl, val] of allSpecs) {
         doc.setFont('helvetica','bold'); doc.setFontSize(4.5); doc.setTextColor(...C.gray);
         doc.text(lbl + ':', RX, ry);
         doc.setFont('helvetica','normal'); doc.setFontSize(5); doc.setTextColor(...C.dark);
         const lblW = doc.getTextWidth(lbl + ': ');
         const maxValW = RW - lblW - 1;
-        const valStr = doc.splitTextToSize(val, maxValW)[0] || val;
-        doc.text(valStr, RX + lblW, ry);
-        ry += 3.5;
+        const valLines = doc.splitTextToSize(val, maxValW);
+        doc.text(valLines[0] || val, RX + lblW, ry);
+        ry += 3.2;
       }
 
-      // Stock dot
-      if (ry <= cy + CARD_H - 4) {
-        const stockColor: [number,number,number] = p.inStock ? [16,185,129] : [200,16,46];
-        doc.setFillColor(...stockColor); doc.circle(RX + 1, ry + 1.5, 1.2, 'F');
-        doc.setFont('helvetica','normal'); doc.setFontSize(5); doc.setTextColor(...stockColor);
-        doc.text(p.inStock ? 'Disponible' : 'Indisponible', RX + 3.5, ry + 2.3);
-      }
-
-      // Advance position
+      // Advance position — track max height per row
       col++;
+      rowMaxH = Math.max(rowMaxH, cardH);
       if (col >= COLS) {
         col = 0;
-        y += CARD_H + CARD_GAP_Y;
+        y += rowMaxH + CARD_GAP_Y;
+        rowMaxH = 0;
       }
     }
   }
