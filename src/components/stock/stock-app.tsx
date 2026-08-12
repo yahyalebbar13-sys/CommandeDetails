@@ -631,7 +631,12 @@ export default function StockApp() {
   ];
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
-  const isWarehouse = currentStore?.type === 'WAREHOUSE' || activeStore === 'ENTREPOT';
+  const isWarehouse = currentStore?.type === 'WAREHOUSE' || 
+    activeStore === 'ENTREPOT' || 
+    activeStore.toLowerCase().includes('entrepot') || 
+    activeStore.toLowerCase().includes('entrepôt') ||
+    (currentStore && currentStore.name.toLowerCase().includes('entrepot')) ||
+    (currentStore && currentStore.name.toLowerCase().includes('entrepôt'));
 
   const navItems = navItemsRaw.filter(item => {
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
