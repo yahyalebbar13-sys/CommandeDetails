@@ -131,18 +131,19 @@ function MultiVariantSelector({
 
   return (
     <div className="mb-5">
+      {/* ── Size selector ── */}
       {hasSizes && (
-        <div className="flex flex-col gap-1 mb-3">
-          <label className="text-sm font-semibold text-[#1A1A1A]">{language === 'ar' ? 'اختر المقاس:' : 'Taille :'}</label>
+        <div className="flex flex-col gap-1.5 mb-4">
+          <label className="text-sm font-bold text-[#1A1A1A]">{language === 'ar' ? 'اختر المقاس:' : 'Choisir la taille :'}</label>
           <div className="flex flex-wrap gap-2">
             {uniqueSizes.map(sz => (
               <button
                 key={sz}
                 onClick={() => setSelectedSize(sz)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border-2 cursor-pointer touch-manipulation
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 cursor-pointer touch-manipulation
                   ${selectedSize === sz
-                    ? 'border-[#C8102E] bg-red-50 text-[#C8102E]'
-                    : 'border-[#E8E4DF] bg-white text-[#6B6B6B] hover:border-[#D4A843]'
+                    ? 'border-[#C8102E] bg-[#C8102E] text-white shadow-md'
+                    : 'border-[#E8E4DF] bg-white text-[#6B6B6B] hover:border-[#C8102E]/40'
                   }`}
               >
                 {sz}
@@ -152,18 +153,20 @@ function MultiVariantSelector({
         </div>
       )}
 
+      {/* ── Color/Variant selector ── */}
       {(() => {
         const displayVariants = validSelectedSize !== selectedSize
-          ? variants.filter(v => (v.size || 'Standard') === validSelectedSize)
+          ? safeVariants.filter(v => (v.size || 'Standard') === validSelectedSize)
           : visibleVariants;
         if (displayVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour cette taille.'}</p>;
+        
         const isSimpleSize = displayVariants.length === 1 && (!displayVariants[0]?.color || displayVariants[0]?.color?.startsWith('Option')) && !displayVariants[0]?.image;
         
         if (isSimpleSize) {
           const v = displayVariants[0];
           const qty = qtys[v._safeId] || 0;
           return (
-            <div className="flex items-center justify-between bg-gray-50/50 border border-gray-100 p-4 rounded-2xl">
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 p-4 rounded-2xl">
               <div>
                 <p className="font-black text-lg text-[#C8102E]">
                   {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
@@ -176,15 +179,15 @@ function MultiVariantSelector({
                 )}
               </div>
               {v.stock > 0 ? (
-                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-1.5 py-1.5 shadow-sm">
+                <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-full px-2 py-1.5 shadow-sm">
                   <button onClick={() => setQty(v._safeId, -1, v.stock)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 transition-all">
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 cursor-pointer touch-manipulation">
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-6 text-center font-black text-lg text-[#C8102E]">{qty}</span>
+                  <span className="w-8 text-center font-black text-lg text-[#C8102E]">{qty}</span>
                   <button onClick={() => setQty(v._safeId, 1, v.stock)}
                     disabled={qty >= v.stock}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 transition-all disabled:opacity-30">
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 disabled:opacity-30 cursor-pointer touch-manipulation">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
@@ -197,85 +200,90 @@ function MultiVariantSelector({
 
         return (
           <>
-            <p className="text-sm font-bold text-[#1A1A1A] mb-4">
-              {hasSizes ? (language === 'ar' ? `الألوان المتاحة لـ ${selectedSize}` : `Couleurs/Modèles pour ${selectedSize}`) : (language === 'ar' ? 'الخيارات المتاحة' : 'Options disponibles')}
+            <p className="text-sm font-bold text-[#1A1A1A] mb-3">
+              {language === 'ar' ? 'اختر الألوان والكمية:' : 'Choisissez les couleurs et la quantité :'}
             </p>
-            <div className="flex flex-wrap gap-5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
               {displayVariants.map(v => {
                 const outOfStock = v.stock === 0;
                 const qty = qtys[v._safeId] || 0;
                 const isSelected = qty > 0;
+                const colorLabel = v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '';
 
                 return (
-                  <div key={v._safeId} className="flex flex-col items-center gap-2">
-                    <div className="relative">
-                      <button
-                        onClick={() => {
-                          if (outOfStock) return;
-                          if (isSelected) {
-                            setQty(v._safeId, -qty, v.stock);
-                          } else {
-                            setQty(v._safeId, 1, v.stock);
-                          }
-                        }}
-                        disabled={outOfStock}
-                        title={outOfStock ? (language === 'ar' ? 'نفد' : 'Épuisé') : (v.size ? `${v.size} - ${language === 'ar' && v.colorAr ? v.colorAr : v.color}` : (language === 'ar' && v.colorAr ? v.colorAr : v.color))}
-                        className={`transition-all duration-200 shadow-sm flex items-center justify-center overflow-hidden relative cursor-pointer touch-manipulation
-                          ${v.image 
-                            ? 'w-20 h-20 rounded-xl border-2' 
-                            : 'w-14 h-14 rounded-full border-4'}
-                          ${outOfStock
-                            ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
-                            : isSelected
-                              ? 'border-[#C8102E] scale-105 shadow-lg shadow-[#C8102E]/20 bg-white z-20'
-                              : 'border-gray-200 hover:border-gray-300 hover:scale-105 bg-white z-10'}
-                        `}
-                      >
-                        {v.image ? (
-                          <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover pointer-events-none" />
-                        ) : (
-                          <div className="w-full h-full pointer-events-none" style={{ background: v.colorHex || '#ccc' }} />
-                        )}
+                  <div
+                    key={v._safeId}
+                    className={`relative flex flex-col items-center rounded-2xl p-2.5 border-2 touch-manipulation cursor-pointer
+                      ${outOfStock
+                        ? 'opacity-40 border-gray-200 bg-gray-50 cursor-not-allowed'
+                        : isSelected
+                          ? 'border-[#C8102E] bg-red-50/50 shadow-md'
+                          : 'border-[#E8E4DF] bg-white hover:border-[#C8102E]/40'
+                      }`}
+                    onClick={() => {
+                      if (outOfStock) return;
+                      if (!isSelected) {
+                        setQty(v._safeId, 1, v.stock);
+                      }
+                    }}
+                  >
+                    {/* Checkmark badge */}
+                    {isSelected && (
+                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow z-10">
+                        <span className="text-white text-[9px] font-black">✓</span>
+                      </div>
+                    )}
 
-                        {outOfStock && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ borderRadius: 'inherit' }}>
-                            <div className="w-[150%] h-[2px] bg-red-400/50 -rotate-12" />
-                          </div>
-                        )}
-                      </button>
-                      {isSelected && (
-                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow-sm z-20 pointer-events-none">
-                          <span className="text-white text-[9px] font-black leading-none">✓</span>
-                        </div>
-                      )}
-                    </div>
+                    {/* Color circle or image */}
+                    {v.image ? (
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-gray-100 mb-1.5">
+                        <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 mb-1.5 ${isSelected ? 'border-[#C8102E] ring-2 ring-[#C8102E]/20' : 'border-gray-200'}`}
+                        style={{ background: v.colorHex || '#ccc' }}
+                      />
+                    )}
 
-                    <p className="text-[11px] font-semibold text-center text-[#1A1A1A] leading-tight max-w-[80px]">
-                      {v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '—'}
+                    {/* Color name */}
+                    {colorLabel && (
+                      <p className={`text-[11px] font-semibold text-center leading-tight ${isSelected ? 'text-[#C8102E]' : 'text-gray-600'}`}>
+                        {colorLabel}
+                      </p>
+                    )}
+
+                    {/* Stock indicator */}
+                    <p className={`text-[9px] mt-0.5 ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                      {outOfStock ? (language === 'ar' ? 'نفد' : 'Épuisé') : `${v.stock} ${language === 'ar' ? 'متوفر' : 'dispo'}`}
                     </p>
 
+                    {/* Quantity controls — visible when selected */}
+                    {isSelected && (
+                      <div className="flex items-center gap-1.5 mt-2 bg-white border border-gray-200 rounded-full px-1 py-0.5 shadow-sm">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setQty(v._safeId, -1, v.stock); }}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 cursor-pointer touch-manipulation"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-5 text-center text-sm font-black text-[#C8102E]">{qty}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setQty(v._safeId, 1, v.stock); }}
+                          disabled={qty >= v.stock}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 disabled:opacity-30 cursor-pointer touch-manipulation"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
 
-
-                    <div className={`flex items-center gap-1 transition-all duration-300 ${isSelected ? 'opacity-100 h-8' : 'opacity-0 h-0 overflow-hidden'}`}>
-                      {isSelected && (
-                        <>
-                          <button onClick={(e) => { e.stopPropagation(); setQty(v._safeId, -1, v.stock); }}
-                            className="w-9 h-9 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] transition-all cursor-pointer touch-manipulation">
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="w-6 text-center text-[13px] font-black text-[#C8102E]">{qty}</span>
-                          <button onClick={(e) => { e.stopPropagation(); setQty(v._safeId, 1, v.stock); }}
-                            disabled={qty >= v.stock}
-                            className="w-9 h-9 rounded-full border border-[#E8E4DF] bg-white flex items-center justify-center text-gray-500 hover:border-[#C8102E] hover:text-[#C8102E] disabled:opacity-30 disabled:hover:border-[#E8E4DF] transition-all cursor-pointer touch-manipulation">
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    <p className={`text-[9px] uppercase tracking-wider ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400 font-medium'}`}>
-                      {outOfStock ? (language === 'ar' ? 'نفد' : 'Rupture') : (language === 'ar' ? `${v.stock} متوفر` : `${v.stock} dispo`)}
-                    </p>
+                    {/* Out of stock line */}
+                    {outOfStock && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ borderRadius: 'inherit' }}>
+                        <div className="w-[120%] h-[2px] bg-red-400/40 -rotate-12" />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -284,8 +292,9 @@ function MultiVariantSelector({
         );
       })()}
 
+      {/* ── Summary bar ── */}
       {totalQty > 0 && (
-        <div className="mt-5 flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
+        <div className="mt-4 flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
           <p className="text-sm text-gray-600">
             <span className="font-bold text-[#1A1A1A]">{totalQty}</span> {language === 'ar' ? 'منتج مختار' : 'article(s) sélectionné(s)'}
           </p>
@@ -293,15 +302,16 @@ function MultiVariantSelector({
         </div>
       )}
 
+      {/* ── Add to cart button ── */}
       <button onClick={handleAdd} disabled={totalQty === 0}
-        className={`w-full mt-4 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shop-btn-press ${
+        className={`w-full mt-4 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 touch-manipulation ${
           totalQty === 0
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20'
+            : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 cursor-pointer'
         }`}>
         <ShoppingCart className="w-5 h-5" />
         {totalQty === 0
-          ? (language === 'ar' ? 'اضغط لاختيار اللون' : 'Cliquez sur une couleur pour sélectionner')
+          ? (language === 'ar' ? 'اضغط لاختيار اللون' : 'Sélectionnez une couleur')
           : (language === 'ar' ? `إضافة للسلة — ${totalQty} منتج` : `Ajouter au panier — ${totalQty} article${totalQty > 1 ? 's' : ''}`)}
       </button>
     </div>
