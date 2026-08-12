@@ -25,7 +25,7 @@ function getColorCSS(c: string): string {
   return m[c.toLowerCase()] || '#d4d4d4';
 }
 
-interface CartLine { item: StockItem; qty: number; unitPrice: number; }
+interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
 
 interface StockSaleFlowProps {
   stockItems: StockItem[];
@@ -65,7 +65,7 @@ export default function StockSaleFlow({
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selCat, setSelCat] = useState<string | null>(null);
   const [prodSearch, setProdSearch] = useState('');
-  const [addModal, setAddModal] = useState<{ open: boolean; item?: StockItem; qty: number; unitPrice: number }>({ open: false, qty: 1, unitPrice: 0 });
+  const [addModal, setAddModal] = useState<{ open: boolean; item?: StockItem; qty: number; unitPrice: number; sourceStore?: string }>({ open: false, qty: 1, unitPrice: 0 });
   // Groupe de variantes sélectionné (nom produit → affiche le panneau de variantes)
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   // Qtés de saisie rapide par articleId dans le panneau variantes
@@ -139,20 +139,30 @@ export default function StockSaleFlow({
 
   // ── Actions ──
   const openAddModal = (item: StockItem) => {
-    setAddModal({ open: true, item, qty: 1, unitPrice: item.sellingPrice || 0 });
+    let defStore = undefined;
+    if (item.qtyByStore) {
+      const storesWithStock = Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0);
+      if (storesWithStock.length === 1) defStore = storesWithStock[0][0];
+    }
+    setAddModal({ open: true, item, qty: 1, unitPrice: item.sellingPrice || 0, sourceStore: defStore });
   };
 
   const addToCart = () => {
     if (!addModal.item || addModal.qty <= 0) return;
+    const itemStockLimit = addModal.sourceStore && addModal.item.qtyByStore 
+      ? (addModal.item.qtyByStore as any)[addModal.sourceStore] || 0 
+      : addModal.item.currentQty;
+
     setCart(prev => {
-      const ex = prev.find(l => l.item.articleId === addModal.item!.articleId);
+      // Pour une même variante, si le store source est différent, on crée une nouvelle ligne (ou on les sépare)
+      const ex = prev.find(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === addModal.sourceStore);
       if (ex) {
-        return prev.map(l => l.item.articleId === addModal.item!.articleId
-          ? { ...l, qty: Math.min(l.qty + addModal.qty, l.item.currentQty), unitPrice: addModal.unitPrice }
+        return prev.map(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === addModal.sourceStore
+          ? { ...l, qty: Math.min(l.qty + addModal.qty, itemStockLimit), unitPrice: addModal.unitPrice }
           : l
         );
       }
-      return [...prev, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice }];
+      return [...prev, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: addModal.sourceStore }];
     });
     setAddModal({ open: false, qty: 1, unitPrice: 0 });
   };
@@ -191,6 +201,7 @@ export default function StockSaleFlow({
         qty: l.qty,
         unitPrice: l.unitPrice,
         totalPrice: l.qty * l.unitPrice,
+        storeId: l.sourceStore,
       }));
 
       if (finalType === 'order') {
@@ -218,6 +229,7 @@ export default function StockSaleFlow({
           quantity: l.qty,
           date: today,
           notes: selectedClient ? `Facture client : ${selectedClient.name}` : 'Vente directe',
+          storeId: l.sourceStore,
         }));
         await onCreateInvoice({
           clientId: selectedClient?.id || undefined,
@@ -919,8 +931,11 @@ export default function StockSaleFlow({
           <div className="p-5 space-y-4 bg-white">
             <div className="space-y-1.5">
               <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Quantité</Label>
-              <Input type="number" min={1} max={addModal.item?.currentQty} value={addModal.qty}
-                onChange={e => setAddModal(m => ({ ...m, qty: Math.min(Number(e.target.value), m.item?.currentQty || 999) }))}
+              <Input type="number" min={1} max={addModal.sourceStore && addModal.item?.qtyByStore ? (addModal.item.qtyByStore as any)[addModal.sourceStore] : addModal.item?.currentQty} value={addModal.qty}
+                onChange={e => setAddModal(m => {
+                  const maxStock = m.sourceStore && m.item?.qtyByStore ? (m.item.qtyByStore as any)[m.sourceStore] : m.item?.currentQty || 999;
+                  return { ...m, qty: Math.min(Number(e.target.value), maxStock) };
+                })}
                 className="h-12 text-xl font-black rounded-xl border-stone-200" autoFocus />
             </div>
             <div className="space-y-1.5">
@@ -933,12 +948,27 @@ export default function StockSaleFlow({
               <span className="text-stone-500 text-sm">Total</span>
               <span className="text-violet-700 text-lg">{fmt$(addModal.qty * addModal.unitPrice)}</span>
             </div>
+            {addModal.item?.qtyByStore && Object.keys(addModal.item.qtyByStore).length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-stone-100">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Retirer depuis l'emplacement</Label>
+                <select
+                  className="w-full h-10 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 px-3 outline-none focus:border-violet-500 bg-white"
+                  value={addModal.sourceStore || ''}
+                  onChange={e => setAddModal(m => ({ ...m, sourceStore: e.target.value }))}
+                >
+                  <option value="" disabled>-- Choisir un emplacement --</option>
+                  {Object.entries(addModal.item.qtyByStore).map(([sId, q]) => (q as number) > 0 && (
+                    <option key={sId} value={sId}>{sId.replace('_', ' ')} (Stock: {q})</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <DialogFooter className="p-4 bg-stone-50 gap-2">
             <Button variant="ghost" onClick={() => setAddModal({ open: false, qty: 1, unitPrice: 0 })} className="font-black uppercase text-[10px] rounded-xl flex-1">
               Annuler
             </Button>
-            <Button onClick={addToCart} disabled={addModal.qty <= 0 || addModal.unitPrice <= 0}
+            <Button onClick={addToCart} disabled={addModal.qty <= 0 || addModal.unitPrice <= 0 || (!!addModal.item?.qtyByStore && !addModal.sourceStore)}
               className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-11 rounded-xl gap-2">
               <Plus className="w-4 h-4" /> Ajouter au panier
             </Button>

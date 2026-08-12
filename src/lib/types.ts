@@ -216,6 +216,7 @@ export type OrderItem = {
   qty: number;
   unitPrice: number;
   totalPrice: number;
+  storeId?: string;
 };
 
 export type SaleOrderStatus = 'DRAFT' | 'CONFIRMED' | 'INVOICED' | 'CANCELLED';

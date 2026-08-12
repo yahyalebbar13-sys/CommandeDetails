@@ -12,7 +12,11 @@ service cloud.firestore {
     }
 
     function isCommercial() {
-      return isSignedIn() && exists(/databases/$(database)/documents/storeAccess/$(request.auth.token.email));
+      return isSignedIn() && request.auth.token.email != null && (
+        exists(/databases/$(database)/documents/storeAccess/$(request.auth.token.email)) ||
+        exists(/databases/$(database)/documents/storeAccess/$(request.auth.token.email.lower())) ||
+        exists(/databases/$(database)/documents/storeAccess/$(request.auth.uid))
+      );
     }
 
     function hasAccess(userId) {

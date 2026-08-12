@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
   ChevronLeft, AlertTriangle, CheckCircle2, BarChart3, DollarSign,
@@ -109,9 +109,9 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, variants, movements, factures, onBack, color, inline = false
+  article, variants, movements, factures, onBack, color, inline = false, userRole = 'ADMIN'
 }: {
-  article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
+  article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean; userRole?: string;
 }) {
   const artMovs = useMemo(() =>
     movements.filter(m => variants.some(v => m.articleId === v.articleId))
@@ -209,15 +209,20 @@ function ProductFiche({
               <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">En Stock</p>
               <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
             </div>
-            <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
-            <div className="text-center bg-stone-50 rounded-xl px-4 py-2 border border-stone-100">
-              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Coût unitaire moy.</p>
-              <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[10px] text-stone-400">MAD</span></p>
-            </div>
-            <div className="text-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100">
-              <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">Valeur du Stock</p>
-              <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[10px] text-emerald-400">MAD</span></p>
-            </div>
+            
+            {userRole === 'ADMIN' && (
+              <>
+                <div className="w-px h-8 bg-stone-100 hidden sm:block"></div>
+                <div className="text-center bg-stone-50 rounded-xl px-4 py-2 border border-stone-100">
+                  <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">Coût unitaire moy.</p>
+                  <p className="text-lg font-black text-violet-600">{fmtDec(avgCost)} <span className="text-[10px] text-stone-400">MAD</span></p>
+                </div>
+                <div className="text-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100">
+                  <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">Valeur du Stock</p>
+                  <p className="text-2xl font-black text-emerald-600">{fmt(totalValue)} <span className="text-[10px] text-emerald-400">MAD</span></p>
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="h-1.5 bg-stone-100 w-full">
@@ -262,8 +267,9 @@ function ProductFiche({
                   <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
                   <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
                   <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[9px]">Stock Réel</th>
-                  <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[8px]">Coût Unitaire</th>
-                  <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Valeur</th>
+                  <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Répartition (par entrepôt)</th>
+                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-violet-600/70 uppercase tracking-widest text-[8px]">Coût Unitaire</th>}
+                  {userRole === 'ADMIN' && <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Valeur</th>}
                   <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Statut</th>
                 </tr>
               </thead>
@@ -287,8 +293,15 @@ function ProductFiche({
                       <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
                       <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
                       <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
-                      <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>
-                      <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>
+                      <td className="px-6 py-4 text-left">
+                        {v.qtyByStore && Object.entries(v.qtyByStore).map(([sId, q]: any) => q > 0 && (
+                          <div key={sId} className="text-[9px] text-stone-500 whitespace-nowrap">
+                            <span className="font-bold">{sId.replace('_', ' ')}:</span> {q}
+                          </div>
+                        ))}
+                      </td>
+                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-bold text-violet-600">{fmtDec(v.purchasePricePerUnit || article.purchasePricePerUnit || 0)} <span className="text-[9px] text-stone-400">MAD</span></td>}
+                      {userRole === 'ADMIN' && <td className="px-6 py-4 text-right font-black text-emerald-600">{fmt(v.totalValue)} <span className="text-[9px] text-stone-400">MAD</span></td>}
                       <td className="px-6 py-4 text-right">
                         {isRupt ? (
                           <span className="text-[9px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
@@ -407,6 +420,7 @@ function ProductsTable({
           color={UI_COLORS[0]}
           onBack={onBack}
           inline={false}
+          userRole={userRole}
         />
       </div>
     );
@@ -423,6 +437,7 @@ function ProductsTable({
           color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length] || UI_COLORS[0]}
           onBack={() => setSelectedArticle(null)}
           inline={false}
+          userRole={userRole}
         />
       </div>
     );
@@ -556,10 +571,10 @@ function ProductsTable({
 
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
-  stockItems, movements, categories, generalCategories, factures
+  stockItems, movements, categories, generalCategories, factures, userRole = 'ADMIN'
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
-  generalCategories: any[]; factures: any[];
+  generalCategories: any[]; factures: any[]; userRole?: string;
 }) {
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selSubCat, setSelSubCat] = useState<string | null>(null);

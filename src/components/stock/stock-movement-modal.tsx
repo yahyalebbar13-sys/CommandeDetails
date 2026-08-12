@@ -373,7 +373,7 @@ export default function StockMovementModal({
     articleId: preselectedArticleId ?? '',
     reason:    '' as StockMovementReason | '',
     quantity:  '' as string | number,
-    storeId:   (activeStore && activeStore !== 'ALL' ? activeStore : '') as StoreLocation | '',
+    storeId:   (activeStore || '') as StoreLocation | '',
     toStoreId: '' as StoreLocation | '',
     date:      today,
     notes:     '',
@@ -387,7 +387,7 @@ export default function StockMovementModal({
         articleId: preselectedArticleId ?? '',
         reason:    '',
         quantity:  '',
-        storeId:   (activeStore && activeStore !== 'ALL' ? activeStore : '') as StoreLocation | '',
+        storeId:   (activeStore || '') as StoreLocation | '',
         toStoreId: '',
         date:      today,
         notes:     '',
@@ -398,6 +398,9 @@ export default function StockMovementModal({
   const selectedStock = stockItems.find(s => s.articleId === form.articleId);
   const reasons       = REASONS_BY_TYPE[form.type] || [];
   const typeConf      = TYPE_CONFIG[form.type];
+
+  const isMainStore = stores.find(s => s.id === activeStore)?.isMain;
+  const canChooseStore = activeStore === 'ALL' || isMainStore;
   const Icon          = typeConf.icon;
 
   const headerClass =
@@ -598,9 +601,11 @@ export default function StockMovementModal({
               </div>
 
               {/* Sélection du Magasin (si non forcé) */}
-              {activeStore === 'ALL' && (
+              {canChooseStore && (
                 <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Magasin d'origine *</Label>
+                  <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
+                    {form.type === 'IN' ? 'Emplacement (Destination) *' : 'Emplacement (Origine) *'}
+                  </Label>
                   <Select value={form.storeId} onValueChange={v => setForm(f => ({ ...f, storeId: v as StoreLocation }))}>
                     <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
                       <SelectValue placeholder="Choisir le magasin..." />
