@@ -299,8 +299,8 @@ export default function StockApp() {
           } catch (_) {}
         }
         setActiveStore(data.storeId);
-        setActiveView('sale');
         setUserRole(data.role || 'COMMERCIAL');
+        // activeView sera déterminé dynamiquement dans le useEffect ci-dessous
       } else {
         setDebugInfo(`Document storeAccess/${emailKey} n'existe pas dans Firestore`);
         setUserRole('UNAUTHORIZED');
@@ -614,27 +614,39 @@ export default function StockApp() {
     );
   }
 
-  const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean; commercialOnly?: boolean }[] = [
+  const navItemsRaw: { id: StockView; label: string; icon: React.ElementType; badge?: number; color?: string; adminOnly?: boolean; commercialOnly?: boolean; pointOfSaleOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard, adminOnly: true },
-    { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet', commercialOnly: true },
+    { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet', commercialOnly: true, pointOfSaleOnly: true },
     { id: 'stock',     label: 'En Stock',      icon: Package,         color: 'emerald' },
     { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
-    { id: 'clients',   label: 'Clients',       icon: Users },
-    { id: 'orders',    label: 'Commandes',     icon: ClipboardList },
-    { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices },
+    { id: 'clients',   label: 'Clients',       icon: Users,           pointOfSaleOnly: true },
+    { id: 'orders',    label: 'Commandes',     icon: ClipboardList,   pointOfSaleOnly: true },
+    { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
     { id: 'inventory', label: 'Inventaire',    icon: Boxes },
-    { id: 'treasury',  label: 'Trésorerie',    icon: Landmark,        color: 'emerald', adminOnly: true },
+    { id: 'treasury',  label: 'Trésorerie',    icon: Landmark,        color: 'emerald', adminOnly: true, pointOfSaleOnly: true },
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    icon: Truck,           color: 'blue' },
     { id: 'stores',    label: 'Magasins',      icon: StoreIcon,       color: 'emerald', adminOnly: true },
     { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ];
 
+  const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
+  const isWarehouse = currentStore?.type === 'WAREHOUSE';
+
   const navItems = navItemsRaw.filter(item => {
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
     if (item.commercialOnly && userRole === 'ADMIN') return false;
+    if (item.pointOfSaleOnly && isWarehouse) return false;
     return true;
   });
+
+  // Si on est sur une vue cachée par le changement de magasin (ex: WAREHOUSE), on switch
+  useEffect(() => {
+    if (!navItems.find(n => n.id === activeView)) {
+      if (userRole === 'ADMIN') setActiveView('dashboard');
+      else setActiveView('stock');
+    }
+  }, [navItems, activeView, userRole]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f0faf4] font-sans">
