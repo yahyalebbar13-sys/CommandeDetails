@@ -648,6 +648,9 @@ export default function StockApp() {
   }, [user, firestore, adminUid, toast]);
 
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
+  const isMainStore = userRole === 'COMMERCIAL' && stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA'));
+  const effectiveRole = isMainStore ? 'ADMIN' : userRole;
+
   const navItemsRaw = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard, adminOnly: true },
     { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet', commercialOnly: true, pointOfSaleOnly: true },
@@ -851,11 +854,11 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard userRole={userRole} activeStore={activeStore} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
+              <StockDashboard userRole={effectiveRole} activeStore={activeStore} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
-                userRole={userRole}
+                userRole={effectiveRole}
                 stockItems={stockItems}
                 categories={categories}
                 generalCategories={generalCategories}
@@ -898,10 +901,10 @@ export default function StockApp() {
               />
             )}
             {activeView === 'stock' && (
-              <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
+              <StockFiches userRole={effectiveRole} stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
             )}
             {activeView === 'inventory' && (
-              <StockInventory userRole={userRole} adminUid={adminUid} activeStore={activeStore} stores={stores} stockItems={stockItems} allStockItems={allStockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+              <StockInventory userRole={effectiveRole} adminUid={adminUid} activeStore={activeStore} stores={stores} stockItems={stockItems} allStockItems={allStockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'treasury' && (
               <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
@@ -917,7 +920,7 @@ export default function StockApp() {
                 transferOrders={filteredTransfers}
                 stockItems={stockItems}
                 stores={stores}
-                userRole={userRole}
+                userRole={effectiveRole}
                 activeStore={activeStore}
                 adminUid={adminUid}
               />
