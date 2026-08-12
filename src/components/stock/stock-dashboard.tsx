@@ -54,11 +54,14 @@ export default function StockDashboard({ stockItems, movements, categories, sale
   const catData = useMemo(() => {
     const map: Record<string, number> = {};
     stockItems.forEach(i => {
-      const key = i.categoryId || 'Autre';
-      map[key] = (map[key] || 0) + i.totalValue;
+      const key = (categories.find(c => c.id === i.categoryId)?.name || i.categoryId || 'Autre').toUpperCase();
+      map[key] = (map[key] || 0) + (userRole === 'ADMIN' ? i.totalValue : i.currentQty);
     });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, value]) => ({ name: name.length > 18 ? name.substring(0, 18) + '…' : name, value: Math.round(value) }));
-  }, [stockItems]);
+    return Object.entries(map).map(([name, value]) => ({ 
+        name: name.length > 18 ? name.substring(0, 18) + '…' : name, 
+        value: Math.round(value) 
+    })).sort((a,b) => b.value - a.value).slice(0, 10);
+  }, [stockItems, categories, userRole]);
 
   const storeSalesData = useMemo(() => {
     const map = { ENTREPOT: 0, DERB_OMAR: 0, CHRIFA: 0 };
@@ -247,7 +250,7 @@ export default function StockDashboard({ stockItems, movements, categories, sale
             <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 border border-stone-100">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Valeur par catégorie</p>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{userRole === 'ADMIN' ? 'Valeur par catégorie' : 'Stock par catégorie'}</p>
                   <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter">Top 10 Catégories</h3>
                 </div>
               </div>
@@ -255,8 +258,8 @@ export default function StockDashboard({ stockItems, movements, categories, sale
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={catData} margin={{ top: 0, right: 0, left: 0, bottom: 40 }}>
                     <XAxis dataKey="name" tick={{ fontSize: 8, fontWeight: 700, fill: '#78716c' }} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v: any) => [fmt$(v), 'Valeur']} labelStyle={{ fontWeight: 700, fontSize: 11 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => userRole === 'ADMIN' ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                    <Tooltip formatter={(v: any) => [userRole === 'ADMIN' ? fmt$(v) : fmtN(v), userRole === 'ADMIN' ? 'Valeur' : 'Quantité']} labelStyle={{ fontWeight: 700, fontSize: 11 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {catData.map((_, i) => <Cell key={i} fill={EMERALD_SHADES[i % EMERALD_SHADES.length]} />)}
                     </Bar>

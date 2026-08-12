@@ -258,10 +258,12 @@ export default function StockInventory({ stockItems, allStockItems = [], article
                 <Boxes className="w-3.5 h-3.5 text-emerald-300" />
                 <span className="text-[10px] font-black text-emerald-200">{stockItems.length} référence{stockItems.length > 1 ? 's' : ''}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-300" />
-                <span className="text-[10px] font-black text-emerald-200">{fmt$(stockItems.reduce((s, i) => s + i.totalValue, 0))}</span>
-              </div>
+              {userRole === 'ADMIN' && (
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-300" />
+                  <span className="text-[10px] font-black text-emerald-200">{fmt$(stockItems.reduce((s, i) => s + i.totalValue, 0))}</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">

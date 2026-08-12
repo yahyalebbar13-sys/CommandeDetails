@@ -75,8 +75,8 @@ function computeFIFO(
 
 // ── Header KPI partagé ────────────────────────────────────────────────────────
 function StockHeader({
-  totalRefs, totalStock, totalVal, alertCount
-}: { totalRefs: number; totalStock: number; totalVal: number; alertCount: number }) {
+  totalRefs, totalStock, totalVal, alertCount, userRole
+}: { totalRefs: number; totalStock: number; totalVal: number; alertCount: number; userRole?: string }) {
   return (
     <div className="bg-gradient-to-br from-stone-900 to-stone-800 rounded-3xl p-8 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/30 to-transparent pointer-events-none" />
@@ -92,7 +92,7 @@ function StockHeader({
           {[
             { label: 'Références', value: String(totalRefs),         icon: BarChart3,    color: 'text-stone-300' },
             { label: 'Stock Total', value: fmt(totalStock),           icon: Boxes,        color: 'text-blue-400'  },
-            { label: 'Valeur MAD',  value: `${fmt(totalVal)} MAD`,   icon: DollarSign,   color: 'text-emerald-400'},
+            ...(userRole === 'ADMIN' ? [{ label: 'Valeur MAD',  value: `${fmt(totalVal)} MAD`,   icon: DollarSign,   color: 'text-emerald-400'}] : []),
             { label: 'Alertes',     value: String(alertCount),        icon: AlertTriangle,color: alertCount > 0 ? 'text-amber-400' : 'text-stone-500' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 text-center">
@@ -622,7 +622,7 @@ export default function StockFiches({
           items={items} subCatName={subCat?.name || selSubCat}
           movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
-          headerProp={<StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />}
+          headerProp={<StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />}
           userRole={userRole}
         />
       </div>
@@ -639,7 +639,7 @@ export default function StockFiches({
     );
     return (
       <div className="space-y-6">
-        <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
+        <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
         <div className="flex items-center gap-2">
           <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
@@ -709,7 +709,7 @@ export default function StockFiches({
   // ── Niveau 1 : familles ───────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
+      <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
       {genCatsWithStock.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
           <div className="w-20 h-20 rounded-3xl bg-emerald-50 flex items-center justify-center">
@@ -756,10 +756,12 @@ export default function StockFiches({
                       <span className="text-stone-400 font-black uppercase">Stock</span>
                       <span className="font-black text-stone-800">{fmt(gcQty)}</span>
                     </div>
-                    <div className="flex justify-between text-[8px]">
-                      <span className="text-stone-400 font-black uppercase">Valeur MAD</span>
-                      <span className="font-black" style={{ color: lineColor }}>{gcVal > 0 ? `${fmt(gcVal)} MAD` : '—'}</span>
-                    </div>
+                    {userRole === 'ADMIN' && (
+                      <div className="flex justify-between text-[8px]">
+                        <span className="text-stone-400 font-black uppercase">Valeur MAD</span>
+                        <span className="font-black" style={{ color: lineColor }}>{gcVal > 0 ? `${fmt(gcVal)} MAD` : '—'}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end">
                     <div className="p-1.5 bg-stone-50 rounded-lg group-hover:bg-stone-900 transition-colors">
