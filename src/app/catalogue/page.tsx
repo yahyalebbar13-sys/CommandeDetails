@@ -626,6 +626,31 @@ export default function CataloguePage() {
     }
   }, [categorySections, totalProducts, inStockCount]);
 
+  const [pdfSimpleExporting, setPdfSimpleExporting] = useState(false);
+  const [pdfSimpleProgress, setPdfSimpleProgress] = useState(0);
+  const [pdfSimpleStatus, setPdfSimpleStatus] = useState('');
+
+  const handleExportSimplePDF = useCallback(async () => {
+    setPdfSimpleExporting(true);
+    setPdfSimpleProgress(0);
+    setPdfSimpleStatus('Chargement...');
+    try {
+      const { generateSimpleCataloguePDF } = await import('@/lib/catalogue-simple-pdf');
+      await generateSimpleCataloguePDF(
+        categorySections,
+        totalProducts,
+        (percent, status) => {
+          setPdfSimpleProgress(percent);
+          setPdfSimpleStatus(status);
+        },
+      );
+    } catch (err) {
+      console.error('Simple PDF export error:', err);
+    } finally {
+      setTimeout(() => setPdfSimpleExporting(false), 800);
+    }
+  }, [categorySections, totalProducts]);
+
   const scrollTo = (slug: string) => {
     const el = document.getElementById(`cat-${slug}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -690,7 +715,7 @@ export default function CataloguePage() {
             </div>
             <button
               onClick={handleExportPDF}
-              disabled={pdfExporting || isLoading}
+              disabled={pdfExporting || pdfSimpleExporting || isLoading}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-[#C8102E] hover:bg-[#a50d25] text-white text-xs font-bold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-[#C8102E]/25 cursor-pointer"
             >
               {pdfExporting ? (
@@ -698,11 +723,23 @@ export default function CataloguePage() {
               ) : (
                 <Download className="w-3.5 h-3.5" />
               )}
-              {pdfExporting ? 'Export en cours...' : 'Télécharger PDF'}
+              {pdfExporting ? 'Export en cours...' : 'PDF Complet'}
+            </button>
+            <button
+              onClick={handleExportSimplePDF}
+              disabled={pdfExporting || pdfSimpleExporting || isLoading}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 border border-white/20 hover:bg-white/15 text-white text-xs font-bold tracking-wide uppercase transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {pdfSimpleExporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              {pdfSimpleExporting ? 'Export en cours...' : 'PDF Simplifié'}
             </button>
           </div>
 
-          {/* PDF progress bar */}
+          {/* PDF progress bars */}
           {pdfExporting && (
             <div className="max-w-xs mx-auto mb-4">
               <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -710,6 +747,15 @@ export default function CataloguePage() {
                   style={{ width: `${pdfProgress}%` }} />
               </div>
               <p className="text-white/30 text-[10px] mt-1.5">{pdfStatus}</p>
+            </div>
+          )}
+          {pdfSimpleExporting && (
+            <div className="max-w-xs mx-auto mb-4">
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-white/60 rounded-full transition-all duration-300"
+                  style={{ width: `${pdfSimpleProgress}%` }} />
+              </div>
+              <p className="text-white/30 text-[10px] mt-1.5">{pdfSimpleStatus}</p>
             </div>
           )}
 
