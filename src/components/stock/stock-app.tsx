@@ -412,7 +412,8 @@ export default function StockApp() {
   const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
     try {
-      await addStockMovement(firestore, user.uid, movement);
+      const effectiveUid = adminUid || user.uid;
+      await addStockMovement(firestore, effectiveUid, movement);
       toast({
         title: movement.type === 'IN' ? 'Entrée enregistrée' : movement.type === 'OUT' ? 'Sortie enregistrée' : 'Ajustement enregistré',
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
@@ -420,7 +421,7 @@ export default function StockApp() {
     } catch {
       toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'enregistrer le mouvement." });
     }
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, adminUid]);
 
   // ── Backup JSON ──────────────────────────────────────────────────────────
   const handleBackup = useCallback(() => {
@@ -595,7 +596,7 @@ export default function StockApp() {
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    icon: Truck,           color: 'blue' },
     { id: 'stores',    label: 'Magasins',      icon: StoreIcon,       color: 'emerald', adminOnly: true },
-    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
+    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount, pointOfSaleOnly: true },
   ], [pendingArrivals, openInvoices, alertCount]);
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
