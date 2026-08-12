@@ -4,7 +4,6 @@ import jsPDF from 'jspdf';
 import type { ShopProduct, ShopCategory } from './shop-types';
 import { LOGO_B64 } from './logo-b64';
 
-// ─── Colors ───────────────────────────────────────────────────────────────────
 const C = {
   red:   [200, 16, 46]   as [number, number, number],
   black: [26, 26, 26]    as [number, number, number],
@@ -14,23 +13,21 @@ const C = {
   silk:  [238, 234, 230] as [number, number, number],
   cream: [253, 251, 248] as [number, number, number],
   white: [255, 255, 255] as [number, number, number],
-  gold:  [212, 168, 67]  as [number, number, number],
 };
 
 type ProgressCb = (pct: number, msg: string) => void;
 
-// ─── Load image ───────────────────────────────────────────────────────────────
 async function loadImg(url: string): Promise<string | null> {
   if (!url) return null;
   try {
-    let fetchUrl = url.startsWith('http')
+    const fetchUrl = url.startsWith('http')
       ? `/api/img-proxy?url=${encodeURIComponent(url)}`
       : url;
     const resp = await fetch(fetchUrl);
     if (!resp.ok) return null;
     const blob = await resp.blob();
     if (blob.size < 100) return null;
-    return new Promise<string | null>((resolve) => {
+    return new Promise<string | null>(resolve => {
       const r = new FileReader();
       r.onloadend = () => resolve(r.result as string || null);
       r.onerror = () => resolve(null);
@@ -43,7 +40,6 @@ function hexRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
   return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 }
-function clip(t: string, n: number) { return t && t.length > n ? t.slice(0,n-1)+'…' : (t||''); }
 
 function safeImg(doc: jsPDF, data: string, x: number, y: number, w: number, h: number) {
   try {
@@ -52,23 +48,26 @@ function safeImg(doc: jsPDF, data: string, x: number, y: number, w: number, h: n
   } catch { /* skip */ }
 }
 
-function band(doc: jsPDF, color: [number,number,number], h = 3) {
-  doc.setFillColor(...color);
-  doc.rect(0, 0, 210, h, 'F');
-}
-
 function drawFooter(doc: jsPDF, dateStr: string, pg: number) {
   const PW = 210, PH = 297, ML = 14, MR = 14;
   doc.setDrawColor(...C.lgray); doc.setLineWidth(0.2);
-  doc.line(ML, PH-13, PW-MR, PH-13);
+  doc.line(ML, PH - 13, PW - MR, PH - 13);
   doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...C.gray);
-  doc.text('LEBTEX — Catalogue Simplifié', ML, PH-9);
-  doc.text(dateStr, 105, PH-9, { align:'center' });
-  doc.setFont('helvetica','bold'); doc.setTextColor(...C.gray);
-  doc.text(String(pg), PW-MR, PH-9, { align:'right' });
+  doc.text('LEBTEX — Catalogue Simplifié', ML, PH - 9);
+  doc.text(dateStr, 105, PH - 9, { align:'center' });
+  doc.setFont('helvetica','bold');
+  doc.text(String(pg), PW - MR, PH - 9, { align:'right' });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+function drawLeader(doc: jsPDF, fromX: number, toX: number, y: number) {
+  if (fromX + 3 >= toX) return;
+  doc.setDrawColor(...C.lgray); doc.setLineWidth(0.15);
+  doc.setLineDashPattern([0.5, 1.5], 0);
+  doc.line(fromX, y, toX, y);
+  doc.setLineDashPattern([], 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
 export async function generateSimpleCataloguePDF(
   sections: { category: ShopCategory; products: ShopProduct[]; subCategories: ShopCategory[] }[],
   totalProducts: number,
@@ -82,251 +81,412 @@ export async function generateSimpleCataloguePDF(
 
   onProgress?.(2, 'Préparation…');
 
-  // ─── COVER PAGE ───────────────────────────────────────────────────────────
-  // Background
-  doc.setFillColor(...C.black);
-  doc.rect(0, 0, PW, PH, 'F');
-
+  // ─── COVER PAGE (WHITE) ──────────────────────────────────────────────────
   // Red top band
   doc.setFillColor(...C.red);
-  doc.rect(0, 0, PW, 5, 'F');
+  doc.rect(0, 0, PW, 4, 'F');
 
-  // Logo
+  // Logo — big and centered
   if (LOGO_B64) {
-    try { doc.addImage(LOGO_B64, 'PNG', PW/2 - 15, 35, 30, 30, undefined, 'FAST'); } catch {}
+    try { doc.addImage(LOGO_B64, 'PNG', PW/2 - 25, 40, 50, 50, undefined, 'FAST'); } catch {}
   }
 
-  // Title
-  doc.setFont('helvetica','bold'); doc.setFontSize(36); doc.setTextColor(...C.white);
-  doc.text('LEB', PW/2, 82, { align:'center' });
-  doc.setTextColor(...C.red);
-  doc.text('TEX', PW/2 + 18, 82, { align:'left' });
+  // Title text below logo
+  doc.setFont('helvetica','bold'); doc.setFontSize(28); doc.setTextColor(...C.black);
+  doc.text('LEBTEX', PW/2, 108, { align:'center' });
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(255,255,255);
-  doc.setGState(doc.GState({ opacity: 0.4 }));
-  doc.text('Mercerie & Accessoires Textiles', PW/2, 92, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setDrawColor(...C.red); doc.setLineWidth(0.8);
+  doc.line(PW/2 - 20, 113, PW/2 + 20, 113);
+
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(...C.gray);
+  doc.text('Mercerie & Accessoires Textiles', PW/2, 121, { align:'center' });
 
   // Badge
   doc.setFillColor(...C.red);
-  doc.roundedRect(PW/2 - 28, 104, 56, 10, 3, 3, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.white);
-  doc.text(`CATALOGUE SIMPLIFIÉ ${year}`, PW/2, 110.5, { align:'center' });
-
-  // Divider
-  doc.setDrawColor(...C.red); doc.setLineWidth(0.5);
-  doc.line(ML + 20, 122, PW - MR - 20, 122);
+  doc.roundedRect(PW/2 - 30, 133, 60, 11, 3, 3, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.white);
+  doc.text(`CATALOGUE SIMPLIFIÉ ${year}`, PW/2, 140, { align:'center' });
 
   // Stats
   const stats = [
     { val: String(sections.length), lbl: 'Catégories' },
     { val: String(totalProducts), lbl: 'Produits' },
-    { val: '+15', lbl: 'Ans d\'exp.' },
+    { val: '+15', lbl: "Ans d'exp." },
   ];
-  const statW = 40;
-  const statStartX = PW/2 - (stats.length * statW)/2 + statW/2;
+  const statStartX = PW/2 - 60;
   stats.forEach((s, i) => {
-    const sx = statStartX + i * statW;
-    doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(...C.red);
-    doc.text(s.val, sx, 138, { align:'center' });
-    doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    doc.setTextColor(255,255,255);
-    doc.setGState(doc.GState({ opacity: 0.5 }));
-    doc.text(s.lbl, sx, 144, { align:'center' });
-    doc.setGState(doc.GState({ opacity: 1 }));
+    const sx = statStartX + i * 60;
+    doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(...C.red);
+    doc.text(s.val, sx, 168, { align:'center' });
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
+    doc.text(s.lbl, sx, 174, { align:'center' });
   });
 
-  // Bottom info
-  doc.setFont('helvetica','normal'); doc.setFontSize(7);
-  doc.setTextColor(255,255,255); doc.setGState(doc.GState({ opacity: 0.3 }));
-  doc.text('contact@lebtex.ma  ·  +212 760 998 347  ·  lebtex.ma', PW/2, PH-18, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
+  // Bottom contact
+  doc.setDrawColor(...C.silk); doc.setLineWidth(0.3);
+  doc.line(ML + 30, PH - 32, PW - MR - 30, PH - 32);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
+  doc.text('contact@lebtex.ma  ·  +212 760 998 347  ·  lebtex.ma', PW/2, PH - 25, { align:'center' });
 
   onProgress?.(5, 'Chargement images…');
 
-  // ─── SECTIONS ─────────────────────────────────────────────────────────────
-  // Layout: 6 products per page, each row = 2 products side by side
-  // Each product card: photo (24×24mm) on left + specs on right
-  const COLS = 2;
-  const CARD_H = 44;
-  const CARD_GAP = 5;
-  const COL_W = (CW - CARD_GAP) / COLS;
-  const IMG_W = 24, IMG_H = 24;
-  const PRODUCTS_PER_PAGE = 6;
-  const PAGE_TOP = 18; // after category header
+  // ─── Load ALL images first ───────────────────────────────────────────────
+  const imgCache: Record<string, string|null> = {};
+  const allProds = sections.flatMap(s => s.products);
+  const totalProdsToLoad = allProds.length;
+  let loaded = 0;
+  await Promise.all(
+    allProds.map(async p => {
+      const url = (p.images||[])[0];
+      if (url && !(url in imgCache)) {
+        imgCache[url] = await loadImg(url);
+      }
+      loaded++;
+      if (loaded % 5 === 0) {
+        onProgress?.(5 + Math.round((loaded / totalProdsToLoad) * 70), `Images: ${loaded}/${totalProdsToLoad}…`);
+      }
+    })
+  );
 
-  let pgNum = 1;
+  onProgress?.(80, 'Construction des pages…');
 
-  for (let si = 0; si < sections.length; si++) {
-    const sec = sections[si];
+  // ─── Build flat list of items to render ──────────────────────────────────
+  // Each item is either a category header, sub-category header, or product card
+  type RenderItem =
+    | { type: 'category'; cat: ShopCategory; accent: [number,number,number] }
+    | { type: 'subcategory'; sub: ShopCategory; accent: [number,number,number] }
+    | { type: 'product'; prod: ShopProduct; accent: [number,number,number] };
+
+  const renderItems: RenderItem[] = [];
+
+  for (const sec of sections) {
     const cat = sec.category;
     const accent = cat.color ? hexRgb(cat.color) : C.red;
     const prods = sec.products;
     if (prods.length === 0) continue;
 
-    onProgress?.(5 + Math.round((si / sections.length) * 85), `Chargement: ${cat.name}…`);
+    renderItems.push({ type: 'category', cat, accent });
 
-    // Load product images
-    const imgCache: Record<string, string|null> = {};
-    await Promise.all(
-      prods.map(async p => {
-        const url = (p.images||[])[0];
-        if (url && !(url in imgCache)) imgCache[url] = await loadImg(url);
-      })
-    );
-
-    // Paginate products, 6 per page
-    let pageProds: ShopProduct[][] = [];
-    for (let i = 0; i < prods.length; i += PRODUCTS_PER_PAGE) {
-      pageProds.push(prods.slice(i, i + PRODUCTS_PER_PAGE));
+    if (sec.subCategories.length > 0) {
+      // Products grouped by sub-category
+      for (const sub of sec.subCategories) {
+        const subProds = prods.filter(p => p.categorySlug === sub.slug);
+        if (subProds.length === 0) continue;
+        renderItems.push({ type: 'subcategory', sub, accent });
+        for (const p of subProds) renderItems.push({ type: 'product', prod: p, accent });
+      }
+      // Direct products (not in any sub-cat)
+      const subSlugs = new Set(sec.subCategories.map(s => s.slug));
+      const directProds = prods.filter(p => !subSlugs.has(p.categorySlug) || p.categorySlug === cat.slug);
+      if (directProds.length > 0) {
+        for (const p of directProds) renderItems.push({ type: 'product', prod: p, accent });
+      }
+    } else {
+      // No sub-categories: all products directly
+      for (const p of prods) renderItems.push({ type: 'product', prod: p, accent });
     }
+  }
 
-    for (let pp = 0; pp < pageProds.length; pp++) {
-      doc.addPage();
-      pgNum++;
-      band(doc, accent);
+  // ─── RENDER PAGES ────────────────────────────────────────────────────────
+  // Layout constants
+  const COLS = 2;
+  const COL_GAP = 4;
+  const COL_W = (CW - COL_GAP) / COLS;
+  const CARD_H = 42;
+  const CARD_GAP_Y = 3;
+  const IMG_SIZE = 22;
+  const CAT_HEADER_H = 14;
+  const SUBCAT_HEADER_H = 8;
+  const PAGE_TOP = 8;
+  const PAGE_BOT = PH - 16;
 
-      // Category header
-      doc.setFillColor(...C.cream);
-      doc.rect(0, 3, PW, 13, 'F');
+  // Track current position
+  let y = PAGE_BOT; // Force first new page
+  let col = 0;
+  let pageStarted = false;
 
-      // Cat name left
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.black);
-      doc.text(cat.name, ML, 12);
+  // Track page numbers for sommaire
+  interface TocItem { title: string; isCategory: boolean; page: number; accent: [number,number,number]; }
+  const tocItems: TocItem[] = [];
 
-      // Page indicator right
-      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.gray);
-      doc.text(`${pp + 1} / ${pageProds.length}`, PW-MR, 12, { align:'right' });
+  function newPage() {
+    doc.addPage();
+    pageStarted = true;
+    y = PAGE_TOP;
+    col = 0;
+  }
 
-      // Accent underline
-      doc.setDrawColor(...accent); doc.setLineWidth(0.5);
-      doc.line(ML, 15, ML + doc.getTextWidth(cat.name) + 2, 15);
+  function needSpace(h: number): boolean {
+    return y + h > PAGE_BOT;
+  }
 
-      // Draw product cards
-      let y = PAGE_TOP + 2;
-      for (let pi = 0; pi < pageProds[pp].length; pi++) {
-        const p = pageProds[pp][pi];
-        const col = pi % COLS;
-        if (col === 0 && pi > 0) y += CARD_H + CARD_GAP;
-        if (y + CARD_H > PH - 16) break; // safety
+  // Track which page we're on (will adjust later after sommaire insert)
+  function currentPageIdx(): number {
+    return doc.internal.getNumberOfPages();
+  }
 
-        const cx = ML + col * (COL_W + CARD_GAP);
-        const cy = y;
+  for (const item of renderItems) {
+    if (item.type === 'category') {
+      // Always start fresh row for category
+      if (col !== 0) { col = 0; y += CARD_H + CARD_GAP_Y; }
+      if (!pageStarted || needSpace(CAT_HEADER_H + CARD_H + 10)) newPage();
 
-        // Card background
-        doc.setFillColor(...C.white); doc.setDrawColor(...C.silk); doc.setLineWidth(0.2);
-        doc.roundedRect(cx, cy, COL_W, CARD_H, 2, 2, 'FD');
+      const accent = item.accent;
+      tocItems.push({ title: item.cat.name, isCategory: true, page: currentPageIdx(), accent });
 
-        // Accent left strip
-        doc.setFillColor(...accent);
-        doc.roundedRect(cx, cy, 2.5, CARD_H, 2, 2, 'F');
-        doc.rect(cx+1.2, cy, 1.3, CARD_H, 'F');
+      // Category header: full width bar
+      doc.setFillColor(...accent);
+      doc.rect(ML, y, CW, CAT_HEADER_H, 'F');
 
-        // Image
-        const imgUrl = (p.images||[])[0];
-        const imgData = imgUrl ? imgCache[imgUrl] : null;
-        const IX = cx + 5, IY = cy + (CARD_H - IMG_H) / 2;
-        doc.setFillColor(242, 238, 234);
-        doc.roundedRect(IX, IY, IMG_W, IMG_H, 1.5, 1.5, 'F');
-        if (imgData) {
-          safeImg(doc, imgData, IX, IY, IMG_W, IMG_H);
-        } else {
-          doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(...C.lgray);
-          doc.text((p.catalogueName || p.name).charAt(0).toUpperCase(), IX+IMG_W/2, IY+IMG_H/2+4, { align:'center' });
-        }
+      // White text on colored bar
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.white);
+      doc.text(item.cat.name.toUpperCase(), ML + 5, y + 9);
 
-        // Right side: name + specs
-        const RX = cx + 5 + IMG_W + 4;
-        const RW = COL_W - 5 - IMG_W - 7;
-        let ry = cy + 5;
+      // Product count
+      const catProds = sections.find(s => s.category.slug === item.cat.slug)?.products.length || 0;
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.white);
+      doc.text(`${catProds} produits`, PW - MR - 3, y + 9, { align:'right' });
 
-        // SKU badge
-        if (p.sku) {
-          doc.setFillColor(...C.silk);
-          const skuW = doc.getTextWidth(`Réf: ${p.sku}`) + 4;
-          doc.roundedRect(RX, ry - 1, skuW, 5, 1, 1, 'F');
-          doc.setFont('helvetica','bold'); doc.setFontSize(5); doc.setTextColor(...C.gray);
-          doc.text(`Réf: ${p.sku}`, RX+2, ry+2.8);
-          ry += 6;
-        }
+      y += CAT_HEADER_H + 3;
+      col = 0;
 
-        // Name
-        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.black);
-        const nameLines = doc.splitTextToSize(clip(p.catalogueName || p.name, 48), RW);
-        doc.text(nameLines.slice(0,2), RX, ry);
-        ry += Math.min(nameLines.length, 2) * 3.8 + 1;
+    } else if (item.type === 'subcategory') {
+      // Start fresh row for sub-category
+      if (col !== 0) { col = 0; y += CARD_H + CARD_GAP_Y; }
+      if (needSpace(SUBCAT_HEADER_H + CARD_H + 5)) newPage();
 
-        // Tech specs
-        const specs: [string, string][] = [
-          ['Matériau',   p.material||''],
-          ['Type',       p.typeProduit||''],
-          ['Couleur',    p.couleur||''],
-          ['Largeur',    p.width||''],
-          ['Longueur',   (p as any).longueur||''],
-          ['Poids',      p.weight ? `${p.weight}g` : ''],
-          ['Emballage',  p.packaging||''],
-        ].filter(([,v]) => v) as [string, string][];
+      const accent = item.accent;
+      tocItems.push({ title: item.sub.name, isCategory: false, page: currentPageIdx(), accent });
 
-        for (const [lbl, val] of specs.slice(0, 5)) {
-          if (ry > cy + CARD_H - 5) break;
-          doc.setFont('helvetica','bold'); doc.setFontSize(5); doc.setTextColor(...C.gray);
-          doc.text(`${lbl}:`, RX, ry);
-          doc.setFont('helvetica','normal'); doc.setFontSize(5.5); doc.setTextColor(...C.dark);
-          doc.text(clip(val, 28), RX + doc.getTextWidth(`${lbl}: `), ry);
-          ry += 4;
-        }
+      // Sub-category header: accent left bar + name
+      doc.setFillColor(...accent);
+      doc.roundedRect(ML, y, 2.5, SUBCAT_HEADER_H, 1, 1, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...accent);
+      doc.text(item.sub.name, ML + 6, y + 5.5);
 
-        // Stock indicator
-        if (ry < cy + CARD_H - 3) {
-          doc.setFillColor(...(p.inStock ? [16,185,129] as [number,number,number] : [200,16,46]));
-          doc.circle(RX+1.5, ry+1.5, 1.5, 'F');
-          doc.setFont('helvetica','normal'); doc.setFontSize(5.5);
-          doc.setTextColor(...(p.inStock ? [16,185,129] as [number,number,number] : [200,16,46]));
-          doc.text(p.inStock ? 'Disponible' : 'Indisponible', RX+4.5, ry+2.2);
-        }
+      // Light underline
+      doc.setDrawColor(...C.silk); doc.setLineWidth(0.3);
+      doc.line(ML, y + SUBCAT_HEADER_H, PW - MR, y + SUBCAT_HEADER_H);
+
+      y += SUBCAT_HEADER_H + 2;
+      col = 0;
+
+    } else {
+      // PRODUCT CARD
+      if (col === 0 && needSpace(CARD_H + 2)) newPage();
+      if (!pageStarted) newPage();
+
+      const p = item.prod;
+      const accent = item.accent;
+      const cx = ML + col * (COL_W + COL_GAP);
+      const cy = y;
+
+      // Card border
+      doc.setFillColor(...C.white); doc.setDrawColor(...C.silk); doc.setLineWidth(0.2);
+      doc.roundedRect(cx, cy, COL_W, CARD_H, 1.5, 1.5, 'FD');
+
+      // Accent left strip
+      doc.setFillColor(...accent);
+      doc.rect(cx, cy + 1.5, 2, CARD_H - 3, 'F');
+
+      // Image
+      const imgUrl = (p.images||[])[0];
+      const imgData = imgUrl ? imgCache[imgUrl] : null;
+      const IX = cx + 4.5, IY = cy + (CARD_H - IMG_SIZE) / 2;
+      doc.setFillColor(245, 242, 238);
+      doc.roundedRect(IX, IY, IMG_SIZE, IMG_SIZE, 1, 1, 'F');
+      if (imgData) safeImg(doc, imgData, IX, IY, IMG_SIZE, IMG_SIZE);
+
+      // Right side
+      const RX = cx + 4.5 + IMG_SIZE + 3;
+      const RW = COL_W - 4.5 - IMG_SIZE - 5;
+      let ry = cy + 3.5;
+
+      // Product name — full, no clip, up to 3 lines
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.black);
+      const nameLines = doc.splitTextToSize(p.catalogueName || p.name, RW);
+      doc.text(nameLines.slice(0, 3), RX, ry + 3);
+      ry += Math.min(nameLines.length, 3) * 3 + 2;
+
+      // All tech specs — show as many as fit
+      const specs: [string, string][] = [
+        ['Matériau',       p.material||''],
+        ['Type',           p.typeProduit||''],
+        ['Spécification',  p.specification||''],
+        ['Couleur',        p.couleur||''],
+        ['Largeur',        p.width||''],
+        ['Largeur maille', (p as any).largeurMaille||''],
+        ['Longueur',       (p as any).longueur||''],
+        ['Poids',          p.weight ? `${p.weight}g` : ''],
+        ['Emballage',      p.packaging||''],
+        ['Matière',        (p as any).matiereMailles||''],
+        ['Composition',    (p as any).compositionRuban||''],
+        ['Résistance',     (p as any).resistance||''],
+        ['Compatible',     (p as any).compatibleAvec||''],
+        ['Design',         (p as any).design||''],
+        ['Cond. unitaire', (p as any).conditionnementUnitaire||''],
+        ['Cond. gros',     (p as any).conditionnementGros||''],
+      ].filter(([,v]) => v) as [string, string][];
+
+      for (const [lbl, val] of specs) {
+        if (ry > cy + CARD_H - 5) break;
+        doc.setFont('helvetica','bold'); doc.setFontSize(4.5); doc.setTextColor(...C.gray);
+        doc.text(lbl + ':', RX, ry);
+        doc.setFont('helvetica','normal'); doc.setFontSize(5); doc.setTextColor(...C.dark);
+        const lblW = doc.getTextWidth(lbl + ': ');
+        const maxValW = RW - lblW - 1;
+        const valStr = doc.splitTextToSize(val, maxValW)[0] || val;
+        doc.text(valStr, RX + lblW, ry);
+        ry += 3.5;
       }
 
-      drawFooter(doc, dateStr, pgNum - 1);
+      // Stock dot
+      if (ry <= cy + CARD_H - 4) {
+        const stockColor: [number,number,number] = p.inStock ? [16,185,129] : [200,16,46];
+        doc.setFillColor(...stockColor); doc.circle(RX + 1, ry + 1.5, 1.2, 'F');
+        doc.setFont('helvetica','normal'); doc.setFontSize(5); doc.setTextColor(...stockColor);
+        doc.text(p.inStock ? 'Disponible' : 'Indisponible', RX + 3.5, ry + 2.3);
+      }
+
+      // Advance position
+      col++;
+      if (col >= COLS) {
+        col = 0;
+        y += CARD_H + CARD_GAP_Y;
+      }
     }
   }
 
-  // ─── LAST PAGE — CONTACT ──────────────────────────────────────────────────
-  doc.addPage();
-  pgNum++;
-  doc.setFillColor(...C.black);
-  doc.rect(0, 0, PW, PH, 'F');
-  band(doc, C.red);
+  onProgress?.(90, 'Contact…');
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(...C.white);
-  doc.text('Contactez-nous', PW/2, 60, { align:'center' });
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.setTextColor(255,255,255); doc.setGState(doc.GState({ opacity: 0.5 }));
-  doc.text('Notre équipe répond rapidement à toutes vos demandes', PW/2, 70, { align:'center' });
-  doc.setGState(doc.GState({ opacity: 1 }));
+  // ─── CONTACT PAGE ────────────────────────────────────────────────────────
+  doc.addPage();
+  doc.setFillColor(...C.cream); doc.rect(0, 0, PW, PH, 'F');
+  doc.setFillColor(...C.red); doc.rect(0, 0, PW, 4, 'F');
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(...C.black);
+  doc.text('Contactez-nous', PW/2, 45, { align:'center' });
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.gray);
+  doc.text('Notre équipe répond rapidement à toutes vos demandes', PW/2, 54, { align:'center' });
+
+  doc.setDrawColor(...C.red); doc.setLineWidth(0.5);
+  doc.line(PW/2 - 15, 59, PW/2 + 15, 59);
 
   const contacts = [
-    { icon: '📞', label: '+212 760 998 347' },
-    { icon: '📧', label: 'contact@lebtex.ma' },
-    { icon: '📍', label: 'Boulevard Haïfa, Casablanca' },
-    { icon: '📍', label: 'Derb Omar, Casablanca' },
+    { lbl: 'Téléphone',  val: '+212 760 998 347' },
+    { lbl: 'Email',      val: 'contact@lebtex.ma' },
+    { lbl: 'Magasin 1',  val: 'Boulevard Haïfa, Casablanca' },
+    { lbl: 'Magasin 2',  val: 'Derb Omar, Casablanca' },
   ];
-  let cy2 = 88;
+  let cy = 70;
   for (const c of contacts) {
-    doc.setFillColor(255,255,255); doc.setGState(doc.GState({ opacity: 0.06 }));
-    doc.roundedRect(ML + 20, cy2 - 3, CW - 40, 11, 2, 2, 'F');
-    doc.setGState(doc.GState({ opacity: 1 }));
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.white);
-    doc.text(`${c.icon}  ${c.label}`, PW/2, cy2 + 4.5, { align:'center' });
-    cy2 += 15;
+    doc.setFillColor(...C.white); doc.setDrawColor(...C.silk); doc.setLineWidth(0.2);
+    doc.roundedRect(ML + 20, cy, CW - 40, 12, 2, 2, 'FD');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.red);
+    doc.text(c.lbl, ML + 24, cy + 7.5);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.black);
+    doc.text(c.val, PW - MR - 24, cy + 7.5, { align:'right' });
+    cy += 16;
   }
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.red);
-  doc.text('lebtex.ma', PW/2, cy2 + 15, { align:'center' });
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.red);
+  doc.text('lebtex.ma', PW/2, cy + 12, { align:'center' });
 
-  drawFooter(doc, dateStr, pgNum - 1);
+  onProgress?.(93, 'Sommaire…');
+
+  // ─── SOMMAIRE (generated at end, inserted at page 2) ─────────────────────
+  const tocStartIdx = doc.internal.getNumberOfPages() + 1;
+
+  // Dry-run to estimate pages
+  const TOC_TOP = 45, TOC_BOT = PH - 22;
+  let dryY = TOC_TOP;
+  let dryPages = 1;
+  for (const item of tocItems) {
+    const h = item.isCategory ? 10 : 6;
+    if (dryY + h > TOC_BOT) { dryPages++; dryY = 16; }
+    dryY += h;
+  }
+  const tocPagesCount = dryPages;
+
+  // Draw sommaire
+  function drawTocHeader(d: jsPDF, isFirst: boolean) {
+    d.setFillColor(...C.red); d.rect(0, 0, PW, 4, 'F');
+    if (isFirst) {
+      d.setFont('helvetica','bold'); d.setFontSize(20); d.setTextColor(...C.black);
+      d.text('Sommaire', ML, 18);
+      d.setFont('helvetica','normal'); d.setFontSize(8); d.setTextColor(...C.gray);
+      d.text(`${sections.length} catégories  ·  ${totalProducts} produits`, ML, 25);
+      d.setDrawColor(...C.red); d.setLineWidth(0.5); d.line(ML, 29, ML + 22, 29);
+      d.setFont('helvetica','bold'); d.setFontSize(6.5); d.setTextColor(...C.gray);
+      d.text('SECTION', ML + 5, 38);
+      d.text('PAGE', PW - MR, 38, { align:'right' });
+      d.setDrawColor(...C.silk); d.setLineWidth(0.3); d.line(ML, 41, PW - MR, 41);
+    } else {
+      d.setFont('helvetica','bold'); d.setFontSize(10); d.setTextColor(...C.gray);
+      d.text('Sommaire (suite)', ML, 12);
+    }
+  }
+
+  doc.addPage();
+  drawTocHeader(doc, true);
+  let tocY = TOC_TOP;
+  let catNum = 0;
+
+  for (const item of tocItems) {
+    const rowH = item.isCategory ? 10 : 6;
+    if (tocY + rowH > TOC_BOT) {
+      doc.addPage();
+      drawTocHeader(doc, false);
+      tocY = 16;
+    }
+
+    // All pages after cover shift by tocPagesCount
+    const printedPg = item.page - 1 + tocPagesCount;
+
+    if (item.isCategory) {
+      catNum++;
+      // Badge
+      doc.setFillColor(...item.accent);
+      doc.roundedRect(ML, tocY, 6, 6, 1.2, 1.2, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...C.white);
+      doc.text(String(catNum).padStart(2, '0'), ML + 3, tocY + 4, { align:'center' });
+
+      // Name
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...C.black);
+      doc.text(item.title, ML + 9, tocY + 4.5);
+      const tw = doc.getTextWidth(item.title);
+      drawLeader(doc, ML + 9 + tw + 2, PW - MR - 10, tocY + 4.5);
+      doc.text(String(printedPg), PW - MR, tocY + 4.5, { align:'right' });
+
+    } else {
+      // Sub-category
+      doc.setFillColor(...C.lgray); doc.circle(ML + 9, tocY + 2.5, 0.5, 'F');
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+      doc.text(item.title, ML + 12, tocY + 3.5);
+      const tw = doc.getTextWidth(item.title);
+      drawLeader(doc, ML + 12 + tw + 2, PW - MR - 10, tocY + 3.5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.gray);
+      doc.text(String(printedPg), PW - MR, tocY + 3.5, { align:'right' });
+    }
+
+    tocY += rowH;
+  }
+
+  // Move sommaire to page 2
+  const tocActualPages = doc.internal.getNumberOfPages() - tocStartIdx + 1;
+  for (let i = 0; i < tocActualPages; i++) {
+    doc.movePage(tocStartIdx + i, 2 + i);
+  }
+
+  // Footers on all pages
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 2; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawFooter(doc, dateStr, i - 1);
+  }
+  doc.setPage(totalPages);
 
   onProgress?.(100, 'Téléchargement…');
-
   const fname = `LEBTEX_Catalogue_Simple_${year}.pdf`;
   doc.save(fname);
   return fname;
