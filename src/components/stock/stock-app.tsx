@@ -414,7 +414,7 @@ export default function StockApp() {
   useEffect(() => {
     if (userRole === 'COMMERCIAL' && stores.length > 0 && !hasInitMain && userStoreId) {
       const s = stores.find(x => x.id === userStoreId);
-      if (s?.isMain) {
+      if (s?.isMain || s?.id === 'CHRIFA') {
         setActiveStore('ALL_MAIN');
       }
       setHasInitMain(true);
@@ -741,7 +741,7 @@ export default function StockApp() {
           </div>
 
           {/* Store Selector (Admin & Main Store) */}
-          {(userRole === 'ADMIN' || (userRole === 'COMMERCIAL' && stores.find(s => s.id === userStoreId)?.isMain)) ? (
+          {(userRole === 'ADMIN' || (userRole === 'COMMERCIAL' && stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')))) ? (
             <div className="hidden md:flex items-center gap-2 ml-4">
               <select
                 value={activeStore}
