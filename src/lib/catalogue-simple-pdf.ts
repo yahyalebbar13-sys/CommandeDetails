@@ -130,23 +130,24 @@ export async function generateSimpleCataloguePDF(
 
   onProgress?.(5, 'Chargement images…');
 
-  // ─── Load ALL images first ───────────────────────────────────────────────
+  // ─── Load ALL images sequentially to avoid crashing network/memory ─────
   const imgCache: Record<string, string|null> = {};
   const allProds = sections.flatMap(s => s.products);
   const totalProdsToLoad = allProds.length;
   let loaded = 0;
-  await Promise.all(
-    allProds.map(async p => {
-      const url = (p.images||[])[0];
-      if (url && !(url in imgCache)) {
-        imgCache[url] = await loadImg(url);
-      }
-      loaded++;
-      if (loaded % 5 === 0) {
-        onProgress?.(5 + Math.round((loaded / totalProdsToLoad) * 70), `Images: ${loaded}/${totalProdsToLoad}…`);
-      }
-    })
-  );
+  
+  for (const p of allProds) {
+    const url = (p.images||[])[0];
+    if (url && !(url in imgCache)) {
+      imgCache[url] = await loadImg(url);
+    }
+    loaded++;
+    if (loaded % 5 === 0 || loaded === totalProdsToLoad) {
+      onProgress?.(5 + Math.round((loaded / totalProdsToLoad) * 70), `Images: ${loaded}/${totalProdsToLoad}…`);
+      // Yield to main thread
+      await new Promise(r => setTimeout(r, 1));
+    }
+  }
 
   onProgress?.(80, 'Construction des pages…');
 
