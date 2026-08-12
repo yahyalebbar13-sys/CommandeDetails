@@ -467,12 +467,13 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, onSelect, onBack
+  items, subCatName, movements, factures, onBack
 }: {
-  items: any[]; subCatName: string; movements: any[];
-  onSelect: (variants: any[]) => void;
+  items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void;
 }) {
+  const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
+
   const groupedVariants = useMemo(() => {
     const grouped = new Map<string, any[]>();
     items.forEach(i => {
@@ -487,6 +488,40 @@ function ProductsTable({
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
   const totalVal = items.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = items.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
+
+  if (groupedVariants.length === 1) {
+    const variants = groupedVariants[0];
+    const a = variants[0];
+    return (
+      <div className="animate-in fade-in duration-300">
+        <ProductFiche
+          article={a}
+          variants={variants}
+          movements={movements}
+          factures={factures}
+          color={UI_COLORS[0]}
+          onBack={onBack}
+          inline={false}
+        />
+      </div>
+    );
+  }
+
+  if (selectedArticle) {
+    return (
+      <div className="animate-in fade-in duration-300">
+        <ProductFiche
+          article={selectedArticle}
+          variants={selectedArticle._variants || [selectedArticle]}
+          movements={movements}
+          factures={factures}
+          color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length] || UI_COLORS[0]}
+          onBack={() => setSelectedArticle(null)}
+          inline={false}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
@@ -546,7 +581,7 @@ function ProductsTable({
 
               return (
                 <div key={a._realArticleId || a.articleId} 
-                  onClick={() => onSelect(variants)}
+                  onClick={() => setSelectedArticle({ ...a, _variants: variants })}
                   className="group flex flex-col bg-white rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-stone-100 overflow-hidden cursor-pointer relative"
                 >
                   <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
@@ -584,26 +619,26 @@ function ProductsTable({
                       )}
                     </div>
 
-                    <div className="mt-auto pt-4 border-t border-stone-100">
-                      <div className="flex justify-between items-end mb-3">
-                        <div>
-                          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
-                          <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
-                            {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
-                          <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
-                        </div>
+                  <div className="mt-auto pt-4 border-t border-stone-100">
+                    <div className="flex justify-between items-end mb-3">
+                      <div>
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Stock Réel</p>
+                        <p className={`text-2xl font-black leading-none ${totalCurrent === 0 ? 'text-red-600' : isAlert ? 'text-amber-600' : 'text-stone-900'}`}>
+                          {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
+                        </p>
                       </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
+                        <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
+                      </div>
+                    </div>
 
-                      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
-                      </div>
+                    <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
                     </div>
                   </div>
                 </div>
+              </div>
               );
             })
           )}
@@ -613,7 +648,7 @@ function ProductsTable({
   );
 }
 
-// ── Vue principale — navigation 4 niveaux ────────────────────────────────────
+// ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
   stockItems, movements, categories, generalCategories, factures
 }: {
@@ -622,7 +657,6 @@ export default function StockFiches({
 }) {
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selSubCat, setSelSubCat] = useState<string | null>(null);
-  const [selArticleVariants, setSelArticleVariants] = useState<any[] | null>(null);
 
   const stockByCategory = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -648,26 +682,7 @@ export default function StockFiches({
   const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
-  // ── Niveau 4 : Détail complet d'un produit (Page dédiée) ─────────────────
-  if (selArticleVariants) {
-    const a = selArticleVariants[0];
-    const color = UI_COLORS[0]; // You can compute color based on index if needed, but default is fine for detail
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <ProductFiche
-          article={a}
-          variants={selArticleVariants}
-          movements={movements}
-          factures={factures}
-          color={color}
-          onBack={() => setSelArticleVariants(null)}
-          inline={false}
-        />
-      </div>
-    );
-  }
-
-  // ── Niveau 3 : tableau produits (Cartes) ───────────────────────────────────
+  // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
     const items  = stockByCategory[subCat?.name || selSubCat] || [];
@@ -676,8 +691,7 @@ export default function StockFiches({
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
         <ProductsTable
           items={items} subCatName={subCat?.name || selSubCat}
-          movements={movements}
-          onSelect={setSelArticleVariants}
+          movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
         />
       </div>
