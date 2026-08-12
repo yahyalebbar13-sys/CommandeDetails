@@ -465,10 +465,11 @@ function ProductFiche({
   );
 }
 
+// ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onSelect, onBack
+  items, subCatName, movements, onSelect, onBack
 }: {
-  items: any[]; subCatName: string; movements: any[]; factures: any[];
+  items: any[]; subCatName: string; movements: any[];
   onSelect: (variants: any[]) => void;
   onBack: () => void;
 }) {
@@ -481,24 +482,6 @@ function ProductsTable({
     });
     return Array.from(grouped.values());
   }, [items]);
-
-  // S'il n'y a qu'un seul produit, on l'affiche directement sans passer par la grille
-  if (groupedVariants.length === 1) {
-    const variants = groupedVariants[0];
-    const a = variants[0];
-    const color = UI_COLORS[0];
-    return (
-      <ProductFiche
-        article={a}
-        variants={variants}
-        movements={movements}
-        factures={factures}
-        color={color}
-        onBack={onBack}
-        inline={false}
-      />
-    );
-  }
 
   const totalIn  = items.reduce((s, i) => s + i.initialQty + i.mouvementsIn, 0);
   const totalQty = items.reduce((s, i) => s + i.currentQty, 0);
@@ -693,7 +676,7 @@ export default function StockFiches({
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
         <ProductsTable
           items={items} subCatName={subCat?.name || selSubCat}
-          movements={movements} factures={factures}
+          movements={movements}
           onSelect={setSelArticleVariants}
           onBack={() => setSelSubCat(null)}
         />
