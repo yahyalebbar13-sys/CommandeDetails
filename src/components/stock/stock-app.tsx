@@ -63,7 +63,8 @@ export function computeStockItems(
   includeAll: boolean = false
 ): StockItem[] {
   const stockArticles = includeAll ? articles : articles.filter(a => {
-    return a.stockEntryDate || movements.some(m => m.articleId === a.id);
+    if (!a.stockEntryDate) return false;
+    return movements.some(m => m.articleId === a.id && m.type === 'IN');
   });
 
   const results: StockItem[] = [];
@@ -411,8 +412,7 @@ export default function StockApp() {
   const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
     try {
-      const effectiveUid = adminUid || user.uid;
-      await addStockMovement(firestore, effectiveUid, movement);
+      await addStockMovement(firestore, user.uid, movement);
       toast({
         title: movement.type === 'IN' ? 'Entrée enregistrée' : movement.type === 'OUT' ? 'Sortie enregistrée' : 'Ajustement enregistré',
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
@@ -420,7 +420,7 @@ export default function StockApp() {
     } catch {
       toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'enregistrer le mouvement." });
     }
-  }, [user, firestore, toast, adminUid]);
+  }, [user, firestore, toast]);
 
   // ── Backup JSON ──────────────────────────────────────────────────────────
   const handleBackup = useCallback(() => {
@@ -595,7 +595,7 @@ export default function StockApp() {
     { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    icon: Truck,           color: 'blue' },
     { id: 'stores',    label: 'Magasins',      icon: StoreIcon,       color: 'emerald', adminOnly: true },
-    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount, pointOfSaleOnly: true },
+    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount },
   ], [pendingArrivals, openInvoices, alertCount]);
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
@@ -834,10 +834,10 @@ export default function StockApp() {
               <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
             )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={allStockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'alerts' && (
-              <StockAlerts stockItems={allStockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
+              <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'transfers' && (
               <TransferOrdersView

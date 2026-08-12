@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { useRouter } from 'next/navigation';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -114,334 +113,176 @@ function ProductFiche({
 }: {
   article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean;
 }) {
-  const cost = article.purchasePricePerUnit || 0;
-
   const artMovs = useMemo(() =>
     movements.filter(m => variants.some(v => m.articleId === v.articleId))
-      .sort((a, b) => (a.date || '').localeCompare(b.date || '')),
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '')), // tri DESC pour l'historique
     [movements, variants]
   );
-
-  const entriesIN  = artMovs.filter(m => m.type === 'IN');
-  const entriesOUT = artMovs.filter(m => m.type === 'OUT');
-  const fifoBatches = useMemo(() => computeFIFO(entriesIN, entriesOUT, cost), [entriesIN, entriesOUT, cost]);
 
   const totalIn  = variants.reduce((s, v) => s + v.initialQty + v.mouvementsIn, 0);
   const totalOut = variants.reduce((s, v) => s + v.mouvementsOut, 0);
   const currentQty = variants.reduce((s, v) => s + v.currentQty, 0);
-  const initialQty = variants.reduce((s, v) => s + v.initialQty, 0);
-  const fifoValue = fifoBatches.reduce((s, b) => s + b.batchValue, 0);
   const isAlert   = variants.some(v => v.minThreshold != null && v.currentQty <= v.minThreshold);
   const pct       = totalIn > 0 ? Math.min(100, Math.round((currentQty / totalIn) * 100)) : 100;
 
-  // Stock cumulatif pour le tableau mouvements
-  let running = initialQty;
+  // Regrouper les variantes pour le tableau propre
+  const groupedVariantsDetails = useMemo(() => {
+    return Array.from(
+      variants.reduce((map, v) => {
+        const key = `${v.color || ''}|${v.size || ''}`.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, { 
+            ...v, 
+            totalIn: v.initialQty + v.mouvementsIn,
+            totalOut: v.mouvementsOut,
+            currentQty: v.currentQty,
+            minThreshold: v.minThreshold
+          });
+        } else {
+          const e = map.get(key);
+          e.totalIn += (v.initialQty + v.mouvementsIn);
+          e.totalOut += v.mouvementsOut;
+          e.currentQty += v.currentQty;
+        }
+        return map;
+      }, new Map<string, any>()).values()
+    ).sort((a: any, b: any) => b.currentQty - a.currentQty);
+  }, [variants]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Breadcrumb — caché en mode inline */}
       {!inline && (
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
           </button>
-          <span className="text-stone-200">/</span>
-          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color }}>{article.productName}</span>
         </div>
       )}
 
-      {/* ── En-tête produit ── */}
-      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="h-2 w-full" style={{ background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
-        <div className="p-6 flex flex-col sm:flex-row sm:items-center gap-6">
-          {/* Infos */}
-          <div className="flex-1">
-            <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">{article.categoryId}</p>
-            <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-0.5">{article.productName}</h3>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {article.size  && <span className="text-[8px] font-black bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">{article.size}</span>}
-              {article.color && <span className="text-[8px] font-black bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">{article.color}</span>}
-              {article.unitOfMeasure && <span className="text-[8px] font-bold text-stone-300">{article.unitOfMeasure}</span>}
+      {/* ── En-tête simplifié ── */}
+      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden relative">
+        <div className="h-1.5 w-full" style={{ background: color }} />
+        <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{article.categoryId}</p>
+            <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.productName}</h3>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Entrées</p>
+              <p className="text-lg font-black text-emerald-600">+{fmt(totalIn)}</p>
+            </div>
+            <div className="w-px h-8 bg-stone-100"></div>
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">Sorties</p>
+              <p className="text-lg font-black text-rose-600">{totalOut > 0 ? `-${fmt(totalOut)}` : '0'}</p>
+            </div>
+            <div className="w-px h-8 bg-stone-100"></div>
+            <div className="text-center">
+              <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">En Stock</p>
+              <p className={`text-2xl font-black ${isAlert ? 'text-amber-600' : 'text-stone-900'}`}>{fmt(currentQty)} <span className="text-xs text-stone-400">{article.unitOfMeasure}</span></p>
             </div>
           </div>
-
-          {/* KPIs produit */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Entrées', value: `+${fmt(totalIn)}`, sub: article.unitOfMeasure, cls: 'text-emerald-600' },
-              { label: 'Sorties', value: totalOut > 0 ? `-${fmt(totalOut)}` : '—', sub: totalOut > 0 ? article.unitOfMeasure : '', cls: totalOut > 0 ? 'text-rose-600' : 'text-stone-300' },
-              { label: 'Stock Réel', value: fmt(currentQty), sub: isAlert ? '⚠ Alerte' : 'OK', cls: isAlert ? 'text-amber-600' : 'text-stone-900' },
-              { label: 'Valeur FIFO', value: fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—', sub: cost > 0 ? `${fmtDec(cost)} MAD/u` : '', cls: 'text-violet-700' },
-            ].map(({ label, value, sub, cls }) => (
-              <div key={label} className="bg-stone-50 rounded-2xl px-4 py-3 text-center">
-                <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest">{label}</p>
-                <p className={`text-[15px] font-black ${cls} leading-tight mt-0.5`}>{value}</p>
-                {sub && <p className="text-[7px] font-bold text-stone-300 mt-0.5">{sub}</p>}
-              </div>
-            ))}
-          </div>
         </div>
-
-        {/* Barre de stock */}
-        <div className="px-6 pb-5">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest">
-              Niveau de stock — {pct}% restant{article.minThreshold != null ? ` · Seuil mini : ${fmt(article.minThreshold)} ${article.unitOfMeasure}` : ''}
-            </p>
-          </div>
-          <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${pct}%`,
-                backgroundColor: pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : pct < 75 ? '#3b82f6' : '#10b981'
-              }}
-            />
-          </div>
+        <div className="h-1.5 bg-stone-100 w-full">
+          <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : '#10b981' }} />
         </div>
       </div>
 
-      {/* ── Détail des variantes (si plusieurs) ── */}
-      {(() => {
-        const groupedVariantsDetails = Array.from(
-          variants.reduce((map, v) => {
-            const key = `${v.color || ''}|${v.size || ''}`.toLowerCase();
-            if (!map.has(key)) {
-              map.set(key, { ...v, currentQty: 0 });
-            }
-            map.get(key).currentQty += v.currentQty;
-            return map;
-          }, new Map<string, any>()).values()
-        ).sort((a: any, b: any) => b.currentQty - a.currentQty);
-
-        if (groupedVariantsDetails.length <= 1) return null;
-
-        const totalVarQty = groupedVariantsDetails.reduce((s: number, v: any) => s + v.currentQty, 0);
-
-        return (
-          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-stone-50 to-white flex items-center gap-2">
-              <div className="w-5 h-5 rounded-lg bg-stone-100 flex items-center justify-center">
-                <Package className="w-3 h-3 text-stone-600" />
-              </div>
-              <h4 className="text-[9px] font-black text-stone-700 uppercase tracking-widest">Détail des Variantes</h4>
-              <span className="ml-auto text-[8px] font-black text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full uppercase">{groupedVariantsDetails.length} variantes</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="bg-stone-50 border-b border-stone-100">
-                    <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Couleur</th>
-                    <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest">Taille</th>
-                    <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Stock Réel</th>
-                    <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest">Statut</th>
+      {/* ── Tableau des variantes clair et direct ── */}
+      <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-2">
+          <Package className="w-4 h-4 text-stone-500" />
+          <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">État des Variantes</h4>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-stone-100">
+                <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Couleur</th>
+                <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>
+                <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Seuil Min.</th>
+                <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
+                <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
+                <th className="px-6 py-3 text-right font-black text-stone-800 uppercase tracking-widest text-[9px]">Stock Réel</th>
+                <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Statut</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-50">
+              {groupedVariantsDetails.map((v: any, i: number) => {
+                const isRupt = v.currentQty <= 0;
+                const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
+                return (
+                  <tr key={i} className="hover:bg-stone-50 transition-colors">
+                    <td className="px-6 py-4">
+                      {v.color ? <span className="font-bold text-stone-700">{v.color}</span> : <span className="text-stone-300">—</span>}
+                    </td>
+                    <td className="px-6 py-4">
+                      {v.size ? <span className="font-bold text-stone-700">{v.size}</span> : <span className="text-stone-300">—</span>}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {v.minThreshold != null ? <span className="font-bold text-stone-400">{fmt(v.minThreshold)}</span> : <span className="text-stone-300">—</span>}
+                    </td>
+                    <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
+                    <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
+                    <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
+                    <td className="px-6 py-4 text-right">
+                      {isRupt ? (
+                        <span className="text-[9px] font-black text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase">Rupture</span>
+                      ) : isAlerte ? (
+                        <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase">Alerte</span>
+                      ) : (
+                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase">OK</span>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-50">
-                  {groupedVariantsDetails.map((v: any, i: number) => {
-                    const isRupt = v.currentQty === 0;
-                    const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
-                    return (
-                      <tr key={i} className="hover:bg-stone-50/50 transition-colors">
-                        <td className="px-5 py-3.5">
-                          {v.color ? <span className="text-[9px] font-black bg-stone-100 text-stone-600 px-2 py-1 rounded uppercase">{v.color}</span> : <span className="text-stone-300">—</span>}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          {v.size ? <span className="text-[9px] font-black bg-stone-100 text-stone-600 px-2 py-1 rounded uppercase">{v.size}</span> : <span className="text-stone-300">—</span>}
-                        </td>
-                        <td className="px-5 py-3.5 text-right font-black text-[13px] text-stone-700">
-                          {fmt(v.currentQty)} <span className="text-[8px] text-stone-400">{v.unitOfMeasure}</span>
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          {isRupt ? (
-                            <span className="text-[8px] font-black text-red-600 bg-red-50 px-2 py-1 rounded-full uppercase">Rupture</span>
-                          ) : isAlerte ? (
-                            <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-full uppercase">Alerte</span>
-                          ) : (
-                            <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase">OK</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
-                    <td colSpan={2} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Total Variantes</td>
-                    <td className="px-5 py-3 text-right font-black text-emerald-400 text-[14px]">{fmt(totalVarQty)}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      {/* ── Lots FIFO ── */}
-      {fifoBatches.length > 0 && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-violet-50 to-white flex items-center gap-2">
-            <div className="w-5 h-5 rounded-lg bg-violet-100 flex items-center justify-center">
-              <Hash className="w-3 h-3 text-violet-600" />
+      {/* ── Historique des mouvements récent ── */}
+      {artMovs.length > 0 && (
+        <div className="bg-white rounded-3xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-stone-500" />
+              <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">Derniers Mouvements</h4>
             </div>
-            <h4 className="text-[9px] font-black text-stone-700 uppercase tracking-widest">Lots d'achat — Méthode FIFO</h4>
-            <span className="ml-auto text-[8px] font-black text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full uppercase">{fifoBatches.length} lot{fifoBatches.length > 1 ? 's' : ''}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-100">
-                  {['#','Date Arrivage','Réf. Dossier','Qté Reçue','Consommée (FIFO)','Restante','Coût MAD/u','Valeur Restante MAD','Statut'].map(h => (
-                    <th key={h} className={`px-5 py-3 text-[7px] font-black text-stone-400 uppercase tracking-widest whitespace-nowrap ${h === '#' ? 'text-center' : 'text-left'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
+            <table className="w-full text-xs">
               <tbody className="divide-y divide-stone-50">
-                {fifoBatches.map((b, i) => (
-                  <tr key={i} className={`hover:bg-stone-50/50 transition-colors ${
-                    b.status === 'ÉPUISÉ' ? 'opacity-50' : ''
-                  }`}>
-                    <td className="px-5 py-3.5 text-center text-[8px] font-black text-stone-300">{i + 1}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-3 h-3 text-stone-300 shrink-0" />
-                        <span className="font-bold text-stone-700">{b.date}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 font-bold text-stone-500">{b.factureId}</td>
-                    <td className="px-5 py-3.5 font-black text-emerald-700">+{fmt(b.qtyIn)}</td>
-                    <td className="px-5 py-3.5 font-black text-rose-600">
-                      {b.consumed > 0 ? `-${fmt(b.consumed)}` : <span className="text-stone-200">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-[12px] font-black ${b.remaining === 0 ? 'text-stone-300' : 'text-stone-900'}`}>
-                        {fmt(b.remaining)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 font-black text-violet-700">
-                      {b.costPerUnit > 0 ? `${fmtDec(b.costPerUnit)} MAD` : <span className="text-stone-200">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5 font-black text-stone-800">
-                      {b.batchValue > 0 ? `${fmt(b.batchValue)} MAD` : <span className="text-stone-200">—</span>}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[7px] font-black uppercase ${
-                        b.status === 'ÉPUISÉ'    ? 'bg-stone-100 text-stone-400' :
-                        b.status === 'PARTIEL'   ? 'bg-amber-100 text-amber-700' :
-                                                   'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {b.status === 'ÉPUISÉ'  ? <AlertTriangle className="w-2.5 h-2.5" /> :
-                         b.status === 'PARTIEL' ? <AlertTriangle className="w-2.5 h-2.5" /> :
-                                                  <CheckCircle2 className="w-2.5 h-2.5" />}
-                        {b.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-stone-900 text-white border-t-2 border-stone-700">
-                  <td colSpan={3} className="px-5 py-3 text-[8px] font-black text-stone-400 uppercase tracking-widest">Totaux FIFO</td>
-                  <td className="px-5 py-3 font-black text-emerald-400">+{fmt(fifoBatches.reduce((s,b)=>s+b.qtyIn,0))}</td>
-                  <td className="px-5 py-3 font-black text-rose-400">-{fmt(fifoBatches.reduce((s,b)=>s+b.consumed,0))}</td>
-                  <td className="px-5 py-3 font-black text-white text-[14px]">{fmt(fifoBatches.reduce((s,b)=>s+b.remaining,0))}</td>
-                  <td className="px-5 py-3 font-black text-violet-300">{cost > 0 ? `${fmtDec(cost)} MAD` : '—'}</td>
-                  <td className="px-5 py-3 font-black text-emerald-400">{fmt(fifoValue)} MAD</td>
-                  <td className="px-5 py-3"></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tableau des mouvements ── */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-stone-100 bg-gradient-to-r from-stone-50 to-white flex items-center gap-2">
-          <div className="w-5 h-5 rounded-lg bg-stone-100 flex items-center justify-center">
-            <TrendingUp className="w-3 h-3 text-stone-600" />
-          </div>
-          <h4 className="text-[9px] font-black text-stone-700 uppercase tracking-widest">Historique des Mouvements</h4>
-          <span className="ml-auto text-[8px] font-black text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full uppercase">{artMovs.length} ligne{artMovs.length > 1 ? 's' : ''}</span>
-        </div>
-
-        {artMovs.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <Info className="w-8 h-8 text-stone-200 mx-auto mb-3" />
-            <p className="text-stone-300 font-black uppercase text-[9px] tracking-widest">Aucun mouvement enregistré</p>
-            <p className="text-stone-200 text-[8px] font-bold mt-1">Validez un arrivage depuis l'onglet Arrivages</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-stone-100">
-                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Date</th>
-                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Type</th>
-                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Raison</th>
-                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Entrée</th>
-                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Sortie</th>
-                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Stock Après</th>
-                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Coût MAD/u</th>
-                  <th className="px-5 py-3 text-right text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Valeur MAD</th>
-                  <th className="px-5 py-3 text-left text-[7px] font-black text-stone-400 uppercase tracking-widest bg-stone-50">Référence</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50">
-                {artMovs.map((mv, i) => {
+                {artMovs.slice(0, 10).map((mv, i) => {
                   const isIN  = mv.type === 'IN';
                   const isOUT = mv.type === 'OUT';
                   const qty   = Number(mv.quantity) || 0;
-                  if (isIN)  running += qty;
-                  if (isOUT) running -= qty;
-                  const cumul   = Math.max(0, running);
-                  const mvCost  = (mv.purchasePriceMAD != null && mv.purchasePriceMAD > 0) ? mv.purchasePriceMAD : (isIN ? cost : 0);
-                  const valeur  = mvCost > 0 ? Math.round(cumul * mvCost) : 0;
-                  const facture = factures.find((f: any) => f.id === mv.factureId);
-
                   return (
-                    <tr key={i} className={`transition-colors hover:bg-stone-50/60 ${
-                      isIN  ? 'border-l-[3px] border-l-emerald-400 bg-emerald-50/20' :
-                      isOUT ? 'border-l-[3px] border-l-rose-400 bg-rose-50/20' :
-                              'border-l-[3px] border-l-amber-400 bg-amber-50/20'
-                    }`}>
-                      <td className="px-5 py-3.5 font-bold text-stone-700 whitespace-nowrap">{mv.date || '—'}</td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[7px] font-black uppercase ${
-                          isIN  ? 'bg-emerald-100 text-emerald-800' :
-                          isOUT ? 'bg-rose-100 text-rose-800' :
-                                  'bg-amber-100 text-amber-800'
+                    <tr key={i} className="hover:bg-stone-50 transition-colors">
+                      <td className="px-6 py-3 text-stone-500 font-bold whitespace-nowrap">{mv.date || '—'}</td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase ${
+                          isIN  ? 'bg-emerald-50 text-emerald-700' :
+                          isOUT ? 'bg-rose-50 text-rose-700' :
+                                  'bg-amber-50 text-amber-700'
                         }`}>
-                          {isIN  ? <ArrowDownToLine className="w-2.5 h-2.5" /> :
-                           isOUT ? <ArrowUpFromLine className="w-2.5 h-2.5" /> : null}
+                          {isIN  ? <ArrowDownToLine className="w-3 h-3" /> : isOUT ? <ArrowUpFromLine className="w-3 h-3" /> : null}
                           {mv.type}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-stone-500 font-bold">{mv.reason || '—'}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        {isIN
-                          ? <span className="font-black text-emerald-700">+{fmt(qty)}</span>
-                          : <span className="text-stone-200">—</span>}
+                      <td className="px-6 py-3">
+                        <span className="font-bold text-stone-600">{mv.color} {mv.size}</span>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
-                        {isOUT
-                          ? <span className="font-black text-rose-600">-{fmt(qty)}</span>
-                          : <span className="text-stone-200">—</span>}
+                      <td className="px-6 py-3 text-stone-400 font-medium">
+                        {mv.reason || '—'}
                       </td>
-                      <td className="px-5 py-3.5 text-right font-black text-stone-900">{fmt(cumul)}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        {mvCost > 0
-                          ? <span className="font-black text-violet-700">{fmtDec(mvCost)}</span>
-                          : <span className="text-stone-200">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        {valeur > 0
-                          ? <span className="font-black text-stone-800">{fmt(valeur)}</span>
-                          : <span className="text-stone-200">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5 text-stone-400 font-bold text-[9px]">
-                        {facture?.id || mv.factureId || mv.notes || '—'}
+                      <td className="px-6 py-3 text-right font-black text-sm">
+                        {isIN ? <span className="text-emerald-600">+{fmt(qty)}</span> : 
+                         isOUT ? <span className="text-rose-600">-{fmt(qty)}</span> :
+                         <span className="text-amber-600">{fmt(qty)}</span>}
                       </td>
                     </tr>
                   );
@@ -473,7 +314,6 @@ function ProductsTable({
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void;
 }) {
-  const router = useRouter();
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
   const groupedVariants = useMemo(() => {
@@ -492,22 +332,35 @@ function ProductsTable({
   const alertCount = items.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
   if (groupedVariants.length === 1) {
-    const a = groupedVariants[0][0];
-    const id = a._realArticleId || a.articleId;
-    router.push(`/gestion/produit/${id}`);
+    const variants = groupedVariants[0];
+    const a = variants[0];
     return (
-      <div className="flex items-center justify-center py-20 animate-in fade-in">
-        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="animate-in fade-in duration-300">
+        <ProductFiche
+          article={a}
+          variants={variants}
+          movements={movements}
+          factures={factures}
+          color={UI_COLORS[0]}
+          onBack={onBack}
+          inline={false}
+        />
       </div>
     );
   }
 
   if (selectedArticle) {
-    const id = selectedArticle._realArticleId || selectedArticle.articleId;
-    router.push(`/gestion/produit/${id}`);
     return (
-      <div className="flex items-center justify-center py-20 animate-in fade-in">
-        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="animate-in fade-in duration-300">
+        <ProductFiche
+          article={selectedArticle}
+          variants={selectedArticle._variants || [selectedArticle]}
+          movements={movements}
+          factures={factures}
+          color={UI_COLORS[items.findIndex(i => i.articleId === selectedArticle.articleId) % UI_COLORS.length] || UI_COLORS[0]}
+          onBack={() => setSelectedArticle(null)}
+          inline={false}
+        />
       </div>
     );
   }
