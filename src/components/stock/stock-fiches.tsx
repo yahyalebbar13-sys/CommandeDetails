@@ -309,10 +309,10 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack
+  items, subCatName, movements, factures, onBack, headerProp
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
-  onBack: () => void;
+  onBack: () => void; headerProp?: React.ReactNode;
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
@@ -367,6 +367,7 @@ function ProductsTable({
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
+      {headerProp && <div className="mb-6">{headerProp}</div>}
       {/* Breadcrumb */}
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
@@ -530,11 +531,11 @@ export default function StockFiches({
     const items  = stockByCategory[subCat?.name || selSubCat] || [];
     return (
       <div className="space-y-6">
-        <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />
         <ProductsTable
           items={items} subCatName={subCat?.name || selSubCat}
           movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
+          headerProp={<StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} />}
         />
       </div>
     );
