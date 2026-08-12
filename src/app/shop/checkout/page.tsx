@@ -383,15 +383,22 @@ export default function CheckoutPage() {
           customerPhone: cleanPhone,
           customerEmail: form.email.trim() || null,
           shippingAddress,
-          items: items.map((item) => ({
-            productId: item.productId || 'unknown',
-            productName: item.productName || 'Produit',
-            productImage: item.productImage || '/placeholder.png',
-            price: item.price || 0,
-            quantity: item.quantity || 1,
-            variant: item.variant ?? null,
-            maxStock: item.maxStock ?? 99,
-          })),
+          items: items.map((item) => {
+            // Clean undefined values from variant object as Firestore does not support them
+            const cleanVariant = item.variant 
+              ? Object.fromEntries(Object.entries(item.variant).filter(([_, v]) => v !== undefined))
+              : null;
+              
+            return {
+              productId: item.productId || 'unknown',
+              productName: item.productName || 'Produit',
+              productImage: item.productImage || '/placeholder.png',
+              price: item.price || 0,
+              quantity: item.quantity || 1,
+              variant: cleanVariant && Object.keys(cleanVariant).length > 0 ? cleanVariant : null,
+              maxStock: item.maxStock ?? 99,
+            };
+          }),
           subtotal: subtotal || 0,
           deliveryFee: deliveryFee || 0,
           total: total || 0,
