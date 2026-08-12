@@ -176,7 +176,7 @@ export default function StockInventory({ stockItems, allStockItems = [], article
         const absDiff = Math.abs(diff);
 
         await onAddMovement({
-          articleId: item.articleId,
+          articleId: item._realArticleId || item.articleId,
           type,
           quantity: absDiff,
           reason: 'INVENTAIRE',
