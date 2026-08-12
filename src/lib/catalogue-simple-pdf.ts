@@ -319,7 +319,7 @@ export async function generateSimpleCataloguePDF(
       doc.setFont('helvetica','bold'); doc.setFontSize(7);
       const nameLines = doc.splitTextToSize(p.catalogueName || p.name, RW);
       const nameH = Math.min(nameLines.length, 3) * 3 + 2;
-      const cardH = Math.max(IMG_SIZE + 6, nameH + specsH + 6);
+      const cardH = Math.max(IMG_SIZE + 6, nameH + 1.5 + specsH + 6);
 
       // Now we know cardH, check if it fits. If col === 1, we must check if BOTH cards fit.
       // But rowMaxH tracks the first card. If this card is taller, it might overflow.
@@ -355,8 +355,8 @@ export async function generateSimpleCataloguePDF(
 
       // Product name
       doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.black);
-      doc.text(nameLines.slice(0, 3), RX, ry + 3);
-      ry += nameH;
+      doc.text(nameLines.slice(0, 3), RX, ry + 2.5);
+      ry += nameH + 1.5; // padding between title and specs
 
       // ALL tech specs — no break, full wrap
       for (const itemData of specLinesData) {
