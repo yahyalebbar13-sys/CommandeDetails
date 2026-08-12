@@ -8,6 +8,12 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -109,9 +115,11 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, variants, movements, factures, onBack, color, inline = false, userRole = 'ADMIN'
+  article, variants, movements, factures, onBack, color, inline = false, userRole = 'ADMIN',
+  inventoryMode = false, countedQuantities = {}, setCountedQuantities
 }: {
   article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean; userRole?: string;
+  inventoryMode?: boolean; countedQuantities?: Record<string, string>; setCountedQuantities?: any;
 }) {
   const artMovs = useMemo(() =>
     movements.filter(m => variants.some(v => m.articleId === v.articleId))
@@ -292,7 +300,20 @@ function ProductFiche({
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
                       <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
-                      <td className="px-6 py-4 text-right font-black text-sm text-stone-900">{fmt(v.currentQty)}</td>
+                      <td className="px-6 py-4 text-right font-black text-sm text-stone-900">
+                        {inventoryMode ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder={String(v.currentQty)}
+                            value={countedQuantities?.[v.articleId] || ''}
+                            onChange={(e) => setCountedQuantities && setCountedQuantities((prev: any) => ({ ...prev, [v.articleId]: e.target.value }))}
+                            className="w-20 text-right h-8 font-black bg-white"
+                          />
+                        ) : (
+                          fmt(v.currentQty)
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-left">
                         {v.qtyByStore && Object.entries(v.qtyByStore).some(([_, q]: any) => q > 0) ? (
                           <div className="flex flex-wrap gap-1.5">
@@ -394,10 +415,12 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, headerProp, userRole = 'ADMIN'
+  items, subCatName, movements, factures, onBack, headerProp, userRole = 'ADMIN',
+  inventoryMode = false, countedQuantities = {}, setCountedQuantities
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void; headerProp?: React.ReactNode; userRole?: string;
+  inventoryMode?: boolean; countedQuantities?: Record<string, string>; setCountedQuantities?: any;
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
@@ -430,6 +453,9 @@ function ProductsTable({
           onBack={onBack}
           inline={false}
           userRole={userRole}
+          inventoryMode={inventoryMode}
+          countedQuantities={countedQuantities}
+          setCountedQuantities={setCountedQuantities}
         />
       </div>
     );
@@ -447,6 +473,9 @@ function ProductsTable({
           onBack={() => setSelectedArticle(null)}
           inline={false}
           userRole={userRole}
+          inventoryMode={inventoryMode}
+          countedQuantities={countedQuantities}
+          setCountedQuantities={setCountedQuantities}
         />
       </div>
     );
@@ -580,12 +609,70 @@ function ProductsTable({
 
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
-  stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'ADMIN'
+  stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'ADMIN',
+  isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
+  isInventoryView?: boolean; activeStore?: string; adminUid?: string | null; onAddMovement?: any;
 }) {
-  const stockItems = useMemo(() => rawStockItems.filter(i => i.currentQty > 0), [rawStockItems]);
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const [inventoryMode, setInventoryMode] = useState(false);
+  const [countedQuantities, setCountedQuantities] = useState<Record<string, string>>({});
+
+  // Si on est en mode inventaire actif, on affiche tous les articles pour pouvoir les compter. Sinon on masque les 0.
+  const stockItems = useMemo(() => {
+    if (inventoryMode) return rawStockItems;
+    return rawStockItems.filter(i => i.currentQty > 0);
+  }, [rawStockItems, inventoryMode]);
+
+  const handleValidateInventory = async () => {
+    if (!user || !firestore) return;
+    if (activeStore === 'ALL') {
+      toast({ title: 'Erreur', description: 'Veuillez sélectionner un magasin spécifique pour l\'inventaire', variant: 'destructive' });
+      return;
+    }
+
+    let diffCount = 0;
+    for (const item of rawStockItems) {
+      const countedStr = countedQuantities[item.articleId];
+      if (!countedStr) continue;
+      const counted = parseFloat(countedStr);
+      if (isNaN(counted)) continue;
+
+      const diff = counted - item.currentQty;
+      if (diff !== 0) {
+        diffCount++;
+        const type = diff > 0 ? 'IN' : 'OUT';
+        const absDiff = Math.abs(diff);
+
+        if (onAddMovement) {
+          await onAddMovement({
+            articleId: item.articleId,
+            type,
+            quantity: absDiff,
+            reason: 'INVENTAIRE',
+            date: new Date().toISOString().split('T')[0],
+            storeId: activeStore,
+            productName: item.productName,
+            categoryId: item.categoryId,
+            color: item.color,
+            size: item.size,
+            unitOfMeasure: item.unitOfMeasure,
+            purchasePriceMAD: item.purchasePricePerUnit,
+          });
+        }
+      }
+    }
+
+    toast({ title: 'Inventaire validé', description: `${diffCount} mouvement(s) de régularisation généré(s).` });
+    setInventoryMode(false);
+    setCountedQuantities({});
+  };
+
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selSubCat, setSelSubCat] = useState<string | null>(null);
 
@@ -623,8 +710,29 @@ export default function StockFiches({
           items={items} subCatName={subCat?.name || selSubCat}
           movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
-          headerProp={<StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />}
+          headerProp={
+            <div className="space-y-4 mb-6">
+              <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
+              {isInventoryView && (
+                <div className="flex justify-end gap-3">
+                  {inventoryMode ? (
+                    <>
+                      <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm">Annuler</Button>
+                      <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
+                    </>
+                  ) : (
+                    <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
+                      <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          }
           userRole={userRole}
+          inventoryMode={inventoryMode}
+          countedQuantities={countedQuantities}
+          setCountedQuantities={setCountedQuantities}
         />
       </div>
     );
@@ -641,6 +749,20 @@ export default function StockFiches({
     return (
       <div className="space-y-6">
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
+        {isInventoryView && (
+          <div className="flex justify-end gap-3">
+            {inventoryMode ? (
+              <>
+                <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm">Annuler</Button>
+                <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
+              </>
+            ) : (
+              <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
+                <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
+              </Button>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
@@ -711,6 +833,20 @@ export default function StockFiches({
   return (
     <div className="space-y-6">
       <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
+      {isInventoryView && (
+        <div className="flex justify-end gap-3">
+          {inventoryMode ? (
+            <>
+              <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm">Annuler</Button>
+              <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
+            </>
+          ) : (
+            <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
+              <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
+            </Button>
+          )}
+        </div>
+      )}
       {genCatsWithStock.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
           <div className="w-20 h-20 rounded-3xl bg-emerald-50 flex items-center justify-center">

@@ -14,7 +14,6 @@ import type {
   Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment,
 } from '@/lib/types';
 import StockDashboard   from './stock-dashboard';
-import StockInventory   from './stock-inventory';
 import StockMovements   from './stock-movements';
 import StockAlerts      from './stock-alerts';
 import StockSaleFlow    from './stock-sale-flow';
@@ -878,7 +877,18 @@ export default function StockApp() {
               <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
             )}
             {activeView === 'inventory' && (
-              <StockInventory userRole={userRole} adminUid={adminUid} activeStore={activeStore} stores={stores} stockItems={stockItems} allStockItems={allStockItems} articles={articles} categories={categories} generalCategories={generalCategories} onAddMovement={handleAddMovement} />
+              <StockFiches
+                isInventoryView={true}
+                userRole={userRole}
+                adminUid={adminUid}
+                activeStore={activeStore}
+                stockItems={allStockItems}
+                movements={movements}
+                categories={categories}
+                generalCategories={generalCategories}
+                factures={factures}
+                onAddMovement={handleAddMovement}
+              />
             )}
             {activeView === 'treasury' && (
               <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
