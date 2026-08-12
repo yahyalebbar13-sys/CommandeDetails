@@ -5,7 +5,8 @@ import { Store as StoreIcon, Package, Boxes, LayoutGrid, ArrowRight, ShieldAlert
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Store, StockItem, StockMovement } from '@/lib/types';
-import { fmt } from '@/lib/utils';
+
+const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
 
 interface StockWarehousesProps {
   stores: Store[];
