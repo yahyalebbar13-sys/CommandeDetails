@@ -175,7 +175,33 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                 </div>
               )}
 
-              {/* Variants removed per user request */}
+              {/* Variants */}
+              {variants.length > 0 && (
+                <div className="mt-5 pt-5 border-t border-[#F0ECE8]">
+                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                    Variantes disponibles ({variants.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {variants.map(v => (
+                      <div key={v.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E8E4DF] bg-white text-xs">
+                        {v.colorHex && (
+                          <span className="w-4 h-4 rounded-full border border-gray-200 flex-shrink-0"
+                            style={{ background: v.colorHex }} />
+                        )}
+                        {v.image && (
+                          <img src={v.image} alt={v.color || ''} className="w-5 h-5 rounded object-cover flex-shrink-0" />
+                        )}
+                        <span className="text-[#1A1A1A] font-medium">{v.color || v.size || v.sku || v.id}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                          v.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+                        }`}>
+                          {v.stock > 0 ? 'Dispo' : 'Épuisé'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right — Product info */}
