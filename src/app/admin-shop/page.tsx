@@ -96,6 +96,111 @@ const storage = getStorage(app);
 
 const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
 
+// ─── AI Auto-Fill Helper ───────────────────────────────────────────────────────
+function parseAITextToForm(text: string, currentForm: any) {
+  if (!text) return currentForm;
+  const newForm = { ...currentForm };
+  
+  const extract = (regex: RegExp) => {
+    const match = text.match(regex);
+    return match ? match[1].trim() : undefined;
+  };
+
+  const name = extract(/Nom e-commerce\s*:\s*(.+)/i);
+  if (name) newForm.name = name;
+
+  const catName = extract(/Nom catalogue\s*:\s*(.+)/i);
+  if (catName) newForm.catalogueName = catName;
+
+  const descC = extract(/Description courte\s*:\s*(.+?)(?=\n\n|\n[A-Z][a-z\u00E0-\u00FC]+(?:\s[a-z]+)*\s*:|$)/is);
+  if (descC) newForm.shortDescription = descC;
+
+  const descD = extract(/Description détaillée\s*:\s*(.+?)(?=\n\n(?:DÉTAILS|[A-ZÉÀ]|\n\nApplications)|$)/is);
+  if (descD) newForm.description = descD;
+
+  const apps = extract(/Applications(?:\s*\(.*?\))?\s*:\s*(.+)/i);
+  if (apps) newForm.applications = apps;
+
+  const avants = extract(/Avantages\s*:\s*(.+)/i);
+  if (avants) newForm.avantages = avants;
+
+  const cons = extract(/Conseils d'entretien\s*:\s*(.+)/i);
+  if (cons) newForm.conseilsEntretien = cons;
+
+  const infos = extract(/Infos Commerciales(?:\s*\(.*?\))?\s*:\s*(.+)/i);
+  if (infos) newForm.informationCommerciale = infos;
+
+  const mots = extract(/Mots-clés SEO\s*:\s*(.+)/i);
+  if (mots) newForm.motsCles = mots;
+
+  // Caractéristiques Détaillées
+  const typeP = extract(/Type de produit\s*:\s*(.+)/i);
+  if (typeP) newForm.typeProduit = typeP;
+
+  const mat = extract(/Matière\s*:\s*(.+)/i);
+  if (mat) newForm.material = mat;
+
+  const comp = extract(/Composition\s*:\s*(.+)/i);
+  if (comp) newForm.compositionRuban = comp;
+
+  const col = extract(/Couleur\s*:\s*(.+)/i);
+  if (col) newForm.couleur = col;
+
+  const larg = extract(/Largeur\s*:\s*(.+)/i);
+  if (larg) newForm.width = larg;
+
+  const long = extract(/Longueur\s*:\s*(.+)/i);
+  if (long) newForm.longueur = long;
+
+  const typ = extract(/Type\s*:\s*(.+)/i);
+  if (typ) newForm.type = typ;
+
+  const des = extract(/Design\s*:\s*(.+)/i);
+  if (des) newForm.design = des;
+
+  const sec = extract(/Sécurité\s*:\s*(.+)/i);
+  if (sec) newForm.securite = sec;
+
+  const res = extract(/Résistance\s*:\s*(.+)/i);
+  if (res) newForm.resistance = res;
+
+  const compa = extract(/Compatible avec\s*:\s*(.+)/i);
+  if (compa) newForm.compatibleAvec = compa;
+
+  const cUnit = extract(/Conditionnement unitaire\s*:\s*(.+)/i);
+  if (cUnit) newForm.conditionnementUnitaire = cUnit;
+
+  const cGros = extract(/Conditionnement gros\s*:\s*(.+)/i);
+  if (cGros) newForm.conditionnementGros = cGros;
+
+  return newForm;
+}
+
+function AIPasteArea({ onParsed }: { onParsed: (text: string) => void }) {
+  const [text, setText] = useState('');
+  return (
+    <div className="mb-6 p-4 bg-[#C8102E]/5 border border-[#C8102E]/20 rounded-xl relative overflow-hidden group">
+      <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none"><Sparkles className="w-12 h-12" /></div>
+      <label className="text-[10px] font-bold text-[#C8102E] uppercase tracking-wider flex items-center gap-1.5 mb-2">
+        <Sparkles className="w-3.5 h-3.5" /> Auto-remplissage Magique IA
+      </label>
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (e.target.value.length > 50) {
+            onParsed(e.target.value);
+            setText('');
+            alert("✅ Champs remplis automatiquement via l'IA !");
+          }
+        }}
+        placeholder="Collez ici le texte généré par l'IA..."
+        className="w-full h-16 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#C8102E]/50 resize-y"
+      />
+    </div>
+  );
+}
+
 // ─── Image Uploader Component ──────────────────────────────────────────────────
 function ImageUploader({
   value,
@@ -2330,6 +2435,8 @@ Cette action est irréversible.`)) return;
               {/* Edit form */}
               {isEditing && (
                 <div className="px-4 pb-4 pt-0 border-t border-white/5 mt-0">
+                  <AIPasteArea onParsed={(text) => setEditForm(prev => parseAITextToForm(text, prev))} />
+                  
                   {/* Text fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 mb-4 border-b border-white/5 pb-4">
                     <div className="space-y-1.5">
@@ -2808,6 +2915,8 @@ function NouveauProduitModal({
               <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           )}
+
+          <AIPasteArea onParsed={(text) => setForm(prev => parseAITextToForm(text, prev))} />
 
           {/* Nom + Catégorie */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
