@@ -703,7 +703,21 @@ export async function generateCataloguePDF(
         ry += 4.2;
       });
 
-      // Variants are no longer displayed in the catalogue per user request
+      // Variants
+      if (p.variants?.length > 0 && ry < cy + CARD_H - 7) {
+        const colors = [...new Set(p.variants.filter(v=>v.color).map(v=>v.color!))];
+        const sizes  = [...new Set(p.variants.filter(v=>v.size).map(v=>v.size!))];
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(5.5);
+        doc.setTextColor(...accent);
+        if (colors.length && ry < cy + CARD_H - 7) {
+          doc.text(`Coloris: ${clip(colors.join(', '), 26)}`, RX, ry);
+          ry += 4;
+        }
+        if (sizes.length && ry < cy + CARD_H - 7) {
+          doc.text(`Tailles: ${clip(sizes.join(', '), 26)}`, RX, ry);
+        }
+      }
     }
 
 
