@@ -191,7 +191,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                         {v.image && (
                           <img src={v.image} alt={v.color || ''} className="w-5 h-5 rounded object-cover flex-shrink-0" />
                         )}
-                        <span className="text-[#1A1A1A] font-medium">{v.color || v.size || v.sku || v.id}</span>
+                        <span className="text-[#1A1A1A] font-medium">{[v.color, v.size].filter(Boolean).join(' - ') || v.sku || v.id}</span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                           v.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
                         }`}>
