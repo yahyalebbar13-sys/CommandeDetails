@@ -188,13 +188,17 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                       {colors.length > 0 && (
                         <div>
                           <span className="font-bold text-[#1A1A1A]">Couleurs : </span>
-                          <span className="text-gray-600">{colors.join(' / ')}</span>
+                          <span className="text-gray-600">
+                            {colors.length > 4 ? "Disponible en plusieurs couleurs" : colors.join(' / ')}
+                          </span>
                         </div>
                       )}
                       {sizes.length > 0 && (
                         <div>
                           <span className="font-bold text-[#1A1A1A]">Tailles : </span>
-                          <span className="text-gray-600">{sizes.join(', ')}</span>
+                          <span className="text-gray-600">
+                            {sizes.length > 4 ? "Plusieurs tailles disponibles" : sizes.join(', ')}
+                          </span>
                         </div>
                       )}
                       {colors.length === 0 && sizes.length === 0 && (

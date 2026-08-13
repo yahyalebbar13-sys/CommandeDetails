@@ -711,11 +711,13 @@ export async function generateCataloguePDF(
         doc.setFontSize(5.5);
         doc.setTextColor(...accent);
         if (colors.length && ry < cy + CARD_H - 7) {
-          doc.text(`Coloris: ${clip(colors.join(', '), 26)}`, RX, ry);
+          const cText = colors.length > 4 ? "Plusieurs couleurs" : clip(colors.join(', '), 26);
+          doc.text(`Coloris: ${cText}`, RX, ry);
           ry += 4;
         }
         if (sizes.length && ry < cy + CARD_H - 7) {
-          doc.text(`Tailles: ${clip(sizes.join(', '), 26)}`, RX, ry);
+          const sText = sizes.length > 4 ? "Plusieurs tailles" : clip(sizes.join(', '), 26);
+          doc.text(`Tailles: ${sText}`, RX, ry);
         }
       }
     }
