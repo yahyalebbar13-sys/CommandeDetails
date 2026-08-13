@@ -716,8 +716,7 @@ export async function generateCataloguePDF(
           ry += 4;
         }
         if (sizes.length && ry < cy + CARD_H - 7) {
-          const sText = sizes.length > 4 ? "Plusieurs tailles" : clip(sizes.join(', '), 26);
-          doc.text(`Tailles: ${sText}`, RX, ry);
+          doc.text(`Tailles: ${clip(sizes.join(', '), 26)}`, RX, ry);
         }
       }
     }

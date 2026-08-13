@@ -197,7 +197,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                         <div>
                           <span className="font-bold text-[#1A1A1A]">Tailles : </span>
                           <span className="text-gray-600">
-                            {sizes.length > 4 ? "Plusieurs tailles disponibles" : sizes.join(', ')}
+                            {sizes.join(', ')}
                           </span>
                         </div>
                       )}
