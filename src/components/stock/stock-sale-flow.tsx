@@ -358,90 +358,89 @@ export default function StockSaleFlow({
             <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-1">Sélectionner le client</h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Recherche */}
-            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Clients existants</h3>
-                <button onClick={() => setShowNewClient(v => !v)}
-                  className="flex items-center gap-1.5 text-[9px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-wider bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 transition-colors">
-                  <UserPlus className="w-3 h-3" /> Nouveau
-                </button>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-                <Input placeholder="Chercher par nom, tél, email..." value={clientSearch}
-                  onChange={e => setClientSearch(e.target.value)}
-                  className="pl-9 h-10 rounded-xl border-stone-200 text-sm font-bold" />
-              </div>
-              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                {filteredClients.length === 0 && (
-                  <p className="text-center text-stone-300 text-[10px] font-black uppercase py-6">Aucun client trouvé</p>
-                )}
-                {filteredClients.map(c => (
-                  <button key={c.id} onClick={() => { setSelectedClient(c); setAnonymous(false); }}
-                    className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
-                      selectedClient?.id === c.id ? 'border-violet-500 bg-violet-50' : 'border-stone-100 hover:border-violet-200 hover:bg-stone-50'
-                    }`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 text-white font-black text-sm flex items-center justify-center shrink-0">
-                        {c.name[0].toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-stone-800 text-sm truncate">{c.name}</p>
-                        <p className="text-[9px] text-stone-400 font-bold">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
-                      </div>
-                      {selectedClient?.id === c.id && <CheckCircle2 className="w-4 h-4 text-violet-500 shrink-0" />}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Droite : actions rapides + nouveau client */}
-            <div className="space-y-3">
-              <button onClick={() => { setAnonymous(true); setSelectedClient(null); }}
-                className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+             {/* Big Button Vente Comptoir */}
+             <button onClick={() => { setAnonymous(true); setSelectedClient(null); setStep(1); }}
+                className={`p-6 rounded-2xl border-2 text-left transition-all ${
                   anonymous ? 'border-stone-700 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-400'
                 }`}>
-                <p className="font-black text-base uppercase">🏪 Vente Comptoir</p>
-                <p className="text-[10px] font-bold mt-1 opacity-60">Sans dossier client</p>
-              </button>
+                <p className="font-black text-lg uppercase tracking-tighter">🏪 Vente Comptoir</p>
+                <p className={`text-[10px] font-bold mt-1 ${anonymous ? 'opacity-60' : 'text-stone-400'}`}>Passer directement aux produits</p>
+             </button>
 
-              {showNewClient && (
-                <div className="bg-white rounded-2xl shadow-lg border border-violet-200 p-5 space-y-3">
-                  <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Créer un nouveau client</p>
+             {/* Big Button Vente Client */}
+             <button onClick={() => { setAnonymous(false); }}
+                className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                  !anonymous ? 'border-violet-600 bg-violet-50 text-violet-900' : 'border-stone-200 bg-white hover:border-violet-200'
+                }`}>
+                <p className="font-black text-lg uppercase tracking-tighter">👤 Vente Client</p>
+                <p className={`text-[10px] font-bold mt-1 ${!anonymous ? 'text-violet-600/70' : 'text-stone-400'}`}>Rechercher ou créer un dossier client</p>
+             </button>
+          </div>
+
+          {!anonymous && (
+            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4 animate-in slide-in-from-top-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Dossier client</h3>
+                <button onClick={() => setShowNewClient(v => !v)}
+                  className="flex items-center gap-1.5 text-[9px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-wider bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 transition-colors">
+                  <UserPlus className="w-3 h-3" /> Nouveau Client
+                </button>
+              </div>
+
+              {showNewClient ? (
+                <div className="bg-violet-50 rounded-2xl border border-violet-100 p-5 space-y-3">
                   {[
                     { key: 'name', label: 'Nom *', placeholder: 'Ex: Mohamed Alami' },
                     { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
                     { key: 'email', label: 'Email', placeholder: 'email@example.com' },
-                    { key: 'address', label: 'Adresse', placeholder: 'Casablanca...' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key} className="space-y-1">
                       <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">{label}</Label>
                       <Input placeholder={placeholder} value={(newClientForm as any)[key]}
                         onChange={e => setNewClientForm(f => ({ ...f, [key]: e.target.value }))}
-                        className="h-9 rounded-xl border-stone-200 text-sm font-bold" />
+                        className="h-9 rounded-xl border-white bg-white text-sm font-bold" />
                     </div>
                   ))}
                   <Button onClick={handleCreateClient} disabled={!newClientForm.name.trim() || creatingClient}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-10 rounded-xl">
-                    {creatingClient ? 'Création...' : 'Créer le client'}
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-10 rounded-xl mt-2">
+                    {creatingClient ? 'Création...' : 'Créer et sélectionner'}
                   </Button>
                 </div>
-              )}
-
-              {(selectedClient || anonymous) && (
-                <div className="bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-4 flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <div>
-                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Client sélectionné</p>
-                    <p className="font-black text-stone-900">{selectedClient?.name || 'Vente Comptoir'}</p>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+                    <Input placeholder="Chercher un client existant..." value={clientSearch}
+                      onChange={e => setClientSearch(e.target.value)}
+                      className="pl-9 h-11 rounded-xl border-stone-200 text-sm font-bold bg-stone-50 focus:bg-white transition-colors" />
                   </div>
-                </div>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                    {filteredClients.length === 0 && (
+                      <p className="text-center text-stone-400 text-xs font-bold py-6">Aucun client trouvé</p>
+                    )}
+                    {filteredClients.map(c => (
+                      <button key={c.id} onClick={() => setSelectedClient(c)}
+                        className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                          selectedClient?.id === c.id ? 'border-violet-500 bg-violet-50' : 'border-stone-100 hover:border-violet-200 hover:bg-stone-50'
+                        }`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 text-white font-black text-sm flex items-center justify-center shrink-0">
+                            {c.name[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-stone-800 text-sm truncate">{c.name}</p>
+                            <p className="text-[9px] text-stone-400 font-bold">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>
+                          </div>
+                          {selectedClient?.id === c.id && <CheckCircle2 className="w-5 h-5 text-violet-500 shrink-0" />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
-          </div>
+          )}
 
           <div className="flex justify-end">
             <Button onClick={() => setStep(1)} disabled={!selectedClient && !anonymous}
@@ -1022,6 +1021,7 @@ export default function StockSaleFlow({
                         onChange={e => setVariantQtyInCart(v, parseInt(e.target.value) || 0, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
                         disabled={isEmpty}
                         placeholder="0"
+                        autoFocus
                         className={`w-14 h-9 text-center text-lg font-black bg-transparent border-none focus:outline-none focus:ring-0 ${
                           inCartLine ? 'text-emerald-800' : 'text-stone-400'
                         }`} 
