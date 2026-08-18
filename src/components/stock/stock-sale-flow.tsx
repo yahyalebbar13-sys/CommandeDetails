@@ -91,8 +91,10 @@ export default function StockSaleFlow({
     [categories, selGenCat]
   );
 
-  // Flat list of individual variants for the product grid
-  const filteredItems = useMemo(() => {
+  const [variantModal, setVariantModal] = useState<{ open: boolean; productName: string; variants: StockItem[]; categoryId: string }>({ open: false, productName: '', variants: [], categoryId: '' });
+
+  // Grouped list of products for the main grid
+  const groupedProducts = useMemo(() => {
     let items = stockItems.filter(i => i.currentQty > 0);
     if (selCat) {
       items = items.filter(i => i.categoryId === selCat);
@@ -108,11 +110,24 @@ export default function StockSaleFlow({
         i.size?.toLowerCase().includes(q)
       );
     }
-    return items.sort((a, b) => {
-      const aKey = `${a.productName}${a.color || ''}${a.size || ''}`;
-      const bKey = `${b.productName}${b.color || ''}${b.size || ''}`;
-      return aKey.localeCompare(bKey);
+    
+    const map = new Map<string, StockItem[]>();
+    items.forEach(item => {
+      const key = item.productName;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
     });
+    
+    return Array.from(map.entries()).map(([name, variants]) => ({
+      name,
+      variants: variants.sort((a, b) => {
+        const aKey = `${a.color || ''}${a.size || ''}`;
+        const bKey = `${b.color || ''}${b.size || ''}`;
+        return aKey.localeCompare(bKey);
+      }),
+      totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
+      categoryId: variants[0]?.categoryId || '',
+    })).sort((a, b) => a.name.localeCompare(b.name));
   }, [stockItems, selCat, selGenCat, filteredCats, prodSearch]);
 
   const filteredClients = useMemo(() =>
@@ -529,10 +544,10 @@ export default function StockSaleFlow({
             {/* ── Gauche: Grille produits ── */}
             <div>
               <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">
-                {filteredItems.length} produit{filteredItems.length !== 1 ? 's' : ''} disponible{filteredItems.length !== 1 ? 's' : ''}
+                {groupedProducts.length} modèle{groupedProducts.length !== 1 ? 's' : ''} disponible{groupedProducts.length !== 1 ? 's' : ''}
               </p>
 
-              {filteredItems.length === 0 ? (
+              {groupedProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-stone-100">
                   <ShoppingBag className="w-12 h-12 text-stone-200 mb-3" />
                   <p className="text-stone-400 text-sm font-bold">Aucun produit trouvé</p>
@@ -540,87 +555,49 @@ export default function StockSaleFlow({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {filteredItems.map(item => {
-                    const inCart = cart.find(l => l.item.articleId === item.articleId);
-                    const isEmpty = item.currentQty === 0;
-                    const noPrice = !item.sellingPrice || item.sellingPrice <= 0;
+                  {groupedProducts.map(group => {
+                    const cartLinesForGroup = cart.filter(l => l.item.productName === group.name);
+                    const cartQtyTotal = cartLinesForGroup.reduce((s, l) => s + l.qty, 0);
+                    const isEmpty = group.totalQty === 0;
 
                     return (
-                      <div key={item.articleId}
-                        className={`bg-white rounded-2xl border-2 overflow-hidden transition-all ${
-                          inCart ? 'border-emerald-400 shadow-lg shadow-emerald-500/10'
-                          : isEmpty ? 'border-stone-100 opacity-50'
-                          : 'border-stone-100 hover:border-violet-200 hover:shadow-md'
+                      <button type="button" key={group.name}
+                        onClick={() => setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId })}
+                        className={`text-left bg-white rounded-2xl border-2 overflow-hidden transition-all ${
+                          cartQtyTotal > 0 ? 'border-emerald-400 shadow-lg shadow-emerald-500/10'
+                          : isEmpty ? 'border-stone-100 opacity-50 cursor-not-allowed'
+                          : 'border-stone-100 hover:border-violet-300 hover:shadow-md'
                         }`}
                       >
-                        {/* Bande couleur */}
-                        <div className="h-2 w-full" style={{ backgroundColor: item.color ? getColorCSS(item.color) : '#e5e5e5' }} />
-
-                        <div className="p-3 space-y-2">
-                          {/* Nom produit */}
-                          <p className="text-xs font-black text-stone-900 uppercase tracking-tight leading-tight line-clamp-2">{item.productName}</p>
-
-                          {/* Badges couleur + taille */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {item.color && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">
-                                <div className="w-2.5 h-2.5 rounded-full shrink-0 border border-stone-200" style={{ backgroundColor: getColorCSS(item.color) }} />
-                                {item.color}
+                        <div className="p-4 space-y-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <p className="text-sm font-black text-stone-900 uppercase tracking-tight leading-tight line-clamp-2">{group.name}</p>
+                            {cartQtyTotal > 0 && (
+                              <span className="shrink-0 text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg uppercase">
+                                {cartQtyTotal} dans le panier
                               </span>
                             )}
-                            {item.size && (
-                              <span className="text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">N° {item.size}</span>
-                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-stone-400 uppercase">{group.categoryId}</span>
+                            <span className="text-[10px] font-black text-stone-300">•</span>
+                            <span className="text-[10px] font-black text-stone-500">{group.variants.length} variante{group.variants.length > 1 ? 's' : ''}</span>
                           </div>
 
-                          {/* Prix + Stock */}
-                          <div className="flex items-end justify-between">
+                          <div className="flex items-end justify-between pt-2 border-t border-stone-50">
                             <div>
-                              <p className="text-sm font-black text-violet-700">
-                                {noPrice ? '—' : `${fmt$(item.sellingPrice!)} MAD`}
+                              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">En stock</p>
+                              <p className={`text-xl font-black ${group.totalQty < 20 ? 'text-amber-600' : 'text-stone-700'}`}>
+                                {group.totalQty}
                               </p>
-                              <p className="text-[10px] font-bold text-stone-400">{item.unitOfMeasure}</p>
                             </div>
-                            <div className="text-right">
-                              <p className={`text-sm font-black ${item.currentQty < 10 ? 'text-amber-600' : 'text-stone-700'}`}>
-                                {item.currentQty}
-                              </p>
-                              <p className="text-[10px] font-bold text-stone-400">en stock</p>
+                            <div className="w-8 h-8 rounded-full bg-stone-50 flex items-center justify-center">
+                              <ChevronRight className="w-4 h-4 text-stone-400" />
                             </div>
                           </div>
-
-                          {/* Bouton d'action */}
-                          {inCart ? (
-                            <div className="flex items-center gap-1 bg-emerald-50 rounded-xl p-1">
-                              <button type="button" onClick={() => {
-                                if (inCart.qty <= 1) removeFromCart(item.articleId);
-                                else updateCart(item.articleId, 'qty', inCart.qty - 1);
-                              }}
-                                className="w-8 h-8 rounded-lg bg-white border border-emerald-200 text-emerald-700 flex items-center justify-center hover:bg-emerald-100 transition-colors">
-                                {inCart.qty <= 1 ? <X className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
-                              </button>
-                              <span className="flex-1 text-center text-sm font-black text-emerald-800">{inCart.qty}</span>
-                              <button type="button" onClick={() => quickAddToCart(item)}
-                                disabled={inCart.qty >= item.currentQty}
-                                className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors">
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => quickAddToCart(item)}
-                              disabled={isEmpty || noPrice}
-                              className={`w-full h-9 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
-                                isEmpty || noPrice
-                                  ? 'bg-stone-100 text-stone-300 cursor-not-allowed'
-                                  : 'bg-violet-600 hover:bg-violet-700 text-white shadow-md shadow-violet-500/20'
-                              }`}
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              {noPrice ? 'Sans prix' : isEmpty ? 'Rupture' : 'Ajouter'}
-                            </button>
-                          )}
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -973,6 +950,96 @@ export default function StockSaleFlow({
               <Plus className="w-4 h-4" /> Ajouter au panier
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal sélection variantes ── */}
+      <Dialog open={variantModal.open} onOpenChange={o => !o && setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden bg-stone-50">
+          <div className="bg-white p-5 border-b border-stone-100 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+            <div>
+              <DialogTitle className="text-xl font-black uppercase tracking-tight text-stone-900">{variantModal.productName}</DialogTitle>
+              <p className="text-[10px] font-bold text-stone-400 mt-1 uppercase tracking-widest">{variantModal.categoryId}</p>
+            </div>
+            <div className="bg-stone-100 text-stone-600 px-3 py-1.5 rounded-xl text-xs font-black uppercase">
+              {variantModal.variants.reduce((s, v) => s + v.currentQty, 0)} en stock
+            </div>
+          </div>
+          
+          <div className="p-4 max-h-[60vh] overflow-y-auto space-y-3">
+            {variantModal.variants.map((v) => {
+              const inCartLine = cart.find(l => l.item.articleId === v.articleId);
+              const isEmpty = v.currentQty === 0;
+              const noPrice = !v.sellingPrice || v.sellingPrice <= 0;
+
+              return (
+                <div key={v.articleId} className={`bg-white rounded-2xl border p-3 flex items-center gap-4 transition-colors ${
+                  isEmpty ? 'opacity-50 border-stone-100' : 'border-stone-200 hover:border-violet-300'
+                }`}>
+                  {/* Pastille Couleur */}
+                  <div className="w-10 h-10 rounded-xl border border-stone-200 shrink-0 flex items-center justify-center shadow-sm"
+                    style={{ backgroundColor: v.color ? getColorCSS(v.color) : '#f5f5f4' }}
+                  >
+                    {!v.color && <Tag className="w-4 h-4 text-stone-300" />}
+                  </div>
+
+                  {/* Infos Variante */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {v.color && <p className="text-sm font-black text-stone-900 uppercase">{v.color}</p>}
+                      {v.size && <span className="text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg uppercase">Taille {v.size}</span>}
+                      {!v.color && !v.size && <p className="text-sm font-black text-stone-500 uppercase">Standard</p>}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs font-bold text-violet-700">{noPrice ? 'Prix non défini' : `${fmt$(v.sellingPrice!)} MAD`}</p>
+                      <span className="text-[10px] font-bold text-stone-400">•</span>
+                      <p className={`text-xs font-black ${isEmpty ? 'text-red-500' : 'text-stone-500'}`}>Stock: {v.currentQty}</p>
+                    </div>
+                  </div>
+
+                  {/* Actions Rapides */}
+                  <div className="shrink-0">
+                    {inCartLine ? (
+                      <div className="flex items-center gap-1.5 bg-emerald-50 rounded-xl p-1.5 border border-emerald-100">
+                        <button type="button" onClick={() => {
+                          if (inCartLine.qty <= 1) removeFromCart(v.articleId);
+                          else updateCart(v.articleId, 'qty', inCartLine.qty - 1);
+                        }}
+                          className="w-8 h-8 rounded-lg bg-white border border-emerald-200 text-emerald-700 flex items-center justify-center hover:bg-emerald-100 transition-colors shadow-sm">
+                          {inCartLine.qty <= 1 ? <X className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                        </button>
+                        <span className="w-8 text-center text-sm font-black text-emerald-800">{inCartLine.qty}</span>
+                        <button type="button" onClick={() => quickAddToCart(v)}
+                          disabled={inCartLine.qty >= v.currentQty}
+                          className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors shadow-sm">
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => quickAddToCart(v)}
+                        disabled={isEmpty || noPrice}
+                        className={`px-5 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                          isEmpty || noPrice
+                            ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+                            : 'bg-stone-900 hover:bg-stone-800 text-white shadow-md'
+                        }`}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Ajouter
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="p-4 bg-white border-t border-stone-100 flex justify-end">
+             <Button onClick={() => setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}
+              className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-12 px-8 rounded-xl shadow-md">
+              Terminer
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
