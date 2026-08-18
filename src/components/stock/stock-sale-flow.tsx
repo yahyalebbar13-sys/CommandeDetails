@@ -92,6 +92,7 @@ export default function StockSaleFlow({
   );
 
   const [variantModal, setVariantModal] = useState<{ open: boolean; productName: string; variants: StockItem[]; categoryId: string }>({ open: false, productName: '', variants: [], categoryId: '' });
+  const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
 
   // Grouped list of products for the main grid
   const groupedProducts = useMemo(() => {
@@ -175,7 +176,7 @@ export default function StockSaleFlow({
   };
 
   // Quick add: 1-click for single-store, modal for multi-store
-  const quickAddToCart = (item: StockItem) => {
+  const quickAddToCart = (item: StockItem, customPrice?: number) => {
     const storesWithStock = item.qtyByStore
       ? Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0)
       : [];
@@ -186,8 +187,9 @@ export default function StockSaleFlow({
     }
 
     const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
-    const price = item.sellingPrice || 0;
-    if (price <= 0) return;
+    const price = customPrice !== undefined ? customPrice : (item.sellingPrice || 0);
+    // Remove the price <= 0 restriction so we can add 0-price items and set them later, or use the custom price
+    // if (price <= 0) return;
 
     const maxQty = sourceStore && item.qtyByStore
       ? (item.qtyByStore as any)[sourceStore] || item.currentQty
@@ -991,7 +993,19 @@ export default function StockSaleFlow({
                       {!v.color && !v.size && <p className="text-sm font-black text-stone-500 uppercase">Standard</p>}
                     </div>
                     <div className="flex items-center gap-3 mt-1">
-                      <p className="text-xs font-bold text-violet-700">{noPrice ? 'Prix non défini' : `${fmt$(v.sellingPrice!)} MAD`}</p>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Prix</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : (v.sellingPrice || '')}
+                          onChange={e => setCustomPrices(prev => ({ ...prev, [v.articleId]: Number(e.target.value) }))}
+                          className="w-20 h-7 text-xs font-bold text-violet-700 border border-stone-200 rounded-lg px-2 focus:outline-none focus:border-violet-500"
+                          placeholder="0.00"
+                        />
+                        <span className="text-[9px] font-black text-stone-400">MAD</span>
+                      </div>
                       <span className="text-[10px] font-bold text-stone-400">•</span>
                       <p className={`text-xs font-black ${isEmpty ? 'text-red-500' : 'text-stone-500'}`}>Stock: {v.currentQty}</p>
                     </div>
@@ -1009,17 +1023,17 @@ export default function StockSaleFlow({
                           {inCartLine.qty <= 1 ? <X className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
                         </button>
                         <span className="w-8 text-center text-sm font-black text-emerald-800">{inCartLine.qty}</span>
-                        <button type="button" onClick={() => quickAddToCart(v)}
+                        <button type="button" onClick={() => quickAddToCart(v, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
                           disabled={inCartLine.qty >= v.currentQty}
                           className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors shadow-sm">
                           <Plus className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => quickAddToCart(v)}
-                        disabled={isEmpty || noPrice}
+                      <button type="button" onClick={() => quickAddToCart(v, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
+                        disabled={isEmpty}
                         className={`px-5 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                          isEmpty || noPrice
+                          isEmpty
                             ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
                             : 'bg-stone-900 hover:bg-stone-800 text-white shadow-md'
                         }`}
