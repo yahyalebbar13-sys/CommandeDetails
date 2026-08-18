@@ -73,9 +73,8 @@ export default function StockSaleFlow({
   const [notes, setNotes] = useState('');
 
   // Étape 4 — Finalisation
-  const [finalType, setFinalType] = useState<'order' | 'invoice'>('invoice');
+  const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'UNPAID'>('PAID');
   const [finalDate, setFinalDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState('');
 
   // ── Calculs ──
   const subTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
@@ -256,48 +255,36 @@ export default function StockSaleFlow({
         storeId: l.sourceStore,
       }));
 
-      if (finalType === 'order') {
-        await onCreateOrder({
-          clientId: selectedClient?.id || undefined,
-          clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
-          items,
-          totalAmount: subTotal,
-          discount,
-          totalAfterDiscount: total,
-          status: 'CONFIRMED',
-          date: today,
-          notes,
-        });
-      } else {
-        const movements = cart.map(l => ({
-          articleId: l.item.articleId,
-          categoryId: l.item.categoryId,
-          productName: l.item.productName,
-          color: l.item.color || null,
-          size: l.item.size || null,
-          unitOfMeasure: l.item.unitOfMeasure,
-          type: 'OUT',
-          reason: 'VENTE',
-          quantity: l.qty,
-          date: today,
-          notes: selectedClient ? `Facture client : ${selectedClient.name}` : 'Vente directe',
-          storeId: l.sourceStore,
-        }));
-        await onCreateInvoice({
-          clientId: selectedClient?.id || undefined,
-          clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
-          items,
-          totalAmount: subTotal,
-          discount,
-          totalAfterDiscount: total,
-          paidAmount: 0,
-          remainingBalance: total,
-          status: 'UNPAID',
-          date: today,
-          dueDate: dueDate || undefined,
-          notes,
-        }, movements);
-      }
+      const movements = cart.map(l => ({
+        articleId: l.item.articleId,
+        categoryId: l.item.categoryId,
+        productName: l.item.productName,
+        color: l.item.color || null,
+        size: l.item.size || null,
+        unitOfMeasure: l.item.unitOfMeasure,
+        type: 'OUT',
+        reason: 'VENTE',
+        quantity: l.qty,
+        date: today,
+        notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
+        storeId: l.sourceStore,
+      }));
+
+      const isPaid = paymentStatus === 'PAID';
+
+      await onCreateInvoice({
+        clientId: selectedClient?.id || undefined,
+        clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
+        items,
+        totalAmount: subTotal,
+        discount,
+        totalAfterDiscount: total,
+        paidAmount: isPaid ? total : 0,
+        remainingBalance: isPaid ? 0 : total,
+        status: isPaid ? 'PAID' : 'UNPAID',
+        date: today,
+        notes,
+      }, movements);
       setDone(true);
     } finally { setSaving(false); }
   };
@@ -840,46 +827,40 @@ export default function StockSaleFlow({
           </div>
 
           {/* Choix type */}
+          {/* Choix paiement */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {userRole !== 'ADMIN' && (
-              <button onClick={() => setFinalType('order')}
-                className={`p-6 rounded-2xl border-2 text-left transition-all ${
-                  finalType === 'order' ? 'border-stone-700 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-400'
-                }`}>
-                <ClipboardList className="w-8 h-8 mb-3 opacity-70" />
-                <p className="font-black text-lg uppercase tracking-tighter">Bon de Commande</p>
-                <p className={`text-[10px] font-bold mt-1 ${finalType === 'order' ? 'text-stone-400' : 'text-stone-400'}`}>
-                  Enregistre la commande. Le stock N'EST PAS décompté.
-                </p>
-              </button>
-            )}
-            <button onClick={() => setFinalType('invoice')}
+            <button onClick={() => setPaymentStatus('PAID')}
               className={`p-6 rounded-2xl border-2 text-left transition-all ${
-                finalType === 'invoice' ? 'border-violet-600 bg-violet-600 text-white' : 'border-stone-200 bg-white hover:border-violet-300'
-              } ${userRole === 'ADMIN' ? 'sm:col-span-2' : ''}`}>
+                paymentStatus === 'PAID' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-stone-200 bg-white hover:border-emerald-300'
+              }`}>
               <CheckCircle2 className="w-8 h-8 mb-3 opacity-70" />
-              <p className="font-black text-lg uppercase tracking-tighter">Facture + Sortie Stock</p>
-              <p className={`text-[10px] font-bold mt-1 ${finalType === 'invoice' ? 'text-violet-200' : 'text-stone-400'}`}>
-                Crée la facture et décompte le stock automatiquement.
+              <p className="font-black text-lg uppercase tracking-tighter">Payé (Espèce / Comptant)</p>
+              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'PAID' ? 'text-emerald-200' : 'text-stone-400'}`}>
+                La vente est réglée. Le stock est décompté immédiatement.
+              </p>
+            </button>
+
+            <button onClick={() => setPaymentStatus('UNPAID')}
+              disabled={anonymous}
+              className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                paymentStatus === 'UNPAID' ? 'border-amber-600 bg-amber-600 text-white' : 'border-stone-200 bg-white hover:border-amber-300'
+              } ${anonymous ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <ClipboardList className="w-8 h-8 mb-3 opacity-70" />
+              <p className="font-black text-lg uppercase tracking-tighter">À Crédit (Compte Client)</p>
+              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'UNPAID' ? 'text-amber-200' : 'text-stone-400'}`}>
+                {anonymous ? "Sélectionnez un client à l'étape 1" : "Ajouté à la dette du client. Le stock est décompté."}
               </p>
             </button>
           </div>
 
           {/* Champs date */}
           <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date</Label>
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date de la vente</Label>
                 <Input type="date" value={finalDate} onChange={e => setFinalDate(e.target.value)}
-                  className="h-11 rounded-xl border-stone-200 font-bold" />
+                  className="h-11 rounded-xl border-stone-200 font-bold max-w-sm" />
               </div>
-              {finalType === 'invoice' && (
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Échéance (optionnel)</Label>
-                  <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                    className="h-11 rounded-xl border-stone-200 font-bold" />
-                </div>
-              )}
             </div>
 
             {/* Récap final */}
@@ -893,8 +874,8 @@ export default function StockSaleFlow({
               ))}
               {cart.length > 4 && <p className="text-[9px] text-stone-400 font-bold">+{cart.length - 4} autre(s)...</p>}
               <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between font-black text-stone-900">
-                <span>Total {finalType === 'invoice' ? 'Facture' : 'BC'}</span>
-                <span className="text-violet-700">{fmt$(total)}</span>
+                <span>Total de la vente</span>
+                <span className={paymentStatus === 'PAID' ? 'text-emerald-700' : 'text-amber-700'}>{fmt$(total)}</span>
               </div>
             </div>
           </div>
