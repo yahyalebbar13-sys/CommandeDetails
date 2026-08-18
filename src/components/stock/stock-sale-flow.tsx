@@ -118,16 +118,33 @@ export default function StockSaleFlow({
       map.get(key)!.push(item);
     });
     
-    return Array.from(map.entries()).map(([name, variants]) => ({
-      name,
-      variants: variants.sort((a, b) => {
-        const aKey = `${a.color || ''}${a.size || ''}`;
-        const bKey = `${b.color || ''}${b.size || ''}`;
-        return aKey.localeCompare(bKey);
-      }),
-      totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
-      categoryId: variants[0]?.categoryId || '',
-    })).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(map.entries()).map(([name, rawVariants]) => {
+      // Deduplicate variants that have the exact same color and size
+      const dedupMap = new Map<string, StockItem>();
+      rawVariants.forEach(v => {
+        const vKey = `${v.color || ''}|${v.size || ''}`;
+        if (!dedupMap.has(vKey)) {
+          // Add a new property `originalItems` to keep track of the merged items
+          dedupMap.set(vKey, { ...v, originalItems: [v] } as any);
+        } else {
+          const ex = dedupMap.get(vKey) as any;
+          ex.currentQty += v.currentQty;
+          ex.originalItems.push(v);
+        }
+      });
+      const variants = Array.from(dedupMap.values());
+
+      return {
+        name,
+        variants: variants.sort((a, b) => {
+          const aKey = `${a.color || ''}${a.size || ''}`;
+          const bKey = `${b.color || ''}${b.size || ''}`;
+          return aKey.localeCompare(bKey);
+        }),
+        totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
+        categoryId: variants[0]?.categoryId || '',
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
   }, [stockItems, selCat, selGenCat, filteredCats, prodSearch]);
 
   const filteredClients = useMemo(() =>
@@ -242,33 +259,87 @@ export default function StockSaleFlow({
     setSaving(true);
     try {
       const today = finalDate;
-      const items: OrderItem[] = cart.map(l => ({
-        articleId: l.item.articleId,
-        productName: l.item.productName,
-        color: l.item.color,
-        size: l.item.size,
-        categoryId: l.item.categoryId,
-        unitOfMeasure: l.item.unitOfMeasure,
-        qty: l.qty,
-        unitPrice: l.unitPrice,
-        totalPrice: l.qty * l.unitPrice,
-        storeId: l.sourceStore,
-      }));
+      const items: OrderItem[] = [];
+      const movements: any[] = [];
 
-      const movements = cart.map(l => ({
-        articleId: l.item.articleId,
-        categoryId: l.item.categoryId,
-        productName: l.item.productName,
-        color: l.item.color || null,
-        size: l.item.size || null,
-        unitOfMeasure: l.item.unitOfMeasure,
-        type: 'OUT',
-        reason: 'VENTE',
-        quantity: l.qty,
-        date: today,
-        notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
-        storeId: l.sourceStore,
-      }));
+      for (const l of cart) {
+        let remainingQty = l.qty;
+        // The item might be a merged "virtual variant" with originalItems
+        const subItems: StockItem[] = (l.item as any).originalItems || [l.item];
+
+        for (const sub of subItems) {
+          if (remainingQty <= 0) break;
+          // For a specific store if sourceStore is set, otherwise overall currentQty
+          const availableInSub = l.sourceStore && sub.qtyByStore 
+            ? ((sub.qtyByStore as any)[l.sourceStore] || 0) 
+            : sub.currentQty;
+            
+          if (availableInSub <= 0) continue;
+
+          const take = Math.min(remainingQty, availableInSub);
+
+          items.push({
+            articleId: sub.articleId,
+            productName: sub.productName,
+            color: sub.color,
+            size: sub.size,
+            categoryId: sub.categoryId,
+            unitOfMeasure: sub.unitOfMeasure,
+            qty: take,
+            unitPrice: l.unitPrice,
+            totalPrice: take * l.unitPrice,
+            storeId: l.sourceStore,
+          });
+
+          movements.push({
+            articleId: sub.articleId,
+            categoryId: sub.categoryId,
+            productName: sub.productName,
+            color: sub.color || null,
+            size: sub.size || null,
+            unitOfMeasure: sub.unitOfMeasure,
+            type: 'OUT',
+            reason: 'VENTE',
+            quantity: take,
+            date: today,
+            notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
+            storeId: l.sourceStore,
+          });
+
+          remainingQty -= take;
+        }
+
+        // If for some reason we still have remainingQty (e.g. data mismatch), add it to the last sub-item
+        if (remainingQty > 0 && subItems.length > 0) {
+          const lastSub = subItems[subItems.length - 1];
+          items.push({
+            articleId: lastSub.articleId,
+            productName: lastSub.productName,
+            color: lastSub.color,
+            size: lastSub.size,
+            categoryId: lastSub.categoryId,
+            unitOfMeasure: lastSub.unitOfMeasure,
+            qty: remainingQty,
+            unitPrice: l.unitPrice,
+            totalPrice: remainingQty * l.unitPrice,
+            storeId: l.sourceStore,
+          });
+          movements.push({
+            articleId: lastSub.articleId,
+            categoryId: lastSub.categoryId,
+            productName: lastSub.productName,
+            color: lastSub.color || null,
+            size: lastSub.size || null,
+            unitOfMeasure: lastSub.unitOfMeasure,
+            type: 'OUT',
+            reason: 'VENTE',
+            quantity: remainingQty,
+            date: today,
+            notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
+            storeId: l.sourceStore,
+          });
+        }
+      }
 
       const isPaid = paymentStatus === 'PAID';
 
