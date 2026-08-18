@@ -139,7 +139,7 @@ export default function StockSaleFlow({
         variants: variants.sort((a, b) => {
           const aKey = `${a.color || ''}${a.size || ''}`;
           const bKey = `${b.color || ''}${b.size || ''}`;
-          return aKey.localeCompare(bKey);
+          return aKey.localeCompare(bKey, undefined, { numeric: true, sensitivity: 'base' });
         }),
         totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
         categoryId: variants[0]?.categoryId || '',

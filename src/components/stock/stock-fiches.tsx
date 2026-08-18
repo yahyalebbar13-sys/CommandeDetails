@@ -159,7 +159,11 @@ function ProductFiche({
         }
         return map;
       }, new Map<string, any>()).values()
-    ).sort((a: any, b: any) => b.currentQty - a.currentQty);
+    ).sort((a: any, b: any) => {
+      const aKey = `${a.color || ''}`;
+      const bKey = `${b.color || ''}`;
+      return aKey.localeCompare(bKey, undefined, { numeric: true, sensitivity: 'base' });
+    });
   }, [variants]);
 
   const variantsBySize = useMemo(() => {
@@ -169,7 +173,7 @@ function ProductFiche({
       if (!map.has(sizeKey)) map.set(sizeKey, []);
       map.get(sizeKey)!.push(v);
     });
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }));
   }, [groupedVariantsDetails]);
 
   const [selectedSize, setSelectedSize] = useState<string>(variantsBySize[0]?.[0] || 'STANDARD');
