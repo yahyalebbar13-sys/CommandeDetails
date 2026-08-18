@@ -980,15 +980,9 @@ export default function StockSaleFlow({
                 }`}>
                   {/* Infos Variante */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      {v.color && (
-                        <span className="inline-flex items-center gap-1.5 bg-stone-100 px-2 py-0.5 rounded-lg">
-                          <div className="w-2.5 h-2.5 rounded-full border border-stone-200" style={{ backgroundColor: getColorCSS(v.color) }} />
-                          <p className="text-sm font-black text-stone-900 uppercase">{v.color}</p>
-                        </span>
-                      )}
-                      {v.size && <span className="text-sm font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg uppercase">Taille {v.size}</span>}
-                      {!v.color && !v.size && <p className="text-sm font-black text-stone-500 uppercase">Standard</p>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-black text-stone-900 uppercase leading-tight">{v.productName}</p>
+                      {v.size && <span className="text-xs font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg uppercase shrink-0">Taille {v.size}</span>}
                     </div>
                     <div className="flex items-center gap-3 mt-2">
                       <div className="flex items-center gap-1">
