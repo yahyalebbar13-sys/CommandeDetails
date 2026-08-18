@@ -66,11 +66,6 @@ export default function StockSaleFlow({
   const [selCat, setSelCat] = useState<string | null>(null);
   const [prodSearch, setProdSearch] = useState('');
   const [addModal, setAddModal] = useState<{ open: boolean; item?: StockItem; qty: number; unitPrice: number; sourceStore?: string }>({ open: false, qty: 1, unitPrice: 0 });
-  // Groupe de variantes sélectionné (nom produit → affiche le panneau de variantes)
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  // Qtés de saisie rapide par articleId dans le panneau variantes
-  const [variantQtys, setVariantQtys] = useState<Record<string, number>>({});
-  const [variantPrices, setVariantPrices] = useState<Record<string, number>>({});
 
   // Étape 3 — Panier
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -96,8 +91,8 @@ export default function StockSaleFlow({
     [categories, selGenCat]
   );
 
-  // Grouper les items filtrés par nom de produit (intègre le filtre)
-  const groupedProducts = useMemo(() => {
+  // Flat list of individual variants for the product grid
+  const filteredItems = useMemo(() => {
     let items = stockItems.filter(i => i.currentQty > 0);
     if (selCat) {
       items = items.filter(i => i.categoryId === selCat);
@@ -113,22 +108,11 @@ export default function StockSaleFlow({
         i.size?.toLowerCase().includes(q)
       );
     }
-    const map = new Map<string, StockItem[]>();
-    items.forEach(item => {
-      const key = item.productName;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
+    return items.sort((a, b) => {
+      const aKey = `${a.productName}${a.color || ''}${a.size || ''}`;
+      const bKey = `${b.productName}${b.color || ''}${b.size || ''}`;
+      return aKey.localeCompare(bKey);
     });
-    return Array.from(map.entries()).map(([name, variants]) => ({
-      name,
-      variants: variants.sort((a, b) => {
-        const aKey = `${a.color || ''}${a.size || ''}`;
-        const bKey = `${b.color || ''}${b.size || ''}`;
-        return aKey.localeCompare(bKey);
-      }),
-      totalQty: variants.reduce((s, v) => s + v.currentQty, 0),
-      categoryId: variants[0]?.categoryId || '',
-    }));
   }, [stockItems, selCat, selGenCat, filteredCats, prodSearch]);
 
   const filteredClients = useMemo(() =>
@@ -173,6 +157,38 @@ export default function StockSaleFlow({
 
   const removeFromCart = (articleId: string) => {
     setCart(prev => prev.filter(l => l.item.articleId !== articleId));
+  };
+
+  // Quick add: 1-click for single-store, modal for multi-store
+  const quickAddToCart = (item: StockItem) => {
+    const storesWithStock = item.qtyByStore
+      ? Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0)
+      : [];
+
+    if (storesWithStock.length > 1) {
+      openAddModal(item);
+      return;
+    }
+
+    const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
+    const price = item.sellingPrice || 0;
+    if (price <= 0) return;
+
+    const maxQty = sourceStore && item.qtyByStore
+      ? (item.qtyByStore as any)[sourceStore] || item.currentQty
+      : item.currentQty;
+
+    setCart(prev => {
+      const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
+      if (ex) {
+        return prev.map(l =>
+          l.item.articleId === item.articleId && l.sourceStore === sourceStore
+            ? { ...l, qty: Math.min(l.qty + 1, maxQty) }
+            : l
+        );
+      }
+      return [...prev, { item, qty: 1, unitPrice: price, sourceStore }];
+    });
   };
 
   const handleCreateClient = async () => {
@@ -416,6 +432,7 @@ export default function StockSaleFlow({
       {/* ── Étape 2 : Produits ── */}
       {step === 1 && (
         <div className="space-y-4">
+          {/* Header */}
           <div className="bg-gradient-to-br from-violet-900 to-violet-800 p-6 rounded-3xl shadow-xl flex items-center justify-between">
             <div>
               <p className="text-[9px] font-black text-violet-300 uppercase tracking-[0.3em]">Étape 2</p>
@@ -425,20 +442,37 @@ export default function StockSaleFlow({
             {cartCount > 0 && (
               <div className="bg-white/10 backdrop-blur rounded-2xl px-4 py-3 text-center">
                 <p className="text-2xl font-black text-white">{cartCount}</p>
-                <p className="text-[9px] font-black text-violet-300 uppercase">article{cartCount > 1 ? 's' : ''}</p>
-                <p className="text-[10px] font-black text-emerald-300">{fmt$(subTotal)}</p>
+                <p className="text-[10px] font-black text-violet-300 uppercase">article{cartCount > 1 ? 's' : ''}</p>
+                <p className="text-xs font-black text-emerald-300">{fmt$(subTotal)}</p>
               </div>
             )}
           </div>
 
-          {/* ── Filtres Famille + Sous-cat (style GRP) ── */}
+          {/* ── Barre de recherche ── */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+            <Input
+              placeholder="Rechercher par nom, couleur, taille..."
+              value={prodSearch}
+              onChange={e => setProdSearch(e.target.value)}
+              className="pl-12 h-12 rounded-2xl border-stone-200 text-sm font-bold shadow-sm"
+              autoFocus
+            />
+            {prodSearch && (
+              <button onClick={() => setProdSearch('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center transition-colors">
+                <X className="w-3.5 h-3.5 text-stone-500" />
+              </button>
+            )}
+          </div>
+
+          {/* ── Filtres Famille + Catégorie ── */}
           <div className="space-y-3">
-            {/* Familles (générale) */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest shrink-0">Famille :</span>
+              <span className="text-xs font-black text-stone-400 uppercase tracking-widest shrink-0">Famille :</span>
               <button
                 onClick={() => { setSelGenCat(null); setSelCat(null); }}
-                className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                   !selGenCat ? 'bg-stone-900 text-white border-stone-900' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
                 }`}
               >
@@ -451,7 +485,7 @@ export default function StockSaleFlow({
                 const isActive = selGenCat === (gc.id || gc.name);
                 return (
                   <button key={gc.id} onClick={() => { setSelGenCat(gc.id || gc.name); setSelCat(null); }}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                       isActive ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-500/20' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
                     }`}
                   >
@@ -461,13 +495,12 @@ export default function StockSaleFlow({
               })}
             </div>
 
-            {/* Sous-catégories */}
             {selGenCat && filteredCats.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest shrink-0">Catégorie :</span>
+                <span className="text-xs font-black text-stone-400 uppercase tracking-widest shrink-0">Catégorie :</span>
                 <button
                   onClick={() => setSelCat(null)}
-                  className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                     !selCat ? 'bg-emerald-700 text-white border-emerald-700' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
                   }`}
                 >
@@ -478,7 +511,7 @@ export default function StockSaleFlow({
                   if (count === 0) return null;
                   return (
                     <button key={cat.id || cat.name} onClick={() => setSelCat(cat.name)}
-                      className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                         selCat === cat.name ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20' : 'text-stone-500 border-stone-200 hover:bg-stone-50'
                       }`}
                     >
@@ -490,227 +523,194 @@ export default function StockSaleFlow({
             )}
           </div>
 
-          {/* ── Grille produits groupés par nom ── */}
-          {groupedProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <ShoppingBag className="w-10 h-10 text-stone-200 mb-3" />
-              <p className="text-stone-300 text-[9px] font-black uppercase tracking-widest">Aucun produit disponible</p>
+          {/* ── Split layout: Grille produits + Mini-panier ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+
+            {/* ── Gauche: Grille produits ── */}
+            <div>
+              <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">
+                {filteredItems.length} produit{filteredItems.length !== 1 ? 's' : ''} disponible{filteredItems.length !== 1 ? 's' : ''}
+              </p>
+
+              {filteredItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-stone-100">
+                  <ShoppingBag className="w-12 h-12 text-stone-200 mb-3" />
+                  <p className="text-stone-400 text-sm font-bold">Aucun produit trouvé</p>
+                  <p className="text-stone-300 text-xs mt-1">Essayez une autre recherche ou catégorie</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filteredItems.map(item => {
+                    const inCart = cart.find(l => l.item.articleId === item.articleId);
+                    const isEmpty = item.currentQty === 0;
+                    const noPrice = !item.sellingPrice || item.sellingPrice <= 0;
+
+                    return (
+                      <div key={item.articleId}
+                        className={`bg-white rounded-2xl border-2 overflow-hidden transition-all ${
+                          inCart ? 'border-emerald-400 shadow-lg shadow-emerald-500/10'
+                          : isEmpty ? 'border-stone-100 opacity-50'
+                          : 'border-stone-100 hover:border-violet-200 hover:shadow-md'
+                        }`}
+                      >
+                        {/* Bande couleur */}
+                        <div className="h-2 w-full" style={{ backgroundColor: item.color ? getColorCSS(item.color) : '#e5e5e5' }} />
+
+                        <div className="p-3 space-y-2">
+                          {/* Nom produit */}
+                          <p className="text-xs font-black text-stone-900 uppercase tracking-tight leading-tight line-clamp-2">{item.productName}</p>
+
+                          {/* Badges couleur + taille */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.color && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">
+                                <div className="w-2.5 h-2.5 rounded-full shrink-0 border border-stone-200" style={{ backgroundColor: getColorCSS(item.color) }} />
+                                {item.color}
+                              </span>
+                            )}
+                            {item.size && (
+                              <span className="text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">N° {item.size}</span>
+                            )}
+                          </div>
+
+                          {/* Prix + Stock */}
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <p className="text-sm font-black text-violet-700">
+                                {noPrice ? '—' : `${fmt$(item.sellingPrice!)} MAD`}
+                              </p>
+                              <p className="text-[10px] font-bold text-stone-400">{item.unitOfMeasure}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-sm font-black ${item.currentQty < 10 ? 'text-amber-600' : 'text-stone-700'}`}>
+                                {item.currentQty}
+                              </p>
+                              <p className="text-[10px] font-bold text-stone-400">en stock</p>
+                            </div>
+                          </div>
+
+                          {/* Bouton d'action */}
+                          {inCart ? (
+                            <div className="flex items-center gap-1 bg-emerald-50 rounded-xl p-1">
+                              <button type="button" onClick={() => {
+                                if (inCart.qty <= 1) removeFromCart(item.articleId);
+                                else updateCart(item.articleId, 'qty', inCart.qty - 1);
+                              }}
+                                className="w-8 h-8 rounded-lg bg-white border border-emerald-200 text-emerald-700 flex items-center justify-center hover:bg-emerald-100 transition-colors">
+                                {inCart.qty <= 1 ? <X className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+                              </button>
+                              <span className="flex-1 text-center text-sm font-black text-emerald-800">{inCart.qty}</span>
+                              <button type="button" onClick={() => quickAddToCart(item)}
+                                disabled={inCart.qty >= item.currentQty}
+                                className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors">
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => quickAddToCart(item)}
+                              disabled={isEmpty || noPrice}
+                              className={`w-full h-9 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                isEmpty || noPrice
+                                  ? 'bg-stone-100 text-stone-300 cursor-not-allowed'
+                                  : 'bg-violet-600 hover:bg-violet-700 text-white shadow-md shadow-violet-500/20'
+                              }`}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              {noPrice ? 'Sans prix' : isEmpty ? 'Rupture' : 'Ajouter'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="space-y-3">
-              {groupedProducts.map((group, gIdx) => {
-                const COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
-                const accentColor = COLORS[gIdx % COLORS.length];
-                const cartLinesForGroup = cart.filter(l => l.item.productName === group.name);
-                const cartQtyTotal = cartLinesForGroup.reduce((s, l) => s + l.qty, 0);
-                const isOpen = selectedGroup === group.name;
 
-                return (
-                  <div key={group.name} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-                    {/* En-tête du groupe — clic pour ouvrir/fermer */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedGroup(isOpen ? null : group.name);
-                        // Pré-remplir les prix depuis sellingPrice
-                        const prices: Record<string, number> = {};
-                        const qtys: Record<string, number> = {};
-                        group.variants.forEach(v => {
-                          prices[v.articleId] = v.sellingPrice || 0;
-                          qtys[v.articleId] = 1;
-                        });
-                        setVariantPrices(p => ({ ...prices, ...p }));
-                        setVariantQtys(q => ({ ...qtys, ...q }));
-                      }}
-                      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${
-                        isOpen ? 'bg-stone-50' : 'hover:bg-stone-50/50'
-                      }`}
-                      style={{ borderLeft: `4px solid ${accentColor}` }}
-                    >
-                      {/* Pastilles de couleurs dispo */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        {group.variants.slice(0, 5).map((v, vi) => (
-                          <div key={v.articleId} className="w-5 h-5 rounded-full border-2 border-white shadow-sm shrink-0"
-                            style={{ backgroundColor: v.color ? getColorCSS(v.color) : accentColor,
-                              marginLeft: vi > 0 ? -6 : 0, zIndex: 5 - vi, position: 'relative' }}
-                            title={[v.color, v.size].filter(Boolean).join(' / ')}
-                          />
-                        ))}
-                        {group.variants.length > 5 && (
-                          <span className="text-[7px] font-black text-stone-400 ml-1">+{group.variants.length - 5}</span>
-                        )}
-                      </div>
-
-                      {/* Nom + catégorie */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight leading-none">{group.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[8px] font-bold text-stone-400">{group.categoryId}</span>
-                          <span className="text-[7px] font-black text-stone-300">
-                            {group.variants.length} variante{group.variants.length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Stock total + panier */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        {cartQtyTotal > 0 && (
-                          <span className="text-[8px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full uppercase">
-                            {cartQtyTotal} au panier
-                          </span>
-                        )}
-                        <div className="text-right">
-                          <p className="text-[13px] font-black text-stone-900">{group.totalQty.toLocaleString('fr-MA')}</p>
-                          <p className="text-[7px] font-bold text-stone-400">en stock</p>
-                        </div>
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-transform ${
-                          isOpen ? 'rotate-90' : ''
-                        }`} style={{ backgroundColor: `${accentColor}20` }}>
-                          <ChevronRight className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Panneau des variantes — visible si isOpen */}
-                    {isOpen && (
-                      <div className="border-t border-stone-100">
-                        <div className="divide-y divide-stone-50">
-                          {group.variants.map((v, vi) => {
-                            const inCartLine = cart.find(l => l.item.articleId === v.articleId);
-                            const vQty   = variantQtys[v.articleId] ?? 1;
-                            const vPrice = variantPrices[v.articleId] ?? (v.sellingPrice || 0);
-                            const pct    = group.variants.reduce((s, x) => s + x.currentQty, 0) > 0
-                              ? Math.min(100, Math.round(v.currentQty / group.variants.reduce((s, x) => s + x.currentQty, 0) * 100))
-                              : 0;
-                            const isEmpty = v.currentQty === 0;
-
-                            return (
-                              <div key={v.articleId} className={`flex items-center gap-4 px-5 py-3.5 ${
-                                isEmpty ? 'opacity-40' : inCartLine ? 'bg-emerald-50/40' : 'hover:bg-stone-50/60'
-                              }`}>
-
-                                {/* Couleur + taille */}
-                                <div className="flex items-center gap-2 w-40 shrink-0">
-                                  <div className="w-7 h-7 rounded-lg border border-stone-200 shrink-0 flex items-center justify-center"
-                                    style={{ backgroundColor: v.color ? getColorCSS(v.color) : '#f5f5f4' }}
-                                  >
-                                    {!v.color && <Tag className="w-3 h-3 text-stone-300" />}
-                                  </div>
-                                  <div>
-                                    {v.color && <p className="text-[9px] font-black text-stone-800 uppercase">{v.color}</p>}
-                                    {v.size  && <p className="text-[8px] font-bold text-stone-500 uppercase">N° {v.size}</p>}
-                                    {!v.color && !v.size && <p className="text-[9px] font-black text-stone-400">Standard</p>}
-                                  </div>
-                                </div>
-
-                                {/* Stock + barre */}
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[10px] font-black text-stone-900">{v.currentQty.toLocaleString('fr-MA')}</span>
-                                    <span className="text-[7px] font-bold text-stone-400">{v.unitOfMeasure}</span>
-                                  </div>
-                                  <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                                    <div className="h-full rounded-full transition-all" style={{
-                                      width: `${pct}%`,
-                                      backgroundColor: isEmpty ? '#d1d5db' : v.currentQty < 50 ? '#f59e0b' : accentColor
-                                    }} />
-                                  </div>
-                                </div>
-
-                                {/* Prix */}
-                                <div className="w-24 shrink-0">
-                                  <p className="text-[7px] font-black text-stone-400 uppercase mb-0.5">Prix MAD/u</p>
-                                  <input
-                                    type="number" min={0} step="any"
-                                    value={vPrice}
-                                    disabled={isEmpty}
-                                    onChange={e => setVariantPrices(p => ({ ...p, [v.articleId]: Number(e.target.value) }))}
-                                    className="w-full h-7 text-[10px] font-black border border-stone-200 rounded-lg px-2 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-40"
-                                    placeholder="0.00"
-                                  />
-                                </div>
-
-                                {/* Quantité + ajouter */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <div className="flex items-center border border-stone-200 rounded-lg overflow-hidden">
-                                    <button type="button" disabled={isEmpty || vQty <= 1}
-                                      onClick={() => setVariantQtys(q => ({ ...q, [v.articleId]: Math.max(1, vQty - 1) }))}
-                                      className="w-7 h-7 flex items-center justify-center font-black text-stone-500 hover:bg-stone-100 disabled:opacity-30 transition-colors">
-                                      <Minus className="w-3 h-3" />
-                                    </button>
-                                    <input type="number" min={1} max={v.currentQty}
-                                      value={vQty}
-                                      disabled={isEmpty}
-                                      onChange={e => setVariantQtys(q => ({ ...q, [v.articleId]: Math.max(1, Math.min(v.currentQty, Number(e.target.value))) }))}
-                                      className="w-10 h-7 text-center text-[11px] font-black border-x border-stone-200 focus:outline-none disabled:opacity-30"
-                                    />
-                                    <button type="button" disabled={isEmpty || vQty >= v.currentQty}
-                                      onClick={() => setVariantQtys(q => ({ ...q, [v.articleId]: Math.min(v.currentQty, vQty + 1) }))}
-                                      className="w-7 h-7 flex items-center justify-center font-black text-stone-500 hover:bg-stone-100 disabled:opacity-30 transition-colors">
-                                      <Plus className="w-3 h-3" />
-                                    </button>
-                                  </div>
-
-                                  {inCartLine ? (
-                                    <button type="button"
-                                      onClick={() => removeFromCart(v.articleId)}
-                                      className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors">
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  ) : (
-                                    <button type="button" disabled={isEmpty || vPrice <= 0}
-                                      onClick={() => {
-                                        if (!isEmpty && vPrice > 0) {
-                                          setCart(prev => {
-                                            const ex = prev.find(l => l.item.articleId === v.articleId);
-                                            if (ex) return prev.map(l => l.item.articleId === v.articleId ? { ...l, qty: Math.min(l.qty + vQty, v.currentQty), unitPrice: vPrice } : l);
-                                            return [...prev, { item: v, qty: vQty, unitPrice: vPrice }];
-                                          });
-                                        }
-                                      }}
-                                      className="w-8 h-8 rounded-lg text-white flex items-center justify-center font-black transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                      style={{ backgroundColor: isEmpty || vPrice <= 0 ? '#d1d5db' : accentColor }}
-                                      title={vPrice <= 0 ? 'Saisir un prix' : ''}
-                                    >
-                                      <Plus className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-
-                                  {inCartLine && (
-                                    <span className="text-[7px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase">
-                                      {inCartLine.qty} ajoutés
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Pied du panneau */}
-                        <div className="px-5 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-                          <span className="text-[7px] font-black text-stone-400 uppercase tracking-widest">
-                            {group.variants.filter(v => v.currentQty > 0).length} variante{group.variants.filter(v => v.currentQty > 0).length > 1 ? 's' : ''} disponible{group.variants.filter(v => v.currentQty > 0).length > 1 ? 's' : ''}
-                          </span>
-                          <span className="text-[7px] font-black text-amber-600 uppercase">
-                            {group.variants.filter(v => v.currentQty === 0).length > 0
-                              ? `${group.variants.filter(v => v.currentQty === 0).length} en rupture`
-                              : ''}
-                          </span>
-                        </div>
-                      </div>
+            {/* ── Droite: Mini-panier (desktop) ── */}
+            <div className="hidden lg:block">
+              <div className="sticky top-24 bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
+                <div className="bg-stone-900 px-4 py-3">
+                  <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4" />
+                    Panier
+                    {cartCount > 0 && (
+                      <span className="bg-violet-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{cartCount}</span>
                     )}
+                  </h3>
+                </div>
+
+                {cart.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <p className="text-stone-300 text-xs font-bold">Panier vide</p>
+                    <p className="text-stone-200 text-[10px] mt-1">Cliquez &quot;+&quot; pour ajouter</p>
                   </div>
-                );
-              })}
+                ) : (
+                  <>
+                    <div className="divide-y divide-stone-50 max-h-[400px] overflow-y-auto">
+                      {cart.map(({ item, qty, unitPrice }) => (
+                        <div key={item.articleId} className="px-4 py-3 flex items-center gap-3 hover:bg-stone-50/50 transition-colors">
+                          <div className="w-8 h-8 rounded-lg shrink-0 border border-stone-200 flex items-center justify-center"
+                            style={{ backgroundColor: item.color ? getColorCSS(item.color) : '#f5f5f4' }}>
+                            {!item.color && <Tag className="w-3 h-3 text-stone-300" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black text-stone-900 uppercase truncate">{item.productName}</p>
+                            <p className="text-[10px] text-stone-400 font-bold">
+                              {[item.color, item.size ? `N°${item.size}` : null].filter(Boolean).join(' · ')}
+                            </p>
+                            <p className="text-[10px] font-black text-violet-600">{qty} × {fmt$(unitPrice)}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs font-black text-stone-900">{fmt$(qty * unitPrice)}</p>
+                            <button type="button" onClick={() => removeFromCart(item.articleId)}
+                              className="text-[10px] font-bold text-red-400 hover:text-red-600 transition-colors">Retirer</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-stone-100 p-4">
+                      <div className="flex justify-between text-sm font-black text-stone-900">
+                        <span>Sous-total</span>
+                        <span className="text-violet-700">{fmt$(subTotal)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="p-4 pt-0">
+                  <Button onClick={() => setStep(2)} disabled={cart.length === 0}
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 rounded-xl gap-2">
+                    Voir le panier <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Barre flottante mobile ── */}
+          {cart.length > 0 && (
+            <div className="fixed bottom-0 left-0 right-0 lg:hidden bg-white/95 backdrop-blur-md border-t border-stone-200 shadow-2xl p-4 z-50">
+              <div className="flex items-center justify-between max-w-lg mx-auto">
+                <div>
+                  <p className="text-sm font-black text-stone-900">{cartCount} article{cartCount > 1 ? 's' : ''}</p>
+                  <p className="text-xs font-black text-violet-600">{fmt$(subTotal)}</p>
+                </div>
+                <Button onClick={() => setStep(2)}
+                  className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 px-6 rounded-xl gap-2">
+                  Panier <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           )}
 
-          <div className="flex justify-between">
+          {/* ── Navigation ── */}
+          <div className={`flex justify-between ${cart.length > 0 ? 'pb-24 lg:pb-0' : ''}`}>
             <Button variant="outline" onClick={() => setStep(0)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Retour
             </Button>
             <Button onClick={() => setStep(2)} disabled={cart.length === 0}
-              className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
+              className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2 lg:hidden">
               Panier ({cartCount}) <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
