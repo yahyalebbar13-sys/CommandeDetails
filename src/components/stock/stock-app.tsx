@@ -120,7 +120,7 @@ export function computeStockItems(
     const parts: string[] = [];
     if (a.zipperType) parts.push(a.zipperType);
     if (a.slider)     parts.push(a.slider);
-    const productName = parts.length > 0 ? parts.join(' ') : (a.name || a.specs || a.categoryId || 'Produit');
+    const productName = parts.length > 0 ? parts.join(' ') : [a.name, a.specs].filter(Boolean).join(' - ') || a.categoryId || 'Produit';
 
     const hasTTCCost = Number(a.purchasePriceMAD) > 0;
     const price      = Number(a.purchasePriceMAD) || Number(a.purchasePricePerUnit) || 0;

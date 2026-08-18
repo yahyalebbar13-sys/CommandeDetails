@@ -208,6 +208,25 @@ export default function StockSaleFlow({
     });
   };
 
+  const setVariantQtyInCart = (item: StockItem, qty: number, customPrice?: number) => {
+    const storesWithStock = item.qtyByStore ? Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0) : [];
+    if (storesWithStock.length > 1 && qty > 0) {
+      openAddModal(item);
+      return;
+    }
+    const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
+    const price = customPrice !== undefined ? customPrice : (item.sellingPrice || 0);
+    const maxQty = sourceStore && item.qtyByStore ? (item.qtyByStore as any)[sourceStore] || item.currentQty : item.currentQty;
+    const validQty = Math.max(0, Math.min(qty, maxQty));
+
+    setCart(prev => {
+      const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
+      if (validQty === 0) return prev.filter(l => l.item.articleId !== item.articleId);
+      if (ex) return prev.map(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore ? { ...l, qty: validQty, unitPrice: price } : l);
+      return [...prev, { item, qty: validQty, unitPrice: price, sourceStore }];
+    });
+  };
+
   const handleCreateClient = async () => {
     if (!newClientForm.name.trim()) return;
     setCreatingClient(true);
@@ -978,21 +997,19 @@ export default function StockSaleFlow({
                 <div key={v.articleId} className={`bg-white rounded-2xl border p-3 flex items-center gap-4 transition-colors ${
                   isEmpty ? 'opacity-50 border-stone-100' : 'border-stone-200 hover:border-violet-300'
                 }`}>
-                  {/* Pastille Couleur */}
-                  <div className="w-10 h-10 rounded-xl border border-stone-200 shrink-0 flex items-center justify-center shadow-sm"
-                    style={{ backgroundColor: v.color ? getColorCSS(v.color) : '#f5f5f4' }}
-                  >
-                    {!v.color && <Tag className="w-4 h-4 text-stone-300" />}
-                  </div>
-
                   {/* Infos Variante */}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      {v.color && <p className="text-sm font-black text-stone-900 uppercase">{v.color}</p>}
-                      {v.size && <span className="text-[10px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg uppercase">Taille {v.size}</span>}
+                      {v.color && (
+                        <span className="inline-flex items-center gap-1.5 bg-stone-100 px-2 py-0.5 rounded-lg">
+                          <div className="w-2.5 h-2.5 rounded-full border border-stone-200" style={{ backgroundColor: getColorCSS(v.color) }} />
+                          <p className="text-sm font-black text-stone-900 uppercase">{v.color}</p>
+                        </span>
+                      )}
+                      {v.size && <span className="text-sm font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg uppercase">Taille {v.size}</span>}
                       {!v.color && !v.size && <p className="text-sm font-black text-stone-500 uppercase">Standard</p>}
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-3 mt-2">
                       <div className="flex items-center gap-1">
                         <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Prix</span>
                         <input
@@ -1001,7 +1018,7 @@ export default function StockSaleFlow({
                           step="any"
                           value={customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : (v.sellingPrice || '')}
                           onChange={e => setCustomPrices(prev => ({ ...prev, [v.articleId]: Number(e.target.value) }))}
-                          className="w-20 h-7 text-xs font-bold text-violet-700 border border-stone-200 rounded-lg px-2 focus:outline-none focus:border-violet-500"
+                          className="w-20 h-8 text-sm font-bold text-violet-700 border border-stone-200 rounded-lg px-2 focus:outline-none focus:border-violet-500"
                           placeholder="0.00"
                         />
                         <span className="text-[9px] font-black text-stone-400">MAD</span>
@@ -1011,37 +1028,36 @@ export default function StockSaleFlow({
                     </div>
                   </div>
 
-                  {/* Actions Rapides */}
+                  {/* Saisie Rapide Quantité */}
                   <div className="shrink-0">
-                    {inCartLine ? (
-                      <div className="flex items-center gap-1.5 bg-emerald-50 rounded-xl p-1.5 border border-emerald-100">
-                        <button type="button" onClick={() => {
-                          if (inCartLine.qty <= 1) removeFromCart(v.articleId);
-                          else updateCart(v.articleId, 'qty', inCartLine.qty - 1);
-                        }}
-                          className="w-8 h-8 rounded-lg bg-white border border-emerald-200 text-emerald-700 flex items-center justify-center hover:bg-emerald-100 transition-colors shadow-sm">
-                          {inCartLine.qty <= 1 ? <X className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-                        </button>
-                        <span className="w-8 text-center text-sm font-black text-emerald-800">{inCartLine.qty}</span>
-                        <button type="button" onClick={() => quickAddToCart(v, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
-                          disabled={inCartLine.qty >= v.currentQty}
-                          className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors shadow-sm">
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => quickAddToCart(v, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
-                        disabled={isEmpty}
-                        className={`px-5 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                          isEmpty
-                            ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
-                            : 'bg-stone-900 hover:bg-stone-800 text-white shadow-md'
-                        }`}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Ajouter
+                    <div className={`flex items-center gap-1.5 rounded-xl p-1.5 border transition-colors ${
+                      inCartLine ? 'bg-emerald-50 border-emerald-200' : 'bg-stone-50 border-stone-200'
+                    }`}>
+                      <button type="button" onClick={() => setVariantQtyInCart(v, (inCartLine?.qty || 0) - 1, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
+                        disabled={isEmpty || !inCartLine}
+                        className="w-9 h-9 rounded-lg bg-white border border-stone-200 text-stone-700 flex items-center justify-center hover:bg-stone-100 disabled:opacity-30 transition-colors shadow-sm">
+                        <Minus className="w-4 h-4" />
                       </button>
-                    )}
+                      
+                      <input 
+                        type="number" 
+                        min="0"
+                        max={v.currentQty}
+                        value={inCartLine?.qty || ''}
+                        onChange={e => setVariantQtyInCart(v, parseInt(e.target.value) || 0, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
+                        disabled={isEmpty}
+                        placeholder="0"
+                        className={`w-14 h-9 text-center text-lg font-black bg-transparent border-none focus:outline-none focus:ring-0 ${
+                          inCartLine ? 'text-emerald-800' : 'text-stone-400'
+                        }`} 
+                      />
+                      
+                      <button type="button" onClick={() => setVariantQtyInCart(v, (inCartLine?.qty || 0) + 1, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
+                        disabled={isEmpty || (inCartLine?.qty || 0) >= v.currentQty}
+                        className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors shadow-sm">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
