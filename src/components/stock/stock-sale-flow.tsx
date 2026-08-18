@@ -303,10 +303,10 @@ export default function StockSaleFlow({
       </div>
       <div className="text-center space-y-1">
         <h2 className="text-2xl font-black uppercase tracking-tighter text-stone-900">
-          {finalType === 'order' ? 'Bon de commande créé !' : 'Facture créée !'}
+          Vente enregistrée !
         </h2>
         <p className="text-stone-400 font-bold text-sm">
-          {finalType === 'invoice' ? 'Stock mis à jour automatiquement.' : 'Commande enregistrée.'}
+          Le stock a été mis à jour automatiquement.
           {' '}Total : <strong className="text-stone-700">{fmt$(total)}</strong>
         </p>
       </div>
@@ -314,9 +314,9 @@ export default function StockSaleFlow({
         <Button onClick={reset} className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl">
           Nouvelle vente
         </Button>
-        <Button variant="outline" onClick={() => onNavigate(finalType === 'order' ? 'orders' : 'invoices')}
+        <Button variant="outline" onClick={() => onNavigate('invoices')}
           className="font-black uppercase text-xs px-6 h-11 rounded-2xl">
-          Voir {finalType === 'order' ? 'les commandes' : 'les factures'}
+          Voir les ventes
         </Button>
       </div>
     </div>
@@ -886,12 +886,12 @@ export default function StockSaleFlow({
             </Button>
             <Button onClick={handleFinalize} disabled={saving}
               className={`font-black uppercase text-xs h-12 px-10 rounded-2xl gap-2 shadow-lg transition-all ${
-                finalType === 'invoice'
-                  ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-500/30'
-                  : 'bg-stone-900 hover:bg-stone-800 text-white shadow-stone-900/30'
+                paymentStatus === 'PAID'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30'
+                  : 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-500/30'
               }`}>
               {saving ? 'Enregistrement...' : (
-                <>{finalType === 'invoice' ? 'Émettre la Facture' : 'Créer le Bon de Commande'} <CheckCircle2 className="w-4 h-4" /></>
+                <>Valider la Vente <CheckCircle2 className="w-4 h-4" /></>
               )}
             </Button>
           </div>
