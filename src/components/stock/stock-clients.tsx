@@ -25,7 +25,7 @@ const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2
 export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onNavigate }: StockClientsProps) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Client | null>(null);
-  const [activeTab, setActiveTab] = useState<'orders' | 'invoices' | 'payments'>('invoices');
+  const [activeTab, setActiveTab] = useState<'orders' | 'invoices' | 'payments' | 'checks'>('invoices');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
   const [saving, setSaving] = useState(false);
@@ -247,48 +247,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
         </div>
       </div>
 
-      {/* ── Deuxième ligne : Chèques ou lettres de change émis ── */}
-      {selPayments.filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET').length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg border border-amber-100 overflow-hidden">
-          <div className="bg-amber-50/50 p-4 border-b border-amber-100 flex items-center justify-between">
-            <h3 className="text-[11px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-amber-500" />
-              Chèques & Lettres de change émis
-            </h3>
-          </div>
-          <div className="p-0 overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-stone-50/50 border-b border-stone-100">
-                  {['Date de saisie', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50">
-                {selPayments
-                  .filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET')
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .map(p => (
-                  <tr key={p.id} className="hover:bg-amber-50/30 transition-colors">
-                    <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{p.date}</td>
-                    <td className="px-4 py-3 text-[10px] font-black text-amber-700">
-                      {(p.method === 'CHECK' || p.method === 'CHEQUE') ? 'CHÈQUE' : 'EFFET (LCN)'}
-                    </td>
-                    <td className="px-4 py-3 text-[10px] font-bold text-stone-900">{p.checkNumber || '—'}</td>
-                    <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{p.bankName || '—'}</td>
-                    <td className="px-4 py-3 text-[10px] font-black text-rose-600">{p.dueDate || '—'}</td>
-                    <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(p.amount)} MAD</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {editMode && (
-        <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 grid grid-cols-2 gap-3 mt-4">
           {[
             { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
             { key: 'email', label: 'Email', placeholder: 'email@example.com' },
@@ -311,6 +271,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
           { id: 'invoices' as const, label: `Factures (${selInvoices.length})` },
           { id: 'orders' as const, label: `Commandes (${selOrders.length})` },
           { id: 'payments' as const, label: `Paiements (${selPayments.length})` },
+          { id: 'checks' as const, label: `Chèques / LCN (${selPayments.filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET').length})` },
         ].map(({ id, label }) => (
           <button key={id} onClick={() => setActiveTab(id)}
             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
@@ -380,6 +341,36 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
               ))}
             </tbody>
           </table>
+        )}
+        {activeTab === 'checks' && (
+          selPayments.filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET').length === 0 
+            ? <p className="text-center text-stone-300 font-black uppercase text-[10px] py-12">Aucun chèque ou effet</p> 
+            : <table className="w-full">
+                <thead>
+                  <tr className="bg-stone-50 border-b border-stone-100">
+                    {['Date saisie', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-50">
+                  {selPayments
+                    .filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET')
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .map(p => (
+                    <tr key={p.id} className="hover:bg-stone-50/50">
+                      <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{p.date}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-amber-700">
+                        {(p.method === 'CHECK' || p.method === 'CHEQUE') ? 'CHÈQUE' : 'EFFET (LCN)'}
+                      </td>
+                      <td className="px-4 py-3 text-[10px] font-bold text-stone-900">{p.checkNumber || '—'}</td>
+                      <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{p.bankName || '—'}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-rose-600">{p.dueDate || '—'}</td>
+                      <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(p.amount)} MAD</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
         )}
       </div>
     </div>
