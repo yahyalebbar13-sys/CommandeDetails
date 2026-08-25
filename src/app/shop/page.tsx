@@ -23,13 +23,12 @@ export default function ShopPage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 1: COMPACT HERO BANNER                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative h-[220px] sm:h-[280px] lg:h-[360px] overflow-hidden bg-[#0a0a0a]">
+      <section className="relative h-[280px] sm:h-[380px] lg:h-[500px] xl:h-[560px] overflow-hidden bg-[#0a0a0a]">
         <Image
           src="/hero-banner.webp"
           alt="LEBTEX mercerie"
           fill
-          className="object-cover scale-[0.85] lg:scale-100"
-          style={{ objectPosition: '50% 35%' }}
+          className="object-cover object-center"
           priority
           quality={85}
           sizes="100vw"
