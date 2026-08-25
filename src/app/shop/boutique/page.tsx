@@ -109,12 +109,22 @@ function BoutiqueContent() {
     let filtered = [...allProducts];
 
     if (deferredSearch.trim()) {
-      const q = deferredSearch.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.categoryName?.toLowerCase().includes(q) ||
-        p.tags.some(t => t.toLowerCase().includes(q))
-      );
+      // Normalize: remove accents + Arabic diacritics
+      const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\u064B-\u065F\u0670]/g, '');
+      // Generate variants (plural/singular tolerance)
+      const variants = (w: string) => {
+        const v = [w];
+        if (w.endsWith('s') && w.length > 2) v.push(w.slice(0, -1));
+        if (w.endsWith('es') && w.length > 3) v.push(w.slice(0, -2));
+        if (w.endsWith('x') && w.length > 2) v.push(w.slice(0, -1));
+        v.push(w + 's', w + 'es');
+        return v;
+      };
+      const words = norm(deferredSearch).split(/\s+/).filter(w => w.length >= 2);
+      filtered = filtered.filter(p => {
+        const fields = [p.name, p.nameAr, p.categoryName, p.categoryNameAr, p.shortDescription, ...(p.tags || [])].filter(Boolean).map(f => norm(f!));
+        return words.every(word => fields.some(f => variants(word).some(v => f.includes(v))));
+      });
     }
 
     if (sort === 'prix-asc') filtered.sort((a, b) => a.price - b.price);

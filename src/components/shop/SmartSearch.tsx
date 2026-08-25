@@ -74,29 +74,70 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
   const deferredQuery = React.useDeferredValue(query);
   const q = deferredQuery.trim().toLowerCase();
 
-  const matchedCategories = useMemo(() => {
+
+  // ── Fuzzy search helpers ────────────────────────────────────────────────
+  // Normalize: lowercase, remove accents/diacritics, remove Arabic diacritics
+  const normalize = useCallback((str: string): string => {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')  // Remove accents (é→e, à→a, etc.)
+      .replace(/[\u064B-\u065F\u0670]/g, '') // Remove Arabic diacritics (tashkeel)
+      .trim();
+  }, []);
+
+  // Generate search variants of a word (plural/singular tolerance)
+  const getVariants = useCallback((word: string): string[] => {
+    const variants = [word];
+    // French plural → singular
+    if (word.endsWith('s') && word.length > 2) variants.push(word.slice(0, -1));
+    if (word.endsWith('es') && word.length > 3) variants.push(word.slice(0, -2));
+    if (word.endsWith('x') && word.length > 2) variants.push(word.slice(0, -1));
+    // Singular → plural
+    variants.push(word + 's');
+    variants.push(word + 'es');
+    return variants;
+  }, []);
+
+  // Check if a text matches a query word (with variants)
+  const wordMatches = useCallback((text: string, queryWord: string): boolean => {
+    const normalizedText = normalize(text);
+    return getVariants(queryWord).some(variant => normalizedText.includes(variant));
+  }, [normalize, getVariants]);
+
+  // Check if ALL query words match at least one field of an item
+  const fuzzyMatch = useCallback((fields: (string | undefined)[], queryWords: string[]): boolean => {
+    return queryWords.every(word =>
+      fields.some(field => field && wordMatches(field, word))
+    );
+  }, [wordMatches]);
+
+  // Split and normalize query into words
+  const queryWords = useMemo(() => {
     if (!q || q.length < 2) return [];
+    return normalize(q).split(/\s+/).filter(w => w.length >= 2);
+  }, [q, normalize]);
+
+  const matchedCategories = useMemo(() => {
+    if (queryWords.length === 0) return [];
     return categories
-      .filter(c => !c.parentSlug) // only parent categories
-      .filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        c.nameAr?.toLowerCase().includes(q) ||
-        c.slug.toLowerCase().includes(q)
-      )
+      .filter(c => !c.parentSlug)
+      .filter(c => fuzzyMatch(
+        [c.name, c.nameAr, c.slug, c.description, c.descriptionAr],
+        queryWords
+      ))
       .slice(0, 3);
-  }, [q, categories]);
+  }, [queryWords, categories, fuzzyMatch]);
 
   const matchedProducts = useMemo(() => {
-    if (!q || q.length < 2) return [];
+    if (queryWords.length === 0) return [];
     return products
-      .filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.nameAr?.toLowerCase().includes(q) ||
-        p.categoryName?.toLowerCase().includes(q) ||
-        p.tags?.some(t => t.toLowerCase().includes(q))
-      )
+      .filter(p => fuzzyMatch(
+        [p.name, p.nameAr, p.categoryName, p.categoryNameAr, p.shortDescription, p.shortDescriptionAr, ...(p.tags || [])],
+        queryWords
+      ))
       .slice(0, 6);
-  }, [q, products]);
+  }, [queryWords, products, fuzzyMatch]);
 
   const hasResults = matchedCategories.length > 0 || matchedProducts.length > 0;
   const showDropdown = isFocused && (q.length >= 2 || (q.length === 0 && recentSearches.length > 0));
