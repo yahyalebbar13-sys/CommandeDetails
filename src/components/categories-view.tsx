@@ -624,26 +624,14 @@ export default function CategoriesView({
       Array.isArray(currentCategoryObj?.sizeFilter) && currentCategoryObj.sizeFilter.length > 0
         ? currentCategoryObj.sizeFilter : null;
     
-    const productsSet = new Set<string>();
+    // ── Évolution prix par TAILLE uniquement ──
+    const sizesSet = new Set<string>();
     currentArticles.forEach(a => {
       if (allowedSizes && !allowedSizes.includes(a.size)) return;
-
-      const parts = [];
-      const isTechnical = isTechnicalZipper(a.categoryId);
-      
-      if (a.size) parts.push(a.size);
-      
-      if (isTechnical) {
-        if (a.zipperType) parts.push(a.zipperType);
-        if (a.slider) parts.push(a.slider);
-      }
-      
-      if (a.color) parts.push(a.color.toUpperCase());
-      
-      const key = parts.length > 0 ? parts.join(' - ') : 'DIVERS';
-      productsSet.add(key);
+      const sizeKey = (a.size && a.size !== 'various') ? a.size.toUpperCase() : null;
+      if (sizeKey) sizesSet.add(sizeKey);
     });
-    const uniqueProducts = Array.from(productsSet);
+    const uniqueProducts = Array.from(sizesSet).sort();
 
     const dateGroups: Record<string, any> = {};
     currentArticles.forEach(a => {
@@ -652,23 +640,12 @@ export default function CategoriesView({
 
       if (allowedSizes && !allowedSizes.includes(a.size)) return;
 
+      const sizeKey = (a.size && a.size !== 'various') ? a.size.toUpperCase() : null;
+      if (!sizeKey) return;
+
       if (!dateGroups[date]) dateGroups[date] = { date };
       
-      const parts = [];
-      const isTechnical = isTechnicalZipper(a.categoryId);
-      
-      if (a.size) parts.push(a.size);
-      
-      if (isTechnical) {
-        if (a.zipperType) parts.push(a.zipperType);
-        if (a.slider) parts.push(a.slider);
-      }
-      
-      if (a.color) parts.push(a.color.toUpperCase());
-      
-      const productKey = parts.length > 0 ? parts.join(' - ') : 'DIVERS';
-      
-      dateGroups[date][productKey] = Number(a.purchasePricePerUnit) || 0;
+      dateGroups[date][sizeKey] = Number(a.purchasePricePerUnit) || 0;
     });
 
     const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
@@ -1374,7 +1351,7 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution Prix par Variante ($)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution Prix par Taille ($)
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[280px] p-4">
