@@ -3,117 +3,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/language-context';
-import { useShopCartActions } from '@/contexts/shop-cart-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-import { ShoppingBag, ArrowLeft, Package, Loader2 } from 'lucide-react';
-import { formatPrice } from '@/lib/shop-utils';
-
-// ─── Inline ProductCard ────────────────────────────────────────────────────────
-const ProductCard = React.memo(function ProductCard({ product }: { product: ShopProduct }) {
-  const { language } = useLanguage();
-  const { addItem } = useShopCartActions();
-  const [added, setAdded] = useState(false);
-  const [wished, setWished] = useState(false);
-
-  const handleAdd = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    addItem({
-      productId: product.id,
-      productName: product.name,
-      productImage: product.images?.[0] || '',
-      price: product.price,
-      quantity: product.minOrderQty || 1,
-      maxStock: product.stockQty ?? 999,
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
-  };
-
-  return (
-    <Link
-      href={`/shop/produit/${product.id}`}
-      prefetch={false}
-      className="bg-white rounded-2xl border border-[#E8E4DF] overflow-hidden hover:shadow-lg relative group flex flex-col h-full no-underline cursor-pointer touch-manipulation"
-    >
-      <div className="relative aspect-square bg-gray-50 overflow-hidden">
-        <img
-          src={product.images?.[0] || `https://picsum.photos/400/400?random=${product.id}`}
-          alt={product.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-        />
-        {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
-          {product.isNew && (
-            <span className="bg-[#10B981] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
-              Nouveau
-            </span>
-          )}
-        </div>
-        {/* Wishlist */}
-        <button
-          onClick={e => { e.preventDefault(); e.stopPropagation(); setWished(!wished); }}
-          className="absolute top-3 right-3 w-11 h-11 lg:w-8 lg:h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow transition-all hover:scale-110 z-10 cursor-pointer touch-manipulation"
-        >
-          <span className={`text-base ${wished ? 'text-red-500' : 'text-gray-400'}`}>
-            {wished ? '♥' : '♡'}
-          </span>
-        </button>
-        {/* Mobile Quick Add */}
-        {product.inStock && (
-          <button
-            onClick={handleAdd}
-            disabled={added}
-            className={`lg:hidden absolute bottom-3 right-3 z-10 w-11 h-11 rounded-full shadow-md flex items-center justify-center transition-all cursor-pointer touch-manipulation ${
-              added ? 'bg-[#10B981] text-white' : 'bg-white text-gray-900 active:bg-gray-100'
-            }`}
-          >
-            {added ? <span className="text-[10px] font-bold">✓</span> : <ShoppingBag className="w-5 h-5" />}
-          </button>
-        )}
-        
-        {/* Desktop Quick add overlay */}
-        <div className="hidden lg:block absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
-          <button
-            onClick={handleAdd}
-            className={`pointer-events-auto w-full py-2 rounded-xl text-sm font-bold transition-all cursor-pointer touch-manipulation ${
-              added ? 'bg-[#10B981] text-white' : 'bg-[#0F0F0F] text-white hover:bg-[#C8102E]'
-            }`}
-          >
-            {added ? '✓ Ajouté !' : '+ Ajouter au panier'}
-          </button>
-        </div>
-      </div>
-      <div className="p-4 flex flex-col flex-grow">
-        <p className="text-xs font-semibold text-[#D4A843] uppercase tracking-wide mb-1">
-          {product.categoryName}
-        </p>
-        <h3
-          className="font-semibold text-[#1A1A1A] text-sm leading-tight mb-2 line-clamp-2 group-hover:text-[#C8102E] transition-colors"
-          style={{ fontFamily: 'Outfit, sans-serif' }}
-        >
-          {product.name}
-        </h3>
-        {product.rating && (
-          <div className="flex items-center gap-1 mb-2">
-            <span className="text-[#D4A843] text-xs">
-              {'★'.repeat(Math.floor(product.rating))}{'☆'.repeat(5 - Math.floor(product.rating))}
-            </span>
-            <span className="text-xs text-gray-400">({product.reviewCount || 0})</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-[#C8102E]">{language === 'ar' ? '\u062d\u0633\u0628 \u0627\u0644\u0637\u0644\u0628' : 'Sur demande'}</span>
-        </div>
-        <div className="mt-2 flex items-center gap-1">
-          <span className={`w-1.5 h-1.5 rounded-full ${product.inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
-          <span className="text-xs text-gray-500">{product.inStock ? 'En stock' : 'Rupture de stock'}</span>
-        </div>
-      </div>
-    </Link>
-  );
-});
+import { ShoppingBag, ArrowLeft, Package, Loader2, SlidersHorizontal, X } from 'lucide-react';
+import ProductCard from '@/components/shop/ProductCard';
 
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -123,6 +16,7 @@ export default function CategoryPage({ params }: { params: any }) {
   // Decode URL encoding (e.g. %20 → space) AND normalize to match stored slugs
   const slug = decodeURIComponent(rawSlug);
   const [sort, setSort] = useState('pertinence');
+  const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const { language } = useLanguage();
 
   const { products: allContextProducts, categories: allContextCategories, isLoading } = useShopProducts();
@@ -139,11 +33,25 @@ export default function CategoryPage({ params }: { params: any }) {
     ...subCats.map(c => c.slug),
     ...subCats.map(c => c.id),
   ]);
-  const products = allContextProducts.filter(p =>
-    p.categorySlug === canonicalSlug ||
-    p.categorySlug === categoryId ||
-    subCatIdentifiers.has(p.categorySlug)
+  
+  // All products in this category (including subcategories)
+  const allCategoryProducts = useMemo(() => 
+    allContextProducts.filter(p =>
+      p.categorySlug === canonicalSlug ||
+      p.categorySlug === categoryId ||
+      subCatIdentifiers.has(p.categorySlug)
+    ),
+    [allContextProducts, canonicalSlug, categoryId, subCatIdentifiers]
   );
+
+  // Filter by active subcategory
+  const products = useMemo(() => {
+    if (!activeSubCat) return allCategoryProducts;
+    const activeSub = subCats.find(c => c.slug === activeSubCat);
+    if (!activeSub) return allCategoryProducts;
+    return allCategoryProducts.filter(p => p.categorySlug === activeSub.slug || p.categorySlug === activeSub.id);
+  }, [allCategoryProducts, activeSubCat, subCats]);
+
   const notFound = !isLoading && !category;
 
   // Sort products - Memoized for extreme performance
@@ -159,10 +67,10 @@ export default function CategoryPage({ params }: { params: any }) {
   const [visibleCount, setVisibleCount] = useState(24);
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  // Reset infinite scroll count when sort changes
+  // Reset infinite scroll count when sort or filter changes
   useEffect(() => {
     setVisibleCount(24);
-  }, [sort, canonicalSlug]);
+  }, [sort, canonicalSlug, activeSubCat]);
 
   // Infinite Scroll Observer
   useEffect(() => {
@@ -218,7 +126,7 @@ export default function CategoryPage({ params }: { params: any }) {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif', background: '#FBF8F3' }} className="min-h-screen">
       {/* ─── Hero ─────────────────────────────────────────────────────────── */}
-      <div className="relative h-72 sm:h-96 overflow-hidden">
+      <div className="relative h-56 sm:h-72 lg:h-80 overflow-hidden">
         {/* Background image or gradient */}
         {category?.image ? (
           <img
@@ -238,9 +146,9 @@ export default function CategoryPage({ params }: { params: any }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
 
         {/* Content */}
-        <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-end pb-10">
+        <div className="relative h-full max-w-7xl mx-auto px-5 sm:px-6 flex flex-col justify-end pb-8">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-xs text-white/60 mb-4">
+          <nav className="flex items-center gap-2 text-xs text-white/60 mb-3">
             <Link href="/shop" prefetch={false} className="hover:text-white transition-colors">Accueil</Link>
             <span>›</span>
             <Link href="/shop/categories" prefetch={false} className="hover:text-white transition-colors">Catégories</Link>
@@ -256,19 +164,19 @@ export default function CategoryPage({ params }: { params: any }) {
             <span className="text-white">{category?.name}</span>
           </nav>
 
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
               {/* Color accent bar */}
-              <div className="w-12 h-1 rounded-full mb-3" style={{ background: accentColor }} />
+              <div className="w-10 h-1 rounded-full mb-2" style={{ background: accentColor }} />
               <h1
-                className="text-3xl sm:text-5xl font-black text-white leading-tight"
+                className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-tight"
                 style={{ fontFamily: 'Outfit, sans-serif' }}
                 dir={language === 'ar' ? 'rtl' : 'ltr'}
               >
                 {language === 'ar' && category?.nameAr ? category.nameAr : category?.name}
               </h1>
               {(category?.description || category?.descriptionAr) && (
-                <p className="text-white/75 mt-2 max-w-xl text-sm sm:text-base leading-relaxed">
+                <p className="text-white/70 mt-1.5 max-w-xl text-sm leading-relaxed">
                   {language === 'ar' && category.descriptionAr ? category.descriptionAr : category.description}
                 </p>
               )}
@@ -277,36 +185,97 @@ export default function CategoryPage({ params }: { params: any }) {
               className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold text-white border border-white/30 backdrop-blur-sm self-start sm:self-auto"
               style={{ background: `${accentColor}40` }}
             >
-              {subCats.length > 0 ? (
-                <span>{subCats.length} sous-catégorie{subCats.length > 1 ? 's' : ''}</span>
-              ) : (
-                <>
-                  <ShoppingBag className="inline w-4 h-4 mr-1.5 mb-0.5" />
-                  {language === 'ar' ? `${sortedProducts.length} منتج` : `${sortedProducts.length} produit${sortedProducts.length !== 1 ? 's' : ''}`}
-                </>
-              )}
+              <ShoppingBag className="inline w-4 h-4 mr-1.5 mb-0.5" />
+              {language === 'ar' ? `${allCategoryProducts.length} منتج` : `${allCategoryProducts.length} produit${allCategoryProducts.length !== 1 ? 's' : ''}`}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ─── Toolbar ──────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-[#E8E4DF] shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <button
-            onClick={() => window.history.length > 1 ? window.history.back() : router.push('/shop/categories')}
-            aria-label="Retour"
-            title="Retour"
-            className="w-11 h-11 lg:w-10 lg:h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 cursor-pointer touch-manipulation"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+      {/* ─── Subcategory Filter Chips (sticky) ─────────────────────────── */}
+      {subCats.length > 0 && (
+        <div className="sticky top-0 z-20 bg-[#FBF8F3]/95 backdrop-blur-md border-b border-[#E8E4DF]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+              <button
+                onClick={() => setActiveSubCat(null)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer touch-manipulation ${
+                  !activeSubCat
+                    ? 'bg-[#1A1A1A] text-white shadow-md'
+                    : 'bg-white border border-[#E8E4DF] text-[#6B6B6B] hover:border-[#1A1A1A] hover:text-[#1A1A1A]'
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                {language === 'ar' ? 'الكل' : 'Tout'}
+              </button>
+              {subCats.map(cat => {
+                const count = allContextProducts.filter(p => p.categorySlug === cat.slug || p.categorySlug === cat.id).length;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveSubCat(activeSubCat === cat.slug ? null : cat.slug)}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer touch-manipulation ${
+                      activeSubCat === cat.slug
+                        ? 'bg-[#C8102E] text-white shadow-md shadow-[#C8102E]/25'
+                        : 'bg-white border border-[#E8E4DF] text-[#6B6B6B] hover:border-[#C8102E]/30 hover:text-[#C8102E]'
+                    }`}
+                  >
+                    {cat.icon && <span className="text-sm">{cat.icon}</span>}
+                    {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+                    {count > 0 && (
+                      <span className={`text-[10px] font-bold ${activeSubCat === cat.slug ? 'text-white/70' : 'text-gray-400'}`}>
+                        ({count})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Toolbar: Sort + Count ─────────────────────────────────────── */}
+      <div className={`${subCats.length === 0 ? 'sticky top-0 z-20' : ''} bg-white/90 backdrop-blur-md border-b border-[#E8E4DF] shadow-sm`}>
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400 hidden sm:inline">{language === 'ar' ? 'ترتيب حسب:' : 'Trier par :'}</span>
+            <button
+              onClick={() => window.history.length > 1 ? window.history.back() : router.push('/shop/categories')}
+              aria-label="Retour"
+              title="Retour"
+              className="w-10 h-10 flex items-center justify-center bg-white border border-[#E8E4DF] rounded-full hover:bg-[#FBF8F3] hover:border-[#C8102E] transition-all shadow-sm flex-shrink-0 text-[#1A1A1A] hover:text-[#C8102E] active:scale-90 cursor-pointer touch-manipulation"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <p className="text-sm text-[#999] hidden sm:block">
+              <strong className="text-[#1A1A1A]">{sortedProducts.length}</strong>{' '}
+              {language === 'ar' ? 'منتج' : `produit${sortedProducts.length !== 1 ? 's' : ''}`}
+              {activeSubCat && (
+                <span className="ml-1.5">
+                  {language === 'ar' ? 'في' : 'dans'}{' '}
+                  <span className="text-[#C8102E] font-medium">
+                    {subCats.find(c => c.slug === activeSubCat)?.name}
+                  </span>
+                  <button
+                    onClick={() => setActiveSubCat(null)}
+                    className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 hover:bg-[#C8102E] hover:text-white text-gray-500 transition-colors cursor-pointer"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              )}
+            </p>
+            {/* Mobile product count */}
+            <p className="text-xs text-[#999] sm:hidden">
+              <strong className="text-[#1A1A1A]">{sortedProducts.length}</strong> {language === 'ar' ? 'منتج' : 'produits'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400 hidden sm:block" />
             <select
               value={sort}
               onChange={e => setSort(e.target.value)}
-              className="text-sm border border-[#E8E4DF] rounded-lg px-3 py-1.5 bg-white focus:border-[#C8102E] outline-none font-medium"
+              className="text-sm border border-[#E8E4DF] rounded-lg px-3 py-1.5 bg-white focus:border-[#C8102E] outline-none font-medium cursor-pointer"
             >
               <option value="pertinence">{language === 'ar' ? 'الصلة' : 'Pertinence'}</option>
               <option value="prix-asc">{language === 'ar' ? 'السعر تصاعدي' : 'Prix croissant'}</option>
@@ -317,67 +286,67 @@ export default function CategoryPage({ params }: { params: any }) {
         </div>
       </div>
 
-      {/* ─── Products & Subcategories ───────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        {subCats.length > 0 && (
-          <>
-            {sortedProducts.length > 0 && (
-              <h2 className="text-lg font-bold text-[#1A1A1A] mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                {language === 'ar' ? 'الفئات الفرعية' : 'Sous-catégories'}
-              </h2>
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-              {subCats.map(cat => {
-                const count = allContextProducts.filter(p => p.categorySlug === cat.slug || p.categorySlug === cat.id).length;
-                const catAccentColor = cat.color || '#C8102E';
-                return (
-                  <Link
-                    key={cat.id}
-                    href={`/shop/categorie/${cat.slug}`}
-                    prefetch={false}
-                    className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col active:scale-95 touch-manipulation"
-                  >
-                    <div className="relative h-44 overflow-hidden flex-shrink-0">
-                      {cat.image ? (
-                        <img src={cat.image as string} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
-                          <span className="text-6xl opacity-50">{cat.icon || '📁'}</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: catAccentColor }} />
-                      {count > 0 && (
-                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold text-[#1A1A1A] bg-white/90 backdrop-blur-sm shadow-sm">
-                          {language === 'ar' ? `${count} منتج` : `${count} produit${count > 1 ? 's' : ''}`}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-5 flex-1 flex flex-col">
-                      <h2 className="font-bold text-[#1A1A1A] text-lg leading-tight group-hover:text-[#C8102E] transition-colors mb-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                        {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
-                      </h2>
-                      {cat.description && (
-                        <p className="text-gray-500 text-sm leading-relaxed line-clamp-2 flex-1">{cat.description}</p>
-                      )}
-                      <div className="mt-4 pt-3 border-t border-[#F0ECE8]">
-                        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: catAccentColor }}>{language === 'ar' ? 'استكشف ←' : 'Explorer →'}</span>
+      {/* ─── Subcategory Cards (when parent has subcats and no filter active) ── */}
+      {subCats.length > 0 && !activeSubCat && (
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 pt-8 pb-4">
+          <h2 className="text-lg font-bold text-[#1A1A1A] mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {language === 'ar' ? 'الفئات الفرعية' : 'Sous-catégories'}
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {subCats.map(cat => {
+              const count = allContextProducts.filter(p => p.categorySlug === cat.slug || p.categorySlug === cat.id).length;
+              const catAccentColor = cat.color || accentColor;
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/shop/categorie/${cat.slug}`}
+                  prefetch={false}
+                  className="group relative overflow-hidden rounded-2xl bg-white border border-[#E8E4DF] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col active:scale-[0.98] touch-manipulation"
+                >
+                  <div className="relative h-32 sm:h-44 overflow-hidden flex-shrink-0">
+                    {cat.image ? (
+                      <img src={cat.image as string} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
+                        <span className="text-4xl sm:text-6xl opacity-50">{cat.icon || '📁'}</span>
                       </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: catAccentColor }} />
+                    {count > 0 && (
+                      <span className="absolute top-2 right-2 sm:top-3 sm:right-3 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-bold text-[#1A1A1A] bg-white/90 backdrop-blur-sm shadow-sm">
+                        {language === 'ar' ? `${count} منتج` : `${count} produit${count > 1 ? 's' : ''}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-3 sm:p-5 flex-1 flex flex-col">
+                    <h2 className="font-bold text-[#1A1A1A] text-sm sm:text-lg leading-tight group-hover:text-[#C8102E] transition-colors mb-1 sm:mb-2 line-clamp-2" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+                    </h2>
+                    {cat.description && (
+                      <p className="text-gray-500 text-xs sm:text-sm leading-relaxed line-clamp-2 flex-1 hidden sm:block">{cat.description}</p>
+                    )}
+                    <div className="mt-2 sm:mt-4 pt-2 sm:pt-3 border-t border-[#F0ECE8]">
+                      <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide" style={{ color: catAccentColor }}>{language === 'ar' ? 'استكشف ←' : 'Explorer →'}</span>
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </>
-        )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Products Grid ─────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-5 sm:px-6 py-8">
         {sortedProducts.length > 0 ? (
           <>
-            {subCats.length > 0 && (
-              <h2 className="text-lg font-bold text-[#1A1A1A] mb-4" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                {language === 'ar' ? 'المنتجات' : 'Produits'}
+            {subCats.length > 0 && !activeSubCat && (
+              <h2 className="text-lg font-bold text-[#1A1A1A] mb-5" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                {language === 'ar' ? 'جميع المنتجات' : 'Tous les produits'}
               </h2>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
               {visibleProducts.map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -389,41 +358,50 @@ export default function CategoryPage({ params }: { params: any }) {
               </div>
             )}
           </>
-        ) : subCats.length === 0 ? (
+        ) : subCats.length === 0 || activeSubCat ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
               <Package className="w-8 h-8 text-gray-300" />
             </div>
             <h3 className="text-xl font-bold text-[#1A1A1A]" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              {language === 'ar' ? 'لا توجد منتجات بعد' : 'Aucun produit pour l’instant'}
+              {language === 'ar' ? 'لا توجد منتجات بعد' : 'Aucun produit pour l\'instant'}
             </h3>
             <p className="text-gray-400 text-sm">{language === 'ar' ? 'منتجات هذه الفئة ستتوفر قريباً.' : 'Les produits de cette catégorie arrivent bientôt.'}</p>
-            <Link
-              href="/shop/boutique"
-              prefetch={false}
-              className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm active:scale-95 touch-manipulation"
-            >
-              {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
-            </Link>
+            {activeSubCat ? (
+              <button
+                onClick={() => setActiveSubCat(null)}
+                className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm active:scale-95 touch-manipulation cursor-pointer"
+              >
+                {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
+              </button>
+            ) : (
+              <Link
+                href="/shop/boutique"
+                prefetch={false}
+                className="mt-2 px-6 py-3 bg-[#C8102E] text-white rounded-xl font-semibold hover:bg-[#a00d25] transition-colors text-sm active:scale-95 touch-manipulation"
+              >
+                {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
+              </Link>
+            )}
           </div>
         ) : null}
       </div>
 
       {/* ─── Related categories ────────────────────────────────────────────── */}
       <div className="bg-white border-t border-[#E8E4DF] py-12">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6">
           <h2
             className="text-xl font-bold text-[#1A1A1A] mb-6"
             style={{ fontFamily: 'Outfit, sans-serif' }}
           >
             {language === 'ar' ? 'فئات أخرى' : 'Autres catégories'}
           </h2>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {allContextCategories.filter(c => c.slug !== slug && !c.parentSlug).map(cat => (
               <Link
                 key={cat.id}
                 href={`/shop/categorie/${cat.slug}`}
-                className="px-4 py-2 rounded-xl border border-[#E8E4DF] text-sm font-medium text-gray-600 hover:border-[#C8102E] hover:text-[#C8102E] transition-all bg-white"
+                className="px-3 sm:px-4 py-2 rounded-xl border border-[#E8E4DF] text-xs sm:text-sm font-medium text-gray-600 hover:border-[#C8102E] hover:text-[#C8102E] transition-all bg-white"
               >
               {cat.icon} {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
             </Link>
@@ -431,6 +409,12 @@ export default function CategoryPage({ params }: { params: any }) {
         </div>
         </div>
       </div>
+
+      {/* ─── Scrollbar hide styles ──────────────────────────────────────── */}
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }
