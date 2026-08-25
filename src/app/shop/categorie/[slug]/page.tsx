@@ -387,26 +387,81 @@ export default function CategoryPage({ params }: { params: any }) {
         ) : null}
       </div>
 
-      {/* ─── Related categories ────────────────────────────────────────────── */}
-      <div className="bg-white border-t border-[#E8E4DF] py-12">
+      {/* ─── Related categories — horizontal scroll ────────────────────── */}
+      <div className="bg-white border-t border-[#E8E4DF] pt-10 pb-12">
         <div className="max-w-7xl mx-auto px-5 sm:px-6">
-          <h2
-            className="text-xl font-bold text-[#1A1A1A] mb-6"
-            style={{ fontFamily: 'Outfit, sans-serif' }}
-          >
-            {language === 'ar' ? 'فئات أخرى' : 'Autres catégories'}
-          </h2>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            {allContextCategories.filter(c => c.slug !== slug && !c.parentSlug).map(cat => (
-              <Link
-                key={cat.id}
-                href={`/shop/categorie/${cat.slug}`}
-                className="px-3 sm:px-4 py-2 rounded-xl border border-[#E8E4DF] text-xs sm:text-sm font-medium text-gray-600 hover:border-[#C8102E] hover:text-[#C8102E] transition-all bg-white"
-              >
-              {cat.icon} {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+          <div className="flex items-center justify-between mb-5">
+            <h2
+              className="text-lg sm:text-xl font-bold text-[#1A1A1A]"
+              style={{ fontFamily: 'Outfit, sans-serif' }}
+            >
+              {language === 'ar' ? 'تصفح فئات أخرى' : 'Explorer d\'autres catégories'}
+            </h2>
+            <Link
+              href="/shop/categories"
+              prefetch={false}
+              className="text-xs font-semibold text-[#C8102E] hover:text-[#a00d25] uppercase tracking-wider transition-colors hidden sm:block"
+            >
+              {language === 'ar' ? 'عرض الكل ←' : 'Voir tout →'}
             </Link>
-          ))}
+          </div>
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
+            {allContextCategories.filter(c => c.slug !== slug && !c.parentSlug).map(cat => {
+              const catColor = cat.color || '#C8102E';
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/shop/categorie/${cat.slug}`}
+                  prefetch={false}
+                  className="group flex-shrink-0 w-36 sm:w-44 snap-start rounded-2xl overflow-hidden bg-white border border-[#E8E4DF] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 touch-manipulation active:scale-95"
+                >
+                  <div className="relative h-24 sm:h-28 overflow-hidden">
+                    {(cat as any).image ? (
+                      <img src={(cat as any).image} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        style={{ background: `linear-gradient(135deg, ${catColor}25 0%, ${catColor}08 100%)` }}
+                      >
+                        <span className="text-3xl sm:text-4xl">{cat.icon || '🧵'}</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: catColor }} />
+                  </div>
+                  <div className="px-3 py-2.5">
+                    <p className="text-xs sm:text-sm font-semibold text-[#1A1A1A] leading-tight line-clamp-2 group-hover:text-[#C8102E] transition-colors" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                      {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
+
+        {/* CTA */}
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 mt-10 pt-8 border-t border-[#F0ECE8]">
+          <div className="text-center">
+            <p className="text-gray-500 text-sm mb-4">{language === 'ar' ? 'تبحث عن منتج معين؟' : 'Vous cherchez un produit spécifique ?'}</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/shop/boutique"
+                prefetch={false}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#C8102E] text-white font-semibold text-sm hover:bg-[#a00d25] transition-colors active:scale-95 touch-manipulation"
+              >
+                {language === 'ar' ? 'عرض جميع المنتجات' : 'Voir tous les produits'}
+              </Link>
+              <a
+                href="https://wa.me/212760998347"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[#E8E4DF] text-gray-700 font-semibold text-sm hover:border-green-400 hover:text-green-600 transition-all active:scale-95 touch-manipulation"
+              >
+                💬 {language === 'ar' ? 'اطلب عبر واتساب' : 'Commander sur WhatsApp'}
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
