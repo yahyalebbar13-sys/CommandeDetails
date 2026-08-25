@@ -60,7 +60,7 @@ function CategorySection({
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {displayed.map(product => (
           <ProductCard key={product.id} product={product} />
         ))}
@@ -289,7 +289,7 @@ function BoutiqueContent() {
         ) : isSearching ? (
           /* Flat grid when searching */
           <div className="pt-6">
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {filteredProducts.slice(0, 40).map(product => (
                 <ProductCard key={product.id} product={product} />
               ))}

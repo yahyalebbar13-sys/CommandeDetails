@@ -710,7 +710,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 {language === 'ar' ? 'عرض الكل →' : 'Voir tout →'}
               </Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {similar.map(p => <SimilarProductCard key={p.id} product={p} />)}
             </div>
           </div>
@@ -728,7 +728,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 {language === 'ar' ? 'تصفح الكل →' : 'Tout parcourir →'}
               </Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {discover.map(p => <SimilarProductCard key={p.id} product={p} />)}
             </div>
           </div>

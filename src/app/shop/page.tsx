@@ -130,7 +130,7 @@ export default function ShopPage() {
           </div>
 
           {/* Products grid — 2 cols mobile, 3 tablet, 4 desktop */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             {FEATURED_PRODUCTS.map((product) => (
               <ProductCard key={product.id} product={product} showAddToCart={true} />
             ))}
@@ -195,7 +195,7 @@ export default function ShopPage() {
             </div>
 
             {/* Products grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {NEW_PRODUCTS.map((product) => (
                 <ProductCard key={product.id} product={product} showAddToCart={true} />
               ))}
