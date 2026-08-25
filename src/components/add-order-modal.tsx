@@ -152,6 +152,12 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
   }, [isZipper, isSlider, formData.categoryId]);
 
+  const availableSizes = useMemo(() => {
+    if (!formData.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
+  }, [formData.categoryId, subCategories]);
+
   // Validation
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -413,6 +419,17 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
                 <div className="h-11 border border-teal-200 bg-teal-50 rounded-xl flex items-center px-3">
                   <span className="text-[10px] font-black text-teal-700 uppercase">VARIOUS (multi-tailles)</span>
                 </div>
+              ) : availableSizes.length > 0 ? (
+                <Select value={formData.size} onValueChange={v => setFormData((p: any) => ({ ...p, size: v }))}>
+                  <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue placeholder="Choisir la taille..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSizes.map((sz: string) => (
+                      <SelectItem key={sz} value={sz} className="font-bold uppercase">{sz}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : (
                 <Input
                   placeholder="No.5, 20cm..."
@@ -539,7 +556,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           )}
 
           {/* ── Section 3a: Tailles Multi ──────────────────────────────────── */}
-          <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} />
+          <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} availableSizes={availableSizes} />
 
           {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
           <ColorBreakdownInput

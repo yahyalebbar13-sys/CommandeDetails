@@ -5,6 +5,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Maximize, Plus, Trash2, ClipboardPaste, Hash, Package } from 'lucide-react';
 
 export interface SizeBreakdownRow {
@@ -17,6 +18,7 @@ export interface SizeBreakdownRow {
 interface SizeBreakdownInputProps {
   value: SizeBreakdownRow[] | null;
   onChange: (rows: SizeBreakdownRow[] | null, total: number) => void;
+  availableSizes?: string[];
 }
 
 function parsePastedSizes(raw: string): SizeBreakdownRow[] {
@@ -41,7 +43,7 @@ function parsePastedSizes(raw: string): SizeBreakdownRow[] {
   return rows;
 }
 
-export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInputProps) {
+export default function SizeBreakdownInput({ value, onChange, availableSizes }: SizeBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<SizeBreakdownRow[]>(value || []);
   const [pasteText, setPasteText] = useState('');
@@ -228,12 +230,25 @@ export default function SizeBreakdownInput({ value, onChange }: SizeBreakdownInp
                 {rows.map((row, i) => (
                   <div key={i} className="grid grid-cols-[1fr_90px_90px_36px] gap-0 items-center hover:bg-teal-50/30 transition-colors">
                     <div className="px-2 py-1 flex flex-col gap-1">
-                      <Input
-                        value={row.size}
-                        onChange={e => handleRowChange(i, 'size', e.target.value)}
-                        className="h-7 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
-                        placeholder="No.5..."
-                      />
+                      {availableSizes && availableSizes.length > 0 ? (
+                        <Select value={row.size} onValueChange={v => handleRowChange(i, 'size', v)}>
+                          <SelectTrigger className="h-7 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1">
+                            <SelectValue placeholder="Taille..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableSizes.map(sz => (
+                              <SelectItem key={sz} value={sz} className="font-bold uppercase text-[11px]">{sz}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={row.size}
+                          onChange={e => handleRowChange(i, 'size', e.target.value)}
+                          className="h-7 border-0 bg-transparent font-black text-[11px] text-stone-800 uppercase focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
+                          placeholder="No.5..."
+                        />
+                      )}
                       <Input
                         value={row.description || ''}
                         onChange={e => handleRowChange(i, 'description', e.target.value)}

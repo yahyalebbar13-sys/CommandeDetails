@@ -37,7 +37,9 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ShieldAlert,
-  Calculator
+  Calculator,
+  Plus,
+  Maximize
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
@@ -332,7 +334,9 @@ export default function CategoriesView({
     ticRate: '',
     tvaRate: '',
     defaultPcsPerCtn: '',
+    availableSizes: [] as string[],
   });
+  const [newSizeInput, setNewSizeInput] = useState('');
 
   useEffect(() => {
     if (currentCategoryObj && isCustomsModalOpen) {
@@ -344,7 +348,9 @@ export default function CategoriesView({
         ticRate: currentCategoryObj.ticRate ?? '',
         tvaRate: currentCategoryObj.tvaRate ?? '',
         defaultPcsPerCtn: currentCategoryObj.defaultPcsPerCtn ?? '',
+        availableSizes: Array.isArray(currentCategoryObj.availableSizes) ? currentCategoryObj.availableSizes : [],
       });
+      setNewSizeInput('');
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
@@ -359,6 +365,7 @@ export default function CategoriesView({
       ticRate: customsForm.ticRate === '' ? null : Number(customsForm.ticRate),
       tvaRate: customsForm.tvaRate === '' ? null : Number(customsForm.tvaRate),
       defaultPcsPerCtn: customsForm.defaultPcsPerCtn === '' ? null : Number(customsForm.defaultPcsPerCtn),
+      availableSizes: customsForm.availableSizes.length > 0 ? customsForm.availableSizes : null,
     });
     toast({ title: 'Données douanières mises à jour' });
     setIsCustomsModalOpen(false);
@@ -1553,6 +1560,75 @@ export default function CategoriesView({
                   <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Pièces par CTN/SAC (Par Défaut)</Label>
                   <Input type="number" step="1" placeholder="Ex: 50" className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600" value={customsForm.defaultPcsPerCtn} onChange={e => setCustomsForm(p => ({ ...p, defaultPcsPerCtn: e.target.value }))} />
                 </div>
+              </div>
+
+              {/* ── Tailles Fixes du Produit ──────────────────────────────── */}
+              <div className="border-t border-amber-100 pt-4 mt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 bg-teal-100 rounded-lg"><Maximize className="w-3.5 h-3.5 text-teal-600" /></div>
+                  <span className="text-[9px] font-black text-teal-700 uppercase tracking-[0.2em]">Tailles Fixes du Produit</span>
+                  {customsForm.availableSizes.length > 0 && (
+                    <span className="text-[8px] font-bold bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">{customsForm.availableSizes.length} tailles</span>
+                  )}
+                </div>
+
+                {/* Tailles existantes (chips) */}
+                {customsForm.availableSizes.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {customsForm.availableSizes.map((sz, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 border border-teal-200 rounded-lg text-[10px] font-black text-teal-800 uppercase">
+                        {sz}
+                        <button
+                          type="button"
+                          onClick={() => setCustomsForm(p => ({ ...p, availableSizes: p.availableSizes.filter((_, i) => i !== idx) }))}
+                          className="ml-0.5 p-0.5 rounded hover:bg-red-100 hover:text-red-500 transition-colors"
+                        >
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Ajout d'une nouvelle taille */}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ex: NO.5, 20CM..."
+                    className="h-9 text-[11px] font-bold border-teal-200 focus:ring-teal-500 flex-1 uppercase"
+                    value={newSizeInput}
+                    onChange={e => setNewSizeInput(e.target.value.toUpperCase())}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = newSizeInput.trim().toUpperCase();
+                        if (val && !customsForm.availableSizes.includes(val)) {
+                          setCustomsForm(p => ({ ...p, availableSizes: [...p.availableSizes, val] }));
+                          setNewSizeInput('');
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-3 border-teal-200 text-teal-600 hover:bg-teal-50 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                    onClick={() => {
+                      const val = newSizeInput.trim().toUpperCase();
+                      if (val && !customsForm.availableSizes.includes(val)) {
+                        setCustomsForm(p => ({ ...p, availableSizes: [...p.availableSizes, val] }));
+                        setNewSizeInput('');
+                      }
+                    }}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+                {customsForm.availableSizes.length === 0 && (
+                  <p className="text-[8px] font-bold text-stone-400 uppercase mt-2 italic">
+                    Aucune taille définie — le champ taille restera libre dans les commandes
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter className="p-6 bg-stone-50 gap-3">

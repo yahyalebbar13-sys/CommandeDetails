@@ -26,6 +26,7 @@ export type Category = {
   importDutyRate?: number;
   tpiRate?: number;
   tvaRate?: number;
+  availableSizes?: string[];
 };
 
 export type Order = {

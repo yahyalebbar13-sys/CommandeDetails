@@ -452,9 +452,23 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                             <div className="flex items-center gap-1">
                               {item.sizeBreakdown && item.sizeBreakdown.length > 0 ? (
                                 <div className="h-8 flex-1 flex items-center justify-center bg-teal-50 border border-teal-100 rounded text-[10px] font-black text-teal-700 uppercase tracking-widest cursor-pointer hover:bg-teal-100" onClick={() => setBreakdownItemIndex(idx)}>VARIOUS</div>
-                              ) : (
-                                <Input value={item.size} onChange={(e) => updateItem(idx, 'size', e.target.value)} className="h-8 w-full text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Taille" />
-                              )}
+                              ) : (() => {
+                                const catSizes = (subCategories || []).find((sc: any) => sc.name === item.categoryId)?.availableSizes;
+                                return catSizes && catSizes.length > 0 ? (
+                                  <Select value={item.size || ''} onValueChange={v => updateItem(idx, 'size', v)}>
+                                    <SelectTrigger className="h-8 w-full text-xs border-0 bg-stone-50 focus-visible:ring-0">
+                                      <SelectValue placeholder="Taille" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {catSizes.map((sz: string) => (
+                                        <SelectItem key={sz} value={sz} className="font-bold uppercase text-[11px]">{sz}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input value={item.size} onChange={(e) => updateItem(idx, 'size', e.target.value)} className="h-8 w-full text-xs border-0 bg-stone-50 focus-visible:ring-0" placeholder="Taille" />
+                                );
+                              })()}
                               <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0 text-stone-400 hover:text-teal-600 rounded-lg hover:bg-teal-50" onClick={() => setBreakdownItemIndex(idx)}>
                                 <Maximize className="w-3.5 h-3.5" />
                               </Button>
@@ -676,6 +690,7 @@ export default function BaseOrdersView({ articles, factures, subCategories, gene
                       }
                     }}
                     unit={currentItem.unitOfMeasure || 'pièces'}
+                    availableSizes={(subCategories || []).find((sc: any) => sc.name === currentItem.categoryId)?.availableSizes || []}
                   />
                 </div>
               </div>

@@ -232,6 +232,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
   }, [isZipper, isSlider, formData?.categoryId]);
 
+  const availableSizes = useMemo(() => {
+    if (!formData?.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
+  }, [formData?.categoryId, subCategories]);
+
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
     setIsSuggesting(true);
@@ -648,12 +654,25 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                 <Maximize className="w-3 h-3" /> Taille / Dimension
               </Label>
-              <Input
-                value={formData.size || ''}
-                onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))}
-                className="h-12 border-stone-200 font-bold rounded-xl"
-                placeholder="Ex: No.5, 20cm..."
-              />
+              {availableSizes.length > 0 ? (
+                <Select value={formData.size || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, size: v }))}>
+                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                    <SelectValue placeholder="Choisir la taille..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSizes.map((sz: string) => (
+                      <SelectItem key={sz} value={sz} className="font-bold uppercase">{sz}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={formData.size || ''}
+                  onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))}
+                  className="h-12 border-stone-200 font-bold rounded-xl"
+                  placeholder="Ex: No.5, 20cm..."
+                />
+              )}
             </div>
 
             {isZipper && (
@@ -925,6 +944,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   value={sizeBreakdown}
                   onChange={handleSizeBreakdownChange}
                   unit={formData.unitOfMeasure}
+                  availableSizes={availableSizes}
                 />
               </div>
               <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest">tat & Logistique</Label>
