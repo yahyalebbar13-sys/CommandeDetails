@@ -142,7 +142,7 @@ export default function ShopHeader() {
         }`}
       >
         {/* ── Desktop Collapsible Header Section ──────────────────────────── */}
-        <div className={`transition-all duration-200 ease-in-out origin-top overflow-hidden ${isScrolled ? 'lg:max-h-0 lg:opacity-0' : 'max-h-[500px] opacity-100'}`}>
+        <div className={`transition-all duration-200 ease-in-out origin-top ${isScrolled ? 'lg:max-h-0 lg:opacity-0 lg:overflow-hidden' : 'max-h-[500px] opacity-100'}`}>
           {/* ── Promo Banner ──────────────────────────────────────────────── */}
           <div
             className="text-white text-xs font-medium py-2 overflow-hidden select-none"
