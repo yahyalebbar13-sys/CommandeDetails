@@ -24,27 +24,16 @@ export default function ShopPage() {
       {/* SECTION 1: COMPACT HERO BANNER                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative h-[200px] sm:h-[240px] lg:h-[280px] overflow-hidden">
-        {/* Blurred background fill — hides empty space behind the contained image */}
-        <Image
-          src="/hero-banner.webp"
-          alt=""
-          fill
-          className="object-cover object-center blur-2xl scale-110 opacity-60"
-          aria-hidden="true"
-          quality={20}
-          sizes="100vw"
-        />
-        {/* Main image — full view, no crop */}
         <Image
           src="/hero-banner.webp"
           alt="LEBTEX mercerie"
           fill
-          className="object-contain object-right"
+          className="object-cover object-center"
           priority
           quality={85}
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F]/90 via-[#0F0F0F]/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0F0F0F]/80 via-[#0F0F0F]/50 to-transparent" />
         
         <div className="relative z-10 h-full flex items-center px-5 sm:px-8 lg:px-12">
           <div className="max-w-lg">
