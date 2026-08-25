@@ -23,7 +23,7 @@ export default function ShopPage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SECTION 1: COMPACT HERO BANNER                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative h-[280px] sm:h-[380px] lg:h-[500px] xl:h-[560px] overflow-hidden bg-[#0a0a0a]">
+      <section className="relative h-[280px] sm:h-[380px] lg:h-[55vh] overflow-hidden bg-[#0a0a0a]">
         <Image
           src="/hero-banner.webp"
           alt="LEBTEX mercerie"
