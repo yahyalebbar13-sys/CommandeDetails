@@ -82,9 +82,14 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             style={{ fontFamily: "'Inter', sans-serif", background: '#FBF8F3' }}
           >
             {/* Construction Banner */}
-            <div className="bg-[#C8102E] text-white text-center py-2.5 px-4 text-xs sm:text-sm font-bold shadow-sm relative flex items-center justify-center gap-2">
-              <span className="text-base">🚧</span>
-              Ce site est en cours de construction et n'est pas encore fonctionnel. Aucune commande ne sera traitée.
+            <div className="bg-[#1A1A1A] text-white text-center py-2.5 px-4 text-xs sm:text-sm font-medium relative flex items-center justify-center gap-2 z-[60]">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <span>🚧 Site en construction — Les commandes ne sont pas encore disponibles.</span>
+              <span className="hidden sm:inline text-white/50">|</span>
+              <span className="hidden sm:inline text-white/60" dir="rtl">الموقع تحت الإنشاء — الطلبات غير متاحة حالياً</span>
             </div>
             
             <ShopHeader />
