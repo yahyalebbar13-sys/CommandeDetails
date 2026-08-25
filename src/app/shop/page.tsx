@@ -28,7 +28,7 @@ export default function ShopPage() {
           src="/hero-banner.webp"
           alt="LEBTEX mercerie"
           fill
-          className="object-cover object-center scale-[0.85] lg:scale-100"
+          className="object-cover object-top scale-[0.85] lg:scale-100"
           priority
           quality={85}
           sizes="100vw"
