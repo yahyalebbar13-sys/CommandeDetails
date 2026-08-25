@@ -18,6 +18,7 @@ import {
 import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
+import SmartSearch from "@/components/shop/SmartSearch";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -170,30 +171,8 @@ export default function ShopHeader() {
               />
             </Link>
 
-            {/* ── Desktop Search Bar (Permanent) ────────────────────────── */}
-            <div className="hidden lg:flex flex-1 max-w-2xl mx-auto">
-              <form
-                onSubmit={handleSearchSubmit}
-                className="flex w-full items-center shadow-sm rounded-full overflow-hidden border border-gray-200 focus-within:border-[#C8102E] focus-within:ring-2 focus-within:ring-[#C8102E]/20 transition-all"
-              >
-                <div className="pl-4 text-gray-400">
-                  <Search className="w-5 h-5" />
-                </div>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher des produits, catégories..."
-                  className="w-full px-3 py-3 text-sm focus:outline-none bg-white text-gray-700"
-                />
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-[#C8102E] hover:bg-[#A30C24] text-white font-bold text-sm tracking-wider transition-colors"
-                >
-                  GO
-                </button>
-              </form>
-            </div>
+            {/* ── Desktop Smart Search Bar ────────────────────────── */}
+            <SmartSearch variant="desktop" />
 
             {/* ── Right Actions ─────────────────────────────────────────── */}
             <div className="flex items-center gap-1 sm:gap-2">
@@ -460,18 +439,7 @@ export default function ShopHeader() {
 
         {/* Mobile search */}
         <div className="px-5 py-4 border-b border-gray-100">
-          <form onSubmit={handleSearchSubmit}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('search_placeholder')}
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] bg-gray-50"
-              />
-            </div>
-          </form>
+          <SmartSearch variant="mobile" onNavigate={() => setIsMobileMenuOpen(false)} />
         </div>
 
         {/* Mobile nav links */}
