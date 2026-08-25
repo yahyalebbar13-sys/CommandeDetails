@@ -26,6 +26,7 @@ export interface ProductVariant {
   sku?: string;
   stock: number;
   price?: number; // Override price for this variant
+  stockArticleId?: string;
 }
 
 export interface ShopProduct {
@@ -88,6 +89,7 @@ export interface ShopProduct {
   compatibleAvec?: string;
   conditionnementUnitaire?: string;
   conditionnementGros?: string;
+  stockArticleId?: string;
 
   createdAt?: any;
   updatedAt?: any;

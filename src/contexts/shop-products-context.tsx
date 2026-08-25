@@ -64,6 +64,9 @@ export interface ProductOverride {
   compatibleAvec?: string;
   conditionnementUnitaire?: string;
   conditionnementGros?: string;
+  // Liaison stock réel
+  stockArticleId?: string;
+  stockArticleIds?: Record<string, string>; // variantId -> stock articleId
 }
 
 interface ShopProductsContextType {
@@ -145,6 +148,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
         ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
         ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
+        ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -207,6 +211,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.compatibleAvec && { compatibleAvec: ov.compatibleAvec }),
           ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
           ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
+          ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];

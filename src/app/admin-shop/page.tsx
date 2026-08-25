@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
@@ -14,6 +14,7 @@ import {
   query,
   orderBy,
   getDocs,
+  getDoc,
   doc,
   updateDoc,
   setDoc,
@@ -81,6 +82,8 @@ import {
   Upload,
   BookOpen,
   Link as LinkIcon,
+  Unlink,
+  Database,
   Eye,
   ToggleLeft,
   ToggleRight,
@@ -2061,6 +2064,13 @@ function ProduitsView() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [showNewProductModal, setShowNewProductModal] = useState(false);
 
+  // ── Liaison Stock Réel ──
+  const [stockArticles, setStockArticles] = useState<any[]>([]);
+  const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [stockItems, setStockItems] = useState<any[]>([]);
+  const [loadingStock, setLoadingStock] = useState(true);
+  const [stockSearchQuery, setStockSearchQuery] = useState('');
+
   const [allCategoriesLocal, setAllCategoriesLocal] = useState<Array<{ slug: string; name: string; icon?: string; priority?: number }>>(SHOP_CATEGORIES);
 
   // Load overrides + custom products + custom categories from Firestore
@@ -2093,6 +2103,153 @@ function ProduitsView() {
       setAllCategoriesLocal(uniqueCats);
     }).catch(() => {}).finally(() => setLoadingOverrides(false));
   }, []);
+
+  // ── Load Stock Articles & Movements for linking ──
+  useEffect(() => {
+    let unsubArticles: (() => void) | null = null;
+    let unsubMovements: (() => void) | null = null;
+    
+    const loadStock = async () => {
+      try {
+        const adminSnap = await getDoc(doc(db, 'publicConfig', 'adminConfig'));
+        if (!adminSnap.exists()) { setLoadingStock(false); return; }
+        const adminUid = adminSnap.data().adminUid;
+        if (!adminUid) { setLoadingStock(false); return; }
+        
+        // Real-time articles
+        unsubArticles = onSnapshot(collection(db, 'users', adminUid, 'articles'), (snap) => {
+          const arts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setStockArticles(arts);
+        });
+        
+        // Real-time movements
+        unsubMovements = onSnapshot(collection(db, 'users', adminUid, 'stockMovements'), (snap) => {
+          const movs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setStockMovements(movs);
+        });
+        
+        setLoadingStock(false);
+      } catch (err) {
+        console.error('Error loading stock for linking:', err);
+        setLoadingStock(false);
+      }
+    };
+    loadStock();
+    return () => {
+      unsubArticles?.();
+      unsubMovements?.();
+    };
+  }, []);
+
+  // ── Compute stock quantities ──
+  const computedStockItems = useMemo(() => {
+    if (stockArticles.length === 0) return [];
+    // Import and use computeStockItems from stock-app
+    // Inline simplified computation for admin-shop (no store filtering, use ALL)
+    return stockArticles
+      .filter(a => a.stockEntryDate || stockMovements.some((m: any) => m.articleId === a.id))
+      .map(a => {
+        const parts: string[] = [];
+        if (a.zipperType) parts.push(a.zipperType);
+        if (a.slider) parts.push(a.slider);
+        const productName = parts.length > 0 ? parts.join(' ') : (a.name || a.specs || a.categoryId || 'Produit');
+        
+        const artMovements = stockMovements.filter((m: any) => m.articleId === a.id);
+        // Filter out old arrivals
+        const RESET_DATE = '2026-07-06';
+        const filteredMov = artMovements.filter((m: any) => {
+          if (m.reason === 'ARRIVAGE' && m.date < RESET_DATE) return false;
+          return true;
+        });
+        
+        let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
+        for (const m of filteredMov) {
+          if (m.reason === 'TRANSFERT') continue; // Transfers cancel out in ALL mode
+          if (m.type === 'IN') mouvIN += m.quantity;
+          if (m.type === 'OUT') mouvOUT += m.quantity;
+          if (m.type === 'ADJUSTMENT') mouvADJ += m.quantity;
+        }
+        
+        // Initial qty: sum across all stores
+        let initialQty = 0;
+        if (a.initialQtyByStore) {
+          initialQty = Object.values(a.initialQtyByStore).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+        } else {
+          initialQty = Number(a.rolls || a.quantity || 0);
+        }
+        
+        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        
+        // Handle color/size variants
+        const colorBreakdown: any[] = Array.isArray(a.colorBreakdown) ? a.colorBreakdown : [];
+        const sizeBreakdown: any[] = Array.isArray(a.sizeBreakdown) ? a.sizeBreakdown : [];
+        
+        const variants: any[] = [];
+        if ((a.color === 'various' || a.color === 'Various') && colorBreakdown.length > 0) {
+          for (const row of colorBreakdown) {
+            const colorLabel = (row.colorCode || row.description || row.color || '').trim();
+            if (!colorLabel) continue;
+            let rowQty = 0;
+            if (row.initialQtyByStore) {
+              rowQty = Object.values(row.initialQtyByStore).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+            } else {
+              rowQty = Number(row.rolls || row.quantity || 0);
+            }
+            const colorMov = filteredMov.filter((m: any) => m.color?.toLowerCase() === colorLabel.toLowerCase());
+            let cIn = 0, cOut = 0, cAdj = 0;
+            for (const m of colorMov) {
+              if (m.reason === 'TRANSFERT') continue;
+              if (m.type === 'IN') cIn += m.quantity;
+              if (m.type === 'OUT') cOut += m.quantity;
+              if (m.type === 'ADJUSTMENT') cAdj += m.quantity;
+            }
+            variants.push({
+              variantId: `${a.id}__color__${colorLabel}`,
+              label: colorLabel,
+              type: 'color',
+              qty: Math.max(0, rowQty + cIn - cOut + cAdj),
+            });
+          }
+        }
+        if ((a.size === 'various' || a.size === 'Various') && sizeBreakdown.length > 0) {
+          for (const row of sizeBreakdown) {
+            const sizeLabel = (row.size || '').trim();
+            if (!sizeLabel) continue;
+            let rowQty = 0;
+            if (row.initialQtyByStore) {
+              rowQty = Object.values(row.initialQtyByStore).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
+            } else {
+              rowQty = Number(row.quantity || 0);
+            }
+            const sizeMov = filteredMov.filter((m: any) => m.size?.toLowerCase() === sizeLabel.toLowerCase());
+            let sIn = 0, sOut = 0, sAdj = 0;
+            for (const m of sizeMov) {
+              if (m.reason === 'TRANSFERT') continue;
+              if (m.type === 'IN') sIn += m.quantity;
+              if (m.type === 'OUT') sOut += m.quantity;
+              if (m.type === 'ADJUSTMENT') sAdj += m.quantity;
+            }
+            variants.push({
+              variantId: `${a.id}__size__${sizeLabel}`,
+              label: sizeLabel,
+              type: 'size',
+              qty: Math.max(0, rowQty + sIn - sOut + sAdj),
+            });
+          }
+        }
+        
+        return {
+          articleId: a.id,
+          productName,
+          categoryId: a.categoryId || '',
+          color: a.color,
+          size: a.size,
+          currentQty,
+          unitOfMeasure: a.unitOfMeasure || 'unité',
+          variants,
+        };
+      });
+  }, [stockArticles, stockMovements]);
 
   // Get merged product (hardcoded + override)
   const getMergedProduct = (p: ShopProduct): ShopProduct => {
@@ -2132,6 +2289,8 @@ function ProduitsView() {
       isPromo: merged.isPromo || false,
       inStock: merged.inStock,
       stockQty: merged.stockQty,
+      stockArticleId: (overrides[product.id] as any)?.stockArticleId || (merged as any).stockArticleId || '',
+      stockArticleIds: (overrides[product.id] as any)?.stockArticleIds || {},
       // Hyper Pro
       applications: merged.applications || '',
       avantages: merged.avantages || '',
@@ -2227,6 +2386,38 @@ function ProduitsView() {
       ['applications', 'avantages', 'conseilsEntretien', 'informationCommerciale', 'motsCles', 'typeProduit', 'matiereMailles', 'compositionRuban', 'couleur', 'largeurMaille', 'longueur', 'type', 'design', 'securite', 'resistance', 'compatibleAvec', 'conditionnementUnitaire', 'conditionnementGros'].forEach(k => {
         if ((editForm as any)[k] !== undefined) base[k] = (editForm as any)[k];
       });
+
+      // Liaison stock
+      if ((editForm as any).stockArticleId) base.stockArticleId = (editForm as any).stockArticleId;
+      if ((editForm as any).stockArticleIds && Object.keys((editForm as any).stockArticleIds).length > 0) {
+        base.stockArticleIds = (editForm as any).stockArticleIds;
+      }
+      
+      // Si lié au stock, calculer inStock et stockQty depuis le stock réel
+      if ((editForm as any).stockArticleId) {
+        const linkedItem = computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId);
+        if (linkedItem) {
+          base.inStock = linkedItem.currentQty > 0;
+          base.stockQty = linkedItem.currentQty;
+          // Also update variant stock from real stock variants
+          if (linkedItem.variants?.length > 0 && builtVariants.length > 0) {
+            const stockIds = (editForm as any).stockArticleIds || {};
+            for (const bv of builtVariants) {
+              const mappedStockVarId = stockIds[(bv as any).id];
+              if (mappedStockVarId) {
+                const stockVar = linkedItem.variants.find((sv: any) => sv.variantId === mappedStockVarId);
+                if (stockVar) {
+                  (bv as any).stock = stockVar.qty;
+                  (bv as any).inStock = stockVar.qty > 0;
+                }
+              }
+            }
+            base.variants = builtVariants;
+            base.inStock = builtVariants.some((v: any) => (v as any).stock > 0);
+            base.stockQty = builtVariants.reduce((s: number, v: any) => s + ((v as any).stock || 0), 0);
+          }
+        }
+      }
 
       await setDoc(doc(db, 'shop_product_overrides', productId), base, { merge: true });
       setOverrides(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), ...base } as any }));
@@ -2426,6 +2617,21 @@ Cette action est irréversible.`)) return;
                         {merged.isNew && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">✨ Nouveau</span>}
                         {merged.isPromo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">🏷️ Promo</span>}
                         {!merged.inStock && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">Rupture</span>}
+                        {(() => {
+                          const stockId = (overrides[product.id] as any)?.stockArticleId || (merged as any).stockArticleId;
+                          if (!stockId) return null;
+                          const linkedItem = computedStockItems.find((s: any) => s.articleId === stockId);
+                          return (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 ${
+                              linkedItem && linkedItem.currentQty > 0
+                                ? linkedItem.currentQty > 10 ? 'bg-cyan-500/15 text-cyan-400' : 'bg-amber-500/15 text-amber-400'
+                                : 'bg-red-500/15 text-red-400'
+                            }`}>
+                              <LinkIcon className="w-2.5 h-2.5" />
+                              {linkedItem ? `${linkedItem.currentQty} réel` : '⚠ Lié'}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -2633,7 +2839,173 @@ Cette action est irréversible.`)) return;
                     </div>
                   </div>
 
+                  {/* ─── Liaison Stock Réel ─── */}
+                  <div className="mt-5 pt-4 border-t border-cyan-500/20">
+                    <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <LinkIcon className="w-3.5 h-3.5" /> Liaison Stock Réel
+                    </p>
+                    
+                    {loadingStock ? (
+                      <div className="flex items-center gap-2 text-xs text-gray-400 py-3">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Chargement du stock...
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Article search & select */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Article stock lié</label>
+                          <input
+                            type="text"
+                            value={stockSearchQuery}
+                            onChange={e => setStockSearchQuery(e.target.value)}
+                            placeholder="🔍 Rechercher un article stock (nom, réf, couleur, catégorie)..."
+                            className="w-full px-3 py-2 rounded-xl bg-white/5 border border-cyan-500/20 text-white text-sm outline-none focus:border-cyan-500/50 placeholder-gray-600"
+                          />
+                          
+                          {/* Currently linked */}
+                          {(editForm as any).stockArticleId && (() => {
+                            const linked = computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId);
+                            return linked ? (
+                              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                                  <Package className="w-4 h-4 text-cyan-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-white font-semibold truncate">{linked.productName}</p>
+                                  <p className="text-[10px] text-gray-400">
+                                    {linked.categoryId} · {linked.color && linked.color !== 'various' ? linked.color + ' · ' : ''}
+                                    <span className={linked.currentQty > 10 ? 'text-emerald-400' : linked.currentQty > 0 ? 'text-amber-400' : 'text-red-400'}>
+                                      Stock: {linked.currentQty} {linked.unitOfMeasure}
+                                    </span>
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditForm(prev => ({ ...prev, stockArticleId: undefined, stockArticleIds: {} } as any))}
+                                  className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                                  title="Dissocier"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20">
+                                <AlertCircle className="w-4 h-4 text-red-400" />
+                                <span className="text-xs text-red-400">Article stock introuvable (ID: {(editForm as any).stockArticleId})</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditForm(prev => ({ ...prev, stockArticleId: undefined } as any))}
+                                  className="ml-auto text-[10px] text-red-400 hover:text-red-300"
+                                >
+                                  Dissocier
+                                </button>
+                              </div>
+                            );
+                          })()}
+                          
+                          {/* Stock articles dropdown */}
+                          {stockSearchQuery.trim().length > 0 && (
+                            <div className="max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-[#111] divide-y divide-white/5">
+                              {computedStockItems
+                                .filter((s: any) => {
+                                  const q = stockSearchQuery.toLowerCase();
+                                  return (
+                                    s.productName.toLowerCase().includes(q) ||
+                                    (s.categoryId || '').toLowerCase().includes(q) ||
+                                    (s.color || '').toLowerCase().includes(q) ||
+                                    s.articleId.toLowerCase().includes(q)
+                                  );
+                                })
+                                .slice(0, 15)
+                                .map((s: any) => (
+                                  <button
+                                    key={s.articleId}
+                                    type="button"
+                                    onClick={() => {
+                                      setEditForm(prev => ({ ...prev, stockArticleId: s.articleId } as any));
+                                      setStockSearchQuery('');
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 transition-colors ${
+                                      (editForm as any).stockArticleId === s.articleId ? 'bg-cyan-500/10' : ''
+                                    }`}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-white truncate">{s.productName}</p>
+                                      <p className="text-[10px] text-gray-500">
+                                        {s.categoryId}{s.color && s.color !== 'various' ? ` · ${s.color}` : ''}{s.size && s.size !== 'various' ? ` · ${s.size}` : ''}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <span className={`text-xs font-bold ${s.currentQty > 10 ? 'text-emerald-400' : s.currentQty > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                                        {s.currentQty}
+                                      </span>
+                                      <p className="text-[10px] text-gray-600">{s.unitOfMeasure}</p>
+                                    </div>
+                                    {s.variants?.length > 0 && (
+                                      <span className="text-[10px] text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
+                                        {s.variants.length} var.
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              {computedStockItems.filter((s: any) => {
+                                const q = stockSearchQuery.toLowerCase();
+                                return s.productName.toLowerCase().includes(q) || (s.categoryId || '').toLowerCase().includes(q) || (s.color || '').toLowerCase().includes(q) || s.articleId.toLowerCase().includes(q);
+                              }).length === 0 && (
+                                <p className="text-xs text-gray-500 px-3 py-3 text-center">Aucun article trouvé</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
+                        {/* Variant-level stock linking */}
+                        {(editForm as any).stockArticleId && (() => {
+                          const linked = computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId);
+                          if (!linked?.variants?.length || editVariants.length === 0) return null;
+                          return (
+                            <div className="space-y-2 mt-3">
+                              <p className="text-[10px] font-bold text-cyan-400/70 uppercase tracking-wider">Liaison variantes</p>
+                              {editVariants.map(ev => {
+                                const currentMapping = ((editForm as any).stockArticleIds || {})[ev.id];
+                                const mappedVariant = currentMapping ? linked.variants.find((sv: any) => sv.variantId === currentMapping) : null;
+                                return (
+                                  <div key={ev.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/5">
+                                    <div className="w-4 h-4 rounded-full flex-shrink-0 border border-white/20" style={{ background: ev.colorHex || '#888' }} />
+                                    <span className="text-xs text-gray-300 flex-shrink-0 min-w-0 truncate" style={{ maxWidth: 100 }}>
+                                      {ev.color || ev.size || 'Variante'}
+                                    </span>
+                                    <span className="text-gray-600 text-xs">→</span>
+                                    <select
+                                      value={currentMapping || ''}
+                                      onChange={e => {
+                                        const ids = { ...((editForm as any).stockArticleIds || {}) };
+                                        if (e.target.value) ids[ev.id] = e.target.value;
+                                        else delete ids[ev.id];
+                                        setEditForm(prev => ({ ...prev, stockArticleIds: ids } as any));
+                                      }}
+                                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-cyan-500/50 cursor-pointer"
+                                    >
+                                      <option value="">— Non lié —</option>
+                                      {linked.variants.map((sv: any) => (
+                                        <option key={sv.variantId} value={sv.variantId} style={{ background: '#1a1a1a' }}>
+                                          {sv.label} ({sv.qty} en stock)
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {mappedVariant && (
+                                      <span className={`text-[10px] font-bold flex-shrink-0 ${mappedVariant.qty > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {mappedVariant.qty}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
 
                   {/* ─── Détails Hyper Pro (Édition) ─── */}
                   <div className="mt-5 pt-4 border-t border-white/10">
