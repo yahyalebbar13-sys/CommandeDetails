@@ -19,7 +19,7 @@ export default function CategoryPage({ params }: { params: any }) {
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const { language } = useLanguage();
 
-  const { products: allContextProducts, categories: allContextCategories, isLoading } = useShopProducts();
+  const { products: allContextProducts, categories: allContextCategories, isLoading, getProductForCategory } = useShopProducts();
 
   // Find the category by slug OR by id (to handle old/broken slugs stored in Firestore)
   const category = allContextCategories.find(c => c.slug === slug || c.id === slug) ?? null;
@@ -351,9 +351,10 @@ export default function CategoryPage({ params }: { params: any }) {
               </h2>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-              {visibleProducts.map(product => (
-                <ProductCard key={product.id} product={product} />
-              ))}
+              {visibleProducts.map(product => {
+                const displayProduct = getProductForCategory(product, activeSubCat || canonicalSlug);
+                return <ProductCard key={product.id} product={displayProduct} />;
+              })}
             </div>
             {/* Infinite Scroll target */}
             {visibleCount < sortedProducts.length && (

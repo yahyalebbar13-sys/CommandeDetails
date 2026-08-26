@@ -29,6 +29,16 @@ export interface ProductVariant {
   stockArticleId?: string;
 }
 
+// Permet d'afficher un produit dans une autre catégorie avec un nom/description différent
+export interface CategoryAlias {
+  slug: string;               // Le slug de la catégorie cible
+  name?: string;              // Nom alternatif pour cette catégorie
+  nameAr?: string;            // Nom alternatif en arabe
+  shortDescription?: string;  // Description courte alternative
+  shortDescriptionAr?: string;
+  images?: string[];           // Images alternatives (optionnel)
+}
+
 export interface ShopProduct {
   id: string;
   slug: string;
@@ -40,7 +50,8 @@ export interface ShopProduct {
   description: string;
   descriptionAr?: string;
   categorySlug: string;
-  additionalCategorySlugs?: string[]; // Permet d'afficher le produit dans plusieurs catégories/sous-catégories
+  additionalCategorySlugs?: string[]; // Rétro-compatible, préférer categoryAliases
+  categoryAliases?: CategoryAlias[];  // Nom/description différents par catégorie
   categoryName?: string;
   categoryNameAr?: string;
   images: string[];

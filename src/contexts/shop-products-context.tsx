@@ -43,6 +43,7 @@ export interface ProductOverride {
   // Metadata additionnelle
   categorySlug?: string;
   additionalCategorySlugs?: string[];
+  categoryAliases?: import('@/lib/shop-types').CategoryAlias[];
   categoryName?: string;
   categoryNameAr?: string;
   hidden?: boolean;
@@ -76,6 +77,7 @@ interface ShopProductsContextType {
   isLoading: boolean;
   getProductById: (id: string) => ShopProduct | undefined;
   getProductsByCategory: (slug: string) => ShopProduct[];
+  getProductForCategory: (product: ShopProduct, categorySlug: string) => ShopProduct;
   getFeaturedProducts: (limit?: number) => ShopProduct[];
   getNewProducts: (limit?: number) => ShopProduct[];
   getPromoProducts: (limit?: number) => ShopProduct[];
@@ -195,6 +197,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.categoryName && { categoryName: ov.categoryName }),
           ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
           ...(ov.additionalCategorySlugs && { additionalCategorySlugs: ov.additionalCategorySlugs }),
+          ...(ov.categoryAliases && { categoryAliases: ov.categoryAliases }),
           ...(ov.applications && { applications: ov.applications }),
           ...(ov.avantages && { avantages: ov.avantages }),
           ...(ov.conseilsEntretien && { conseilsEntretien: ov.conseilsEntretien }),
@@ -266,8 +269,28 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     }));
   }, []);
 
+  // Helper: does this product belong to this category?
+  const productBelongsToCategory = useCallback((p: ShopProduct, slug: string) =>
+    p.categorySlug === slug || 
+    p.additionalCategorySlugs?.includes(slug) || 
+    p.categoryAliases?.some(a => a.slug === slug), []);
+
   const getProductById = useCallback((id: string) => products.find(p => p.id === id), [products]);
-  const getProductsByCategory = useCallback((slug: string) => products.filter(p => p.categorySlug === slug || p.additionalCategorySlugs?.includes(slug)), [products]);
+  const getProductsByCategory = useCallback((slug: string) => products.filter(p => productBelongsToCategory(p, slug)), [products, productBelongsToCategory]);
+  
+  // Returns a product with alias overrides applied for a specific category
+  const getProductForCategory = useCallback((product: ShopProduct, categorySlug: string): ShopProduct => {
+    const alias = product.categoryAliases?.find(a => a.slug === categorySlug);
+    if (!alias) return product;
+    return {
+      ...product,
+      ...(alias.name && { name: alias.name }),
+      ...(alias.nameAr && { nameAr: alias.nameAr }),
+      ...(alias.shortDescription && { shortDescription: alias.shortDescription }),
+      ...(alias.shortDescriptionAr && { shortDescriptionAr: alias.shortDescriptionAr }),
+      ...(alias.images && alias.images.length > 0 && { images: alias.images }),
+    };
+  }, []);
   const getFeaturedProducts = useCallback((limit = 8) => products.filter(p => p.isFeatured).slice(0, limit), [products]);
   const getNewProducts = useCallback((limit = 6) => products.filter(p => p.isNew).slice(0, limit), [products]);
   const getPromoProducts = useCallback((limit = 6) => products.filter(p => p.isPromo && p.comparePrice).slice(0, limit), [products]);
@@ -287,7 +310,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   return (
     <ShopProductsContext.Provider value={{
       products, categories: allCategories, isLoading, overrides,
-      getProductById, getProductsByCategory, getFeaturedProducts,
+      getProductById, getProductsByCategory, getProductForCategory, getFeaturedProducts,
       getNewProducts, getPromoProducts, getSimilarProducts, searchProducts,
       updateProduct,
     }}>
@@ -306,7 +329,12 @@ export function useShopProducts() {
       isLoading: false,
       overrides: {} as Record<string, ProductOverride>,
       getProductById: (id: string) => SHOP_PRODUCTS_DATA.find(p => p.id === id),
-      getProductsByCategory: (slug: string) => SHOP_PRODUCTS_DATA.filter(p => p.categorySlug === slug || p.additionalCategorySlugs?.includes(slug)),
+      getProductsByCategory: (slug: string) => SHOP_PRODUCTS_DATA.filter(p => p.categorySlug === slug || p.additionalCategorySlugs?.includes(slug) || p.categoryAliases?.some(a => a.slug === slug)),
+      getProductForCategory: (product: ShopProduct, categorySlug: string) => {
+        const alias = product.categoryAliases?.find(a => a.slug === categorySlug);
+        if (!alias) return product;
+        return { ...product, ...(alias.name && { name: alias.name }), ...(alias.nameAr && { nameAr: alias.nameAr }), ...(alias.shortDescription && { shortDescription: alias.shortDescription }) };
+      },
       getFeaturedProducts: (limit = 8) => SHOP_PRODUCTS_DATA.filter(p => p.isFeatured).slice(0, limit),
       getNewProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isNew).slice(0, limit),
       getPromoProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isPromo && p.comparePrice).slice(0, limit),
