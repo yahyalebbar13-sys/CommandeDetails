@@ -150,13 +150,18 @@ function BoutiqueContent() {
         if (c.parentSlug === cat.slug) childSlugs.add(c.slug);
       });
 
-      const catProducts = filteredProducts.filter(p => childSlugs.has(p.categorySlug));
-      if (catProducts.length > 0) {
+      const catProducts = filteredProducts.filter(p => 
+        childSlugs.has(p.categorySlug) || 
+        p.additionalCategorySlugs?.some(s => childSlugs.has(s))
+      );
+      // Deduplicate by product ID (a product might match via primary + additional)
+      const uniqueProducts = [...new Map(catProducts.map(p => [p.id, p])).values()];
+      if (uniqueProducts.length > 0) {
         catMap.set(cat.slug, {
           name: cat.name,
           icon: cat.icon,
           slug: cat.slug,
-          products: catProducts,
+          products: uniqueProducts,
         });
       }
     });

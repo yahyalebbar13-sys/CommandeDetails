@@ -42,6 +42,7 @@ export interface ProductOverride {
   packagingAr?: string;
   // Metadata additionnelle
   categorySlug?: string;
+  additionalCategorySlugs?: string[];
   categoryName?: string;
   categoryNameAr?: string;
   hidden?: boolean;
@@ -193,6 +194,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.packagingAr && { packagingAr: ov.packagingAr }),
           ...(ov.categoryName && { categoryName: ov.categoryName }),
           ...(ov.categoryNameAr && { categoryNameAr: ov.categoryNameAr }),
+          ...(ov.additionalCategorySlugs && { additionalCategorySlugs: ov.additionalCategorySlugs }),
           ...(ov.applications && { applications: ov.applications }),
           ...(ov.avantages && { avantages: ov.avantages }),
           ...(ov.conseilsEntretien && { conseilsEntretien: ov.conseilsEntretien }),
@@ -246,7 +248,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
     
     return combined.map(cat => {
       if (cat.image) return cat;
-      const firstProduct = products.find(p => p.categorySlug === cat.slug && p.images && p.images.length > 0);
+      const firstProduct = products.find(p => (p.categorySlug === cat.slug || p.additionalCategorySlugs?.includes(cat.slug)) && p.images && p.images.length > 0);
       if (firstProduct && firstProduct.images?.[0]) {
         return { ...cat, image: firstProduct.images[0] };
       }
@@ -265,12 +267,12 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const getProductById = useCallback((id: string) => products.find(p => p.id === id), [products]);
-  const getProductsByCategory = useCallback((slug: string) => products.filter(p => p.categorySlug === slug), [products]);
+  const getProductsByCategory = useCallback((slug: string) => products.filter(p => p.categorySlug === slug || p.additionalCategorySlugs?.includes(slug)), [products]);
   const getFeaturedProducts = useCallback((limit = 8) => products.filter(p => p.isFeatured).slice(0, limit), [products]);
   const getNewProducts = useCallback((limit = 6) => products.filter(p => p.isNew).slice(0, limit), [products]);
   const getPromoProducts = useCallback((limit = 6) => products.filter(p => p.isPromo && p.comparePrice).slice(0, limit), [products]);
   const getSimilarProducts = useCallback((product: ShopProduct, limit = 4) => 
-    products.filter(p => p.id !== product.id && p.categorySlug === product.categorySlug).slice(0, limit), [products]);
+    products.filter(p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))).slice(0, limit), [products]);
   const searchProducts = useCallback((query: string) => {
     if (!query.trim()) return products;
     const q = query.toLowerCase();
@@ -304,11 +306,11 @@ export function useShopProducts() {
       isLoading: false,
       overrides: {} as Record<string, ProductOverride>,
       getProductById: (id: string) => SHOP_PRODUCTS_DATA.find(p => p.id === id),
-      getProductsByCategory: (slug: string) => SHOP_PRODUCTS_DATA.filter(p => p.categorySlug === slug),
+      getProductsByCategory: (slug: string) => SHOP_PRODUCTS_DATA.filter(p => p.categorySlug === slug || p.additionalCategorySlugs?.includes(slug)),
       getFeaturedProducts: (limit = 8) => SHOP_PRODUCTS_DATA.filter(p => p.isFeatured).slice(0, limit),
       getNewProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isNew).slice(0, limit),
       getPromoProducts: (limit = 6) => SHOP_PRODUCTS_DATA.filter(p => p.isPromo && p.comparePrice).slice(0, limit),
-      getSimilarProducts: (product: ShopProduct, limit = 4) => SHOP_PRODUCTS_DATA.filter(p => p.id !== product.id && p.categorySlug === product.categorySlug).slice(0, limit),
+      getSimilarProducts: (product: ShopProduct, limit = 4) => SHOP_PRODUCTS_DATA.filter(p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))).slice(0, limit),
       searchProducts: (query: string) => {
         if (!query.trim()) return SHOP_PRODUCTS_DATA;
         const q = query.toLowerCase();

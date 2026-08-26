@@ -34,12 +34,16 @@ export default function CategoryPage({ params }: { params: any }) {
     ...subCats.map(c => c.id),
   ]);
   
+  // Helper: check if a product belongs to a given category slug
+  const productBelongsTo = (p: ShopProduct, slug: string) =>
+    p.categorySlug === slug || p.additionalCategorySlugs?.includes(slug);
+
   // All products in this category (including subcategories)
   const allCategoryProducts = useMemo(() => 
     allContextProducts.filter(p =>
-      p.categorySlug === canonicalSlug ||
-      p.categorySlug === categoryId ||
-      subCatIdentifiers.has(p.categorySlug)
+      productBelongsTo(p, canonicalSlug) ||
+      productBelongsTo(p, categoryId) ||
+      [...subCatIdentifiers].some(s => productBelongsTo(p, s))
     ),
     [allContextProducts, canonicalSlug, categoryId, subCatIdentifiers]
   );
@@ -49,7 +53,7 @@ export default function CategoryPage({ params }: { params: any }) {
     if (!activeSubCat) return allCategoryProducts;
     const activeSub = subCats.find(c => c.slug === activeSubCat);
     if (!activeSub) return allCategoryProducts;
-    return allCategoryProducts.filter(p => p.categorySlug === activeSub.slug || p.categorySlug === activeSub.id);
+    return allCategoryProducts.filter(p => productBelongsTo(p, activeSub.slug) || productBelongsTo(p, activeSub.id));
   }, [allCategoryProducts, activeSubCat, subCats]);
 
   const notFound = !isLoading && !category;

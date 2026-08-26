@@ -40,6 +40,7 @@ export interface ShopProduct {
   description: string;
   descriptionAr?: string;
   categorySlug: string;
+  additionalCategorySlugs?: string[]; // Permet d'afficher le produit dans plusieurs catégories/sous-catégories
   categoryName?: string;
   categoryNameAr?: string;
   images: string[];
