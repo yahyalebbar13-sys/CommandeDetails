@@ -2279,6 +2279,7 @@ function ProduitsView() {
       name: merged.name,
       catalogueName: merged.catalogueName || '',
       categorySlug: merged.categorySlug,
+      additionalCategorySlugs: merged.additionalCategorySlugs || [],
       shortDescription: merged.shortDescription || '',
       description: merged.description || '',
       price: merged.price,
@@ -2361,6 +2362,8 @@ function ProduitsView() {
         }
       }
       if (editForm.shortDescription !== undefined) base.shortDescription = editForm.shortDescription;
+      // Save additional categories
+      base.additionalCategorySlugs = editForm.additionalCategorySlugs || [];
       if (editForm.description !== undefined) base.description = editForm.description;
       if (editForm.price !== undefined) base.price = editForm.price;
       if (editForm.comparePrice !== undefined) base.comparePrice = editForm.comparePrice;
@@ -2681,6 +2684,35 @@ Cette action est irréversible.`)) return;
                           return elements;
                         })()}
                       </select>
+                      
+                      {/* Additional categories (multi-category) */}
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-3 block">Catégories supplémentaires <span className="text-gray-600 normal-case">(apparaît aussi dans)</span></label>
+                      <div className="max-h-32 overflow-y-auto rounded-xl bg-[#111] border border-white/10 p-2 space-y-1 mt-1">
+                        {(allCategoriesLocal as any[])
+                          .filter((c: any) => c.slug !== editForm.categorySlug)
+                          .map((c: any) => {
+                            const isChecked = (editForm.additionalCategorySlugs || []).includes(c.slug);
+                            return (
+                              <label key={c.slug} className={`flex items-center gap-2 px-2 py-1 rounded-lg cursor-pointer text-xs transition-colors ${isChecked ? 'bg-[#C8102E]/20 text-white' : 'text-gray-400 hover:bg-white/5'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    setEditForm(prev => {
+                                      const current = prev.additionalCategorySlugs || [];
+                                      const updated = isChecked
+                                        ? current.filter((s: string) => s !== c.slug)
+                                        : [...current, c.slug];
+                                      return { ...prev, additionalCategorySlugs: updated };
+                                    });
+                                  }}
+                                  className="accent-[#C8102E] w-3.5 h-3.5"
+                                />
+                                <span>{c.parentSlug ? '↳ ' : ''}{c.icon || ''} {c.name}</span>
+                              </label>
+                            );
+                          })}
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description courte</label>
