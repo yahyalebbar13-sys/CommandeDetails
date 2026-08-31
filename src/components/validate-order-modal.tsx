@@ -140,8 +140,13 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
 
     const hasBreakdown = Array.isArray(order.colorBreakdown) && order.colorBreakdown.length > 1;
 
+    // Si le breakdown n'a qu'une seule couleur, on normalise : la couleur = le code, pas "various"
+    const effectiveColor = (Array.isArray(order.colorBreakdown) && order.colorBreakdown.length === 1)
+      ? order.colorBreakdown[0].colorCode
+      : order.color;
+
     let notificationQuantity = order.quantity;
-    let notificationColor = order.color;
+    let notificationColor = effectiveColor;
     let notificationColorBreakdown = order.colorBreakdown;
 
     // Chercher si l'article existe déjà dans ce conteneur pour les fusionner
@@ -282,12 +287,13 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
             arrivalDate: formData.arrivalDate,
             validatedAt: serverTimestamp(),
             quantity: qty,
+            color: effectiveColor,
             colorBreakdown: null,
           }, { merge: true });
         }
 
         // Original rduit
-        updateDocumentNonBlocking(docRef, { quantity: origQty - qty, originalOrderId: originalOrderId });
+        updateDocumentNonBlocking(docRef, { quantity: origQty - qty, originalOrderId: originalOrderId, color: effectiveColor });
       }
     } else {
       //  NORMAL (Toute la commande) 
@@ -295,7 +301,8 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
         factureId: formData.factureId,
         status: 'SHIPPED',
         arrivalDate: formData.arrivalDate,
-        validatedAt: serverTimestamp()
+        validatedAt: serverTimestamp(),
+        ...(effectiveColor !== order.color ? { color: effectiveColor } : {}),
       });
     }
 
