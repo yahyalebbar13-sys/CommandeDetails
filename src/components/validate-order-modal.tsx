@@ -5,13 +5,14 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { sendStatusNotification } from '@/lib/send-status-notification';
-import { Ship, CalendarDays, CheckCircle2, Loader2, Scissors, Package } from 'lucide-react';
+import { Ship, CalendarDays, CheckCircle2, Loader2, Scissors, Package, ClipboardPaste } from 'lucide-react';
 
 interface ValidateOrderModalProps {
   open: boolean;
@@ -36,6 +37,74 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
   const [splitMode, setSplitMode] = useState(false);
   const [splitColorQtys, setSplitColorQtys] = useState<Record<string, number>>({});
   const [splitQty, setSplitQty] = useState<number>(0);
+  const [pasteText, setPasteText] = useState<string>('');
+  const [pasteResult, setPasteResult] = useState<{ matched: number; unmatched: string[] } | null>(null);
+
+  // Parse a pasted table of colors + quantities (from Excel, Google Sheets, etc.)
+  // Accepted formats per line: "COLOR<tab>QTY", "COLOR;QTY", "COLOR QTY" (multiple spaces)
+  const handlePasteTable = (text: string) => {
+    setPasteText(text);
+    if (!text.trim() || !Array.isArray(order?.colorBreakdown)) {
+      setPasteResult(null);
+      return;
+    }
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const newQtys: Record<string, number> = {};
+    const unmatched: string[] = [];
+    let matched = 0;
+
+    // Build a lookup map: normalized colorCode -> original colorCode
+    const colorMap: Record<string, string> = {};
+    for (const row of order.colorBreakdown) {
+      const code = (row.colorCode || '').trim();
+      colorMap[code.toUpperCase()] = code;
+      // Also index without spaces/dashes for fuzzy matching
+      colorMap[code.toUpperCase().replace(/[\s\-_]/g, '')] = code;
+    }
+
+    for (const line of lines) {
+      // Split by tab, semicolon, or 2+ spaces
+      const parts = line.split(/\t|;|\s{2,}/).map(p => p.trim()).filter(Boolean);
+      if (parts.length < 2) {
+        // Try: last token is a number, everything before is the color
+        const lastToken = line.trim().split(/\s+/).pop() || '';
+        const num = Number(lastToken.replace(/[,\s]/g, ''));
+        if (!isNaN(num) && num > 0) {
+          const colorPart = line.trim().slice(0, line.trim().length - lastToken.length).trim();
+          if (colorPart) {
+            parts[0] = colorPart;
+            parts[1] = String(num);
+          }
+        }
+      }
+
+      if (parts.length >= 2) {
+        const rawColor = parts[0].trim().toUpperCase();
+        const rawQty = Number(parts[parts.length - 1].replace(/[,\s]/g, ''));
+
+        if (isNaN(rawQty) || rawQty <= 0) {
+          unmatched.push(parts[0]);
+          continue;
+        }
+
+        // Try exact match first, then fuzzy
+        const matchedCode = colorMap[rawColor] || colorMap[rawColor.replace(/[\s\-_]/g, '')];
+        if (matchedCode) {
+          const maxQty = Number(order.colorBreakdown.find((r: any) => r.colorCode === matchedCode)?.rolls || 0);
+          newQtys[matchedCode] = Math.min(rawQty, maxQty);
+          matched++;
+        } else {
+          unmatched.push(parts[0]);
+        }
+      }
+    }
+
+    if (matched > 0) {
+      setSplitColorQtys(prev => ({ ...prev, ...newQtys }));
+    }
+    setPasteResult({ matched, unmatched });
+  };
 
   useEffect(() => {
     if (open) {
@@ -44,6 +113,8 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
       setSplitMode(false);
       setSplitColorQtys({});
       setSplitQty(0);
+      setPasteText('');
+      setPasteResult(null);
     }
   }, [open]);
 
@@ -340,6 +411,50 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
             {Array.isArray(order.colorBreakdown) && order.colorBreakdown.length > 1 ? (
               <div className="space-y-2">
                 <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest">Saisissez la quantit  expdier par couleur :</p>
+
+                {/* ── Coller un tableau de couleurs ── */}
+                <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setPasteText(prev => prev === '' ? ' ' : '')}
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-orange-50 transition-colors text-left"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5 text-orange-500" />
+                    <span className="text-[9px] font-black text-orange-600 uppercase tracking-widest">Coller un tableau (Excel / Sheets)</span>
+                  </button>
+                  {pasteText !== '' && (
+                    <div className="px-3 pb-3 space-y-2">
+                      <Textarea
+                        placeholder={"Collez ici votre tableau :\nROUGE\t50\nBLEU\t100\nVERT\t75"}
+                        value={pasteText === ' ' ? '' : pasteText}
+                        onChange={e => handlePasteTable(e.target.value)}
+                        onPaste={e => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData('text');
+                          handlePasteTable(pasted);
+                        }}
+                        rows={4}
+                        className="text-[11px] font-mono border-orange-200 bg-orange-50/50 resize-none"
+                      />
+                      {pasteResult && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {pasteResult.matched > 0 && (
+                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {pasteResult.matched} couleur{pasteResult.matched > 1 ? 's' : ''} remplie{pasteResult.matched > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {pasteResult.unmatched.length > 0 && (
+                            <span className="text-[9px] font-bold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                              ⚠ Non trouvé{pasteResult.unmatched.length > 1 ? 's' : ''} : {pasteResult.unmatched.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-1.5">
                   {order.colorBreakdown.map((row: any) => {
                     const rowMax = Number(row.rolls) || 0;
