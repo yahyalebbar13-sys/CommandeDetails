@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Ship, Clock, Pencil, Trash2, Box, Settings2, MousePointer2 } from 'lucide-react';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface TransitOrdersViewProps {
@@ -20,6 +21,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
   const now = new Date();
 
   const transitOrders = useMemo(() => {
@@ -57,11 +59,7 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
 
   const handleDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
-    if (window.confirm(`Supprimer définitivement l'article en transit "${name}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
-      deleteDocumentNonBlocking(docRef);
-      toast({ title: "Article supprimé", description: name });
-    }
+    setDeleteConfirm({ open: true, id, name });
   };
 
   return (
@@ -189,6 +187,28 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
           </Table>
         </CardContent>
       </Card>
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: "Article supprimé", description: deleteConfirm.name });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

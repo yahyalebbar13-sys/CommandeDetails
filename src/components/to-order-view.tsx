@@ -5,12 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  ListTodo, Trash2, ArrowRight, Pencil, Settings2, MousePointer2,
-  Flame, AlertTriangle, CheckSquare, MessageSquareWarning, Send,
-  ChevronDown, Package, X, Clock, CheckCircle2, Anchor, ChevronRight,
-  Container, FileText, Check, UserCircle2
-} from 'lucide-react';
+import { AlertCircle, AlertTriangle, Anchor, ArrowRight, ArrowRightLeft, Bell, BellRing, Calculator, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Clock, Container, Copy, CopyPlus, DollarSign, ExclamationTriangleIcon, Factory, FileQuestion, FileText, FileWarning, Filter, HandCoins, ListTodo, MessageCircleWarning, MessageSquareWarning, Package, Pencil, Plus, Search, Send, Tag, Trash2, UserCircle2, X } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -148,11 +144,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   // ── Handlers ─────────────────────────────────────────────────────────
   const handleActionDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
-    if (window.confirm(`Supprimer ce rappel pour "${name}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
-      deleteDocumentNonBlocking(docRef);
-      toast({ title: "Rappel supprimé", description: name });
-    }
+    setDeleteConfirm({ open: true, id, name, actionType: 'deleteToOrder' });
   };
 
   const handleSubmitReclamation = () => {
@@ -192,11 +184,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
 
   const handleDeleteReclamation = (articleId: string, articleName: string) => {
     if (!user || !firestore) return;
-    if (window.confirm(`Supprimer la réclamation pour "${articleName}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-      updateDocumentNonBlocking(docRef, { reclamation: '', reclamationDate: null, reclamationStatus: null, reclamationFactureId: null, reclamationFactureLabel: null });
-      toast({ title: "Réclamation supprimée", description: articleName });
-    }
+    setDeleteConfirm({ open: true, id: articleId, name: articleName, actionType: 'deleteReclamation' });
   };
 
   const handleCloseReclamation = (articleId: string, articleName: string) => {
@@ -328,6 +316,8 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
   const pureNormalArticles   = useMemo(() => normalArticles.filter(o => !(o.isPreorder && o.clientName)), [normalArticles]);
 
   // ── Onglet actif dans la section Besoins ────────────────────────────
+  const [activeTab, setActiveTab] = useState<'reminders' | 'reclamations' | 'completed_reclamations'>('reminders');
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string; actionType?: string}>({open: false});
   const [besoinTab, setBesoinTab] = useState<'mine' | 'clients'>('mine');
   const activeBesoinArticles = besoinTab === 'mine' ? pureNormalArticles : clientNormalArticles;
   return (
@@ -1058,6 +1048,32 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
           </div>
         </div>
       )}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.actionType === 'deleteToOrder' && deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: "Rappel supprimé", description: deleteConfirm.name });
+              } else if (deleteConfirm.actionType === 'deleteReclamation' && deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
+                updateDocumentNonBlocking(docRef, { reclamation: '', reclamationDate: null, reclamationStatus: null, reclamationFactureId: null, reclamationFactureLabel: null });
+                toast({ title: "Réclamation supprimée", description: deleteConfirm.name });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
