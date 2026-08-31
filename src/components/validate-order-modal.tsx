@@ -153,9 +153,9 @@ export default function ValidateOrderModal({ open, onOpenChange, order, factures
     const originalOrderId = order.originalOrderId || order.id;
 
     const existingMergeTarget = existingArticlesInFacture.find((a: any) => 
-      (a.originalOrderId === originalOrderId) || 
-      (a.id === originalOrderId) || 
-      (a.name === order.name && a.categoryId === order.categoryId && a.clientName === order.clientName && a.supplierId === order.supplierId)
+      (a.originalOrderId === originalOrderId && Number(a.purchasePricePerUnit || 0) === Number(order.purchasePricePerUnit || 0)) || 
+      (a.id === originalOrderId && Number(a.purchasePricePerUnit || 0) === Number(order.purchasePricePerUnit || 0)) || 
+      (a.name === order.name && a.categoryId === order.categoryId && a.clientName === order.clientName && a.supplierId === order.supplierId && Number(a.purchasePricePerUnit || 0) === Number(order.purchasePricePerUnit || 0))
     );
 
     if (splitMode) {
