@@ -1790,11 +1790,11 @@ export default function CategoriesView({
                   </div>
                   {customsForm.availableGsm.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {customsForm.availableGsm.sort((a, b) => a - b).map((g, idx) => (
+                      {[...customsForm.availableGsm].sort((a, b) => a - b).map((g, idx) => (
                         <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">
                           {g} g/m²
                           <button type="button" className="text-violet-400 hover:text-red-500 transition-colors"
-                            onClick={() => setCustomsForm(p => ({ ...p, availableGsm: p.availableGsm.filter((_, i) => i !== idx) }))}>×</button>
+                            onClick={() => setCustomsForm(p => ({ ...p, availableGsm: p.availableGsm.filter(x => x !== g) }))}>×</button>
                         </span>
                       ))}
                     </div>
@@ -1821,11 +1821,11 @@ export default function CategoriesView({
                   </div>
                   {customsForm.availableWidths.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {customsForm.availableWidths.sort((a, b) => a - b).map((w, idx) => (
+                      {[...customsForm.availableWidths].sort((a, b) => a - b).map((w, idx) => (
                         <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">
                           {w} cm
                           <button type="button" className="text-blue-400 hover:text-red-500 transition-colors"
-                            onClick={() => setCustomsForm(p => ({ ...p, availableWidths: p.availableWidths.filter((_, i) => i !== idx) }))}>×</button>
+                            onClick={() => setCustomsForm(p => ({ ...p, availableWidths: p.availableWidths.filter(x => x !== w) }))}>×</button>
                         </span>
                       ))}
                     </div>
