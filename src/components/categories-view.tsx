@@ -639,12 +639,19 @@ export default function CategoriesView({
       Array.isArray(currentCategoryObj?.sizeFilter) && currentCategoryObj.sizeFilter.length > 0
         ? currentCategoryObj.sizeFilter : null;
     
-    // ── Évolution prix par TAILLE uniquement ──
+    // ── Évolution prix par QUALITÉ (Fabric) ou TAILLE (autres) ──
     const sizesSet = new Set<string>();
     currentArticles.forEach(a => {
       if (allowedSizes && !allowedSizes.includes(a.size)) return;
-      const sizeKey = (a.size && a.size !== 'various') ? a.size.toUpperCase() : null;
-      if (sizeKey) sizesSet.add(sizeKey);
+      if (isFabricCat) {
+        // Group by GSM + width
+        const gsm = a.gsm ? `${a.gsm}gsm` : null;
+        const width = a.fabricWidth ? `${a.fabricWidth}cm` : null;
+        if (gsm || width) sizesSet.add([gsm, width].filter(Boolean).join(' · '));
+      } else {
+        const sizeKey = (a.size && a.size !== 'various') ? a.size.toUpperCase() : null;
+        if (sizeKey) sizesSet.add(sizeKey);
+      }
     });
     const uniqueProducts = Array.from(sizesSet).sort();
 
@@ -655,12 +662,19 @@ export default function CategoriesView({
 
       if (allowedSizes && !allowedSizes.includes(a.size)) return;
 
-      const sizeKey = (a.size && a.size !== 'various') ? a.size.toUpperCase() : null;
-      if (!sizeKey) return;
+      let key: string | null = null;
+      if (isFabricCat) {
+        const gsm = a.gsm ? `${a.gsm}gsm` : null;
+        const width = a.fabricWidth ? `${a.fabricWidth}cm` : null;
+        if (gsm || width) key = [gsm, width].filter(Boolean).join(' · ');
+      } else {
+        key = (a.size && a.size !== 'various') ? a.size.toUpperCase() : null;
+      }
+      if (!key) return;
 
       if (!dateGroups[date]) dateGroups[date] = { date };
       
-      dateGroups[date][sizeKey] = Number(a.purchasePricePerUnit) || 0;
+      dateGroups[date][key] = Number(a.purchasePricePerUnit) || 0;
     });
 
     const priceData = Object.values(dateGroups).sort((a, b) => a.date.localeCompare(b.date));
@@ -1480,7 +1494,7 @@ export default function CategoriesView({
             <div className="h-1.5 w-full bg-blue-500" />
             <CardHeader className="py-4 border-b border-stone-50">
               <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                <TrendingUp className="w-3 h-3 text-blue-500" /> Évolution Prix par Taille ($)
+                <TrendingUp className="w-3 h-3 text-blue-500" /> {isFabricCat ? 'Évolution Prix par Qualité ($)' : 'Évolution Prix par Taille ($)'}
               </CardTitle>
             </CardHeader>
             <CardContent className="h-[280px] p-4">

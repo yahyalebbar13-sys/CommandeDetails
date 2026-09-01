@@ -585,11 +585,51 @@ export function AddOrderForm({
           )}
 
           {/* ── Fabric extra fields ── */}
-          {isFabric && (
+          {isFabric && (() => {
+            // Build unique qualities from past articles with same categoryId
+            const existingQualities: { label: string; gsm: number; fabricWidth: number; rollLength: number; rollLengthUnit: string; packagingPerBag: number }[] = [];
+            const seenKeys = new Set<string>();
+            (allArticles || []).forEach((a: any) => {
+              if (a.categoryId !== formData.categoryId) return;
+              if (!a.gsm && !a.fabricWidth) return;
+              const key = `${a.gsm || 0}_${a.fabricWidth || 0}_${a.rollLength || 0}_${a.rollLengthUnit || 'm'}`;
+              if (seenKeys.has(key)) return;
+              seenKeys.add(key);
+              existingQualities.push({
+                label: [a.gsm ? `${a.gsm}gsm` : null, a.fabricWidth ? `${a.fabricWidth}cm` : null, a.rollLength ? `${a.rollLength}${a.rollLengthUnit || 'm'}/rlx` : null, a.packagingPerBag ? `${a.packagingPerBag}rlx/sac` : null].filter(Boolean).join(' · '),
+                gsm: a.gsm || 0,
+                fabricWidth: a.fabricWidth || 0,
+                rollLength: a.rollLength || 0,
+                rollLengthUnit: a.rollLengthUnit || 'm',
+                packagingPerBag: a.packagingPerBag || 0,
+              });
+            });
+
+            return (
             <div className="space-y-3 p-4 rounded-2xl bg-violet-50/50 border border-violet-100">
               <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
                 <Maximize className="w-3 h-3" /> Spécifications Fabric
               </p>
+
+              {/* Quick quality selector */}
+              {existingQualities.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">⚡ Qualité existante</Label>
+                  <Select onValueChange={v => {
+                    const q = existingQualities[Number(v)];
+                    if (q) setFormData((p: any) => ({ ...p, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit, packagingPerBag: q.packagingPerBag || '' }));
+                  }}>
+                    <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
+                      <SelectValue placeholder="Choisir une qualité existante..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {existingQualities.map((q, i) => (
+                        <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 {/* GSM */}
                 <div className="space-y-1.5">
@@ -650,7 +690,7 @@ export function AddOrderForm({
                 </div>
               </div>
             </div>
-          )}
+          ); })()}
 
           {/* Specs / Notes */}
           <div className="space-y-1.5">
