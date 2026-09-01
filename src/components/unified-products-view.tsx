@@ -1,222 +1,301 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Search, Link as LinkIcon, Unlink, Save, Plus, Loader2,
-  AlertTriangle, CheckCircle2, Eye, Package, Globe, Archive,
-  ChevronDown, ChevronRight, X, Pencil, Download, RefreshCw,
-  ArrowUpDown, Filter, Tag
+  Search, Package, ChevronDown, ChevronRight, X,
+  DollarSign, MapPin, Truck, Calendar, Tag, Boxes,
+  Globe, Archive, ShoppingCart, Filter
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
-import type { ProductMaster, LinkStatus } from '@/lib/product-master-types';
-import { getProductMasterLinkStatus, getProductMasterDisplayName } from '@/lib/product-master-types';
-import {
-  useProductMasters,
-  useEnrichedProductMasters,
-  saveProductMaster,
-  updateProductMasterFields,
-  deleteProductMaster,
-  linkGestionArticle,
-  unlinkGestionArticle,
-  linkShopProduct,
-  unlinkShopProduct,
-  batchCreateFromGestionArticles,
-  buildMasterFromGestionArticle,
-  findAutoMatches,
-} from '@/lib/product-master-service';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type SortField = 'nameEN' | 'nameFR' | 'nameStock' | 'sellingPrice' | 'currentStockQty' | 'status';
-type SortDir = 'asc' | 'desc';
-type FilterLink = 'all' | 'fully_linked' | 'partial' | 'unlinked';
+import { Button } from '@/components/ui/button';
 
 interface UnifiedProductsViewProps {
   articles: any[];
   factures: any[];
   subCategories: any[];
   generalCategories: any[];
-  shopProducts?: any[];
-  shopCategories?: any[];
 }
 
-// ── Status Badge ──────────────────────────────────────────────────────────────
+// ── Fiche Produit Détaillée ───────────────────────────────────────────────────
 
-function LinkBadge({ status }: { status: LinkStatus }) {
-  const config = {
-    fully_linked: { label: 'LIÉ', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-    partial: { label: 'PARTIEL', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: AlertTriangle },
-    unlinked: { label: 'NON LIÉ', color: 'bg-red-50 text-red-700 border-red-200', icon: AlertTriangle },
-  };
-  const c = config[status];
-  const Icon = c.icon;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${c.color}`}>
-      <Icon className="w-3 h-3" />
-      {c.label}
-    </span>
-  );
-}
-
-// ── Module source badge ───────────────────────────────────────────────────────
-
-function SourceBadge({ source }: { source: 'gestion' | 'shop' | 'stock' }) {
-  const config = {
-    gestion: { label: 'GESTION', color: 'bg-amber-50 text-amber-700' },
-    shop: { label: 'SHOP', color: 'bg-blue-50 text-blue-700' },
-    stock: { label: 'STOCK', color: 'bg-emerald-50 text-emerald-700' },
-  };
-  const c = config[source];
-  return (
-    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${c.color}`}>
-      {c.label}
-    </span>
-  );
-}
-
-// ── Inline Edit Cell ──────────────────────────────────────────────────────────
-
-function InlineEditCell({
-  value,
-  placeholder,
-  onSave,
-  className = '',
-}: {
-  value: string;
-  placeholder: string;
-  onSave: (val: string) => void;
-  className?: string;
+function ProductFiche({ article, facture, category, generalCategory }: {
+  article: any;
+  facture: any;
+  category: any;
+  generalCategory: any;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [open, setOpen] = useState(false);
 
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1">
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          className="h-7 text-xs rounded-lg border-amber-300 focus:border-amber-500 px-2"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { onSave(draft); setEditing(false); }
-            if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+  // Nom d'affichage
+  const displayName = article.name || article.specs || 'Produit';
+
+  // Status
+  const status = article.status || article.effectiveStatus || 'TO_ORDER';
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    TO_ORDER: { label: 'À commander', color: 'bg-stone-100 text-stone-600' },
+    PI: { label: 'Production', color: 'bg-blue-50 text-blue-700' },
+    SHIPPED: { label: 'Expédié', color: 'bg-purple-50 text-purple-700' },
+    TRANSIT: { label: 'Transit', color: 'bg-amber-50 text-amber-700' },
+    CUSTOMS: { label: 'Douane', color: 'bg-orange-50 text-orange-700' },
+    STOCK: { label: 'En stock', color: 'bg-emerald-50 text-emerald-700' },
+    DELIVERED: { label: 'Livré', color: 'bg-green-50 text-green-700' },
+  };
+  const sc = statusConfig[status] || statusConfig.TO_ORDER;
+
+  // Prix
+  const prixFOB = Number(article.purchasePricePerUnit) || 0;
+  const prixMAD = Number(article.purchasePriceMAD) || 0;
+  const sellingPrice = Number(article.sellingPrice) || 0;
+  const qty = Number(article.quantity) || 0;
+  const cbm = Number(article.cubicMeasurement) || 0;
+  const netWeight = Number(article.netWeight) || 0;
+
+  // Douane
+  const hsCode = category?.hsCode || '';
+  const customsValuePerKg = Number(category?.customsValuePerKg) || 0;
+  const importDutyRate = Number(category?.importDutyRate) || 0;
+  const tpiRate = Number(category?.tpiRate) || 0;
+  const tvaRate = Number(category?.tvaRate) || 0;
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+      {/* Header — toujours visible */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-stone-50/50 transition-colors"
+      >
+        {/* Indicateur couleur */}
+        <div
+          className="w-2 h-10 rounded-full shrink-0"
+          style={{
+            backgroundColor:
+              status === 'STOCK' ? '#10b981' :
+              status === 'TRANSIT' ? '#f59e0b' :
+              status === 'PI' ? '#3b82f6' :
+              status === 'CUSTOMS' ? '#f97316' :
+              '#d1d5db'
           }}
-          onBlur={() => { onSave(draft); setEditing(false); }}
         />
-      </div>
-    );
-  }
 
-  return (
-    <button
-      onClick={() => { setDraft(value); setEditing(true); }}
-      className={`text-left group flex items-center gap-1 hover:bg-stone-50 rounded px-1 py-0.5 transition-colors w-full ${className}`}
-    >
-      <span className={`text-xs truncate ${value ? 'text-stone-900' : 'text-stone-300 italic'}`}>
-        {value || placeholder}
-      </span>
-      <Pencil className="w-3 h-3 text-stone-300 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
-    </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-black text-stone-900 truncate">{displayName}</p>
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${sc.color}`}>
+              {sc.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 text-[10px] text-stone-400 font-bold">
+            <span>{article.categoryId || '—'}</span>
+            <span>·</span>
+            <span>{article.color || '—'}</span>
+            <span>·</span>
+            <span>{article.supplierId || '—'}</span>
+            <span>·</span>
+            <span>{qty} {article.unitOfMeasure || ''}</span>
+            {prixFOB > 0 && (
+              <>
+                <span>·</span>
+                <span className="text-emerald-600">${prixFOB.toFixed(3)}/u</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {open ? <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-stone-400 shrink-0" />}
+      </button>
+
+      {/* Détails — affiché quand ouvert */}
+      {open && (
+        <div className="border-t border-stone-100 px-4 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            {/* ── Identité Produit ───────────────────────────── */}
+            <div className="space-y-3">
+              <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                <Package className="w-3.5 h-3.5" /> Identité Produit
+              </h4>
+              <div className="space-y-1.5">
+                <Row label="Nom" value={article.name} />
+                <Row label="Spécifications" value={article.specs} />
+                <Row label="Couleur" value={article.color} />
+                <Row label="Taille" value={article.size} />
+                <Row label="Catégorie" value={article.categoryId} />
+                <Row label="Groupe" value={generalCategory?.name} />
+                <Row label="Unité" value={article.unitOfMeasure} />
+                {article.zipperType && <Row label="Type Fermeture" value={article.zipperType} />}
+                {article.slider && <Row label="Curseur" value={article.slider} />}
+                {article.sliderType && <Row label="Type Curseur" value={article.sliderType} />}
+                <Row label="ID Article" value={article.id} mono />
+              </div>
+            </div>
+
+            {/* ── Prix & Quantités ───────────────────────────── */}
+            <div className="space-y-3">
+              <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                <DollarSign className="w-3.5 h-3.5" /> Prix & Quantités
+              </h4>
+              <div className="space-y-1.5">
+                <Row label="Quantité" value={`${qty} ${article.unitOfMeasure || ''}`} bold />
+                <Row label="Prix FOB (USD)" value={prixFOB > 0 ? `$${prixFOB.toFixed(4)}` : '—'} />
+                <Row label="Valeur FOB totale" value={prixFOB > 0 ? `$${(prixFOB * qty).toFixed(2)}` : '—'} />
+                <Row label="Prix MAD (revient)" value={prixMAD > 0 ? `${prixMAD.toFixed(2)} MAD` : '—'} />
+                <Row label="Prix de vente" value={sellingPrice > 0 ? `${sellingPrice.toFixed(2)} MAD` : '—'} highlight />
+                {sellingPrice > 0 && prixMAD > 0 && (
+                  <Row label="Marge" value={`${((sellingPrice - prixMAD) / sellingPrice * 100).toFixed(1)}%`} highlight />
+                )}
+                <Row label="CBM" value={cbm > 0 ? `${cbm.toFixed(2)} m³` : '—'} />
+                <Row label="Poids net" value={netWeight > 0 ? `${netWeight.toFixed(2)} kg` : '—'} />
+              </div>
+            </div>
+
+            {/* ── Logistique & Dates ────────────────────────── */}
+            <div className="space-y-3">
+              <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                <Truck className="w-3.5 h-3.5" /> Logistique & Dates
+              </h4>
+              <div className="space-y-1.5">
+                <Row label="Statut" value={sc.label} />
+                <Row label="Fournisseur" value={article.supplierId} bold />
+                <Row label="Date commande" value={article.orderDate} />
+                <Row label="Date arrivée" value={article.arrivalDate || facture?.arrivalDate} />
+                <Row label="Entrée stock" value={article.stockEntryDate || facture?.stockEntryDate} />
+                <Row label="N° Facture" value={article.factureId} mono />
+                {facture && (
+                  <>
+                    <Row label="N° BL" value={facture.noBL} />
+                    <Row label="Ligne maritime" value={facture.shippingLine} />
+                    <Row label="Transitaire" value={facture.forwarder} />
+                    <Row label="Déclarant" value={facture.declaringCompany} />
+                    <Row label="Fret ($)" value={facture.freightCost ? `$${Number(facture.freightCost).toFixed(2)}` : '—'} />
+                  </>
+                )}
+                <Row label="Priorité" value={article.priority} />
+              </div>
+            </div>
+
+            {/* ── Douane & Fiscalité ────────────────────────── */}
+            {(hsCode || customsValuePerKg > 0) && (
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                  <Archive className="w-3.5 h-3.5" /> Douane & Fiscalité
+                </h4>
+                <div className="space-y-1.5">
+                  <Row label="Code HS" value={hsCode} mono />
+                  <Row label="Valeur douane/kg" value={customsValuePerKg > 0 ? `${customsValuePerKg} MAD/kg` : '—'} />
+                  <Row label="Droit import (DI)" value={importDutyRate > 0 ? `${importDutyRate}%` : '—'} />
+                  <Row label="TPI" value={tpiRate > 0 ? `${tpiRate}%` : '—'} />
+                  <Row label="TVA" value={tvaRate > 0 ? `${tvaRate}%` : '—'} />
+                  {netWeight > 0 && customsValuePerKg > 0 && (
+                    <>
+                      <Row label="Val. douane totale" value={`${(netWeight * customsValuePerKg).toFixed(2)} MAD`} />
+                      <Row label="DI estimé" value={`${(netWeight * customsValuePerKg * importDutyRate / 100).toFixed(2)} MAD`} />
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Dossier (Facture) ─────────────────────────── */}
+            {facture && (
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                  <Boxes className="w-3.5 h-3.5" /> Dossier Import
+                </h4>
+                <div className="space-y-1.5">
+                  <Row label="N° Dossier" value={facture.id} mono bold />
+                  <Row label="Fournisseur" value={facture.supplierId} />
+                  <Row label="Date expédition" value={facture.shippingDate} />
+                  <Row label="Date arrivée" value={facture.arrivalDate} />
+                  <Row label="Entrée stock" value={facture.stockEntryDate} />
+                  <Row label="Facture payée (MAD)" value={facture.invoicePaidDhs ? `${Number(facture.invoicePaidDhs).toFixed(2)} MAD` : '—'} />
+                  <Row label="Valeur déclarée" value={facture.declaredValue ? `$${Number(facture.declaredValue).toFixed(2)}` : '—'} />
+                  <Row label="Douane payée (MAD)" value={facture.customsPaidDhs ? `${Number(facture.customsPaidDhs).toFixed(2)} MAD` : '—'} />
+                  <Row label="Frais transit" value={facture.supplierInvoiceAmount ? `${Number(facture.supplierInvoiceAmount).toFixed(2)} MAD` : '—'} />
+                  <Row label="Frais change" value={facture.exchangeInvoiceAmount ? `${Number(facture.exchangeInvoiceAmount).toFixed(2)} MAD` : '—'} />
+                  <Row label="Frais additionnels" value={facture.additionalCostsAmount ? `${Number(facture.additionalCostsAmount).toFixed(2)} MAD` : '—'} />
+                </div>
+              </div>
+            )}
+
+            {/* ── Stock (répartition par magasin) ───────────── */}
+            {article.initialQtyByStore && Object.keys(article.initialQtyByStore).length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                  <MapPin className="w-3.5 h-3.5" /> Répartition Stock
+                </h4>
+                <div className="space-y-1.5">
+                  {Object.entries(article.initialQtyByStore).map(([store, qty]: [string, any]) => (
+                    <Row key={store} label={store} value={`${qty} ${article.unitOfMeasure || ''}`} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Breakdown Couleurs ─────────────────────────── */}
+            {article.colorBreakdown && article.colorBreakdown.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                  <Tag className="w-3.5 h-3.5" /> Détail Couleurs
+                </h4>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {article.colorBreakdown.map((cb: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                      <span className="text-stone-500">{cb.colorCode || cb.color || cb.description || `Couleur ${i+1}`}</span>
+                      <span className="font-bold text-stone-900">{cb.rolls || cb.quantity || 0}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Breakdown Tailles ──────────────────────────── */}
+            {article.sizeBreakdown && article.sizeBreakdown.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                  <Tag className="w-3.5 h-3.5" /> Détail Tailles
+                </h4>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {article.sizeBreakdown.map((sb: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                      <span className="text-stone-500">{sb.size || sb.label || `Taille ${i+1}`}</span>
+                      <span className="font-bold text-stone-900">{sb.quantity || 0}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
-// ── Link Dialog ───────────────────────────────────────────────────────────────
+// ── Row helper ────────────────────────────────────────────────────────────────
 
-function LinkDialog({
-  open,
-  onOpenChange,
-  master,
-  items,
-  type,
-  onLink,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  master: ProductMaster;
-  items: any[];
-  type: 'gestion' | 'shop';
-  onLink: (masterId: string, itemId: string) => Promise<void>;
+function Row({ label, value, bold, mono, highlight }: {
+  label: string;
+  value?: string | number | null;
+  bold?: boolean;
+  mono?: boolean;
+  highlight?: boolean;
 }) {
-  const [search, setSearch] = useState('');
-  const [linking, setLinking] = useState<string | null>(null);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return items.slice(0, 50);
-    const q = search.toLowerCase();
-    return items.filter((item: any) =>
-      (item.name || '').toLowerCase().includes(q) ||
-      (item.categoryId || item.categorySlug || '').toLowerCase().includes(q) ||
-      (item.specs || '').toLowerCase().includes(q) ||
-      (item.id || '').toLowerCase().includes(q)
-    ).slice(0, 50);
-  }, [items, search]);
-
-  const handleLink = async (itemId: string) => {
-    setLinking(itemId);
-    try {
-      await onLink(master.id, itemId);
-      onOpenChange(false);
-    } catch (e) {
-      console.error(e);
-    }
-    setLinking(null);
-  };
-
+  const display = value != null && value !== '' && value !== '—' ? String(value) : '—';
+  const isEmpty = display === '—';
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-wider">
-          <LinkIcon className="w-4 h-4" />
-          Lier {type === 'gestion' ? 'un article Gestion' : 'un produit Shop'}
-        </DialogTitle>
-        <p className="text-[10px] text-stone-400 -mt-2">
-          Produit : <span className="font-bold text-stone-600">{master.nameEN || master.nameFR || master.id}</span>
-        </p>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Rechercher ${type === 'gestion' ? 'un article...' : 'un produit...'}`}
-            className="pl-9 h-9 rounded-xl text-xs"
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[50vh] pr-1">
-          {filtered.length === 0 ? (
-            <p className="text-center text-stone-400 text-xs py-8">Aucun résultat</p>
-          ) : filtered.map((item: any) => (
-            <button
-              key={item.id}
-              onClick={() => handleLink(item.id)}
-              disabled={!!linking}
-              className="w-full text-left flex items-center gap-3 p-3 rounded-xl border border-stone-100 hover:border-amber-300 hover:bg-amber-50/50 transition-all group"
-            >
-              {type === 'shop' && item.images?.[0] && (
-                <img src={item.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-stone-900 truncate">{item.name || item.id}</p>
-                <p className="text-[10px] text-stone-400 truncate">
-                  {type === 'gestion'
-                    ? `${item.categoryId || ''} · ${item.color || ''} · ${item.specs || ''}`
-                    : `${item.categorySlug || ''} · ${item.price ? item.price + ' MAD' : ''}`
-                  }
-                </p>
-              </div>
-              {linking === item.id ? (
-                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
-              ) : (
-                <LinkIcon className="w-4 h-4 text-stone-300 group-hover:text-amber-500 transition-colors" />
-              )}
-            </button>
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className="flex items-baseline justify-between gap-2 text-xs">
+      <span className="text-stone-400 shrink-0">{label}</span>
+      <span className={`text-right truncate ${
+        isEmpty ? 'text-stone-200' :
+        highlight ? 'text-emerald-700 font-black' :
+        bold ? 'font-black text-stone-900' :
+        mono ? 'font-mono text-[10px] text-stone-500' :
+        'font-bold text-stone-700'
+      }`}>
+        {display}
+      </span>
+    </div>
   );
 }
 
@@ -227,571 +306,272 @@ export default function UnifiedProductsView({
   factures,
   subCategories,
   generalCategories,
-  shopProducts = [],
-  shopCategories = [],
 }: UnifiedProductsViewProps) {
-  const { masters, isLoading: mastersLoading } = useProductMasters();
-  const { toast } = useToast();
-
-  // State
   const [search, setSearch] = useState('');
-  const [filterLink, setFilterLink] = useState<FilterLink>('all');
-  const [sortField, setSortField] = useState<SortField>('nameEN');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [linkDialog, setLinkDialog] = useState<{ master: ProductMaster; type: 'gestion' | 'shop' } | null>(null);
-  const [migrating, setMigrating] = useState(false);
-  const [showOnlyUnlinkedArticles, setShowOnlyUnlinkedArticles] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSupplier, setFilterSupplier] = useState('all');
+  const [expandAll, setExpandAll] = useState(false);
 
-  // Enriched data
-  const enriched = useEnrichedProductMasters(masters, articles, shopProducts, shopCategories, subCategories);
+  // Build lookup maps
+  const factureMap = useMemo(() => new Map(factures.map(f => [f.id, f])), [factures]);
+  const categoryMap = useMemo(() => new Map(subCategories.map(c => [c.name || c.id, c])), [subCategories]);
+  const genCatMap = useMemo(() => new Map(generalCategories.map(g => [g.id, g])), [generalCategories]);
 
-  // Unlinked articles (not in any ProductMaster)
-  const unlinkedArticles = useMemo(() => {
-    const linkedIds = new Set<string>();
-    for (const pm of masters) {
-      for (const aid of pm.gestionArticleIds || []) {
-        linkedIds.add(aid);
-      }
-    }
-    return articles.filter(a => !linkedIds.has(a.id));
-  }, [masters, articles]);
+  // Unique values for filters
+  const categories = useMemo(() => [...new Set(articles.map(a => a.categoryId).filter(Boolean))].sort(), [articles]);
+  const statuses = useMemo(() => [...new Set(articles.map(a => a.status || a.effectiveStatus).filter(Boolean))].sort(), [articles]);
+  const suppliers = useMemo(() => [...new Set(articles.map(a => a.supplierId).filter(Boolean))].sort(), [articles]);
 
-  // Unlinked shop products
-  const unlinkedShopProducts = useMemo(() => {
-    const linkedIds = new Set(masters.map(pm => pm.shopProductId).filter(Boolean));
-    return shopProducts.filter(p => !linkedIds.has(p.id));
-  }, [masters, shopProducts]);
+  // Filter & search
+  const filtered = useMemo(() => {
+    let data = [...articles];
 
-  // Filter & Sort
-  const filteredData = useMemo(() => {
-    let data = [...enriched];
-
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
-      data = data.filter(pm =>
-        (pm.nameEN || '').toLowerCase().includes(q) ||
-        (pm.nameFR || '').toLowerCase().includes(q) ||
-        (pm.nameStock || '').toLowerCase().includes(q) ||
-        (pm.nameAR || '').toLowerCase().includes(q) ||
-        (pm.gestionCategoryId || '').toLowerCase().includes(q) ||
-        (pm.shopCategorySlug || '').toLowerCase().includes(q) ||
-        (pm.specs || '').toLowerCase().includes(q) ||
-        (pm.color || '').toLowerCase().includes(q)
+      data = data.filter(a =>
+        (a.name || '').toLowerCase().includes(q) ||
+        (a.categoryId || '').toLowerCase().includes(q) ||
+        (a.color || '').toLowerCase().includes(q) ||
+        (a.specs || '').toLowerCase().includes(q) ||
+        (a.supplierId || '').toLowerCase().includes(q) ||
+        (a.factureId || '').toLowerCase().includes(q) ||
+        (a.id || '').toLowerCase().includes(q)
       );
     }
 
-    // Filter by link status
-    if (filterLink !== 'all') {
-      data = data.filter(pm => getProductMasterLinkStatus(pm) === filterLink);
-    }
+    if (filterCategory !== 'all') data = data.filter(a => a.categoryId === filterCategory);
+    if (filterStatus !== 'all') data = data.filter(a => (a.status || a.effectiveStatus) === filterStatus);
+    if (filterSupplier !== 'all') data = data.filter(a => a.supplierId === filterSupplier);
 
-    // Sort
+    // Sort by category then name
     data.sort((a, b) => {
-      let va: any, vb: any;
-      switch (sortField) {
-        case 'nameEN': va = a.nameEN || ''; vb = b.nameEN || ''; break;
-        case 'nameFR': va = a.nameFR || ''; vb = b.nameFR || ''; break;
-        case 'nameStock': va = a.nameStock || ''; vb = b.nameStock || ''; break;
-        case 'sellingPrice': va = a.sellingPrice || 0; vb = b.sellingPrice || 0; break;
-        case 'currentStockQty': va = a.currentStockQty || 0; vb = b.currentStockQty || 0; break;
-        default: va = a.nameEN || ''; vb = b.nameEN || '';
-      }
-      if (typeof va === 'string') {
-        const cmp = va.localeCompare(vb);
-        return sortDir === 'asc' ? cmp : -cmp;
-      }
-      return sortDir === 'asc' ? va - vb : vb - va;
+      const ca = (a.categoryId || '').localeCompare(b.categoryId || '');
+      if (ca !== 0) return ca;
+      return (a.name || '').localeCompare(b.name || '');
     });
 
     return data;
-  }, [enriched, search, filterLink, sortField, sortDir]);
+  }, [articles, search, filterCategory, filterStatus, filterSupplier]);
 
-  // Handlers
-  const handleMigrateAll = async () => {
-    setMigrating(true);
-    try {
-      const count = await batchCreateFromGestionArticles(articles, masters);
-      toast({
-        title: `✅ ${count} fiches produit créées`,
-        description: 'Depuis les articles Gestion non liés',
-      });
-    } catch (e: any) {
-      toast({ title: '❌ Erreur migration', description: e.message, variant: 'destructive' });
-    }
-    setMigrating(false);
-  };
+  // Stats
+  const totalValue = useMemo(() =>
+    articles.reduce((sum, a) => sum + (Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0), 0),
+    [articles]
+  );
 
-  const handleCreateFromArticle = async (article: any) => {
-    try {
-      const crypto = window.crypto;
-      const id = Array.from(crypto.getRandomValues(new Uint8Array(12)))
-        .map(b => b.toString(16).padStart(2, '0')).join('');
-      const master = buildMasterFromGestionArticle(article);
-      await saveProductMaster({ id, ...master } as ProductMaster);
-      toast({ title: '✅ Fiche créée', description: `${article.name}` });
-    } catch (e: any) {
-      toast({ title: '❌ Erreur', description: e.message, variant: 'destructive' });
-    }
-  };
-
-  const handleSaveField = async (masterId: string, field: string, value: any) => {
-    try {
-      await updateProductMasterFields(masterId, { [field]: value });
-    } catch (e: any) {
-      toast({ title: '❌ Erreur', description: e.message, variant: 'destructive' });
-    }
-  };
-
-  const handleLinkGestion = async (masterId: string, articleId: string) => {
-    await linkGestionArticle(masterId, articleId);
-    toast({ title: '✅ Article lié' });
-  };
-
-  const handleUnlinkGestion = async (masterId: string, articleId: string) => {
-    await unlinkGestionArticle(masterId, articleId);
-    toast({ title: '🔓 Article délié' });
-  };
-
-  const handleLinkShop = async (masterId: string, shopId: string) => {
-    await linkShopProduct(masterId, shopId);
-    toast({ title: '✅ Produit Shop lié' });
-  };
-
-  const handleUnlinkShop = async (masterId: string) => {
-    await unlinkShopProduct(masterId);
-    toast({ title: '🔓 Produit Shop délié' });
-  };
-
-  const handleDeleteMaster = async (id: string) => {
-    if (!confirm('Supprimer cette fiche produit unifiée ?')) return;
-    await deleteProductMaster(id);
-    toast({ title: '🗑️ Fiche supprimée' });
-  };
-
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
-
-  // ── Stats ─────────────────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    const total = masters.length;
-    const linked = masters.filter(m => getProductMasterLinkStatus(m) === 'fully_linked').length;
-    const partial = masters.filter(m => getProductMasterLinkStatus(m) === 'partial').length;
-    const unlinked = masters.filter(m => getProductMasterLinkStatus(m) === 'unlinked').length;
-    return { total, linked, partial, unlinked, unlinkedArticles: unlinkedArticles.length, unlinkedShopProducts: unlinkedShopProducts.length };
-  }, [masters, unlinkedArticles, unlinkedShopProducts]);
-
-  if (mastersLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-40 space-y-6">
-        <Loader2 className="animate-spin text-amber-500 w-12 h-12" />
-        <p className="text-stone-400 font-black uppercase tracking-[0.3em] text-[10px]">Chargement des fiches produit...</p>
-      </div>
-    );
-  }
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    articles.forEach(a => {
+      const s = a.status || a.effectiveStatus || 'TO_ORDER';
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return counts;
+  }, [articles]);
 
   return (
-    <div className="space-y-6">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-stone-900 uppercase flex items-center gap-2">
-            <Package className="w-6 h-6 text-amber-500" />
-            BASE PRODUITS
-          </h1>
-          <p className="text-stone-400 text-xs font-bold mt-1">
-            Vue unifiée de tous les produits — Gestion · Stock · Shop
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            onClick={handleMigrateAll}
-            disabled={migrating || unlinkedArticles.length === 0}
-            className="bg-amber-500 hover:bg-amber-600 text-white h-9 rounded-xl gap-2 text-[10px] uppercase font-black tracking-widest"
-          >
-            {migrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            Importer {unlinkedArticles.length} articles
-          </Button>
-        </div>
+    <div className="space-y-5">
+      {/* ── Header ─────────────────────────────────────────── */}
+      <div>
+        <h1 className="text-2xl font-black tracking-tight text-stone-900 uppercase flex items-center gap-2">
+          <Package className="w-6 h-6 text-amber-500" />
+          FICHES PRODUITS
+        </h1>
+        <p className="text-stone-400 text-xs font-bold mt-1">
+          {articles.length} produits · Valeur FOB totale : ${totalValue.toFixed(2)}
+        </p>
       </div>
 
-      {/* ── Stats Cards ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: 'Fiches Produit', value: stats.total, color: 'text-stone-900', bg: 'bg-white' },
-          { label: 'Entièrement liés', value: stats.linked, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-          { label: 'Partiellement liés', value: stats.partial, color: 'text-amber-700', bg: 'bg-amber-50' },
-          { label: 'Non liés', value: stats.unlinked, color: 'text-red-700', bg: 'bg-red-50' },
-          { label: 'Articles orphelins', value: stats.unlinkedArticles, color: 'text-orange-700', bg: 'bg-orange-50' },
-          { label: 'Produits Shop orphelins', value: stats.unlinkedShopProducts, color: 'text-blue-700', bg: 'bg-blue-50' },
-        ].map((s, i) => (
-          <div key={i} className={`${s.bg} rounded-xl border border-stone-100 p-3 shadow-sm`}>
-            <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
-            <p className="text-[9px] font-black text-stone-400 uppercase tracking-wider mt-1">{s.label}</p>
-          </div>
-        ))}
+      {/* ── Stats rapides ──────────────────────────────────── */}
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => {
+          const labels: Record<string, string> = {
+            TO_ORDER: 'À commander', PI: 'Production', SHIPPED: 'Expédié',
+            TRANSIT: 'Transit', CUSTOMS: 'Douane', STOCK: 'En stock', DELIVERED: 'Livré',
+          };
+          const colors: Record<string, string> = {
+            TO_ORDER: 'bg-stone-100 text-stone-600', PI: 'bg-blue-50 text-blue-700',
+            SHIPPED: 'bg-purple-50 text-purple-700', TRANSIT: 'bg-amber-50 text-amber-700',
+            CUSTOMS: 'bg-orange-50 text-orange-700', STOCK: 'bg-emerald-50 text-emerald-700',
+            DELIVERED: 'bg-green-50 text-green-700',
+          };
+          return (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(filterStatus === status ? 'all' : status)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                filterStatus === status ? 'ring-2 ring-amber-400 shadow-sm' : ''
+              } ${colors[status] || 'bg-stone-100 text-stone-600'}`}
+            >
+              {labels[status] || status} · {count}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Filters & Search ───────────────────────────────────────────────── */}
+      {/* ── Filtres ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-white rounded-xl border border-stone-100 p-3 shadow-sm">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par nom (EN, FR, Stock), catégorie, couleur..."
+            placeholder="Rechercher par nom, catégorie, couleur, fournisseur, facture..."
             className="pl-9 h-9 rounded-xl text-xs border-stone-200"
           />
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Filter className="w-3.5 h-3.5 text-stone-400" />
-          {(['all', 'fully_linked', 'partial', 'unlinked'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilterLink(f)}
-              className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                filterLink === f
-                  ? 'bg-amber-500 text-white shadow-sm'
-                  : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
-              }`}
-            >
-              {f === 'all' ? 'Tous' : f === 'fully_linked' ? 'Liés' : f === 'partial' ? 'Partiels' : 'Non liés'}
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <X className="w-3.5 h-3.5 text-stone-400" />
             </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Table ──────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-stone-100 shadow-sm overflow-hidden">
-        {/* Header row */}
-        <div className="grid grid-cols-[1fr_1fr_1fr_120px_100px_100px_80px_60px] gap-2 px-4 py-3 bg-stone-50 border-b border-stone-100">
-          {[
-            { field: 'nameEN' as SortField, label: 'Nom EN (Gestion)' },
-            { field: 'nameFR' as SortField, label: 'Nom FR (Shop)' },
-            { field: 'nameStock' as SortField, label: 'Nom Stock' },
-          ].map(({ field, label }) => (
-            <button
-              key={field}
-              onClick={() => toggleSort(field)}
-              className="flex items-center gap-1 text-[9px] font-black text-stone-500 uppercase tracking-wider hover:text-stone-900 transition-colors text-left"
-            >
-              {label}
-              <ArrowUpDown className="w-3 h-3 shrink-0" />
-            </button>
-          ))}
-          <span className="text-[9px] font-black text-stone-500 uppercase tracking-wider">Catégories</span>
-          <button onClick={() => toggleSort('sellingPrice')} className="flex items-center gap-1 text-[9px] font-black text-stone-500 uppercase tracking-wider hover:text-stone-900 text-left">
-            Prix Vente <ArrowUpDown className="w-3 h-3" />
-          </button>
-          <button onClick={() => toggleSort('currentStockQty')} className="flex items-center gap-1 text-[9px] font-black text-stone-500 uppercase tracking-wider hover:text-stone-900 text-left">
-            Stock <ArrowUpDown className="w-3 h-3" />
-          </button>
-          <span className="text-[9px] font-black text-stone-500 uppercase tracking-wider">Statut</span>
-          <span className="text-[9px] font-black text-stone-500 uppercase tracking-wider"></span>
-        </div>
-
-        {/* Data rows */}
-        {filteredData.length === 0 ? (
-          <div className="text-center py-16 space-y-3">
-            <Package className="w-12 h-12 text-stone-200 mx-auto" />
-            <p className="text-stone-400 text-sm font-bold">
-              {masters.length === 0
-                ? 'Aucune fiche produit créée'
-                : 'Aucun résultat avec ces filtres'}
-            </p>
-            {masters.length === 0 && unlinkedArticles.length > 0 && (
-              <Button onClick={handleMigrateAll} className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl gap-2 text-[10px] uppercase font-black tracking-widest">
-                <Plus className="w-3.5 h-3.5" /> Importer les articles Gestion
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="divide-y divide-stone-50">
-            {filteredData.map((pm) => {
-              const linkStatus = getProductMasterLinkStatus(pm);
-              const isExpanded = expandedId === pm.id;
-
-              return (
-                <React.Fragment key={pm.id}>
-                  {/* Main row */}
-                  <div
-                    className={`grid grid-cols-[1fr_1fr_1fr_120px_100px_100px_80px_60px] gap-2 px-4 py-2.5 items-center hover:bg-stone-50/50 transition-colors ${
-                      isExpanded ? 'bg-amber-50/30' : ''
-                    }`}
-                  >
-                    {/* Nom EN */}
-                    <div className="min-w-0">
-                      <InlineEditCell
-                        value={pm.nameEN || ''}
-                        placeholder="Nom anglais..."
-                        onSave={(v) => handleSaveField(pm.id, 'nameEN', v)}
-                      />
-                      {pm.gestionCategoryId && (
-                        <p className="text-[9px] text-stone-400 pl-1 truncate">{pm.gestionCategoryId}</p>
-                      )}
-                    </div>
-
-                    {/* Nom FR */}
-                    <div className="min-w-0">
-                      <InlineEditCell
-                        value={pm.nameFR || ''}
-                        placeholder="Nom français..."
-                        onSave={(v) => handleSaveField(pm.id, 'nameFR', v)}
-                      />
-                      {pm.shopCategorySlug && (
-                        <p className="text-[9px] text-blue-400 pl-1 truncate">{(pm as any).shopCategoryName || pm.shopCategorySlug}</p>
-                      )}
-                    </div>
-
-                    {/* Nom Stock */}
-                    <div className="min-w-0">
-                      <InlineEditCell
-                        value={pm.nameStock || ''}
-                        placeholder="Nom stock (libre)..."
-                        onSave={(v) => handleSaveField(pm.id, 'nameStock', v)}
-                        className="font-semibold"
-                      />
-                    </div>
-
-                    {/* Catégories */}
-                    <div className="min-w-0 space-y-0.5">
-                      {pm.gestionCategoryId && <SourceBadge source="gestion" />}
-                      {pm.shopCategorySlug && <SourceBadge source="shop" />}
-                    </div>
-
-                    {/* Prix Vente */}
-                    <div className="min-w-0">
-                      {pm.sellingPrice ? (
-                        <span className="text-xs font-bold text-stone-900">
-                          {pm.sellingPrice.toFixed(2)} <span className="text-stone-400 text-[9px]">MAD</span>
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-stone-300 italic">—</span>
-                      )}
-                      {pm.purchasePriceFOB ? (
-                        <p className="text-[9px] text-stone-400">FOB: ${pm.purchasePriceFOB.toFixed(3)}</p>
-                      ) : null}
-                    </div>
-
-                    {/* Stock */}
-                    <div className="min-w-0">
-                      {pm.currentStockQty != null ? (
-                        <span className={`text-xs font-bold ${pm.currentStockQty > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                          {pm.currentStockQty}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-stone-300">—</span>
-                      )}
-                    </div>
-
-                    {/* Statut liaison */}
-                    <LinkBadge status={linkStatus} />
-
-                    {/* Expand */}
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : pm.id)}
-                      className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-stone-100 transition-colors"
-                    >
-                      {isExpanded ? <ChevronDown className="w-4 h-4 text-stone-400" /> : <ChevronRight className="w-4 h-4 text-stone-400" />}
-                    </button>
-                  </div>
-
-                  {/* Expanded detail */}
-                  {isExpanded && (
-                    <div className="bg-stone-50/50 border-t border-stone-100 px-6 py-4 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Gestion Articles */}
-                        <div className="bg-white rounded-xl border border-stone-100 p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
-                              <Archive className="w-3.5 h-3.5" /> Articles Gestion
-                            </h4>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setLinkDialog({ master: pm, type: 'gestion' })}
-                              className="h-7 px-2 text-[9px] font-black uppercase tracking-wider text-amber-600 hover:bg-amber-50"
-                            >
-                              <Plus className="w-3 h-3 mr-1" /> Lier
-                            </Button>
-                          </div>
-                          {(pm as any).linkedArticles?.length > 0 ? (
-                            <div className="space-y-2">
-                              {(pm as any).linkedArticles.map((a: any) => (
-                                <div key={a.id} className="flex items-center justify-between p-2 bg-amber-50/50 rounded-lg">
-                                  <div className="min-w-0">
-                                    <p className="text-[11px] font-bold text-stone-900 truncate">{a.name}</p>
-                                    <p className="text-[9px] text-stone-400">{a.categoryId} · {a.color} · {a.specs}</p>
-                                  </div>
-                                  <button
-                                    onClick={() => handleUnlinkGestion(pm.id, a.id)}
-                                    className="shrink-0 p-1 rounded hover:bg-red-100 text-stone-400 hover:text-red-600 transition-colors"
-                                    title="Délier"
-                                  >
-                                    <Unlink className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-[10px] text-stone-300 text-center py-3">Aucun article lié</p>
-                          )}
-                        </div>
-
-                        {/* Shop Product */}
-                        <div className="bg-white rounded-xl border border-stone-100 p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-[10px] font-black text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
-                              <Globe className="w-3.5 h-3.5" /> Produit Shop
-                            </h4>
-                            {!pm.shopProductId && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setLinkDialog({ master: pm, type: 'shop' })}
-                                className="h-7 px-2 text-[9px] font-black uppercase tracking-wider text-blue-600 hover:bg-blue-50"
-                              >
-                                <Plus className="w-3 h-3 mr-1" /> Lier
-                              </Button>
-                            )}
-                          </div>
-                          {(pm as any).linkedShopProduct ? (
-                            <div className="flex items-center gap-3 p-2 bg-blue-50/50 rounded-lg">
-                              {(pm as any).linkedShopProduct.images?.[0] && (
-                                <img src={(pm as any).linkedShopProduct.images[0]} alt="" className="w-12 h-12 rounded-lg object-cover" />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-bold text-stone-900 truncate">{(pm as any).linkedShopProduct.name}</p>
-                                <p className="text-[9px] text-stone-400">{(pm as any).linkedShopProduct.categorySlug} · {(pm as any).linkedShopProduct.price} MAD</p>
-                              </div>
-                              <button
-                                onClick={() => handleUnlinkShop(pm.id)}
-                                className="shrink-0 p-1 rounded hover:bg-red-100 text-stone-400 hover:text-red-600 transition-colors"
-                                title="Délier"
-                              >
-                                <Unlink className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <p className="text-[10px] text-stone-300 text-center py-3">Aucun produit shop lié</p>
-                          )}
-                        </div>
-
-                        {/* Prix & Stock Detail */}
-                        <div className="bg-white rounded-xl border border-stone-100 p-4">
-                          <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                            <Tag className="w-3.5 h-3.5" /> Détails
-                          </h4>
-                          <div className="space-y-2 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Prix FOB</span>
-                              <span className="font-bold">{pm.purchasePriceFOB ? `$${pm.purchasePriceFOB.toFixed(3)}` : '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Prix MAD (revient)</span>
-                              <span className="font-bold">{pm.purchasePriceMAD ? `${pm.purchasePriceMAD.toFixed(2)} MAD` : '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Prix de vente</span>
-                              <span className="font-bold text-emerald-700">{pm.sellingPrice ? `${pm.sellingPrice.toFixed(2)} MAD` : '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Prix de gros</span>
-                              <span className="font-bold">{pm.wholesalePrice ? `${pm.wholesalePrice.toFixed(2)} MAD` : '—'}</span>
-                            </div>
-                            <hr className="border-stone-100" />
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Couleur</span>
-                              <span className="font-bold">{pm.color || '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Unité</span>
-                              <span className="font-bold">{pm.unitOfMeasure || '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Specs</span>
-                              <span className="font-bold truncate ml-2">{pm.specs || '—'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-400">Fournisseur</span>
-                              <span className="font-bold">{pm.supplierId || '—'}</span>
-                            </div>
-                          </div>
-                          <div className="mt-3 pt-3 border-t border-stone-100 flex justify-end">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDeleteMaster(pm.id)}
-                              className="h-7 px-2 text-[9px] font-black uppercase tracking-wider text-red-500 hover:bg-red-50"
-                            >
-                              Supprimer
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── Unlinked Articles Section ──────────────────────────────────────── */}
-      {unlinkedArticles.length > 0 && (
-        <div className="bg-orange-50/50 rounded-xl border border-orange-200 p-4">
-          <button
-            onClick={() => setShowOnlyUnlinkedArticles(!showOnlyUnlinkedArticles)}
-            className="flex items-center gap-2 w-full text-left"
-          >
-            {showOnlyUnlinkedArticles ? <ChevronDown className="w-4 h-4 text-orange-500" /> : <ChevronRight className="w-4 h-4 text-orange-500" />}
-            <AlertTriangle className="w-4 h-4 text-orange-500" />
-            <span className="text-[11px] font-black text-orange-700 uppercase tracking-wider">
-              {unlinkedArticles.length} articles Gestion sans fiche produit
-            </span>
-          </button>
-          {showOnlyUnlinkedArticles && (
-            <div className="mt-3 space-y-1 max-h-64 overflow-y-auto">
-              {unlinkedArticles.map(a => (
-                <div key={a.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-orange-100">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-bold text-stone-900 truncate">{a.name}</p>
-                    <p className="text-[9px] text-stone-400">{a.categoryId} · {a.color} · {a.supplierId}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleCreateFromArticle(a)}
-                    className="h-7 px-2 text-[9px] font-black uppercase tracking-wider text-orange-600 hover:bg-orange-100 shrink-0"
-                  >
-                    <Plus className="w-3 h-3 mr-1" /> Créer fiche
-                  </Button>
-                </div>
-              ))}
-            </div>
           )}
         </div>
-      )}
 
-      {/* ── Link Dialog ────────────────────────────────────────────────────── */}
-      {linkDialog && (
-        <LinkDialog
-          open={!!linkDialog}
-          onOpenChange={(v) => !v && setLinkDialog(null)}
-          master={linkDialog.master}
-          items={linkDialog.type === 'gestion' ? unlinkedArticles : unlinkedShopProducts}
-          type={linkDialog.type}
-          onLink={linkDialog.type === 'gestion' ? handleLinkGestion : handleLinkShop}
-        />
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="h-9 rounded-xl border border-stone-200 px-3 text-[10px] font-black uppercase tracking-wider text-stone-600 bg-white"
+        >
+          <option value="all">Toutes catégories</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={filterSupplier}
+          onChange={(e) => setFilterSupplier(e.target.value)}
+          className="h-9 rounded-xl border border-stone-200 px-3 text-[10px] font-black uppercase tracking-wider text-stone-600 bg-white"
+        >
+          <option value="all">Tous fournisseurs</option>
+          {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <Button
+          variant="ghost"
+          onClick={() => setExpandAll(!expandAll)}
+          className="h-9 px-3 text-[10px] font-black uppercase tracking-wider text-stone-500 hover:text-stone-900"
+        >
+          {expandAll ? 'Replier tout' : 'Déplier tout'}
+        </Button>
+      </div>
+
+      {/* ── Résultats ──────────────────────────────────────── */}
+      <p className="text-[10px] font-black text-stone-400 uppercase tracking-wider">
+        {filtered.length} produit{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
+      </p>
+
+      {/* ── Liste des fiches ───────────────────────────────── */}
+      <div className="space-y-2">
+        {filtered.map(article => {
+          const facture = article.factureId ? factureMap.get(article.factureId) : null;
+          const category = article.categoryId ? categoryMap.get(article.categoryId) : null;
+          const generalCategory = article.generalCategoryId ? genCatMap.get(article.generalCategoryId) : null;
+
+          // Force expand all
+          if (expandAll) {
+            return (
+              <ProductFicheExpanded
+                key={article.id}
+                article={article}
+                facture={facture}
+                category={category}
+                generalCategory={generalCategory}
+              />
+            );
+          }
+
+          return (
+            <ProductFiche
+              key={article.id}
+              article={article}
+              facture={facture}
+              category={category}
+              generalCategory={generalCategory}
+            />
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-16">
+          <Package className="w-12 h-12 text-stone-200 mx-auto mb-3" />
+          <p className="text-stone-400 text-sm font-bold">Aucun produit trouvé</p>
+        </div>
       )}
+    </div>
+  );
+}
+
+// Version toujours ouverte (pour "déplier tout")
+function ProductFicheExpanded({ article, facture, category, generalCategory }: {
+  article: any; facture: any; category: any; generalCategory: any;
+}) {
+  const displayName = article.name || article.specs || 'Produit';
+  const status = article.status || article.effectiveStatus || 'TO_ORDER';
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    TO_ORDER: { label: 'À commander', color: 'bg-stone-100 text-stone-600' },
+    PI: { label: 'Production', color: 'bg-blue-50 text-blue-700' },
+    SHIPPED: { label: 'Expédié', color: 'bg-purple-50 text-purple-700' },
+    TRANSIT: { label: 'Transit', color: 'bg-amber-50 text-amber-700' },
+    CUSTOMS: { label: 'Douane', color: 'bg-orange-50 text-orange-700' },
+    STOCK: { label: 'En stock', color: 'bg-emerald-50 text-emerald-700' },
+    DELIVERED: { label: 'Livré', color: 'bg-green-50 text-green-700' },
+  };
+  const sc = statusConfig[status] || statusConfig.TO_ORDER;
+  const prixFOB = Number(article.purchasePricePerUnit) || 0;
+  const prixMAD = Number(article.purchasePriceMAD) || 0;
+  const sellingPrice = Number(article.sellingPrice) || 0;
+  const qty = Number(article.quantity) || 0;
+  const cbm = Number(article.cubicMeasurement) || 0;
+  const netWeight = Number(article.netWeight) || 0;
+  const hsCode = category?.hsCode || '';
+  const customsValuePerKg = Number(category?.customsValuePerKg) || 0;
+  const importDutyRate = Number(category?.importDutyRate) || 0;
+  const tpiRate = Number(category?.tpiRate) || 0;
+  const tvaRate = Number(category?.tvaRate) || 0;
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-100 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3 bg-stone-50/50 border-b border-stone-100">
+        <div className="w-2 h-10 rounded-full shrink-0" style={{
+          backgroundColor: status === 'STOCK' ? '#10b981' : status === 'TRANSIT' ? '#f59e0b' : status === 'PI' ? '#3b82f6' : status === 'CUSTOMS' ? '#f97316' : '#d1d5db'
+        }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-black text-stone-900 truncate">{displayName}</p>
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${sc.color}`}>{sc.label}</span>
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 text-[10px] text-stone-400 font-bold">
+            <span>{article.categoryId || '—'}</span><span>·</span>
+            <span>{article.color || '—'}</span><span>·</span>
+            <span>{article.supplierId || '—'}</span><span>·</span>
+            <span>{qty} {article.unitOfMeasure || ''}</span>
+          </div>
+        </div>
+      </div>
+      <div className="px-4 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-3">
+            <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2"><Package className="w-3.5 h-3.5" /> Identité</h4>
+            <div className="space-y-1.5">
+              <Row label="Nom" value={article.name} /><Row label="Specs" value={article.specs} /><Row label="Couleur" value={article.color} /><Row label="Catégorie" value={article.categoryId} /><Row label="Groupe" value={generalCategory?.name} /><Row label="Unité" value={article.unitOfMeasure} />
+              {article.zipperType && <Row label="Type Fermeture" value={article.zipperType} />}
+              {article.slider && <Row label="Curseur" value={article.slider} />}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2"><DollarSign className="w-3.5 h-3.5" /> Prix & Qté</h4>
+            <div className="space-y-1.5">
+              <Row label="Quantité" value={`${qty} ${article.unitOfMeasure || ''}`} bold /><Row label="Prix FOB" value={prixFOB > 0 ? `$${prixFOB.toFixed(4)}` : '—'} /><Row label="Valeur FOB" value={prixFOB > 0 ? `$${(prixFOB * qty).toFixed(2)}` : '—'} /><Row label="Prix MAD" value={prixMAD > 0 ? `${prixMAD.toFixed(2)} MAD` : '—'} /><Row label="Prix vente" value={sellingPrice > 0 ? `${sellingPrice.toFixed(2)} MAD` : '—'} highlight /><Row label="CBM" value={cbm > 0 ? `${cbm.toFixed(2)} m³` : '—'} /><Row label="Poids" value={netWeight > 0 ? `${netWeight.toFixed(2)} kg` : '—'} />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-stone-100 pb-2"><Truck className="w-3.5 h-3.5" /> Logistique</h4>
+            <div className="space-y-1.5">
+              <Row label="Fournisseur" value={article.supplierId} bold /><Row label="Cmd" value={article.orderDate} /><Row label="Arrivée" value={article.arrivalDate || facture?.arrivalDate} /><Row label="Stock" value={article.stockEntryDate || facture?.stockEntryDate} /><Row label="Facture" value={article.factureId} mono />
+              {facture && <><Row label="Fret" value={facture.freightCost ? `$${Number(facture.freightCost).toFixed(2)}` : '—'} /><Row label="Transitaire" value={facture.forwarder} /></>}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
