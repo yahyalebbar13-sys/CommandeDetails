@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -2983,58 +2983,49 @@ Cette action est irréversible.`)) return;
                           })()}
                           
                           {/* Stock articles dropdown */}
-                          {stockSearchQuery.trim().length > 0 && (
-                            <div className="max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-[#111] divide-y divide-white/5">
-                              {computedStockItems
-                                .filter((s: any) => {
-                                  const q = stockSearchQuery.toLowerCase();
-                                  return (
-                                    s.productName.toLowerCase().includes(q) ||
-                                    (s.categoryId || '').toLowerCase().includes(q) ||
-                                    (s.color || '').toLowerCase().includes(q) ||
-                                    s.articleId.toLowerCase().includes(q)
-                                  );
-                                })
-                                .slice(0, 15)
-                                .map((s: any) => (
+                          {stockSearchQuery.trim().length > 0 && (() => {
+                            const q = stockSearchQuery.toLowerCase();
+                            const filteredArticles = stockArticles
+                              .filter((a: any) => {
+                                const name = (a.name || a.specs || '').toLowerCase();
+                                const cat = (a.categoryId || '').toLowerCase();
+                                const color = (a.color || '').toLowerCase();
+                                return name.includes(q) || cat.includes(q) || color.includes(q) || a.id.toLowerCase().includes(q);
+                              })
+                              .slice(0, 15);
+                            return (
+                              <div className="max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-[#111] divide-y divide-white/5">
+                                {filteredArticles.map((a: any) => (
                                   <button
-                                    key={s.articleId}
+                                    key={a.id}
                                     type="button"
                                     onClick={() => {
-                                      setEditForm(prev => ({ ...prev, stockArticleId: s.articleId } as any));
+                                      setEditForm(prev => ({ ...prev, stockArticleId: a.id } as any));
                                       setStockSearchQuery('');
                                     }}
                                     className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 transition-colors ${
-                                      (editForm as any).stockArticleId === s.articleId ? 'bg-cyan-500/10' : ''
+                                      (editForm as any).stockArticleId === a.id ? 'bg-cyan-500/10' : ''
                                     }`}
                                   >
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm text-white truncate">{s.productName}</p>
+                                      <p className="text-sm text-white truncate">{a.name || a.specs || a.categoryId}</p>
                                       <p className="text-[10px] text-gray-500">
-                                        {s.categoryId}{s.color && s.color !== 'various' ? ` · ${s.color}` : ''}{s.size && s.size !== 'various' ? ` · ${s.size}` : ''}
+                                        {a.categoryId}{a.color ? ` · ${a.color}` : ''}{a.size ? ` · ${a.size}` : ''} · {a.supplierId || ''}
                                       </p>
                                     </div>
                                     <div className="text-right flex-shrink-0">
-                                      <span className={`text-xs font-bold ${s.currentQty > 10 ? 'text-emerald-400' : s.currentQty > 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                                        {s.currentQty}
+                                      <span className="text-xs font-bold text-gray-400">
+                                        {Number(a.quantity || 0).toLocaleString('fr-MA')} {a.unitOfMeasure || ''}
                                       </span>
-                                      <p className="text-[10px] text-gray-600">{s.unitOfMeasure}</p>
                                     </div>
-                                    {s.variants?.length > 0 && (
-                                      <span className="text-[10px] text-gray-500 bg-white/5 px-1.5 py-0.5 rounded">
-                                        {s.variants.length} var.
-                                      </span>
-                                    )}
                                   </button>
                                 ))}
-                              {computedStockItems.filter((s: any) => {
-                                const q = stockSearchQuery.toLowerCase();
-                                return s.productName.toLowerCase().includes(q) || (s.categoryId || '').toLowerCase().includes(q) || (s.color || '').toLowerCase().includes(q) || s.articleId.toLowerCase().includes(q);
-                              }).length === 0 && (
-                                <p className="text-xs text-gray-500 px-3 py-3 text-center">Aucun article trouvé</p>
-                              )}
-                            </div>
-                          )}
+                                {filteredArticles.length === 0 && (
+                                  <p className="text-xs text-gray-500 px-3 py-3 text-center">Aucun article trouvé</p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Variant-level stock linking */}
