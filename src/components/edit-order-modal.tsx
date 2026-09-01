@@ -244,20 +244,29 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData?.categoryId, subCategories]);
 
-  // ── Fabric detection ──
+  // ── Fabric detection — check pôle name, fallback to category name keywords ──
   const isFabric = useMemo(() => {
-    // Try to get generalCategoryId from state, fallback to looking up the category's parent
+    const POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
+    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing'];
+    // 1) Check pôle name
     let genCatId = selectedGenCatId;
     if (!genCatId && formData?.categoryId) {
       const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
       if (cat) genCatId = cat.generalCategoryId;
     }
-    if (!genCatId) return false;
-    
-    const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
-    if (!genCat) return false;
-    const lower = (genCat.name || '').toLowerCase();
-    return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
+    if (genCatId) {
+      const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (POLE_KW.some(kw => lower.includes(kw))) return true;
+      }
+    }
+    // 2) Fallback: check category name
+    if (formData?.categoryId) {
+      const lower = formData.categoryId.toLowerCase();
+      if (CAT_KW.some(kw => lower.includes(kw))) return true;
+    }
+    return false;
   }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
 
   const availableGsm = useMemo(() => {

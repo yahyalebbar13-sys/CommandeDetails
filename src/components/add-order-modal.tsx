@@ -178,14 +178,25 @@ export function AddOrderForm({
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData.categoryId, subCategories]);
 
-  // ── Fabric detection — based on pôle (generalCategory), not category name ──
+  // ── Fabric detection — check pôle name, fallback to category name keywords ──
   const isFabric = useMemo(() => {
-    if (!selectedGenCatId) return false;
-    const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
-    if (!genCat) return false;
-    const lower = (genCat.name || '').toLowerCase();
-    return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
-  }, [selectedGenCatId, generalCategories]);
+    const POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
+    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing'];
+    // 1) Check pôle name
+    if (selectedGenCatId) {
+      const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (POLE_KW.some(kw => lower.includes(kw))) return true;
+      }
+    }
+    // 2) Fallback: check category name
+    if (formData.categoryId) {
+      const lower = formData.categoryId.toLowerCase();
+      if (CAT_KW.some(kw => lower.includes(kw))) return true;
+    }
+    return false;
+  }, [selectedGenCatId, generalCategories, formData.categoryId]);
 
   const availableGsm = useMemo(() => {
     if (!formData.categoryId) return [];

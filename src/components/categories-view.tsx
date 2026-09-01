@@ -365,14 +365,26 @@ export default function CategoriesView({
   }, [currentCategoryObj, isCustomsModalOpen]);
 
   // Detect if current category is in the Fabric pôle
+  // Strategy: check pôle name first, then fallback to subcategory name keywords
+  const FABRIC_POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
+  const FABRIC_CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing'];
   const isFabricCat = useMemo(() => {
+    // 1) Check pôle name
     const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
-    if (!genCatId) return false;
-    const genCat = generalCategories.find(g => g.id === genCatId);
-    if (!genCat) return false;
-    const lower = (genCat.name || '').toLowerCase();
-    return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
-  }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories]);
+    if (genCatId) {
+      const genCat = generalCategories.find(g => g.id === genCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (FABRIC_POLE_KW.some(kw => lower.includes(kw))) return true;
+      }
+    }
+    // 2) Fallback: check subcategory name
+    if (selectedCategory) {
+      const lower = selectedCategory.toLowerCase();
+      if (FABRIC_CAT_KW.some(kw => lower.includes(kw))) return true;
+    }
+    return false;
+  }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
 
   const handleUpdateCustoms = () => {
     if (!user || !firestore || !currentCategoryObj) return;
