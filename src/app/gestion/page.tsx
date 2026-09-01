@@ -25,7 +25,6 @@ import DevisPIView from '@/components/devis-pi-view';
 import { ClientProfitabilityView } from '@/components/client-profitability-view';
 import BaseOrdersView from '@/components/base-orders-view';
 import EmailsView from '@/components/emails-view';
-import UnifiedProductsView from '@/components/unified-products-view';
 import { exportGlobalPackingPDF } from '@/lib/pdf-global-packing';
 
 import { ClientDetailView } from '@/components/suppliers-view';
@@ -481,7 +480,6 @@ function AdminApp() {
       { id: 'devis-pi',  label: 'Devis Client', icon: ReceiptText },
       { id: 'suppliers', label: 'Partenaires',  icon: UserCheck },
       { id: 'emails',    label: 'Emails',       icon: Mail },
-      { id: 'products',  label: 'Produits',     icon: Database },
       { id: 'data',      label: 'Data Lab',     icon: Table2 },
     ],
   ] as const;
@@ -680,14 +678,6 @@ function AdminApp() {
             </div>
             <div className={activeTab === 'data' ? 'block animate-in fade-in' : 'hidden'}>
               <DataView articles={articles} onEdit={setEditingArticle} />
-            </div>
-            <div className={activeTab === 'products' ? 'block animate-in fade-in' : 'hidden'}>
-              <UnifiedProductsView
-                articles={articles}
-                factures={factures}
-                subCategories={subCategories}
-                generalCategories={generalCategories}
-              />
             </div>
             <div className={activeTab === 'emails' ? 'block animate-in fade-in' : 'hidden'}>
               <EmailsView />
