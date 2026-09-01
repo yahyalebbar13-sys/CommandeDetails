@@ -256,5 +256,12 @@ service cloud.firestore {
     match /shop_customers/{userId} {
       allow read, write: if isSignedIn() && (request.auth.uid == userId || request.auth.token.email == 'yahya.lebbar13@gmail.com');
     }
+
+    // ── Unified Product Master Database ───────────────────────────────────────
+    // products_master: central product registry linking Gestion, Stock & Shop
+    match /products_master/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
+    }
   }
 }

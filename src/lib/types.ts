@@ -84,7 +84,7 @@ export type SupplierPayment = {
   notes?: string;
 };
 
-export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai';
+export type ViewType = 'dashboard' | 'to-order' | 'pending' | 'transit' | 'factures' | 'general-categories' | 'categories' | 'suppliers' | 'data' | 'timeline' | 'cost-analysis' | 'cost-sale' | 'dp' | 'reconciliation' | 'devis-pi' | 'client-profitability' | 'ai' | 'products' | 'base-orders' | 'history-revient' | 'emails';
 
 export type StockMovementType = 'IN' | 'OUT' | 'ADJUSTMENT';
 export type StockMovementReason = 'ARRIVAGE' | 'VENTE' | 'PERTE' | 'RETOUR' | 'INVENTAIRE' | 'TRANSFERT';
