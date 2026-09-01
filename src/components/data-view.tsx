@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Search, Trash2, Pencil, Box, Settings2, MousePointer2, Database, Info } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -22,6 +23,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
 
   const filteredArticles = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -40,14 +42,7 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
   const handleDelete = (articleId: string, name: string) => {
     if (!user || !firestore || !articleId) return;
     
-    if (window.confirm(`Supprimer définitivement l'article "${name}" de la base de données ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', articleId);
-      deleteDocumentNonBlocking(docRef);
-      toast({ 
-        title: "Article supprimé", 
-        description: name 
-      });
-    }
+    setDeleteConfirm({ open: true, id: articleId, name });
   };
 
   const isTechnicalZipper = (cat: string) => {
@@ -193,6 +188,28 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
       <footer className="text-center py-2">
         <p className="text-[8px] text-stone-300 font-black uppercase tracking-[0.3em]">Catalogue de données • {filteredArticles.length} articles</p>
       </footer>
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: "Article supprimé", description: deleteConfirm.name });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

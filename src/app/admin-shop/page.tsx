@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -1441,7 +1441,7 @@ function EditCategorieModal({
 
 // ─── Categories View ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 function CategoriesView() {
-  type CatItem = { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean };
+  type CatItem = { id: string; slug: string; name: string; image?: string | null; description?: string | null; color?: string; priority?: number; isCustom: boolean; parentSlug?: string; [key: string]: any };
   const [customCats, setCustomCats] = useState<CatItem[]>([]);
   const [overrides, setOverrides] = useState<Record<string, Partial<CatItem>>>({});
   const [loading, setLoading] = useState(true);
@@ -4551,3 +4551,6 @@ export default function AdminShopPage() {
     </div>
   );
 }
+
+
+

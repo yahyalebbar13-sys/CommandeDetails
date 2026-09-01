@@ -53,8 +53,8 @@ import { useAutoStatusNotifier } from '@/hooks/use-auto-status-notifier';
 // Only this email sees the admin dashboard — enforced ALSO by Firestore rules
 const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
 // Employee with limited access — can only see the Coût de Vente page
-const STAFF_EMAIL = 'lebtexsarlau@gmail.com';
-const STAFF_PASSWORD = 'Lebtex2026';
+const STAFF_EMAIL = process.env.NEXT_PUBLIC_STAFF_EMAIL || '';
+const STAFF_PASSWORD = process.env.NEXT_PUBLIC_STAFF_PASSWORD || '';
 
 // ─── Auto-provision staff account ────────────────────────────────────────────
 // Called silently when admin logs in. Creates the staff Firebase Auth account

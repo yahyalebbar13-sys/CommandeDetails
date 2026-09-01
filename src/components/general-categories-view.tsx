@@ -13,6 +13,7 @@ import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface GeneralCategoriesViewProps {
   articles: any[];
@@ -57,6 +58,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newSubTpiRate, setNewSubTpiRate] = useState<number | ''>('');
   const [newSubTvaRate, setNewSubTvaRate] = useState<number | ''>('');
   const [targetGenCatId, setTargetGenCatId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
 
   const now = new Date();
 
@@ -202,11 +204,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
     if (!user || !firestore) return;
-    if (window.confirm(`Supprimer le groupe "${name}" ainsi que ses configurations ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
-      deleteDocumentNonBlocking(docRef);
-      toast({ title: 'Groupe supprimé' });
-    }
+    setDeleteConfirm({ open: true, id, name });
   };
 
   const openSubModal = (e: React.MouseEvent, genCatId: string) => {
@@ -521,6 +519,28 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'generalCategories', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: 'Groupe supprimé' });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

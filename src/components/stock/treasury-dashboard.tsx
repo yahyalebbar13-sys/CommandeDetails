@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ClientPayment, Client, Invoice } from '@/lib/types';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -48,6 +49,25 @@ export default function TreasuryDashboard({ payments, clients, invoices, onUpdat
         const d2 = b.dueDate || '9999-12-31';
         return d1.localeCompare(d2);
       });
+  }, [payments]);
+
+  const forecastData = useMemo(() => {
+    const today = new Date();
+    const periods = [
+      { name: '0-30 jours', min: 0, max: 30, amount: 0 },
+      { name: '31-60 jours', min: 31, max: 60, amount: 0 },
+      { name: '61-90 jours', min: 61, max: 90, amount: 0 },
+      { name: '90+ jours', min: 91, max: 9999, amount: 0 },
+    ];
+    payments.forEach(p => {
+      if ((p.method === 'CHEQUE' || p.method === 'EFFET') && p.status !== 'CLEARED' && p.status !== 'REJECTED' && p.dueDate) {
+        const due = new Date(p.dueDate);
+        const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const period = periods.find(pr => daysUntilDue >= pr.min && daysUntilDue <= pr.max);
+        if (period) period.amount += p.amount;
+      }
+    });
+    return periods;
   }, [payments]);
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'Anonyme';
@@ -193,6 +213,32 @@ export default function TreasuryDashboard({ payments, clients, invoices, onUpdat
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Échéancier Prévisionnel */}
+      <div className="bg-white border border-stone-100 rounded-3xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-stone-100 bg-stone-50/50">
+          <h3 className="text-sm font-black text-stone-900 uppercase tracking-tight flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4 text-violet-600" />
+            Échéancier Prévisionnel
+          </h3>
+          <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest mt-1">Encaissements attendus par période</p>
+        </div>
+        <div className="p-5">
+          {forecastData.some(d => d.amount > 0) ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={forecastData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700, fill: '#78716c' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#a8a29e' }} tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} />
+                <Tooltip formatter={(v: number) => [`${v.toLocaleString('fr-MA', {minimumFractionDigits: 2})} MAD`, 'Montant']} />
+                <Bar dataKey="amount" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center text-stone-400 text-xs font-bold uppercase tracking-widest py-8">Aucun effet en attente avec date d'échéance</p>
+          )}
         </div>
       </div>
 

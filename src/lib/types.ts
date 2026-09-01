@@ -194,7 +194,9 @@ export type TransferOrder = {
   createdAt?: any;
 };
 
-// ── Module Commercial ──────────────────────────────────────────────────────────
+// ── Types de catégorisation client ────────────────────────────────────────────
+export type ClientCategory = 'GROSSISTE' | 'SEMI_GROSSISTE' | 'DETAILLANT';
+
 export type Client = {
   id: string;
   storeId?: StoreLocation;
@@ -203,6 +205,17 @@ export type Client = {
   email?: string;
   address?: string;
   notes?: string;
+  // ── Catégorisation & Tarification ──
+  category?: ClientCategory;        // Type de client pour grilles tarifaires
+  // ── Conformité fiscale marocaine ──
+  ice?: string;                     // Identifiant Commun de l'Entreprise
+  identifiantFiscal?: string;       // IF — Identifiant Fiscal
+  registreCommerce?: string;        // RC — Registre du Commerce
+  cnss?: string;                    // CNSS — Caisse Nationale de Sécurité Sociale
+  patente?: string;                 // Patente
+  // ── Gestion du crédit ──
+  creditLimit?: number;             // Plafond de crédit en MAD (0 = pas de crédit)
+  creditBlocked?: boolean;          // Blocage manuel du crédit
   createdAt?: any;
 };
 
@@ -239,6 +252,9 @@ export type SaleOrder = {
 
 export type InvoiceStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'CANCELLED';
 
+// Taux de TVA marocains autorisés
+export type TvaRate = 0 | 7 | 10 | 14 | 20;
+
 export type Invoice = {
   id: string;
   invoiceNumber?: string;
@@ -246,9 +262,13 @@ export type Invoice = {
   clientName?: string;
   orderId?: string;
   items: OrderItem[];
-  totalAmount: number;
+  totalAmount: number;         // Montant HT
   discount?: number;
-  totalAfterDiscount: number;
+  totalAfterDiscount: number;  // Montant HT après remise
+  // ── Conformité fiscale marocaine ──
+  tvaRate?: TvaRate;           // Taux TVA applicable (20% par défaut)
+  tvaAmount?: number;          // Montant TVA calculé
+  totalTTC?: number;           // Total TTC (totalAfterDiscount + tvaAmount)
   paidAmount: number;
   remainingBalance: number;
   status: InvoiceStatus;
@@ -275,5 +295,57 @@ export type ClientPayment = {
   dueDate?: string; // Date d'échéance de l'effet
   status?: 'PENDING' | 'CLEARED' | 'REJECTED'; // PENDING par défaut pour les effets non encaissés
   scannedImageUrl?: string; // URL ou base64 du scan
+  createdAt?: any;
+};
+
+// ── Journal d'Audit ──────────────────────────────────────────────────────────
+export type AuditAction = 
+  | 'STOCK_IN' | 'STOCK_OUT' | 'STOCK_ADJUSTMENT' | 'STOCK_TRANSFER'
+  | 'SALE_CREATED' | 'INVOICE_CREATED' | 'INVOICE_PAID' | 'INVOICE_CANCELLED'
+  | 'PAYMENT_RECORDED' | 'PAYMENT_REJECTED' | 'PAYMENT_CLEARED'
+  | 'CLIENT_CREATED' | 'CLIENT_UPDATED'
+  | 'TRANSFER_CREATED' | 'TRANSFER_VALIDATED'
+  | 'INVENTORY_RECONCILED'
+  | 'SETTINGS_UPDATED';
+
+export type AuditLogEntry = {
+  id: string;
+  action: AuditAction;
+  userId: string;
+  userEmail: string;
+  entityType: 'stockMovement' | 'sale' | 'invoice' | 'payment' | 'client' | 'transfer' | 'settings';
+  entityId: string;
+  description: string;
+  metadata?: Record<string, any>;  // Additional context (amounts, quantities, etc.)
+  timestamp: string;               // ISO 8601
+  createdAt?: any;                 // Firestore serverTimestamp
+};
+
+// ── Rapprochement Bancaire ───────────────────────────────────────────────────
+export type BankReconciliationStatus = 'MATCHED' | 'UNMATCHED_INTERNAL' | 'UNMATCHED_BANK' | 'PARTIAL';
+
+export type BankTransaction = {
+  id: string;                      // ID unique généré à l'import
+  date: string;                    // Date de l'opération bancaire
+  label: string;                   // Libellé du relevé bancaire
+  reference?: string;              // Référence bancaire / N° chèque
+  credit: number;                  // Montant crédit (encaissement)
+  debit: number;                   // Montant débit (décaissement)
+  balance?: number;                // Solde après opération
+  matchedPaymentId?: string;       // ID du ClientPayment rapproché
+  status: BankReconciliationStatus;
+};
+
+export type BankReconciliation = {
+  id: string;
+  bankName: string;                // Nom de la banque (Attijariwafa, BMCE, BCP...)
+  accountNumber?: string;          // N° de compte
+  period: string;                  // Mois du relevé (YYYY-MM)
+  importDate: string;              // Date d'import du relevé
+  transactions: BankTransaction[];
+  totalCredits: number;
+  totalDebits: number;
+  matchedCount: number;
+  unmatchedCount: number;
   createdAt?: any;
 };

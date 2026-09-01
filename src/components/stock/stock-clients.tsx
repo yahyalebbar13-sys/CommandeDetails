@@ -22,12 +22,19 @@ interface StockClientsProps {
 
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const CATEGORY_BADGE: Record<string, { label: string; cls: string }> = {
+  GROSSISTE:       { label: 'Grossiste',       cls: 'bg-violet-100 text-violet-700' },
+  SEMI_GROSSISTE:  { label: 'Semi-grossiste',  cls: 'bg-blue-100 text-blue-700' },
+  DETAILLANT:      { label: 'Détaillant',       cls: 'bg-emerald-100 text-emerald-700' },
+};
+
 export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onNavigate }: StockClientsProps) {
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [selected, setSelected] = useState<Client | null>(null);
   const [activeTab, setActiveTab] = useState<'orders' | 'invoices' | 'payments' | 'checks'>('invoices');
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '', category: '', ice: '', identifiantFiscal: '', creditLimit: 0, creditBlocked: false });
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
@@ -39,24 +46,46 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
   });
 
   const filtered = useMemo(() =>
-    clients.filter(c =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone?.includes(search) ||
-      c.email?.toLowerCase().includes(search.toLowerCase())
-    ),
-    [clients, search]
+    clients.filter(c => {
+      const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.phone?.includes(search) ||
+        c.email?.toLowerCase().includes(search.toLowerCase());
+      const matchCat = categoryFilter === 'ALL' || c.category === categoryFilter;
+      return matchSearch && matchCat;
+    }),
+    [clients, search, categoryFilter]
   );
 
-  const clientBalance = (clientId: string) =>
-    invoices.filter(i => i.clientId === clientId && i.status !== 'CANCELLED').reduce((s, i) => s + i.remainingBalance, 0);
+  const { clientBalances, clientCAs, invoiceCounts, orderCounts } = useMemo(() => {
+    const balances = new Map<string, number>();
+    const cas = new Map<string, number>();
+    const iCounts = new Map<string, number>();
+    const oCounts = new Map<string, number>();
+    
+    for (const inv of invoices) {
+      if (inv.clientId) {
+        if (inv.status !== 'CANCELLED') {
+          balances.set(inv.clientId, (balances.get(inv.clientId) || 0) + (inv.remainingBalance || 0));
+          cas.set(inv.clientId, (cas.get(inv.clientId) || 0) + (inv.totalAfterDiscount || 0));
+        }
+        iCounts.set(inv.clientId, (iCounts.get(inv.clientId) || 0) + 1);
+      }
+    }
+    for (const ord of orders) {
+      if (ord.clientId) {
+        oCounts.set(ord.clientId, (oCounts.get(ord.clientId) || 0) + 1);
+      }
+    }
+    return { clientBalances: balances, clientCAs: cas, invoiceCounts: iCounts, orderCounts: oCounts };
+  }, [invoices, orders]);
 
-  const clientCA = (clientId: string) =>
-    invoices.filter(i => i.clientId === clientId && i.status !== 'CANCELLED').reduce((s, i) => s + i.totalAfterDiscount, 0);
+  const clientBalance = (clientId: string) => clientBalances.get(clientId) || 0;
+  const clientCA = (clientId: string) => clientCAs.get(clientId) || 0;
 
   const handleCreate = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    try { await onCreateClient(form); setCreateOpen(false); setForm({ name: '', phone: '', email: '', address: '', notes: '' }); }
+    try { await onCreateClient(form as any); setCreateOpen(false); setForm({ name: '', phone: '', email: '', address: '', notes: '', category: '', ice: '', identifiantFiscal: '', creditLimit: 0, creditBlocked: false }); }
     finally { setSaving(false); }
   };
 
@@ -253,6 +282,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
             { key: 'email', label: 'Email', placeholder: 'email@example.com' },
             { key: 'address', label: 'Adresse', placeholder: 'Ville, quartier...' },
+            { key: 'ice', label: 'ICE', placeholder: 'N° ICE' },
+            { key: 'identifiantFiscal', label: 'IF', placeholder: 'Identifiant Fiscal' },
             { key: 'notes', label: 'Notes', placeholder: 'Remarques...' },
           ].map(({ key, label, placeholder }) => (
             <div key={key} className="space-y-1">
@@ -262,6 +293,31 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                 className="h-9 rounded-xl border-stone-200 font-bold text-sm" />
             </div>
           ))}
+          <div className="space-y-1">
+            <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
+            <Select value={editForm.category ?? selected.category ?? ''} onValueChange={v => setEditForm(f => ({ ...f, category: v as any }))}>
+              <SelectTrigger className="h-9 rounded-xl border-stone-200 text-sm font-bold">
+                <SelectValue placeholder="Catégorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GROSSISTE">Grossiste</SelectItem>
+                <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
+                <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
+            <Input type="number" value={editForm.creditLimit ?? selected.creditLimit ?? ''} placeholder="0"
+              onChange={e => setEditForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
+              className="h-9 rounded-xl border-stone-200 font-bold text-sm" />
+          </div>
+          <div className="col-span-2 flex items-center space-x-2 mt-2">
+            <input type="checkbox" id="creditBlockedEdit" checked={editForm.creditBlocked ?? selected.creditBlocked ?? false}
+              onChange={e => setEditForm(f => ({ ...f, creditBlocked: e.target.checked }))}
+              className="rounded border-stone-300 w-4 h-4" />
+            <Label htmlFor="creditBlockedEdit" className="text-sm font-bold text-red-600">Bloquer le crédit</Label>
+          </div>
         </div>
       )}
 
@@ -409,11 +465,24 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
       </div>
 
       {/* Recherche */}
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-        <Input placeholder="Rechercher par nom, téléphone, email..." value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-11 h-12 rounded-2xl border-stone-200 text-sm font-bold shadow-sm" />
+      <div className="flex gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+          <Input placeholder="Rechercher par nom, téléphone, email..." value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-11 h-12 rounded-2xl border-stone-200 text-sm font-bold shadow-sm" />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-48 h-12 rounded-2xl border-stone-200 text-sm font-bold shadow-sm bg-white">
+            <SelectValue placeholder="Catégorie" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Toutes les catégories</SelectItem>
+            <SelectItem value="GROSSISTE">Grossiste</SelectItem>
+            <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
+            <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Grille clients */}
@@ -426,8 +495,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
           {filtered.map(c => {
             const balance = clientBalance(c.id);
             const ca = clientCA(c.id);
-            const nInv = invoices.filter(i => i.clientId === c.id).length;
-            const nOrd = orders.filter(o => o.clientId === c.id).length;
+            const nInv = invoiceCounts.get(c.id) || 0;
+            const nOrd = orderCounts.get(c.id) || 0;
             return (
               <div key={c.id} className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden hover:shadow-2xl hover:-translate-y-0.5 transition-all group">
                 <div className="h-1.5 bg-gradient-to-r from-violet-500 to-violet-400" />
@@ -437,7 +506,16 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                       {c.name[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-stone-900 uppercase tracking-tight truncate">{c.name}</p>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-black text-stone-900 uppercase tracking-tight truncate">{c.name}</p>
+                        {c.creditBlocked && <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Bloqué</span>}
+                      </div>
+                      {c.category && CATEGORY_BADGE[c.category] && (
+                        <span className={`inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded mb-1 ${CATEGORY_BADGE[c.category].cls}`}>
+                          {CATEGORY_BADGE[c.category].label}
+                        </span>
+                      )}
+                      {c.ice && <p className="text-[9px] font-bold text-stone-500 mt-0.5">ICE: {c.ice}</p>}
                       {c.phone && <p className="text-[9px] font-bold text-stone-400 flex items-center gap-1 mt-0.5"><Phone className="w-2.5 h-2.5" />{c.phone}</p>}
                       {c.email && <p className="text-[9px] font-bold text-stone-400 flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{c.email}</p>}
                     </div>
@@ -458,6 +536,18 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                         Dû: {fmt$(balance)}
                       </span>
                     </div>
+                    {c.creditLimit && c.creditLimit > 0 ? (
+                      <div className="mt-2">
+                        <div className="flex justify-between text-[8px] font-bold uppercase tracking-widest text-stone-400 mb-1">
+                          <span>Crédit utilisé</span>
+                          <span>{fmt$(balance)} / {fmt$(c.creditLimit)} MAD</span>
+                        </div>
+                        <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${(balance / c.creditLimit) * 100 > 90 ? 'bg-red-500' : (balance / c.creditLimit) * 100 > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(100, (balance / c.creditLimit) * 100)}%` }} />
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <Button onClick={() => setSelected(c)}
@@ -483,6 +573,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
               { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
               { key: 'email', label: 'Email', placeholder: 'email@example.com' },
               { key: 'address', label: 'Adresse', placeholder: 'Casablanca, Maroc...' },
+              { key: 'ice', label: 'ICE', placeholder: 'N° ICE' },
+              { key: 'identifiantFiscal', label: 'IF', placeholder: 'Identifiant Fiscal' },
               { key: 'notes', label: 'Notes', placeholder: 'Informations complémentaires...' },
             ].map(({ key, label, placeholder }) => (
               <div key={key} className="space-y-1">
@@ -492,6 +584,31 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                   className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
               </div>
             ))}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Catégorie</Label>
+                <Select value={(form as any).category || undefined} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
+                  <SelectTrigger className="h-10 rounded-xl border-stone-200 font-bold text-sm"><SelectValue placeholder="Catégorie..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GROSSISTE">Grossiste</SelectItem>
+                    <SelectItem value="SEMI_GROSSISTE">Semi-grossiste</SelectItem>
+                    <SelectItem value="DETAILLANT">Détaillant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Plafond de crédit</Label>
+                <Input type="number" value={(form as any).creditLimit || ''} placeholder="0"
+                  onChange={e => setForm(f => ({ ...f, creditLimit: parseFloat(e.target.value) || 0 }))}
+                  className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <input type="checkbox" id="formCreditBlocked" checked={(form as any).creditBlocked || false}
+                onChange={e => setForm(f => ({ ...f, creditBlocked: e.target.checked }))}
+                className="rounded border-stone-300 w-4 h-4" />
+              <Label htmlFor="formCreditBlocked" className="text-sm font-bold text-red-600">Bloquer le crédit dès la création</Label>
+            </div>
           </div>
           <DialogFooter className="p-4 bg-stone-50 gap-2">
             <Button variant="ghost" onClick={() => setCreateOpen(false)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>

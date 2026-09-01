@@ -341,13 +341,13 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
                         </div>
                       </div>
                       <select
-                        className="text-[10px] font-black uppercase rounded-lg border-stone-200 h-9 bg-white focus:ring-emerald-500 focus:border-emerald-500"
                         value={storeSelections[article.id] || 'ENTREPOT'}
                         onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
+                        className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white"
                       >
-                        <option value="ENTREPOT">Entrepôt Principal</option>
+                        <option value="ENTREPOT">Magasin CHRIFA</option>
                         <option value="DERB_OMAR">Magasin Derb Omar</option>
-                        <option value="CHRIFA">Magasin Chrifa</option>
+                        <option value="IDAA">Magasin Idaa</option>
                       </select>
                     </div>
                   );

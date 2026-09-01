@@ -12,6 +12,7 @@ import {
   BookImage, Tag, Pencil, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 
 interface DesignLibraryProps {
@@ -62,6 +63,7 @@ export default function DesignLibrary({ categoryId, categoryName }: DesignLibrar
   // ── Edit description in-place ──
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingDesc, setEditingDesc] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string; design?: any}>({open: false});
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,18 +137,7 @@ export default function DesignLibrary({ categoryId, categoryName }: DesignLibrar
 
   const handleDeleteDesign = async (design: Design) => {
     if (!user || !firestore) return;
-    if (!window.confirm(`Supprimer le design "${design.ref}" ?`)) return;
-
-    try {
-      if (design.imageUrl) {
-        const storage = getStorage(getApp());
-        await deleteObject(storageRef(storage, `users/${user.uid}/categories/${categoryId}/designs/${design.id}`)).catch(() => {});
-      }
-      await deleteDoc(doc(firestore, 'users', user.uid, 'categories', categoryId, 'designs', design.id));
-      toast({ title: 'Design supprimé', description: design.ref });
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
-    }
+    setDeleteConfirm({ open: true, id: design.id, name: design.ref, design });
   };
 
   const handleSaveDesc = (design: Design) => {
@@ -339,6 +330,36 @@ export default function DesignLibrary({ categoryId, categoryName }: DesignLibrar
           ))}
         </div>
       )}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (deleteConfirm.design && user && firestore) {
+                const design = deleteConfirm.design;
+                try {
+                  if (design.imageUrl) {
+                    const storage = getStorage(getApp());
+                    await deleteObject(storageRef(storage, `users/${user.uid}/categories/${categoryId}/designs/${design.id}`)).catch(() => {});
+                  }
+                  await deleteDoc(doc(firestore, 'users', user.uid, 'categories', categoryId, 'designs', design.id));
+                  toast({ title: 'Design supprimé', description: design.ref });
+                } catch (err: any) {
+                  toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+                }
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

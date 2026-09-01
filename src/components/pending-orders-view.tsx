@@ -13,6 +13,7 @@ import {
 import ValidateOrderModal from './validate-order-modal';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface PendingOrdersViewProps {
@@ -31,6 +32,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'mine' | 'clients'>('mine');
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
 
   const pendingOrders = useMemo(() => {
     return articles
@@ -120,11 +122,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
 
   const handleActionDelete = (id: string, name: string) => {
     if (!user || !firestore || !id) return;
-    if (window.confirm(`Supprimer définitivement la commande PI "${name}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'articles', id);
-      deleteDocumentNonBlocking(docRef);
-      toast({ title: "Commande supprimée", description: name });
-    }
+    setDeleteConfirm({ open: true, id, name });
   };
 
   const isZipperCategory = (cat: string) => {
@@ -462,6 +460,28 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         order={selectedOrder}
         factures={factures}
       />
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'articles', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: "Commande supprimée", description: deleteConfirm.name });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

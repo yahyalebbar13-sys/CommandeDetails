@@ -12,6 +12,7 @@ import {
   Mail, Settings, RefreshCw, Bell, Check
 } from 'lucide-react';
 import CoutDeRevientModal from './cout-de-revient-modal';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import CommercialExportModal from './commercial-export-modal';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
@@ -677,6 +678,7 @@ function SupplierDetailView({
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
   const [isSupplierInfoOpen, setIsSupplierInfoOpen] = useState(false);
   const [cdrArticle, setCdrArticle] = useState<any>(null);
   const [supplierProfile, setSupplierProfile] = useState<any>(null);
@@ -730,11 +732,7 @@ function SupplierDetailView({
 
   const handleDeletePayment = (paymentId: string) => {
     if (!user || !firestore) return;
-    if (window.confirm("Supprimer ce paiement ?")) {
-      const docRef = doc(firestore, 'users', user.uid, 'supplierPayments', paymentId);
-      deleteDocumentNonBlocking(docRef);
-      toast({ title: "Paiement supprimé" });
-    }
+    setDeleteConfirm({ open: true, id: paymentId, name: 'ce paiement' });
   };
 
   const handleExportPDF = () => {
@@ -1120,6 +1118,28 @@ function SupplierDetailView({
         supplierId={supplierName}
         onSaved={(profile) => setSupplierProfile(profile)}
       />
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'supplierPayments', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: "Paiement supprimé" });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

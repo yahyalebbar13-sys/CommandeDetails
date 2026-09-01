@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Search, Eye, Printer, CreditCard, X } from 'lucide-react';
+import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Invoice, InvoiceStatus, Client, ClientPayment, PaymentMethod } from '@/lib/types';
+import { exportToFile, formatInvoicesForExport } from '@/lib/export-utils';
+import { exportInvoicesPDF } from '@/lib/pdf-export-reports';
 
 interface StockInvoicesProps {
   invoices: Invoice[];
@@ -31,6 +33,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth,  setFilterMonth]  = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
   const [viewInvoice,   setViewInvoice]   = useState<Invoice | null>(null);
   const [payInvoice,    setPayInvoice]    = useState<Invoice | null>(null);
@@ -72,6 +75,38 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
   const invPayments = (invId: string) => payments.filter(p => p.invoiceId === invId);
 
+  const handleSendReminder = async (inv: Invoice) => {
+    const client = clients.find(c => c.id === inv.clientId);
+    if (!client?.email) {
+      alert('Ce client n\'a pas d\'adresse email configurée.');
+      return;
+    }
+    setSendingReminder(inv.id);
+    try {
+      const res = await fetch('/api/send-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: client.email,
+          clientName: client.name,
+          invoiceNumber: invoiceNumber(inv),
+          amount: inv.totalAfterDiscount,
+          dueDate: inv.dueDate,
+          remainingBalance: inv.remainingBalance,
+        }),
+      });
+      if (res.ok) {
+        alert('✅ Relance envoyée avec succès !');
+      } else {
+        alert('❌ Erreur lors de l\'envoi de la relance.');
+      }
+    } catch {
+      alert('❌ Erreur réseau.');
+    } finally {
+      setSendingReminder(null);
+    }
+  };
+
   const handlePayment = async () => {
     if (!payInvoice || !paymentForm.amount || saving) return;
     setSaving(true);
@@ -99,6 +134,11 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
   const printInvoice = (inv: Invoice) => {
     const num = invoiceNumber(inv);
+    const client = clients.find(c => c.id === inv.clientId);
+    const tvaRate = inv.tvaRate ?? 20;
+    const ht = inv.totalAfterDiscount;
+    const tvaAmount = inv.tvaAmount ?? (ht * tvaRate / 100);
+    const ttc = inv.totalTTC ?? (ht + tvaAmount);
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${num}</title>
@@ -112,12 +152,14 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     .total-row{font-weight:900;font-size:18px;color:#6d28d9}
     .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;text-transform:uppercase}
     .unpaid{background:#fee2e2;color:#b91c1c}.paid{background:#d1fae5;color:#065f46}.partial{background:#fed7aa;color:#c2410c}
+    .fiscal-box{margin-top:20px;padding:12px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;font-size:10px;color:#78716c}
+    .fiscal-box strong{color:#44403c}
     .footer{margin-top:40px;text-align:center;font-size:10px;color:#a8a29e;border-top:1px solid #e7e5e4;padding-top:16px}
     </style></head><body>
     <div class="header">
       <div>
         <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
-        <div class="label" style="color:#6d28d9;font-size:10px">FACTURE</div>
+        <div class="label" style="color:#6d28d9;font-size:10px">BON DE COMMANDE</div>
         <h1>${num}</h1>
         <span class="badge ${inv.status === 'PAID' ? 'paid' : inv.status === 'PARTIAL' ? 'partial' : 'unpaid'}">
           ${STATUS_BADGE[inv.status].label}
@@ -128,21 +170,30 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         ${inv.dueDate ? `<br><div class="label" style="margin-top:6px">Échéance</div><strong>${inv.dueDate}</strong>` : ''}
         <br><div class="label" style="margin-top:8px">Facturé à</div>
         <strong style="font-size:14px">${inv.clientName || 'Anonyme'}</strong>
+        ${client?.ice ? `<br><div class="label" style="margin-top:4px">ICE</div><strong>${client.ice}</strong>` : ''}
+        ${client?.identifiantFiscal ? `<br><div class="label" style="margin-top:2px">IF</div><strong>${client.identifiantFiscal}</strong>` : ''}
       </div>
     </div>
     <table><thead><tr>
-      <th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit.</th><th>Total</th>
+      <th>Produit</th><th>Couleur</th><th>Taille</th><th>Qté</th><th>Prix unit. HT</th><th>Total HT</th>
     </tr></thead>
     <tbody>${inv.items.map(item => `<tr>
       <td><strong>${item.productName}</strong></td><td>${item.color || '—'}</td><td>${item.size || '—'}</td>
       <td>${item.qty} ${item.unitOfMeasure}</td><td>${fmt$(item.unitPrice)}</td><td><strong>${fmt$(item.totalPrice)}</strong></td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">
-      <div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total : ${fmt$(inv.totalAmount)}</div>
+      <div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total HT : ${fmt$(inv.totalAmount)}</div>
       ${(inv.discount || 0) > 0 ? `<div style="color:#059669;margin-bottom:4px;font-size:12px">Remise ${inv.discount}% : -${fmt$(inv.totalAmount * (inv.discount || 0) / 100)}</div>` : ''}
-      <div class="total-row">Total TTC : ${fmt$(inv.totalAfterDiscount)}</div>
+      <div style="color:#78716c;margin-bottom:4px;font-size:12px;font-weight:700">Total HT : ${fmt$(ht)}</div>
+      <div style="color:#78716c;margin-bottom:4px;font-size:12px">TVA ${tvaRate}% : ${fmt$(tvaAmount)}</div>
+      <div class="total-row">Total TTC : ${fmt$(ttc)} MAD</div>
       <div style="color:#059669;margin-top:8px;font-size:12px">Payé : ${fmt$(inv.paidAmount)}</div>
       <div style="color:#dc2626;font-size:14px;font-weight:700">Solde dû : ${fmt$(inv.remainingBalance)}</div>
+    </div>
+    <div class="fiscal-box">
+      <strong>LEBTEX SARL AU</strong> — Mercerie, fils à coudre, fermetures à glissière et accessoires textile<br>
+      RC : Casablanca · IF : — · ICE : — · CNSS : — · Patente : —<br>
+      <em>En cas de retard de paiement, des pénalités au taux légal seront appliquées conformément à la loi 32-10.</em>
     </div>
     <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')} · Merci pour votre confiance</div>
     </body></html>`);
@@ -157,7 +208,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-violet-400/10 rounded-full translate-y-1/2 blur-3xl" />
         <div className="relative z-10">
           <p className="text-[9px] font-black text-violet-300 uppercase tracking-[0.3em] mb-1">Comptabilité</p>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Factures <span className="text-violet-300">Clients</span></h1>
+          <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Bons de <span className="text-violet-300">Commande</span></h1>
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'CA Facturé', value: fmt$(invoices.reduce((s, i) => s + i.totalAfterDiscount, 0)), color: 'text-white' },
@@ -177,7 +228,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
       <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-          <Input placeholder="Rechercher client, N° facture..." value={search} onChange={e => setSearch(e.target.value)}
+          <Input placeholder="Rechercher client, N° bon..." value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 h-10 rounded-xl border-stone-200 text-sm font-bold" />
         </div>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -197,17 +248,31 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          onClick={() => exportToFile(formatInvoicesForExport(filtered), { filename: `factures-${new Date().toISOString().split('T')[0]}`, sheetName: 'Factures' })}
+          className="font-black uppercase text-xs h-10 rounded-xl gap-1.5 ml-auto"
+        >
+          <Download className="w-3.5 h-3.5" /> Excel
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => exportInvoicesPDF(filtered)}
+          className="font-black uppercase text-xs h-10 rounded-xl gap-1.5"
+        >
+          <Download className="w-3.5 h-3.5" /> PDF
+        </Button>
       </div>
 
       {/* Liste */}
       <div className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden">
         {filtered.length === 0 ? (
-          <p className="text-center text-stone-300 font-black uppercase text-[10px] py-16">Aucune facture</p>
+          <p className="text-center text-stone-300 font-black uppercase text-[10px] py-16">Aucun bon de commande</p>
         ) : (
           <>
             <table className="w-full">
               <thead><tr className="bg-stone-50 border-b border-stone-100">
-                {['N° Facture', 'Date', 'Échéance', 'Client', 'Montant', 'Payé', 'Solde Dû', 'Statut', 'Actions'].map(h => (
+                {['N° Bon', 'Date', 'Échéance', 'Client', 'Montant', 'Payé', 'Solde Dû', 'Statut', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr></thead>
@@ -244,11 +309,18 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                             <Printer className="w-3 h-3" />
                           </button>
                           {inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
-                            <button onClick={() => { setPayInvoice(inv); setPaymentForm(f => ({ ...f, amount: String(inv.remainingBalance) })); }}
-                              title="Enregistrer paiement"
-                              className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center">
-                              <CreditCard className="w-3 h-3" />
-                            </button>
+                            <>
+                              <button onClick={() => handleSendReminder(inv)} disabled={sendingReminder === inv.id}
+                                title="Envoyer une relance par email"
+                                className="h-7 w-7 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-colors disabled:opacity-50">
+                                <Mail className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => { setPayInvoice(inv); setPaymentForm(f => ({ ...f, amount: String(inv.remainingBalance) })); }}
+                                title="Enregistrer paiement"
+                                className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center">
+                                <CreditCard className="w-3 h-3" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>

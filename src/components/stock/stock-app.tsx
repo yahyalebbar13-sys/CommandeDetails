@@ -4,10 +4,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
+  Settings, MapPin, Home
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, addDoc, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
@@ -25,6 +26,7 @@ import PassToStockModal from '@/components/pass-to-stock-modal';
 import StockFiches      from './stock-fiches';
 import AuthView         from '@/components/auth-view';
 import { Button }       from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ArrivalsView     from './arrivals-view';
 import SaleOrdersView   from './sale-orders-view';
 import InvoiceView      from './invoice-view';
@@ -33,9 +35,12 @@ import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import TreasuryDashboard from './treasury-dashboard';
+import BankReconciliationView from './bank-reconciliation-view';
+import BlindInventory from './blind-inventory';
+import AuditLogView from './audit-log-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'blind-inventory' | 'audit';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
@@ -292,6 +297,10 @@ export function computeStockItems(
       qtyByStore:          computeQtyByStoreHelper(a, artMovements),
     });
   }
+  const isWarehouseView = stores.find(s => s.id === activeStore)?.type === 'WAREHOUSE';
+  if (isWarehouseView) {
+    return results.filter(r => r.currentQty > 0);
+  }
 
   return results;
 }
@@ -421,24 +430,35 @@ export default function StockApp() {
     }
   }, [userRole, stores, userStoreId, hasInitMain]);
 
-  // Initialize default stores if empty
+  // Initialize default stores if empty or run migration
   useEffect(() => {
-    if (!firestore || !adminUid || loadingStores) return;
-    const isDerbWarehouse = stores.some(s => s.id === 'DERB_OMAR' && s.type === 'WAREHOUSE');
-    if (stores.length > 0 && !isDerbWarehouse) return;
-    const initStores = async () => {
+    if (!firestore || !adminUid || loadingStores || userRole !== 'ADMIN') return;
+    const runMigration = async () => {
+      const migrated = localStorage.getItem('stores_migrated_v3');
+      if (migrated) return;
+      
       const defaults = [
-        { id: 'CHRIFA', name: 'Magasin Chrifa (Principal)', type: 'STORE', isMain: true },
+        { id: 'ENTREPOT', name: 'Magasin CHRIFA', type: 'STORE', isMain: true },
         { id: 'DERB_OMAR', name: 'Magasin Derb Omar', type: 'STORE', isMain: false },
-        { id: 'AL_IDAA', name: 'Magasin Al Idaa', type: 'STORE', isMain: false },
-        { id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE' },
+        { id: 'IDAA', name: 'Magasin Idaa', type: 'STORE', isMain: false },
       ];
+
+      // Delete existing stores not in defaults
+      for (const s of stores) {
+        if (!defaults.find(d => d.id === s.id)) {
+          await deleteDoc(doc(firestore, 'users', adminUid, 'stores', s.id));
+        }
+      }
+
+      // Add/update defaults
       for (const s of defaults) {
         await setDoc(doc(firestore, 'users', adminUid, 'stores', s.id), s, { merge: true });
       }
+      
+      localStorage.setItem('stores_migrated_v3', 'true');
     };
-    initStores();
-  }, [userRole, firestore, adminUid, loadingStores, stores.length]);
+    runMigration();
+  }, [userRole, firestore, adminUid, loadingStores, stores]);
 
   // Filtrer les anciens arrivages (avant la date de réinitialisation)
   const RESET_DATE = '2026-07-06';
@@ -457,13 +477,19 @@ export default function StockApp() {
     [articles, movements, categories, activeStore, userRole, stores]
   );
 
+  const isIncludedInAllMain = (id: string | undefined) => {
+    if (!id || id === 'ENTREPOT') return true;
+    const store = stores.find(s => s.id === id);
+    return store ? (store.isMain || store.type === 'WAREHOUSE') : false;
+  };
+
   // Filtrer les données selon le magasin actif pour les vues (sauf Admin "ALL")
-  const filteredSales = useMemo(() => sales.filter(s => activeStore === 'ALL' || s.storeId === activeStore || (!s.storeId && activeStore === 'ENTREPOT')), [sales, activeStore]);
-  const filteredClients = useMemo(() => clients.filter(c => activeStore === 'ALL' || c.storeId === activeStore || (!c.storeId && activeStore === 'ENTREPOT')), [clients, activeStore]);
-  const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || o.storeId === activeStore || (!o.storeId && activeStore === 'ENTREPOT')), [orders, activeStore]);
-  const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || i.storeId === activeStore || (!i.storeId && activeStore === 'ENTREPOT')), [invoices, activeStore]);
-  const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')), [movements, activeStore]);
-  const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore]);
+  const filteredSales = useMemo(() => sales.filter(s => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(s.storeId)) || s.storeId === activeStore || (!s.storeId && activeStore === 'ENTREPOT')), [sales, activeStore, stores]);
+  const filteredClients = useMemo(() => clients.filter(c => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(c.storeId)) || c.storeId === activeStore || (!c.storeId && activeStore === 'ENTREPOT')), [clients, activeStore, stores]);
+  const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(o.storeId)) || o.storeId === activeStore || (!o.storeId && activeStore === 'ENTREPOT')), [orders, activeStore, stores]);
+  const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(i.storeId)) || i.storeId === activeStore || (!i.storeId && activeStore === 'ENTREPOT')), [invoices, activeStore, stores]);
+  const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(m.storeId) || isIncludedInAllMain(m.toStoreId))) || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')), [movements, activeStore, stores]);
+  const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(t.fromStore) || isIncludedInAllMain(t.toStore))) || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore, stores]);
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
@@ -522,7 +548,7 @@ export default function StockApp() {
   const handleValidateSale = useCallback(async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
     if (!user || !firestore || (!adminUid && userRole !== 'ADMIN')) return;
     const effectiveUid = adminUid || user.uid;
-    const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
     await addDoc(collection(firestore, 'users', effectiveUid, 'sales'), { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
       await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
@@ -542,7 +568,7 @@ export default function StockApp() {
   const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
     if (!user || !firestore) throw new Error('Not authenticated');
     const effectiveUid = adminUid || user.uid;
-    const storeId = activeStore === 'ALL' ? undefined : activeStore;
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? undefined : activeStore;
     const clientData = storeId ? { ...data, storeId } : data;
     const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'clients'), { ...clientData, createdAt: serverTimestamp() });
     toast({ title: '✅ Client créé', description: data.name });
@@ -560,7 +586,7 @@ export default function StockApp() {
   const handleCreateOrder = useCallback(async (order: Omit<SaleOrder, 'id' | 'createdAt'>): Promise<string> => {
     if (!user || !firestore) throw new Error('Not authenticated');
     const effectiveUid = adminUid || user.uid;
-    const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
     const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
     toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${order.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
     return ref.id;
@@ -588,7 +614,7 @@ export default function StockApp() {
       status: 'UNPAID',
       date: new Date().toISOString().split('T')[0],
       notes: order.notes,
-      storeId: order.storeId || (activeStore === 'ALL' ? 'ENTREPOT' : activeStore),
+      storeId: order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore),
       createdAt: serverTimestamp(),
     });
     await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', order.id), { status: 'INVOICED' });
@@ -603,7 +629,7 @@ export default function StockApp() {
   ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
-    const storeId = activeStore === 'ALL' ? 'ENTREPOT' : activeStore;
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
     await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), { ...invoice, storeId, createdAt: serverTimestamp() });
     for (const m of movementsOut) {
       await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), { ...m, storeId, createdAt: serverTimestamp() });
@@ -644,39 +670,58 @@ export default function StockApp() {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
     await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', paymentId), { status });
+
+    // When rejecting a payment, re-open the balance on the associated invoice
+    if (status === 'REJECTED') {
+      const payment = payments.find((p: any) => p.id === paymentId);
+      if (payment?.invoiceId) {
+        const invoice = invoices.find((inv: any) => inv.id === payment.invoiceId);
+        if (invoice) {
+          const newRemaining = Math.min(invoice.totalAfterDiscount, (invoice.remainingBalance || 0) + payment.amount);
+          const newPaid = Math.max(0, (invoice.paidAmount || 0) - payment.amount);
+          const newStatus = newPaid <= 0 ? 'UNPAID' : newPaid < invoice.totalAfterDiscount ? 'PARTIAL' : 'PAID';
+          await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
+            remainingBalance: newRemaining,
+            paidAmount: newPaid,
+            status: newStatus,
+          });
+        }
+      }
+    }
+
     toast({ title: '✅ Statut mis à jour', description: `Effet marqué comme ${status}` });
-  }, [user, firestore, adminUid, toast]);
+  }, [user, firestore, adminUid, toast, payments, invoices]);
 
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
   const navItemsRaw = useMemo(() => [
-    { id: 'dashboard', label: 'Dashboard',    icon: LayoutDashboard, adminOnly: true },
-    { id: 'sale',      label: 'Vente',         icon: ShoppingCart,   color: 'violet', commercialOnly: true, pointOfSaleOnly: true },
-    { id: 'stock',     label: 'En Stock',      icon: Package,         color: 'emerald' },
-    { id: 'arrivals',  label: 'Arrivages',     icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
-    { id: 'clients',   label: 'Clients',       icon: Users,           pointOfSaleOnly: true },
-    { id: 'orders',    label: 'Commandes',     icon: ClipboardList,   pointOfSaleOnly: true },
-    { id: 'invoices',  label: 'Factures',      icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
-    { id: 'inventory', label: 'Inventaire',    icon: Boxes },
-    { id: 'treasury',  label: 'Trésorerie',    icon: Landmark,        color: 'emerald', adminOnly: true, pointOfSaleOnly: true },
-    { id: 'movements', label: 'Mouvements',    icon: ArrowLeftRight },
-    { id: 'transfers', label: 'Transferts',    icon: Truck,           color: 'blue' },
-    { id: 'warehouses',label: 'Entrepôts',     icon: StoreIcon,       color: 'blue', adminOrMainOnly: true },
-    { id: 'stores',    label: 'Config Lieux',  icon: StoreIcon,       color: 'emerald', adminOnly: true },
-    { id: 'alerts',    label: 'Alertes',       icon: Bell,            badge: alertCount, adminOnly: true },
+    { id: 'dashboard', label: 'Dashboard',    category: 'dashboard', icon: LayoutDashboard, adminOnly: true },
+    { id: 'alerts',    label: 'Alertes',       category: 'dashboard', icon: Bell,            badge: alertCount, adminOnly: true },
+    { id: 'audit',    label: 'Journal',       category: 'dashboard', icon: List,            adminOnly: true },
+
+    { id: 'sale',      label: 'Caisse',         category: 'commerce', icon: ShoppingCart,   color: 'violet', pointOfSaleOnly: true },
+    { id: 'clients',   label: 'Clients',       category: 'commerce', icon: Users,           pointOfSaleOnly: true },
+    { id: 'orders',    label: 'Commandes',     category: 'commerce', icon: ClipboardList,   pointOfSaleOnly: true },
+    { id: 'invoices',  label: 'Bons de Commande', category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
+
+    { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
+    { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
+    { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
+    { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
+    { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: Boxes },
+    { id: 'blind-inventory', label: 'Inv. Aveugle', category: 'logistique', icon: Boxes,        color: 'amber' },
+
+    { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        color: 'emerald', adminOnly: true },
+    { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
+    
+    { id: 'warehouses', label: 'Lieux/Entrepôts', category: 'settings', icon: Home, adminOnly: true },
+    { id: 'stores',     label: 'Magasins',      category: 'settings', icon: MapPin, adminOnly: true }
   ], [pendingArrivals, openInvoices, alertCount]);
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
-  const isWarehouse = currentStore?.type === 'WAREHOUSE' || 
-    activeStore === 'ENTREPOT' || 
-    activeStore.toLowerCase().includes('entrepot') || 
-    activeStore.toLowerCase().includes('entrepôt') ||
-    (currentStore && currentStore.name.toLowerCase().includes('entrepot')) ||
-    (currentStore && currentStore.name.toLowerCase().includes('entrepôt'));
+  const isWarehouse = currentStore?.type === 'WAREHOUSE';
 
   const navItems = useMemo(() => navItemsRaw.filter(item => {
-    if (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') {
-      if (item.id !== 'inventory' && item.id !== 'warehouses') return false;
-    }
+    // removed the arbitrary activeStore restriction
     if (item.adminOnly && userRole === 'COMMERCIAL') return false;
     if (item.commercialOnly && userRole === 'ADMIN') return false;
     if (item.pointOfSaleOnly && isWarehouse) return false;
@@ -745,36 +790,66 @@ export default function StockApp() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center ml-4 px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-lg">
-            <span className="text-[10px] font-black text-stone-500 uppercase tracking-widest">
-              {activeStore === 'ALL' ? '🌐 Vue Globale' : activeStore === 'ALL_MAIN' ? '🌐 Tous (Magasin + Entrepôts)' : stores.find(s => s.id === activeStore)?.name || activeStore}
-            </span>
+          <div className="hidden md:flex items-center ml-4">
+            <Select value={activeStore} onValueChange={(val) => setActiveStore(val as any)}>
+              <SelectTrigger className="h-8 bg-stone-100 border-stone-200 text-[10px] font-black uppercase tracking-widest text-stone-600 rounded-lg min-w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {userRole === 'ADMIN' && (
+                  <SelectItem value="ALL">🌐 Vue Globale (Admin)</SelectItem>
+                )}
+                {userRole === 'COMMERCIAL' && stores.find(s => s.id === userStoreId)?.isMain && (
+                  <SelectItem value="ALL_MAIN">🌐 Vue Globale (Principal + Entrepôts)</SelectItem>
+                )}
+                
+                {stores.filter(s => {
+                  if (userRole === 'ADMIN') return true;
+                  if (userRole === 'COMMERCIAL') {
+                    const myStore = stores.find(x => x.id === userStoreId);
+                    if (myStore?.isMain) {
+                      return s.id === userStoreId || s.type === 'WAREHOUSE';
+                    }
+                    return s.id === userStoreId;
+                  }
+                  return false;
+                }).map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.type === 'WAREHOUSE' ? '📦' : '🏪'} {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Nav desktop */}
-          <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center px-4">
-            {navItems.map(({ id, label, icon: Icon, badge, color }) => (
-              <button key={id} onClick={() => setActiveView(id)}
-                className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-                  activeView === id
-                    ? color === 'violet'  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
-                    : color === 'amber'   ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
-                    : color === 'emerald' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30'
-                    : 'bg-stone-900 text-white shadow-md'
-                    : color === 'violet'  ? 'text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100'
-                    : color === 'amber'   ? 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
-                    : color === 'emerald' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
-                    : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
-                }`}>
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-                {badge != null && badge > 0 && (
-                  <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[7px] font-black flex items-center justify-center ${
-                    id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'arrivals' ? 'bg-amber-500' : 'bg-violet-500'
-                  }`}>{badge > 9 ? '9+' : badge}</span>
-                )}
-              </button>
-            ))}
+          {/* ── Ligne 1 : Catégories principales ── */}
+          <div className="flex-1 flex items-center justify-center overflow-x-auto px-4 hide-scrollbar">
+            <div className="flex items-center gap-1">
+              {[
+                { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+                { id: 'commerce', label: 'Commerce', icon: ShoppingCart },
+                { id: 'logistique', label: 'Logistique', icon: Package },
+                { id: 'finance', label: 'Finance', icon: Landmark },
+                { id: 'settings', label: 'Paramètres', icon: Settings }
+              ].map(cat => {
+                const catItems = navItems.filter(n => n.category === cat.id);
+                if (catItems.length === 0) return null;
+                const isActive = navItems.find(n => n.id === activeView)?.category === cat.id;
+                
+                return (
+                  <button key={cat.id} 
+                    onClick={() => setActiveView(catItems[0].id as StockView)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                      isActive 
+                        ? 'bg-stone-900 text-white shadow-md' 
+                        : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
+                    }`}>
+                    <cat.icon className="w-4 h-4" />
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Actions */}
@@ -794,21 +869,25 @@ export default function StockApp() {
           </div>
         </div>
 
-        {/* Mobile nav */}
-        <div className="lg:hidden flex border-t border-emerald-50 bg-white px-2 py-1 gap-1 overflow-x-auto">
-          {navItems.map(({ id, label, icon: Icon, badge, color }) => (
-            <button key={id} onClick={() => setActiveView(id)}
-              className={`relative flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all ${
+        {/* ── Ligne 2 : Sous-menu contextuel (Desktop & Mobile) ── */}
+        <div className="flex border-t border-stone-100 bg-stone-50 px-4 py-2 gap-2 overflow-x-auto hide-scrollbar shadow-inner">
+          {navItems.filter(n => n.category === (navItems.find(n => n.id === activeView)?.category || 'dashboard')).map(({ id, label, icon: Icon, badge, color }) => (
+            <button key={id} onClick={() => setActiveView(id as StockView)}
+              className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all ${
                 activeView === id
-                  ? color === 'violet' ? 'bg-violet-600 text-white' : 'bg-stone-900 text-white'
-                  : color === 'violet' ? 'text-violet-700 bg-violet-50 border border-violet-200' : 'text-stone-500'
+                  ? color === 'violet' ? 'bg-violet-600 text-white shadow-sm' 
+                    : color === 'amber' ? 'bg-amber-500 text-white shadow-sm'
+                    : color === 'emerald' ? 'bg-emerald-600 text-white shadow-sm'
+                    : color === 'blue' ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white text-stone-900 shadow-sm border border-stone-200'
+                  : 'text-stone-500 hover:bg-stone-200/50'
               }`}>
-              <Icon className="w-3 h-3" />
+              <Icon className="w-3.5 h-3.5" />
               {label}
               {badge != null && badge > 0 && (
-                <span className={`w-3.5 h-3.5 rounded-full text-white text-[7px] font-black flex items-center justify-center ${
-                  id === 'alerts' ? 'bg-red-500' : 'bg-orange-500'
-                }`}>{badge}</span>
+                <span className={`w-4 h-4 ml-1 rounded-full text-white text-[7.5px] font-black flex items-center justify-center ${
+                  id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : 'bg-emerald-500'
+                }`}>{badge > 99 ? '99+' : badge}</span>
               )}
             </button>
           ))}
@@ -830,7 +909,7 @@ export default function StockApp() {
         ) : (
           <div className="animate-in fade-in duration-300">
             {activeView === 'dashboard' && (
-              <StockDashboard userRole={userRole} activeStore={activeStore} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
+              <StockDashboard userRole={userRole} activeStore={activeStore} stores={stores} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow
@@ -839,6 +918,7 @@ export default function StockApp() {
                 categories={categories}
                 generalCategories={generalCategories}
                 clients={filteredClients}
+                invoices={invoices}
                 onCreateOrder={handleCreateOrder}
                 onCreateInvoice={handleCreateInvoice}
                 onCreateClient={handleCreateClient}
@@ -896,11 +976,20 @@ export default function StockApp() {
             {activeView === 'treasury' && (
               <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
             )}
+            {activeView === 'reconciliation' && (
+              <BankReconciliationView payments={payments} clients={clients} />
+            )}
             {activeView === 'movements' && (
-              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} onAddMovement={handleAddMovement} />
+              <StockMovements activeStore={activeStore} movements={filteredMovements} stockItems={stockItems} categories={categories} articles={articles} stores={stores} onAddMovement={handleAddMovement} />
             )}
             {activeView === 'alerts' && (
               <StockAlerts stockItems={stockItems} articles={articles} categories={categories} movements={filteredMovements} activeStore={activeStore} onNavigate={setActiveView} adminUid={adminUid} onAddMovement={handleAddMovement} />
+            )}
+            {activeView === 'blind-inventory' && (
+              <BlindInventory stockItems={allStockItems} categories={categories} activeStore={activeStore} adminUid={adminUid} onAddMovement={handleAddMovement} />
+            )}
+            {activeView === 'audit' && (
+              <AuditLogView entries={[]} />
             )}
             {activeView === 'transfers' && (
               <TransferOrdersView

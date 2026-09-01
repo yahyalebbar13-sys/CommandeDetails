@@ -3,10 +3,10 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   serverExternalPackages: ['firebase-admin'],
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: true, // TODO: 140 erreurs TS pré-existantes à corriger
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: true, // TODO: activer après cleanup TS
   },
   // ── Désactiver le cache du routeur Next.js 15 côté client ──────────────────
   // Empêche l'affichage d'une ancienne version lors de la navigation

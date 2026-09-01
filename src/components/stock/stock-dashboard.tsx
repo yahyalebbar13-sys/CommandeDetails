@@ -20,6 +20,7 @@ interface StockDashboardProps {
   clients?: any[];
   userRole?: 'ADMIN' | 'COMMERCIAL';
   activeStore: StoreLocation | 'ALL';
+  stores: any[];
   onNavigate: (v: StockView) => void;
 }
 
@@ -29,7 +30,15 @@ const MONTH_NAMES = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oc
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MAD';
 const fmtN = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 
-export default function StockDashboard({ stockItems, movements, categories, sales, invoices = [], clients = [], userRole = 'ADMIN', activeStore, onNavigate }: StockDashboardProps) {
+const pieLegendFormatter = (v: string) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{v}</span>;
+const yAxisKFormatter = (v: number) => `${(v / 1000).toFixed(0)}k`;
+const tooltipCAFormatter = (v: any) => [fmt$(v), 'CA'];
+const tooltipMargeFormatter = (v: any) => [fmt$(v), 'Marge'];
+const tooltipCaCoutFormatter = (v: any, name: string) => [fmt$(v), name === 'ca' ? 'CA' : name === 'cout' ? 'Coût' : 'Marge'];
+
+export default function StockDashboard({ stockItems, movements, categories, sales, invoices = [], clients = [], userRole = 'ADMIN', activeStore, stores, onNavigate }: StockDashboardProps) {
+  const yAxisCatFormatter = React.useCallback((v: number) => userRole === 'ADMIN' ? `${(v / 1000).toFixed(0)}k` : `${v}`, [userRole]);
+  const tooltipCatFormatter = React.useCallback((v: any) => [userRole === 'ADMIN' ? fmt$(v) : fmtN(v), userRole === 'ADMIN' ? 'Valeur' : 'Quantité'], [userRole]);
   const [activeTab, setActiveTab] = useState<'overview' | 'sales'>('overview');
   const [filterMonth, setFilterMonth] = useState<string>('all');
   const [selectedSale, setSelectedSale] = useState<any | null>(null);
@@ -37,6 +46,35 @@ export default function StockDashboard({ stockItems, movements, categories, sale
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+  const [dateRange, setDateRange] = useState<{from: string; to: string}>({
+    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0]
+  });
+
+  const filteredMovements = useMemo(() => 
+    movements.filter(m => m.date >= dateRange.from && m.date <= dateRange.to),
+    [movements, dateRange]
+  );
+
+  const rotationStats = useMemo(() => {
+    const totalSales = filteredMovements.filter(m => m.type === 'OUT' && m.reason === 'VENTE').reduce((s, m) => s + m.quantity, 0);
+    const totalCurrentQty = stockItems.reduce((s, i) => s + i.currentQty, 0);
+    const totalInitialQty = stockItems.reduce((s, i) => s + i.initialQty, 0);
+    const avgStock = (totalInitialQty + totalCurrentQty) / 2;
+    const rotation = avgStock > 0 ? totalSales / avgStock : 0;
+    const dsi = rotation > 0 ? Math.round(365 / rotation) : 0;
+    return { rotation: rotation.toFixed(2), dsi, avgStock: Math.round(avgStock), totalSales };
+  }, [filteredMovements, stockItems]);
+
+  const pmpStats = useMemo(() => {
+    const totalValue = stockItems.reduce((s, i) => s + i.totalValue, 0);
+    const totalQty = stockItems.reduce((s, i) => s + i.currentQty, 0);
+    const pmp = totalQty > 0 ? totalValue / totalQty : 0;
+    const totalSellingValue = stockItems.reduce((s, i) => s + (i.totalSellingValue || 0), 0);
+    const margin = totalSellingValue > 0 ? ((totalSellingValue - totalValue) / totalSellingValue * 100) : 0;
+    return { pmp, totalValue, totalQty, totalSellingValue, margin: margin.toFixed(1) };
+  }, [stockItems]);
 
   /* ── 1. GLOBAL STATS (OVERVIEW) ── */
   const totalValue     = useMemo(() => stockItems.reduce((s, i) => s + i.totalValue, 0), [stockItems]);
@@ -64,26 +102,36 @@ export default function StockDashboard({ stockItems, movements, categories, sale
   }, [stockItems, categories, userRole]);
 
   const storeSalesData = useMemo(() => {
-    const map = { ENTREPOT: 0, DERB_OMAR: 0, CHRIFA: 0 };
+    const map: Record<string, number> = {};
+    stores.forEach(s => map[s.id] = 0);
+    map['ENTREPOT'] = 0; // fallback
+
     sales.filter(s => s.date?.startsWith(currentMonth)).forEach(s => {
       const store = s.storeId || 'ENTREPOT';
-      if (store in map) map[store as keyof typeof map] += s.totalAmount;
+      if (store in map) map[store] += s.totalAmount;
     });
+
+    const colors = ['#059669', '#8b5cf6', '#f59e0b', '#3b82f6', '#ef4444'];
+    return Object.entries(map).filter(([_, val]) => val > 0).map(([id, val], idx) => {
+      const s = stores.find(s => s.id === id);
+      return {
+        name: s ? s.name : id,
+        value: val,
+        fill: colors[idx % colors.length]
+      };
+    });
+  }, [sales, currentMonth, stores]);
+
+  const lastMovements = useMemo(() => [...filteredMovements].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5), [filteredMovements]);
+
+  const pieData = useMemo(() => {
+    const thisMonthMov = filteredMovements;
     return [
-      { name: 'Entrepôt', value: map.ENTREPOT, fill: '#059669' },
-      { name: 'Derb Omar', value: map.DERB_OMAR, fill: '#8b5cf6' },
-      { name: 'Chrifa', value: map.CHRIFA, fill: '#f59e0b' },
+      { name: 'Entrées', value: thisMonthMov.filter(m => m.type === 'IN').length },
+      { name: 'Sorties', value: thisMonthMov.filter(m => m.type === 'OUT').length },
+      { name: 'Ajust.', value: thisMonthMov.filter(m => m.type === 'ADJUSTMENT').length },
     ].filter(d => d.value > 0);
-  }, [sales, currentMonth]);
-
-  const lastMovements = useMemo(() => [...movements].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5), [movements]);
-
-  const thisMonthMov = movements.filter(m => m.date?.startsWith(currentMonth));
-  const pieData = [
-    { name: 'Entrées', value: thisMonthMov.filter(m => m.type === 'IN').length },
-    { name: 'Sorties', value: thisMonthMov.filter(m => m.type === 'OUT').length },
-    { name: 'Ajust.', value: thisMonthMov.filter(m => m.type === 'ADJUSTMENT').length },
-  ].filter(d => d.value > 0);
+  }, [filteredMovements]);
   const PIE_COLORS = ['#059669', '#ef4444', '#3b82f6'];
 
   const kpisAdmin = [
@@ -208,6 +256,26 @@ export default function StockDashboard({ stockItems, movements, categories, sale
         </div>
       </header>
 
+      {/* ── Date Range Filter ── */}
+      <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Du</label>
+          <input type="date" value={dateRange.from} onChange={e => setDateRange(d => ({...d, from: e.target.value}))}
+            className="h-10 px-3 rounded-xl border border-stone-200 font-bold text-sm" />
+        </div>
+        <div>
+          <label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Au</label>
+          <input type="date" value={dateRange.to} onChange={e => setDateRange(d => ({...d, to: e.target.value}))}
+            className="h-10 px-3 rounded-xl border border-stone-200 font-bold text-sm" />
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => { const now = new Date(); setDateRange({ from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], to: now.toISOString().split('T')[0] }); }}
+            className="h-10 px-4 rounded-xl bg-stone-100 text-stone-700 text-[10px] font-black uppercase hover:bg-stone-200 transition-colors">Ce mois</button>
+          <button onClick={() => { const now = new Date(); setDateRange({ from: new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0], to: now.toISOString().split('T')[0] }); }}
+            className="h-10 px-4 rounded-xl bg-stone-100 text-stone-700 text-[10px] font-black uppercase hover:bg-stone-200 transition-colors">Cette année</button>
+        </div>
+      </div>
+
       {/* ── CTA Alerte ── */}
       {alertCount > 0 && activeTab === 'overview' && (
         <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-5 flex items-center gap-4">
@@ -246,6 +314,58 @@ export default function StockDashboard({ stockItems, movements, categories, sale
             ))}
           </div>
 
+          {/* ADVANCED STATS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+              <div className="h-1.5 bg-blue-500" />
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2.5 bg-blue-50 rounded-xl"><Activity className="w-5 h-5 text-blue-600" /></div>
+                  <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter">Rotation des Stocks (DSI)</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Taux de Rotation</p>
+                    <p className="text-2xl font-black text-stone-900 leading-none mt-1">{rotationStats.rotation}</p>
+                    <p className="text-[9px] font-bold text-stone-400 mt-1">Ventes: {fmtN(rotationStats.totalSales)} / Stock moy: {fmtN(rotationStats.avgStock)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">DSI (Jours)</p>
+                    <p className="text-2xl font-black text-stone-900 leading-none mt-1">{rotationStats.dsi} <span className="text-sm font-bold text-stone-400">jours</span></p>
+                    <p className="text-[9px] font-bold text-stone-400 mt-1">Durée moyenne d'écoulement</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
+              <div className="h-1.5 bg-emerald-500" />
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2.5 bg-emerald-50 rounded-xl"><DollarSign className="w-5 h-5 text-emerald-600" /></div>
+                  <h3 className="text-base font-black text-stone-900 uppercase tracking-tighter">Valeur & PMP</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">PMP Global</p>
+                    <p className="text-2xl font-black text-stone-900 leading-none mt-1">{fmt$(pmpStats.pmp)}</p>
+                    <p className="text-[9px] font-bold text-stone-400 mt-1">Marge brute espérée: {pmpStats.margin}%</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-stone-500">Stock Initial:</span>
+                      <span className="font-black text-stone-800">{fmt$(pmpStats.totalValue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-stone-500">Valeur Vente:</span>
+                      <span className="font-black text-stone-800">{fmt$(pmpStats.totalSellingValue)}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 border border-stone-100">
               <div className="flex items-center justify-between mb-5">
@@ -258,8 +378,8 @@ export default function StockDashboard({ stockItems, movements, categories, sale
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={catData} margin={{ top: 0, right: 0, left: 0, bottom: 40 }}>
                     <XAxis dataKey="name" tick={{ fontSize: 8, fontWeight: 700, fill: '#78716c' }} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => userRole === 'ADMIN' ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
-                    <Tooltip formatter={(v: any) => [userRole === 'ADMIN' ? fmt$(v) : fmtN(v), userRole === 'ADMIN' ? 'Valeur' : 'Quantité']} labelStyle={{ fontWeight: 700, fontSize: 11 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={yAxisCatFormatter} />
+                    <Tooltip formatter={tooltipCatFormatter} labelStyle={{ fontWeight: 700, fontSize: 11 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {catData.map((_, i) => <Cell key={i} fill={EMERALD_SHADES[i % EMERALD_SHADES.length]} />)}
                     </Bar>
@@ -280,8 +400,8 @@ export default function StockDashboard({ stockItems, movements, categories, sale
                       <Pie data={storeSalesData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={3}>
                         {storeSalesData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                       </Pie>
-                      <Legend iconSize={8} iconType="circle" formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{v}</span>} />
-                      <Tooltip formatter={(v: any) => [fmt$(v), 'CA']} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                      <Legend iconSize={8} iconType="circle" formatter={pieLegendFormatter} />
+                      <Tooltip formatter={tooltipCAFormatter} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -298,7 +418,7 @@ export default function StockDashboard({ stockItems, movements, categories, sale
                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={3}>
                         {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
-                      <Legend iconSize={8} iconType="circle" formatter={(v) => <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{v}</span>} />
+                      <Legend iconSize={8} iconType="circle" formatter={pieLegendFormatter} />
                       <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                     </PieChart>
                   </ResponsiveContainer>
@@ -393,8 +513,8 @@ export default function StockDashboard({ stockItems, movements, categories, sale
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={caByMonth} margin={{ top: 0, right: 0, left: 0, bottom: 30 }}>
                     <XAxis dataKey="month" tick={{ fontSize: 8, fontWeight: 700, fill: '#78716c' }} angle={-30} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v: any, name: string) => [fmt$(v), name === 'ca' ? 'CA' : name === 'cout' ? 'Coût' : 'Marge']} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={yAxisKFormatter} />
+                    <Tooltip formatter={tooltipCaCoutFormatter} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                     <Bar dataKey="ca"   name="ca"   radius={[4, 4, 0, 0]} fill="#8b5cf6" />
                     <Bar dataKey="cout" name="cout" radius={[4, 4, 0, 0]} fill="#e2e8f0" />
                   </BarChart>
@@ -408,8 +528,8 @@ export default function StockDashboard({ stockItems, movements, categories, sale
                   <LineChart data={caByMonth} margin={{ top: 0, right: 0, left: 0, bottom: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f4" />
                     <XAxis dataKey="month" tick={{ fontSize: 8, fontWeight: 700, fill: '#78716c' }} angle={-30} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v: any) => [fmt$(v), 'Marge']} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                    <YAxis tick={{ fontSize: 9, fill: '#a8a29e' }} tickFormatter={yAxisKFormatter} />
+                    <Tooltip formatter={tooltipMargeFormatter} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                     <Line type="monotone" dataKey="marge" stroke="#059669" strokeWidth={3} dot={{ fill: '#059669', r: 4 }} />
                   </LineChart>
                 </ResponsiveContainer>

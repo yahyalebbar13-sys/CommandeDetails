@@ -56,6 +56,7 @@ import { doc, collection, getDocs } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { isZipperCategory as isTechnicalZipper } from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
@@ -294,6 +295,7 @@ export default function CategoriesView({
   const [historyEntries, setHistoryEntries] = useState<any[]>([]);
 
   const [declarations, setDeclarations] = useState<Record<string, any>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
   
   useEffect(() => {
     if (!firestore || !user || !selectedCategory) return;
@@ -444,11 +446,7 @@ export default function CategoriesView({
   const handleDeleteSubCategory = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
     if (!user || !firestore) return;
-    if (window.confirm(`Supprimer définitivement la famille "${name}" ?`)) {
-      const docRef = doc(firestore, 'users', user.uid, 'categories', id);
-      deleteDocumentNonBlocking(docRef);
-      toast({ title: "Famille supprimée", description: name });
-    }
+    setDeleteConfirm({ open: true, id, name });
   };
 
   const groupStats = useMemo(() => {
@@ -1848,6 +1846,28 @@ export default function CategoriesView({
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({open: false})}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer définitivement "{deleteConfirm.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteConfirm.id) {
+                const docRef = doc(firestore, 'users', user?.uid || '', 'categories', deleteConfirm.id);
+                deleteDocumentNonBlocking(docRef);
+                toast({ title: "Famille supprimée", description: deleteConfirm.name });
+              }
+            }} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <header className="bg-stone-900 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-[100px]" />
         <div className="relative z-10">

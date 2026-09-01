@@ -324,7 +324,7 @@ function ProductFiche({
                             {Object.entries(v.qtyByStore).map(([sId, q]: any) => q > 0 && (
                               <div key={sId} className="flex items-center gap-1 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md">
                                 <span className="text-[8px] font-black uppercase text-stone-500 tracking-wider">
-                                  {sId === 'ENTREPOT' ? 'ENT. PRINCIPAL' : sId.replace('_', ' ')}:
+                                  {sId === 'ENTREPOT' ? 'CHRIFA' : sId.replace('_', ' ')}:
                                 </span>
                                 <span className="text-[10px] font-bold text-stone-700">{fmt(q)}</span>
                               </div>
@@ -404,8 +404,8 @@ function ProductFiche({
                   <td className="px-5 py-3 text-right font-black text-emerald-400">+{fmt(totalIn)}</td>
                   <td className="px-5 py-3 text-right font-black text-rose-400">{totalOut > 0 ? `-${fmt(totalOut)}` : '—'}</td>
                   <td className="px-5 py-3 text-right font-black text-white text-[14px]">{fmt(article.currentQty)}</td>
-                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-violet-300">{cost > 0 ? fmtDec(cost) : '—'}</td>}
-                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-emerald-400">{fifoValue > 0 ? `${fmt(fifoValue)} MAD` : '—'}</td>}
+                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-violet-300">{avgCost > 0 ? fmtDec(avgCost) : '—'}</td>}
+                  {userRole === 'ADMIN' && <td className="px-5 py-3 text-right font-black text-emerald-400">{totalValue > 0 ? `${fmt(totalValue)} MAD` : '—'}</td>}
                   <td className="px-5 py-3"></td>
                 </tr>
               </tfoot>
@@ -627,11 +627,11 @@ export default function StockFiches({
   const [inventoryMode, setInventoryMode] = useState(false);
   const [countedQuantities, setCountedQuantities] = useState<Record<string, string>>({});
 
-  // Si on est en mode inventaire actif, on affiche tous les articles pour pouvoir les compter. Sinon on masque les 0.
+  // Si on est en mode inventaire actif ou dans la vue inventaire, on affiche tous les articles pour pouvoir les compter. Sinon on masque les 0.
   const stockItems = useMemo(() => {
-    if (inventoryMode) return rawStockItems;
+    if (inventoryMode || isInventoryView) return rawStockItems;
     return rawStockItems.filter(i => i.currentQty > 0);
-  }, [rawStockItems, inventoryMode]);
+  }, [rawStockItems, inventoryMode, isInventoryView]);
 
   const handleValidateInventory = async () => {
     if (!user || !firestore) return;

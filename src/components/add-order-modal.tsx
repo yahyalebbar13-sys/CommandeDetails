@@ -56,14 +56,28 @@ const EMPTY_FORM = {
   designImageUrl: '',
 };
 
-export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+export function AddOrderForm({ 
+  onClose,
+  isInventoryMode = false,
+  activeStore = 'ENTREPOT',
+  adminUid = null,
+  onSuccess
+}: { 
+  onClose: () => void,
+  isInventoryMode?: boolean,
+  activeStore?: string,
+  adminUid?: string | null,
+  onSuccess?: (payload: any) => void
+}) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const genCatsRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'generalCategories') : null, [firestore, user]);
-  const subCatsRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'categories') : null, [firestore, user]);
-  const articlesRef = useMemoFirebase(() => user ? collection(firestore, 'users', user.uid, 'articles') : null, [firestore, user]);
+  const effectiveUid = adminUid || user?.uid;
+
+  const genCatsRef = useMemoFirebase(() => effectiveUid ? collection(firestore, 'users', effectiveUid, 'generalCategories') : null, [firestore, effectiveUid]);
+  const subCatsRef = useMemoFirebase(() => effectiveUid ? collection(firestore, 'users', effectiveUid, 'categories') : null, [firestore, effectiveUid]);
+  const articlesRef = useMemoFirebase(() => effectiveUid ? collection(firestore, 'users', effectiveUid, 'articles') : null, [firestore, effectiveUid]);
 
   const { data: generalCategories = [] } = useCollection(genCatsRef);
   const { data: subCategories = [] } = useCollection(subCatsRef);
@@ -180,9 +194,9 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     setSelectedGenCatId('');
   };
 
-  const handleClose = (open: boolean) => {
-    if (!open) resetForm();
-    onOpenChange(open);
+  const handleClose = () => {
+    resetForm();
+    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -190,11 +204,11 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
     if (!user || !firestore || !isValid) return;
 
     const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-    const basePayload = {
+    const basePayload: any = {
       ...formData,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
-      status: 'TO_ORDER',
+      status: isInventoryMode ? 'SHIPPED' : 'TO_ORDER',
       isFullContainer,
       createdAt: serverTimestamp(),
       hsCode: selectedSubCat?.hsCode || null,
@@ -204,6 +218,10 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
       tvaRate: selectedSubCat?.tvaRate ?? null,
       pcsPerCtn: selectedSubCat?.defaultPcsPerCtn ?? null,
     };
+
+    if (isInventoryMode) {
+      basePayload.stockEntryDate = new Date().toISOString().split('T')[0];
+    }
 
     if (designBreakdown && designBreakdown.length > 0) {
       const groups = new Map<number, DesignBreakdownRow[]>();
@@ -215,11 +233,12 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
         groups.get(price)!.push(row);
       }
       groups.forEach((rows, price) => {
-        const id = crypto.randomUUID();
-        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
+        const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
+        const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
         setDocumentNonBlocking(
-          doc(firestore, 'users', user.uid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null },
+          doc(firestore, 'users', effectiveUid, 'articles', id),
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, ...extraPayload },
           { merge: true }
         );
       });
@@ -233,37 +252,40 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
         groups.get(price)!.push(row);
       }
       groups.forEach((rows, price) => {
-        const id = crypto.randomUUID();
-        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls) || 0), 0);
+        const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
+        const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
         setDocumentNonBlocking(
-          doc(firestore, 'users', user.uid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null },
+          doc(firestore, 'users', effectiveUid, 'articles', id),
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, ...extraPayload },
           { merge: true }
         );
       });
     } else if (sizeBreakdown && sizeBreakdown.length > 0) {
-      const sizeGroups = new Map<number, SizeBreakdownRow[]>();
+      const groups = new Map<number, SizeBreakdownRow[]>();
       for (const row of sizeBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
           ? Number(row.priceOverride)
           : Number(formData.purchasePricePerUnit || 0);
-        if (!sizeGroups.has(price)) sizeGroups.set(price, []);
-        sizeGroups.get(price)!.push(row);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
       }
-      sizeGroups.forEach((rows, price) => {
-        const id = crypto.randomUUID();
-        const groupQty = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+      groups.forEach((rows, price) => {
+        const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
+        const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
         setDocumentNonBlocking(
-          doc(firestore, 'users', user.uid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null },
+          doc(firestore, 'users', effectiveUid, 'articles', id),
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, ...extraPayload },
           { merge: true }
         );
       });
     } else {
-      const id = crypto.randomUUID();
+      const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
+      const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: Number(formData.quantity) || 0 } } : {};
       setDocumentNonBlocking(
-        doc(firestore, 'users', user.uid, 'articles', id),
-        { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null },
+        doc(firestore, 'users', effectiveUid, 'articles', id),
+        { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, ...extraPayload },
         { merge: true }
       );
     }
@@ -279,9 +301,14 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
         ? `${splitCount} articles créés (auto-split par prix)`
         : "L'article a été ajouté à la liste des rappels.",
     });
+    if (onSuccess) onSuccess({
+      ...basePayload,
+      splitCount,
+      quantity: formData.quantity
+    });
 
     resetForm();
-    onOpenChange(false);
+    onClose();
   };
 
   // ── Grouped Select Content helper ──────────────────────────────────────────
@@ -323,18 +350,16 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg border-stone-200 max-h-[92vh] overflow-y-auto rounded-2xl p-0">
-
-        {/* ── Header ─────────────────────────────────────────────────────── */}
+    <div className="flex flex-col bg-white">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="bg-gradient-to-br from-stone-900 to-stone-800 p-6 flex items-start gap-4 text-white sticky top-0 z-10">
           <div className="p-2.5 bg-amber-500/20 rounded-xl border border-amber-500/30 shrink-0 mt-0.5">
             <Package className="w-5 h-5 text-amber-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <DialogTitle className="text-lg font-black uppercase tracking-tight leading-none">
+            <h2 className="text-lg font-black uppercase tracking-tight leading-none">
               Nouvel Article
-            </DialogTitle>
+            </h2>
             <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">
               Identification du besoin logistique
             </p>
@@ -653,121 +678,125 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
           </div>
 
           {/* Fournisseur + Priorité */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Building2 className="w-3 h-3" /> Fournisseur
-              </Label>
-              <Input
-                list="suppliers-list"
-                placeholder="Nom du fournisseur..."
-                className="h-11 border-stone-200 font-bold rounded-xl"
-                value={formData.supplierId}
-                onChange={e => setFormData((p: any) => ({ ...p, supplierId: e.target.value }))}
-              />
-              <datalist id="suppliers-list">
-                {knownSuppliers.map(s => <option key={s} value={s} />)}
-              </datalist>
-            </div>
+          {!isInventoryMode && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Building2 className="w-3 h-3" /> Fournisseur
+                  </Label>
+                  <Input
+                    list="suppliers-list"
+                    placeholder="Nom du fournisseur..."
+                    className="h-11 border-stone-200 font-bold rounded-xl"
+                    value={formData.supplierId}
+                    onChange={e => setFormData((p: any) => ({ ...p, supplierId: e.target.value }))}
+                  />
+                  <datalist id="suppliers-list">
+                    {knownSuppliers.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Star className="w-3 h-3" /> Priorité
-              </Label>
-              <div className="grid grid-cols-3 gap-1.5 h-11">
-                {PRIORITY_CONFIG.map(p => (
-                  <button
-                    key={p.value}
-                    type="button"
-                    onClick={() => setFormData((f: any) => ({ ...f, priority: p.value }))}
-                    className={`h-full rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all ${
-                      formData.priority === p.value
-                        ? `${p.bg} ${p.text} border-current shadow-sm`
-                        : 'bg-white border-stone-200 text-stone-400 hover:border-stone-300'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Section 5.5: Conteneur Complet ────────────────────────────── */}
-          <div className={`rounded-xl border transition-all ${isFullContainer ? 'bg-orange-50 border-orange-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
-            <div className="flex items-center justify-between p-3.5">
-              <div className="flex items-center gap-2">
-                <Package className={`w-4 h-4 ${isFullContainer ? 'text-orange-600' : 'text-stone-400'}`} />
-                <div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${isFullContainer ? 'text-orange-700' : 'text-stone-500'}`}>
-                    Conteneur Complet (PI)
-                  </span>
-                  {isFullContainer && (
-                    <p className="text-[8px] font-bold text-orange-500 uppercase mt-0.5">Cette commande occupera un conteneur entier</p>
-                  )}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Star className="w-3 h-3" /> Priorité
+                  </Label>
+                  <div className="grid grid-cols-3 gap-1.5 h-11">
+                    {PRIORITY_CONFIG.map(p => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setFormData((f: any) => ({ ...f, priority: p.value }))}
+                        className={`h-full rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all ${
+                          formData.priority === p.value
+                            ? `${p.bg} ${p.text} border-current shadow-sm`
+                            : 'bg-white border-stone-200 text-stone-400 hover:border-stone-300'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <Switch
-                checked={isFullContainer}
-                onCheckedChange={v => setIsFullContainer(v)}
-              />
-            </div>
-            {!isFullContainer && (
-              <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic">
-                Activer si cette PI va remplir un conteneur complet
-              </p>
-            )}
-          </div>
 
-          {/* Délai de production estimé — champ principal */}
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-              <Clock className="w-3 h-3" /> Délai de production estimé
-            </Label>
-            <Input
-              placeholder="Ex: 30 jours, 6 semaines..."
-              className="h-11 border-stone-200 font-bold rounded-xl"
-              value={formData.estimatedProductionDelay}
-              onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
-            />
-          </div>
-
-          {/* ── Section Précommande Client ─────────────────────────────── */}
-          <div className={`rounded-xl border transition-all ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
-            <div className="flex items-center justify-between p-3.5">
-              <div className="flex items-center gap-2">
-                <UserCircle2 className={`w-4 h-4 ${formData.isPreorder ? 'text-indigo-600' : 'text-stone-400'}`} />
-                <span className={`text-[10px] font-black uppercase tracking-widest ${formData.isPreorder ? 'text-indigo-700' : 'text-stone-500'}`}>
-                  Précommande Client
-                </span>
+              {/* ── Section 5.5: Conteneur Complet ────────────────────────────── */}
+              <div className={`rounded-xl border transition-all ${isFullContainer ? 'bg-orange-50 border-orange-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
+                <div className="flex items-center justify-between p-3.5">
+                  <div className="flex items-center gap-2">
+                    <Package className={`w-4 h-4 ${isFullContainer ? 'text-orange-600' : 'text-stone-400'}`} />
+                    <div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isFullContainer ? 'text-orange-700' : 'text-stone-500'}`}>
+                        Conteneur Complet (PI)
+                      </span>
+                      {isFullContainer && (
+                        <p className="text-[8px] font-bold text-orange-500 uppercase mt-0.5">Cette commande occupera un conteneur entier</p>
+                      )}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={isFullContainer}
+                    onCheckedChange={v => setIsFullContainer(v)}
+                  />
+                </div>
+                {!isFullContainer && (
+                  <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic">
+                    Activer si cette PI va remplir un conteneur complet
+                  </p>
+                )}
               </div>
-              <Switch
-                checked={formData.isPreorder}
-                onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '' }))}
-              />
-            </div>
-            {formData.isPreorder && (
-              <div className="px-3.5 pb-3.5 space-y-1.5">
-                <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
-                  <UserCircle2 className="w-3 h-3" /> Nom du Client
+
+              {/* Délai de production estimé — champ principal */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Délai de production estimé
                 </Label>
                 <Input
-                  placeholder="Ex: Zara, H&M, Client X..."
-                  className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
-                  value={formData.clientName}
-                  onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                  placeholder="Ex: 30 jours, 6 semaines..."
+                  className="h-11 border-stone-200 font-bold rounded-xl"
+                  value={formData.estimatedProductionDelay}
+                  onChange={e => setFormData((p: any) => ({ ...p, estimatedProductionDelay: e.target.value }))}
                 />
-                <p className="text-[9px] text-indigo-400 font-bold mt-1">
-                  📧 L&apos;email est récupéré automatiquement depuis l&apos;accès portail du client.
-                </p>
               </div>
-            )}
-            {!formData.isPreorder && (
-              <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic">
-                Activer si cet article est précommandé par un client
-              </p>
-            )}
-          </div>
+
+              {/* ── Section Précommande Client ─────────────────────────────── */}
+              <div className={`rounded-xl border transition-all ${formData.isPreorder ? 'bg-indigo-50 border-indigo-200' : 'bg-stone-50 border-dashed border-stone-200'}`}>
+                <div className="flex items-center justify-between p-3.5">
+                  <div className="flex items-center gap-2">
+                    <UserCircle2 className={`w-4 h-4 ${formData.isPreorder ? 'text-indigo-600' : 'text-stone-400'}`} />
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${formData.isPreorder ? 'text-indigo-700' : 'text-stone-500'}`}>
+                      Précommande Client
+                    </span>
+                  </div>
+                  <Switch
+                    checked={formData.isPreorder}
+                    onCheckedChange={v => setFormData((p: any) => ({ ...p, isPreorder: v, clientName: v ? p.clientName : '' }))}
+                  />
+                </div>
+                {formData.isPreorder && (
+                  <div className="px-3.5 pb-3.5 space-y-1.5">
+                    <Label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1">
+                      <UserCircle2 className="w-3 h-3" /> Nom du Client
+                    </Label>
+                    <Input
+                      placeholder="Ex: Zara, H&M, Client X..."
+                      className="h-11 border-indigo-200 font-bold rounded-xl bg-white"
+                      value={formData.clientName}
+                      onChange={e => setFormData((p: any) => ({ ...p, clientName: e.target.value }))}
+                    />
+                    <p className="text-[9px] text-indigo-400 font-bold mt-1">
+                      📧 L&apos;email est récupéré automatiquement depuis l&apos;accès portail du client.
+                    </p>
+                  </div>
+                )}
+                {!formData.isPreorder && (
+                  <p className="text-[9px] font-bold text-stone-400 uppercase text-center pb-3 italic">
+                    Activer si cet article est précommandé par un client
+                  </p>
+                )}
+              </div>
+            </>
+          )}
 
           {/* ── Submit ─────────────────────────────────────────────────────── */}
           <Button
@@ -780,7 +809,7 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             }`}
           >
             <Save className="w-4 h-4" />
-            Enregistrer le besoin
+            {isInventoryMode ? 'Ajouter à l\'inventaire' : 'Enregistrer le besoin'}
             {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
 
@@ -790,6 +819,15 @@ export default function AddOrderModal({ open, onOpenChange }: { open: boolean, o
             </p>
           )}
         </form>
+    </div>
+  );
+}
+
+export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg border-stone-200 max-h-[92vh] overflow-y-auto rounded-2xl p-0">
+        <AddOrderForm key={open ? 'open' : 'closed'} onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );

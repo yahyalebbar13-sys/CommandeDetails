@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   Users, ShoppingBag, ClipboardList, CheckCircle2,
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
-  UserPlus, Tag, Percent, ArrowRight, Phone, Mail,
+  UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +32,7 @@ interface StockSaleFlowProps {
   categories: any[];
   generalCategories: any[];
   clients: Client[];
+  invoices: Invoice[];              // Pour vérifier le plafond de crédit
   onCreateOrder: (order: Omit<SaleOrder, 'id' | 'createdAt'>) => Promise<string>;
   onCreateInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>, movementsOut: any[]) => Promise<void>;
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<Client>;
@@ -47,7 +48,7 @@ const STEPS = [
 ];
 
 export default function StockSaleFlow({
-  stockItems, categories, generalCategories, clients, userRole = 'ADMIN',
+  stockItems, categories, generalCategories, clients, invoices, userRole = 'ADMIN',
   onCreateOrder, onCreateInvoice, onCreateClient, onNavigate,
 }: StockSaleFlowProps) {
   const [step, setStep] = useState(0);
@@ -91,6 +92,8 @@ export default function StockSaleFlow({
   );
 
   const [variantModal, setVariantModal] = useState<{ open: boolean; productName: string; variants: StockItem[]; categoryId: string }>({ open: false, productName: '', variants: [], categoryId: '' });
+  const [activeSize, setActiveSize] = useState<string | null>(null);
+  const [activeVariant, setActiveVariant] = useState<StockItem | null>(null);
   const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
 
   // Grouped list of products for the main grid
@@ -256,6 +259,29 @@ export default function StockSaleFlow({
 
   const handleFinalize = async () => {
     if (cart.length === 0 || saving) return;
+
+    // ── Vérification du plafond de crédit ──
+    if (paymentStatus === 'UNPAID' && selectedClient) {
+      if (selectedClient.creditBlocked) {
+        alert(`⛔ Le crédit est bloqué pour le client "${selectedClient.name}". Veuillez contacter l'administrateur.`);
+        return;
+      }
+      if (selectedClient.creditLimit != null && selectedClient.creditLimit > 0) {
+        const currentDebt = invoices
+          .filter(inv => inv.clientId === selectedClient.id && inv.status !== 'PAID' && inv.status !== 'CANCELLED')
+          .reduce((sum, inv) => sum + (inv.remainingBalance || 0), 0);
+        const newDebt = currentDebt + total;
+        if (newDebt > selectedClient.creditLimit) {
+          const confirmed = confirm(
+            `⚠️ Attention : Cette vente porterait l'encours du client "${selectedClient.name}" à ${fmt$(newDebt)} MAD, ` +
+            `dépassant le plafond de crédit de ${fmt$(selectedClient.creditLimit)} MAD.\n\n` +
+            `Encours actuel : ${fmt$(currentDebt)} MAD\nMontant de cette vente : ${fmt$(total)} MAD\n\nContinuer quand même ?`
+          );
+          if (!confirmed) return;
+        }
+      }
+    }
+
     setSaving(true);
     try {
       const today = finalDate;
@@ -281,29 +307,29 @@ export default function StockSaleFlow({
           items.push({
             articleId: sub.articleId,
             productName: sub.productName,
-            color: sub.color,
-            size: sub.size,
-            categoryId: sub.categoryId,
-            unitOfMeasure: sub.unitOfMeasure,
+            color: sub.color || '',
+            size: sub.size || '',
+            categoryId: sub.categoryId || '',
+            unitOfMeasure: sub.unitOfMeasure || '',
             qty: take,
             unitPrice: l.unitPrice,
             totalPrice: take * l.unitPrice,
-            storeId: l.sourceStore,
+            storeId: l.sourceStore || null,
           });
 
           movements.push({
             articleId: sub.articleId,
-            categoryId: sub.categoryId,
+            categoryId: sub.categoryId || '',
             productName: sub.productName,
             color: sub.color || null,
             size: sub.size || null,
-            unitOfMeasure: sub.unitOfMeasure,
+            unitOfMeasure: sub.unitOfMeasure || '',
             type: 'OUT',
             reason: 'VENTE',
             quantity: take,
             date: today,
             notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
-            storeId: l.sourceStore,
+            storeId: l.sourceStore || null,
           });
 
           remainingQty -= take;
@@ -315,36 +341,35 @@ export default function StockSaleFlow({
           items.push({
             articleId: lastSub.articleId,
             productName: lastSub.productName,
-            color: lastSub.color,
-            size: lastSub.size,
-            categoryId: lastSub.categoryId,
-            unitOfMeasure: lastSub.unitOfMeasure,
+            color: lastSub.color || '',
+            size: lastSub.size || '',
+            categoryId: lastSub.categoryId || '',
+            unitOfMeasure: lastSub.unitOfMeasure || '',
             qty: remainingQty,
             unitPrice: l.unitPrice,
             totalPrice: remainingQty * l.unitPrice,
-            storeId: l.sourceStore,
+            storeId: l.sourceStore || null,
           });
           movements.push({
             articleId: lastSub.articleId,
-            categoryId: lastSub.categoryId,
+            categoryId: lastSub.categoryId || '',
             productName: lastSub.productName,
             color: lastSub.color || null,
             size: lastSub.size || null,
-            unitOfMeasure: lastSub.unitOfMeasure,
+            unitOfMeasure: lastSub.unitOfMeasure || '',
             type: 'OUT',
             reason: 'VENTE',
             quantity: remainingQty,
             date: today,
             notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
-            storeId: l.sourceStore,
+            storeId: l.sourceStore || null,
           });
         }
       }
 
       const isPaid = paymentStatus === 'PAID';
-
-      await onCreateInvoice({
-        clientId: selectedClient?.id || undefined,
+      
+      const invoiceData: any = {
         clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
         items,
         totalAmount: subTotal,
@@ -355,7 +380,10 @@ export default function StockSaleFlow({
         status: isPaid ? 'PAID' : 'UNPAID',
         date: today,
         notes,
-      }, movements);
+      };
+      if (selectedClient?.id) invoiceData.clientId = selectedClient.id;
+
+      await onCreateInvoice(invoiceData, movements);
       setDone(true);
     } finally { setSaving(false); }
   };
@@ -363,8 +391,63 @@ export default function StockSaleFlow({
   const reset = () => {
     setStep(0); setCart([]); setSelectedClient(null); setAnonymous(false);
     setDiscount(0); setNotes(''); setDone(false); setFinalDate(new Date().toISOString().split('T')[0]);
-    setDueDate(''); setSelGenCat(null); setSelCat(null); setProdSearch('');
+    setSelGenCat(null); setSelCat(null); setProdSearch('');
   };
+
+  const printBonDeCommande = useCallback(() => {
+    const win = window.open('', '_blank', 'width=800,height=900');
+    if (!win) return;
+    const bcNum = `BC-${Date.now().toString(36).toUpperCase()}`;
+    const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    win.document.write(`<!DOCTYPE html><html><head><title>Bon de Commande ${bcNum}</title>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Segoe UI',system-ui,sans-serif;padding:40px;color:#1c1917}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #1c1917}
+      .logo{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-1px}
+      .logo span{color:#7c3aed}
+      .doc-type{text-align:right}
+      .doc-type h2{font-size:20px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#7c3aed}
+      .doc-type p{font-size:11px;color:#78716c;margin-top:4px}
+      .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}
+      .info-box{background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px}
+      .info-box h4{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:8px}
+      .info-box p{font-size:13px;font-weight:700;color:#1c1917}
+      .sub{font-size:11px;color:#78716c;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-bottom:24px}
+      thead th{background:#1c1917;color:white;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;padding:12px 16px;text-align:left}
+      thead th:nth-child(3),thead th:nth-child(4),thead th:last-child{text-align:right}
+      tbody td{padding:12px 16px;border-bottom:1px solid #f5f5f4;font-size:12px;font-weight:600}
+      tbody td:nth-child(3),tbody td:nth-child(4),tbody td:last-child{text-align:right}
+      .variant{font-size:10px;color:#78716c;font-weight:700}
+      .totals{margin-left:auto;width:280px}
+      .totals .row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;font-weight:600;color:#57534e}
+      .totals .total{border-top:3px solid #1c1917;padding-top:12px;margin-top:8px;font-size:18px;font-weight:900;color:#1c1917}
+      .no-price{color:#a8a29e;font-style:italic}
+      .footer{margin-top:40px;padding-top:20px;border-top:1px solid #e7e5e4;text-align:center;font-size:10px;color:#a8a29e}
+      @media print{body{padding:20px}}
+    </style></head><body>
+    <div class="header">
+      <div class="logo"><img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height:80px;display:block" /></div>
+      <div class="doc-type"><h2>Bon de Commande</h2><p>${bcNum} &middot; ${dateStr}</p></div>
+    </div>
+    <div class="info-grid">
+      <div class="info-box"><h4>Client</h4><p>${selectedClient?.name || 'Comptoir (Anonyme)'}</p>${selectedClient?.phone ? `<p class="sub">${selectedClient.phone}</p>` : ''}</div>
+      <div class="info-box"><h4>Conditions</h4><p>${paymentStatus === 'PAID' ? 'Payé comptant' : 'À crédit'}</p><p class="sub">Date : ${dateStr}</p></div>
+    </div>
+    <table><thead><tr><th>Désignation</th><th>Variante</th><th>Qté</th><th>P.U. (MAD)</th><th>Total (MAD)</th></tr></thead>
+    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${item.productName}</td><td class="variant">${[item.color, item.size ? 'T.' + item.size : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${qty}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
+    <div class="totals">
+      <div class="row"><span>Sous-total</span><span>${fmt$(subTotal)}</span></div>
+      ${discount > 0 ? `<div class="row" style="color:#16a34a"><span>Remise ${discount}%</span><span>-${fmt$(discountAmt)}</span></div>` : ''}
+      <div class="row total"><span>TOTAL</span><span>${fmt$(total)}</span></div>
+    </div>
+    ${notes ? `<div style="margin-top:24px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px"><h4 style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:6px">Notes</h4><p style="font-size:12px;font-weight:600">${notes}</p></div>` : ''}
+    <div class="footer"><p>Ce document est un bon de commande et ne constitue pas une facture officielle.</p><p style="margin-top:4px">LEBTEX</p></div>
+    </body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 400);
+  }, [cart, selectedClient, paymentStatus, subTotal, discount, discountAmt, total, notes]);
 
   // ── Succès ──
   if (done) return (
@@ -374,20 +457,23 @@ export default function StockSaleFlow({
       </div>
       <div className="text-center space-y-1">
         <h2 className="text-2xl font-black uppercase tracking-tighter text-stone-900">
-          Vente enregistrée !
+          Bon de commande enregistré !
         </h2>
         <p className="text-stone-400 font-bold text-sm">
           Le stock a été mis à jour automatiquement.
           {' '}Total : <strong className="text-stone-700">{fmt$(total)}</strong>
         </p>
       </div>
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap justify-center">
+        <Button onClick={printBonDeCommande} className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl gap-2">
+          <Printer className="w-4 h-4" /> Imprimer le bon
+        </Button>
         <Button onClick={reset} className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs px-8 h-11 rounded-2xl">
           Nouvelle vente
         </Button>
         <Button variant="outline" onClick={() => onNavigate('invoices')}
           className="font-black uppercase text-xs px-6 h-11 rounded-2xl">
-          Voir les ventes
+          Voir les bons
         </Button>
       </div>
     </div>
@@ -580,7 +666,12 @@ export default function StockSaleFlow({
                       const cartQtyTotal = cart.filter(l => l.item.productName === group.name).reduce((s, l) => s + l.qty, 0);
                       return (
                         <button type="button" key={group.name}
-                          onClick={() => setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId })}
+                          onClick={() => {
+                            const sizes = Array.from(new Set(group.variants.map(v => v.size).filter(Boolean))) as string[];
+                            setActiveSize(sizes.length > 0 ? sizes[0] : null);
+                            setActiveVariant(null);
+                            setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId });
+                          }}
                           className="w-full text-left px-5 py-4 hover:bg-violet-50/50 transition-colors flex items-center gap-4 group">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{group.name}</p>
@@ -684,111 +775,129 @@ export default function StockSaleFlow({
 
       {/* ── Étape 3 : Panier ── */}
       {step === 2 && (
-        <div className="space-y-4">
-          <div className="bg-gradient-to-br from-stone-900 to-stone-800 p-6 rounded-3xl shadow-xl">
-            <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.3em]">Étape 3</p>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-1">Récapitulatif du panier</h2>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Référence produit', 'Qté', 'Prix unit. (MAD)', 'Total (MAD)', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50">
-                {cart.map(({ item, qty, unitPrice }) => (
-                  <tr key={item.articleId} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight">{item.productName}</p>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {item.color && (
-                            <span className="inline-flex items-center gap-1 text-[8px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase">
-                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getColorCSS(item.color) }} />
-                              {item.color}
-                            </span>
-                          )}
-                          {item.size && (
-                            <span className="text-[8px] font-black bg-stone-100 text-stone-600 px-2 py-0.5 rounded uppercase">N° {item.size}</span>
-                          )}
-                          <span className="text-[8px] text-stone-300 font-bold">{item.unitOfMeasure}</span>
-                        </div>
-                        <p className="text-[8px] text-stone-400 font-bold mt-0.5">{item.categoryId}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => qty > 1 && updateCart(item.articleId, 'qty', qty - 1)}
-                          className="w-6 h-6 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-black">
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="w-8 text-center text-sm font-black text-stone-900">{qty}</span>
-                        <button onClick={() => qty < item.currentQty && updateCart(item.articleId, 'qty', qty + 1)}
-                          className="w-6 h-6 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-black">
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input type="number" min={0} step="any" value={unitPrice}
-                        onChange={e => updateCart(item.articleId, 'unitPrice', Number(e.target.value))}
-                        className="h-8 w-24 text-xs font-black rounded-lg border-stone-200" />
-                    </td>
-                    <td className="px-4 py-3 text-[10px] font-black text-violet-700">{fmt$(qty * unitPrice)}</td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => removeFromCart(item.articleId)}
-                        className="w-7 h-7 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Totaux + remise */}
-            <div className="border-t border-stone-100 p-5 space-y-3">
-              <div className="flex items-center gap-3 max-w-xs">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest shrink-0 flex items-center gap-1">
-                  <Percent className="w-3 h-3" /> Remise
-                </Label>
-                <Input type="number" min={0} max={100} value={discount}
-                  onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
-                  className="h-9 w-24 text-sm font-black rounded-xl border-stone-200" />
-                <span className="text-[10px] text-stone-400 font-bold shrink-0">— {fmt$(discountAmt)}</span>
-              </div>
-              <div className="flex flex-col items-end space-y-1">
-                <div className="flex justify-between w-60 text-[10px] font-bold text-stone-500">
-                  <span>Sous-total</span><span>{fmt$(subTotal)}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between w-60 text-[10px] font-bold text-emerald-600">
-                    <span>Remise {discount}%</span><span>-{fmt$(discountAmt)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between w-60 text-lg font-black text-stone-900 border-t border-stone-100 pt-1 mt-1">
-                  <span>TOTAL</span><span className="text-violet-700">{fmt$(total)}</span>
-                </div>
-              </div>
-              <div className="space-y-1.5 mt-3">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes</Label>
-                <Input placeholder="Référence, instructions livraison..." value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
-              </div>
+        <div className="space-y-5">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.3em]">Étape 3</p>
+              <h2 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">Récapitulatif</h2>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-black text-stone-900">{cartCount}</p>
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">article{cartCount > 1 ? 's' : ''}</p>
             </div>
           </div>
 
+          {/* Articles */}
+          <div className="space-y-3">
+            {cart.map(({ item, qty, unitPrice }, idx) => (
+              <div key={item.articleId} className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                <div className="p-4 flex items-start gap-4">
+                  {/* Numéro */}
+                  <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-500 text-xs font-black flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </div>
+
+                  {/* Infos produit */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{item.productName}</p>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {item.color && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">
+                          <div className="w-3 h-3 rounded-full shrink-0 border border-stone-200" style={{ backgroundColor: getColorCSS(item.color) }} />
+                          {item.color}
+                        </span>
+                      )}
+                      {item.size && (
+                        <span className="text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">T. {item.size}</span>
+                      )}
+                      <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
+                    </div>
+                  </div>
+
+                  {/* Supprimer */}
+                  <button onClick={() => removeFromCart(item.articleId)}
+                    className="w-8 h-8 rounded-lg text-stone-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quantité + Prix */}
+                <div className="px-4 pb-4 flex items-center gap-4">
+                  <div className="flex items-center gap-1 bg-stone-50 rounded-xl p-1 border border-stone-100">
+                    <button onClick={() => qty > 1 && updateCart(item.articleId, 'qty', qty - 1)}
+                      className="w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-100 transition-colors shadow-sm">
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-10 text-center text-sm font-black text-stone-900">{qty}</span>
+                    <button onClick={() => qty < item.currentQty && updateCart(item.articleId, 'qty', qty + 1)}
+                      className="w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-100 transition-colors shadow-sm">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest shrink-0">×</span>
+                    <Input type="number" min={0} step="any" value={unitPrice || ''}
+                      onChange={e => updateCart(item.articleId, 'unitPrice', Number(e.target.value))}
+                      placeholder="Prix (MAD)"
+                      className="h-9 flex-1 max-w-[140px] text-sm font-black rounded-xl border-stone-200 placeholder:text-stone-300 placeholder:font-normal" />
+                    <span className="text-[9px] font-bold text-stone-400 shrink-0">MAD</span>
+                  </div>
+
+                  <div className="text-right shrink-0 min-w-[80px]">
+                    <p className="text-sm font-black text-stone-900">{unitPrice > 0 ? fmt$(qty * unitPrice) : '—'}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Totaux */}
+          <div className="bg-white rounded-2xl border border-stone-200 p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest shrink-0 flex items-center gap-1">
+                <Percent className="w-3 h-3" /> Remise
+              </Label>
+              <Input type="number" min={0} max={100} value={discount}
+                onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
+                className="h-9 w-20 text-sm font-black rounded-xl border-stone-200" />
+              <span className="text-[10px] text-stone-400 font-bold">%</span>
+              {discount > 0 && <span className="text-[10px] text-emerald-600 font-bold">— {fmt$(discountAmt)} économisé</span>}
+            </div>
+
+            <div className="border-t border-stone-100 pt-4 space-y-2">
+              <div className="flex justify-between text-xs font-bold text-stone-400">
+                <span>Sous-total ({cartCount} article{cartCount > 1 ? 's' : ''})</span>
+                <span>{fmt$(subTotal)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-xs font-bold text-emerald-600">
+                  <span>Remise {discount}%</span>
+                  <span>-{fmt$(discountAmt)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xl font-black text-stone-900 pt-2 border-t border-stone-200">
+                <span>Total</span>
+                <span>{fmt$(total)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-stone-100">
+              <Label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Notes</Label>
+              <Input placeholder="Référence, instructions..." value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className="h-10 rounded-xl border-stone-200 font-bold text-sm" />
+            </div>
+          </div>
+
+          {/* Navigation */}
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep(1)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Ajouter des produits
             </Button>
             <Button onClick={() => setStep(3)}
-              className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
+              className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
               Finaliser <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
@@ -927,7 +1036,7 @@ export default function StockSaleFlow({
             <Button variant="ghost" onClick={() => setAddModal({ open: false, qty: 1, unitPrice: 0 })} className="font-black uppercase text-[10px] rounded-xl flex-1">
               Annuler
             </Button>
-            <Button onClick={addToCart} disabled={addModal.qty <= 0 || addModal.unitPrice <= 0 || (!!addModal.item?.qtyByStore && !addModal.sourceStore)}
+            <Button onClick={addToCart} disabled={addModal.qty <= 0 || (!!addModal.item?.qtyByStore && !addModal.sourceStore)}
               className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-11 rounded-xl gap-2">
               <Plus className="w-4 h-4" /> Ajouter au panier
             </Button>
@@ -948,82 +1057,142 @@ export default function StockSaleFlow({
             </div>
           </div>
           
-          <div className="p-4 max-h-[60vh] overflow-y-auto space-y-3">
-            {variantModal.variants.map((v) => {
-              const inCartLine = cart.find(l => l.item.articleId === v.articleId);
-              const isEmpty = v.currentQty === 0;
-              const noPrice = !v.sellingPrice || v.sellingPrice <= 0;
-
+          {(() => {
+            const sizes = Array.from(new Set(variantModal.variants.map(v => v.size).filter(Boolean))) as string[];
+            if (sizes.length > 0) {
               return (
-                <div key={v.articleId} className={`bg-white rounded-2xl border p-3 flex items-center gap-4 transition-colors ${
-                  isEmpty ? 'opacity-50 border-stone-100' : 'border-stone-200 hover:border-violet-300'
-                }`}>
-                  {/* Infos Variante */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-black text-stone-900 uppercase leading-tight">{v.productName}</p>
-                      {v.size && <span className="text-xs font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-lg uppercase shrink-0">Taille {v.size}</span>}
-                    </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Prix</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : (v.sellingPrice || '')}
-                          onChange={e => setCustomPrices(prev => ({ ...prev, [v.articleId]: Number(e.target.value) }))}
-                          className="w-20 h-8 text-sm font-bold text-violet-700 border border-stone-200 rounded-lg px-2 focus:outline-none focus:border-violet-500"
-                          placeholder="0.00"
-                        />
-                        <span className="text-[9px] font-black text-stone-400">MAD</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-stone-400">•</span>
-                      <p className={`text-xs font-black ${isEmpty ? 'text-red-500' : 'text-stone-500'}`}>Stock: {v.currentQty}</p>
-                    </div>
-                  </div>
-
-                  {/* Saisie Rapide Quantité */}
-                  <div className="shrink-0">
-                    <div className={`flex items-center gap-1.5 rounded-xl p-1.5 border transition-colors ${
-                      inCartLine ? 'bg-emerald-50 border-emerald-200' : 'bg-stone-50 border-stone-200'
-                    }`}>
-                      <button type="button" onClick={() => setVariantQtyInCart(v, (inCartLine?.qty || 0) - 1, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
-                        disabled={isEmpty || !inCartLine}
-                        className="w-9 h-9 rounded-lg bg-white border border-stone-200 text-stone-700 flex items-center justify-center hover:bg-stone-100 disabled:opacity-30 transition-colors shadow-sm">
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      
-                      <input 
-                        type="number" 
-                        min="0"
-                        max={v.currentQty}
-                        value={inCartLine?.qty || ''}
-                        onChange={e => setVariantQtyInCart(v, parseInt(e.target.value) || 0, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
-                        disabled={isEmpty}
-                        placeholder="0"
-                        autoFocus
-                        className={`w-14 h-9 text-center text-lg font-black bg-transparent border-none focus:outline-none focus:ring-0 ${
-                          inCartLine ? 'text-emerald-800' : 'text-stone-400'
-                        }`} 
-                      />
-                      
-                      <button type="button" onClick={() => setVariantQtyInCart(v, (inCartLine?.qty || 0) + 1, customPrices[v.articleId] !== undefined ? customPrices[v.articleId] : v.sellingPrice)}
-                        disabled={isEmpty || (inCartLine?.qty || 0) >= v.currentQty}
-                        className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-30 transition-colors shadow-sm">
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
+                <div className="bg-white px-5 py-3 border-b border-stone-100">
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-2">Choisir la taille</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {sizes.map(size => {
+                      const sizeQty = variantModal.variants.filter(v => v.size === size).reduce((s, v) => s + v.currentQty, 0);
+                      return (
+                        <button key={size} onClick={() => setActiveSize(size)}
+                          className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
+                            activeSize === size 
+                              ? 'bg-stone-900 text-white shadow-lg' 
+                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                          }`}>
+                          {size}
+                          <span className={`ml-1.5 text-[10px] font-bold ${activeSize === size ? 'text-stone-400' : 'text-stone-400'}`}>({sizeQty})</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
-            })}
-          </div>
+            }
+            return null;
+          })()}
+
+          {activeVariant ? (
+            <div className="p-8 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-200">
+              {activeVariant.color && (
+                <div className="w-16 h-16 rounded-full border-4 border-white shadow-xl mb-4" style={{ backgroundColor: getColorCSS(activeVariant.color) }} />
+              )}
+              <h3 className="text-2xl font-black text-stone-900 uppercase">{activeVariant.color || activeVariant.productName}</h3>
+              <p className="text-sm font-bold text-stone-500 uppercase tracking-widest mt-1 mb-8">
+                {activeVariant.size ? `Taille ${activeVariant.size} • ` : ''}{activeVariant.currentQty} en stock
+              </p>
+              
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setVariantQtyInCart(activeVariant, (cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0) - 1, activeVariant.sellingPrice)}
+                  className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
+                  <Minus className="w-6 h-6" />
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  max={activeVariant.currentQty}
+                  value={cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || ''}
+                  placeholder="0"
+                  autoFocus
+                  onChange={e => setVariantQtyInCart(activeVariant, parseInt(e.target.value) || 0, activeVariant.sellingPrice)}
+                  className="w-32 h-20 text-center text-4xl font-black rounded-3xl border-2 border-stone-200 focus:border-stone-900 focus:outline-none shadow-sm"
+                />
+                <button 
+                  onClick={() => setVariantQtyInCart(activeVariant, (cart.find(l => l.item.articleId === activeVariant.articleId)?.qty || 0) + 1, activeVariant.sellingPrice)}
+                  className="w-16 h-16 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center text-2xl font-black shadow-sm transition-colors">
+                  <Plus className="w-6 h-6" />
+                </button>
+              </div>
+
+              <Button onClick={() => setActiveVariant(null)} className="mt-8 bg-stone-900 hover:bg-stone-800 text-white h-12 px-8 rounded-xl font-black uppercase text-xs">
+                Valider la quantité
+              </Button>
+            </div>
+          ) : (
+            <div className="p-5 max-h-[50vh] overflow-y-auto">
+              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-3">
+                {activeSize ? `Couleurs pour la taille ${activeSize}` : 'Variantes disponibles'}
+              </p>
+              
+              <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+                <table className="w-full text-left">
+                  <thead className="bg-stone-50 border-b border-stone-200">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-stone-500">Couleur</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-stone-500 text-center">En Stock</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-stone-500 text-right w-32">Panier</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {variantModal.variants
+                      .filter(v => activeSize ? v.size === activeSize : true)
+                      .sort((a, b) => (a.color || a.productName).localeCompare(b.color || b.productName))
+                      .map((v) => {
+                        const inCartLine = cart.find(l => l.item.articleId === v.articleId);
+                        const isEmpty = v.currentQty === 0;
+  
+                        return (
+                          <tr key={v.articleId} 
+                            onClick={() => !isEmpty && setActiveVariant(v)}
+                            className={`transition-colors cursor-pointer group ${
+                            isEmpty ? 'opacity-50 bg-stone-50 cursor-not-allowed' : inCartLine ? 'bg-emerald-50/30 hover:bg-emerald-50' : 'bg-white hover:bg-stone-50'
+                          }`}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                {v.color && (
+                                  <div className="w-5 h-5 rounded-full shrink-0 border border-stone-200 shadow-sm" style={{ backgroundColor: getColorCSS(v.color) }} />
+                                )}
+                                <p className="text-sm font-black text-stone-900 uppercase truncate group-hover:text-violet-700 transition-colors">
+                                  {v.color || v.productName}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`text-xs font-black px-2 py-1 rounded-md ${
+                                isEmpty ? 'bg-red-100 text-red-700' : 'bg-stone-100 text-stone-700'
+                              }`}>
+                                {isEmpty ? '0' : v.currentQty}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {inCartLine ? (
+                                <span className="text-sm font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-lg">{inCartLine.qty} sél.</span>
+                              ) : (
+                                <span className="text-xs font-black text-stone-400 group-hover:text-violet-600 uppercase flex items-center justify-end gap-1">
+                                  Choisir <ChevronRight className="w-3 h-3" />
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           
-          <div className="p-4 bg-white border-t border-stone-100 flex justify-end">
-             <Button onClick={() => setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}
-              className="bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-xs h-12 px-8 rounded-xl shadow-md">
-              Terminer
+          <div className="p-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
+            <p className="text-xs font-bold text-stone-400">
+              {cart.filter(l => variantModal.variants.some(v => v.articleId === l.item.articleId)).reduce((s, l) => s + l.qty, 0)} article(s) sélectionné(s)
+            </p>
+            <Button onClick={() => setVariantModal({ open: false, productName: '', variants: [], categoryId: '' })}
+              className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-xl shadow-md">
+              Confirmer
             </Button>
           </div>
         </DialogContent>

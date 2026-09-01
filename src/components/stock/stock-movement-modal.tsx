@@ -54,12 +54,13 @@ const TYPE_CONFIG = {
 };
 
 // ── Picker produit — Famille → Sous-cat → Produit ────────────────────────────
-function ProductPicker({
-  stockItems, categories, generalCategories, onSelect
+export function ProductPicker({
+  stockItems, categories, generalCategories, formType, onSelect
 }: {
   stockItems: StockItem[];
   categories: any[];
   generalCategories: any[];
+  formType: StockMovementType;
   onSelect: (articleId: string) => void;
 }) {
   const [step, setStep] = useState<'gencat' | 'subcat' | 'product'>('gencat');
@@ -305,13 +306,15 @@ function ProductPicker({
                   const pct = Math.min(100, Math.round(si.currentQty / maxRef * 100));
                   const barColor = isEmpty ? '#e5e7eb' : pct < 25 ? '#ef4444' : pct < 60 ? '#f59e0b' : '#10b981';
                   const swatch = si.color ? (colorMap[si.color.toLowerCase()] || '#d4d4d4') : null;
+                  
+                  const isDisabled = formType === 'OUT' && isEmpty;
 
                   return (
                     <button key={si.articleId} type="button"
-                      disabled={isEmpty}
+                      disabled={isDisabled}
                       onClick={() => onSelect(si.articleId)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                        isEmpty ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-50/80 active:bg-emerald-100/80'
+                        isDisabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-emerald-50/80 active:bg-emerald-100/80'
                       }`}>
 
                       {/* Pastille couleur */}
@@ -495,6 +498,7 @@ export default function StockMovementModal({
               stockItems={stockItems.filter(s => s.currentQty > 0 || form.type !== 'OUT')}
               categories={categories}
               generalCategories={generalCategories}
+              formType={form.type}
               onSelect={id => setForm(f => ({ ...f, articleId: id }))}
             />
           ) : (

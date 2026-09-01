@@ -165,6 +165,7 @@ export interface ShopOrder {
   customerId?: string; // Firebase UID (null for guest)
   customerEmail?: string;
   customerName: string;
+  customerPhone?: string;
   status: OrderStatus;
   items: CartItem[];
   subtotal: number;

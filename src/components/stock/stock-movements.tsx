@@ -1,19 +1,22 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, SlidersHorizontal, Search, Calendar } from 'lucide-react';
+import { Plus, ArrowDown, ArrowUp, ArrowLeftRight, SlidersHorizontal, Search, Calendar, Download, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import type { StockMovement, StockItem } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
+import { exportToFile, formatMovementsForExport } from '@/lib/export-utils';
+import { exportMovementsPDF } from '@/lib/pdf-export-reports';
 
 interface StockMovementsProps {
   movements: StockMovement[];
   stockItems: StockItem[];
   categories: any[];
   articles: any[];
+  stores: any[];
   activeStore: StoreLocation | 'ALL';
   onAddMovement: (m: Omit<StockMovement, 'id' | 'createdAt'>) => Promise<void>;
 }
@@ -29,12 +32,39 @@ const REASON_LABELS: Record<string, string> = {
   RETOUR: 'Retour', INVENTAIRE: 'Inventaire', TRANSFERT: 'Transfert',
 };
 
-export default function StockMovements({ movements, stockItems, categories, articles, activeStore, onAddMovement }: StockMovementsProps) {
+export default function StockMovements({ movements, stockItems, categories, articles, stores, activeStore, onAddMovement }: StockMovementsProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'IN' | 'OUT' | 'ADJUSTMENT'>('all');
   const [filterCat, setFilterCat] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
+  const [reversingId, setReversingId] = useState<string | null>(null);
+
+  const handleReversal = async (movement: StockMovement) => {
+    if (reversingId) return;
+    setReversingId(movement.id);
+    try {
+      const reversalType = movement.type === 'IN' ? 'OUT' : movement.type === 'OUT' ? 'IN' : 'ADJUSTMENT';
+      const reversalQty = movement.type === 'ADJUSTMENT' ? -movement.quantity : movement.quantity;
+      await onAddMovement({
+        articleId: movement.articleId,
+        categoryId: movement.categoryId,
+        productName: movement.productName,
+        color: movement.color,
+        size: movement.size,
+        unitOfMeasure: movement.unitOfMeasure,
+        type: reversalType,
+        reason: movement.reason,
+        quantity: reversalQty,
+        date: new Date().toISOString().split('T')[0],
+        storeId: movement.storeId,
+        toStoreId: movement.toStoreId,
+        notes: `⟲ Contre-passation du mouvement ${movement.id} du ${movement.date}`,
+      });
+    } finally {
+      setReversingId(null);
+    }
+  };
 
   // Mois disponibles
   const months = useMemo(() => {
@@ -84,12 +114,28 @@ export default function StockMovements({ movements, stockItems, categories, arti
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Journal des <span className="text-emerald-400">Mouvements</span></h1>
             <p className="text-stone-400 text-xs font-bold mt-2">{movements.length} mouvement{movements.length > 1 ? 's' : ''} enregistré{movements.length > 1 ? 's' : ''}</p>
           </div>
-          <Button
-            onClick={() => setModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg shadow-emerald-500/30 gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" /> Enregistrer un mouvement
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => exportToFile(formatMovementsForExport(filtered), { filename: `mouvements-stock-${new Date().toISOString().split('T')[0]}`, sheetName: 'Mouvements' })}
+              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl gap-2 shrink-0"
+            >
+              <Download className="w-4 h-4" /> Excel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => exportMovementsPDF(filtered)}
+              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl gap-2 shrink-0"
+            >
+              <Download className="w-4 h-4" /> PDF
+            </Button>
+            <Button
+              onClick={() => setModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg shadow-emerald-500/30 gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4" /> Enregistrer un mouvement
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -166,8 +212,8 @@ export default function StockMovements({ movements, stockItems, categories, arti
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-100">
-                  {['Date', 'Type', 'Produit', 'Magasin', 'Raison', 'Quantité', 'Notes'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
+                  {['Date', 'Type', 'Produit', 'Magasin', 'Raison', 'Quantité', 'Notes', ''].map((h, i) => (
+                    <th key={h || i} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-stone-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -218,6 +264,13 @@ export default function StockMovements({ movements, stockItems, categories, arti
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[10px] text-stone-400 font-medium max-w-[200px] truncate">{m.notes || '—'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => handleReversal(m)} disabled={reversingId === m.id}
+                          title="Contre-passer ce mouvement"
+                          className="h-7 w-7 rounded-lg bg-stone-100 text-stone-400 hover:bg-amber-100 hover:text-amber-600 flex items-center justify-center transition-colors disabled:opacity-50 ml-auto">
+                          <Undo2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -245,6 +298,7 @@ export default function StockMovements({ movements, stockItems, categories, arti
         articles={articles}
         categories={categories}
         stockItems={stockItems}
+        stores={stores}
         activeStore={activeStore}
         onSubmit={onAddMovement}
       />

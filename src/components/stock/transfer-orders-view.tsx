@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
-import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement } from '@/lib/types';
 
@@ -35,7 +35,8 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
   const [validateModal, setValidateModal] = useState<{ open: boolean; order?: TransferOrder }>({ open: false });
 
   // Create Form State
-  const [toStore, setToStore] = useState<StoreLocation>('DERB_OMAR');
+  const [fromStore, setFromStore] = useState<string>(activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores[0]?.id || '') : activeStore);
+  const [toStore, setToStore] = useState<string>('');
   const [selectedItems, setSelectedItems] = useState<TransferOrderItem[]>([]);
   const [articleSearch, setArticleSearch] = useState('');
 
@@ -66,13 +67,14 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
   const handleCreateTransfer = async () => {
     if (!firestore || !adminUid || selectedItems.length === 0) return;
-    const fromStore = 'ENTREPOT';
+    if (!fromStore || !toStore) return toast({ variant: 'destructive', title: 'Erreur', description: 'Veuillez sélectionner la source et la destination.' });
+    if (fromStore === toStore) return toast({ variant: 'destructive', title: 'Erreur', description: 'Source et destination doivent être différentes.' });
     
     try {
       const now = new Date().toISOString();
       const transferData: Omit<TransferOrder, 'id'> = {
         fromStore: fromStore as StoreLocation,
-        toStore,
+        toStore: toStore as StoreLocation,
         status: 'PENDING',
         items: selectedItems,
         date: now,
@@ -81,9 +83,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
 
       const docRef = await addDoc(collection(firestore, 'users', adminUid, 'transferOrders'), transferData);
 
-      // Create OUT movements for the sender
+      // Create OUT movements atomically via batch
+      const batch = writeBatch(firestore);
       for (const item of selectedItems) {
-        await addDoc(collection(firestore, 'users', adminUid, 'stockMovements'), {
+        const movRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
+        batch.set(movRef, {
           articleId: item.articleId,
           categoryId: item.categoryId,
           productName: item.productName,
@@ -97,8 +101,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           date: now.split('T')[0],
           notes: `Bon de transfert ${docRef.id}`,
           createdAt: serverTimestamp()
-        } as StockMovement);
+        });
       }
+      await batch.commit();
 
       toast({ title: 'Bon de transfert créé', description: 'Les articles sont en transit.' });
       setCreateModal(false);
@@ -119,17 +124,21 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         receivedQty: receivedItems[item.articleId] ?? item.sentQty
       }));
 
+      const batch = writeBatch(firestore);
+
       // Update Transfer Order Status
-      await updateDoc(doc(firestore, 'users', adminUid, 'transferOrders', order.id), {
+      const orderRef = doc(firestore, 'users', adminUid, 'transferOrders', order.id);
+      batch.update(orderRef, {
         status: 'VALIDATED',
         items: updatedItems,
         receivedDate: now
       });
 
-      // Create IN movements for the receiver
+      // Create IN movements for the receiver + handle discrepancies
       for (const item of updatedItems) {
         if (item.receivedQty && item.receivedQty > 0) {
-          await addDoc(collection(firestore, 'users', adminUid, 'stockMovements'), {
+          const inRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
+          batch.set(inRef, {
             articleId: item.articleId,
             categoryId: item.categoryId,
             productName: item.productName,
@@ -138,18 +147,19 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             unitOfMeasure: item.unitOfMeasure,
             type: 'IN',
             reason: 'TRANSFERT',
-            toStoreId: order.toStore, // VERY IMPORTANT: map to toStoreId to add stock
+            toStoreId: order.toStore,
             quantity: item.receivedQty,
             date: now.split('T')[0],
             notes: `Réception Bon de transfert ${order.id}`,
             createdAt: serverTimestamp()
-          } as StockMovement);
+          });
         }
 
         // Handle discrepancies (Losses)
         const discrepancy = item.sentQty - (item.receivedQty || 0);
         if (discrepancy > 0) {
-          await addDoc(collection(firestore, 'users', adminUid, 'stockMovements'), {
+          const lossRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
+          batch.set(lossRef, {
             articleId: item.articleId,
             categoryId: item.categoryId,
             productName: item.productName,
@@ -163,9 +173,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             date: now.split('T')[0],
             notes: `Perte/Manquant lors de la réception ${order.id}`,
             createdAt: serverTimestamp()
-          } as StockMovement);
+          });
         }
       }
+
+      await batch.commit();
 
       toast({ title: 'Transfert validé', description: 'Le stock a été mis à jour.' });
       setValidateModal({ open: false });
@@ -186,11 +198,9 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
               Bons de <span className="text-blue-300">Transfert</span>
             </h1>
           </div>
-          {(userRole === 'ADMIN' && (activeStore === 'ALL' || activeStore === 'ENTREPOT')) && (
-            <Button onClick={() => setCreateModal(true)} className="bg-white hover:bg-stone-50 text-blue-900 font-black uppercase text-[10px] tracking-widest h-11 px-6 rounded-2xl shadow-lg">
-              <Plus className="w-4 h-4 mr-2" /> Nouveau Transfert
-            </Button>
-          )}
+          <Button onClick={() => setCreateModal(true)} className="bg-white hover:bg-stone-50 text-blue-900 font-black uppercase text-[10px] tracking-widest h-11 px-6 rounded-2xl shadow-lg">
+            <Plus className="w-4 h-4 mr-2" /> Nouveau Transfert
+          </Button>
         </div>
       </div>
 
@@ -246,7 +256,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                   )}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  {order.status === 'PENDING' && (userRole === 'ADMIN' || activeStore === order.toStore) && (
+                  {order.status === 'PENDING' && (userRole === 'ADMIN' || activeStore === order.toStore || activeStore === 'ALL_MAIN') && (
                     <Button size="sm" onClick={() => {
                       const init: Record<string, number> = {};
                       order.items.forEach(i => init[i.articleId] = i.sentQty);
@@ -278,14 +288,18 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             <div className="flex gap-4">
               <div className="flex-1 space-y-2">
                 <label className="text-[10px] font-black uppercase text-stone-500">De (Source)</label>
-                <div className="h-10 px-3 flex items-center bg-stone-100 rounded-xl text-sm font-bold text-stone-700 cursor-not-allowed">
-                  {getStoreLabel('ENTREPOT')}
-                </div>
+                <select value={fromStore} onChange={e => setFromStore(e.target.value)} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
+                  <option value="" disabled>Choisir l'origine...</option>
+                  {stores.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex-1 space-y-2">
                 <label className="text-[10px] font-black uppercase text-stone-500">Vers (Destination)</label>
-                <select value={toStore} onChange={e => setToStore(e.target.value as StoreLocation)} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
-                  {stores.filter(s => s.id !== 'ENTREPOT').map(s => (
+                <select value={toStore} onChange={e => setToStore(e.target.value)} className="w-full h-10 px-3 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none">
+                  <option value="" disabled>Choisir la destination...</option>
+                  {stores.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
