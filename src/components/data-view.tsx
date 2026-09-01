@@ -131,6 +131,13 @@ export default function DataView({ articles, onEdit }: DataViewProps) {
                                 <MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})
                               </span>
                             </div>
+                          ) : (o.gsm || o.fabricWidth) ? (
+                            <div className="flex flex-wrap gap-1">
+                              {o.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{o.gsm}gsm</span>}
+                              {o.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{o.fabricWidth}cm</span>}
+                              {o.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{o.rollLength}{o.rollLengthUnit || 'm'}</span>}
+                              {o.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{o.packagingPerBag}rlx/sac</span>}
+                            </div>
                           ) : (
                             <div className="text-[9px] text-stone-500 font-bold uppercase leading-tight truncate max-w-[150px]">
                               {o.specs || '-'}

@@ -1150,6 +1150,13 @@ export default function CategoriesView({
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
+                          ) : (a.gsm || a.fabricWidth) ? (
+                            <div className="flex flex-wrap gap-1">
+                              {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{a.gsm}gsm</span>}
+                              {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{a.fabricWidth}cm</span>}
+                              {a.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{a.rollLength}{a.rollLengthUnit || 'm'}</span>}
+                              {a.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{a.packagingPerBag}rlx/sac</span>}
+                            </div>
                           ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
                         </TableCell>
                         <TableCell className="py-3.5">
@@ -1217,6 +1224,13 @@ export default function CategoriesView({
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
+                            </div>
+                          ) : (a.gsm || a.fabricWidth) ? (
+                            <div className="flex flex-wrap gap-1">
+                              {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{a.gsm}gsm</span>}
+                              {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{a.fabricWidth}cm</span>}
+                              {a.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{a.rollLength}{a.rollLengthUnit || 'm'}</span>}
+                              {a.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{a.packagingPerBag}rlx/sac</span>}
                             </div>
                           ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
                         </TableCell>
@@ -1316,6 +1330,13 @@ export default function CategoriesView({
                                 <div className="flex flex-col gap-0.5">
                                   <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                                   <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'}</span>
+                                </div>
+                              ) : (a.gsm || a.fabricWidth) ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{a.gsm}gsm</span>}
+                                  {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{a.fabricWidth}cm</span>}
+                                  {a.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{a.rollLength}{a.rollLengthUnit || 'm'}</span>}
+                                  {a.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{a.packagingPerBag}rlx/sac</span>}
                                 </div>
                               ) : <span className="text-stone-500 font-bold uppercase">{a.specs || '-'}</span>}
                             </TableCell>

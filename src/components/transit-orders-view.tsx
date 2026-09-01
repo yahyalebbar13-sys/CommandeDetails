@@ -143,6 +143,13 @@ export default function TransitOrdersView({ articles, onEdit }: TransitOrdersVie
                             <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> TYPE: {o.zipperType || '-'}</span>
                             <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {o.slider || '-'} ({o.sliderType || '-'})</span>
                           </div>
+                        ) : (o.gsm || o.fabricWidth) ? (
+                          <div className="flex flex-wrap gap-1">
+                            {o.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{o.gsm}gsm</span>}
+                            {o.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{o.fabricWidth}cm</span>}
+                            {o.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{o.rollLength}{o.rollLengthUnit || 'm'}</span>}
+                            {o.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{o.packagingPerBag}rlx/sac</span>}
+                          </div>
                         ) : (
                           <span className="text-stone-500 font-bold uppercase">{o.specs || '-'}</span>
                         )}
