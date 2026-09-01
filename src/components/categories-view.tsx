@@ -337,8 +337,12 @@ export default function CategoriesView({
     tvaRate: '',
     defaultPcsPerCtn: '',
     availableSizes: [] as string[],
+    availableGsm: [] as number[],
+    availableWidths: [] as number[],
   });
   const [newSizeInput, setNewSizeInput] = useState('');
+  const [newGsmInput, setNewGsmInput] = useState('');
+  const [newWidthInput, setNewWidthInput] = useState('');
 
   useEffect(() => {
     if (currentCategoryObj && isCustomsModalOpen) {
@@ -351,10 +355,21 @@ export default function CategoriesView({
         tvaRate: currentCategoryObj.tvaRate ?? '',
         defaultPcsPerCtn: currentCategoryObj.defaultPcsPerCtn ?? '',
         availableSizes: Array.isArray(currentCategoryObj.availableSizes) ? currentCategoryObj.availableSizes : [],
+        availableGsm: Array.isArray(currentCategoryObj.availableGsm) ? currentCategoryObj.availableGsm : [],
+        availableWidths: Array.isArray(currentCategoryObj.availableWidths) ? currentCategoryObj.availableWidths : [],
       });
       setNewSizeInput('');
+      setNewGsmInput('');
+      setNewWidthInput('');
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
+
+  // Detect if current category is Fabric
+  const isFabricCat = useMemo(() => {
+    const lower = (selectedCategory || '').toLowerCase();
+    const fabricKw = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining'];
+    return fabricKw.some(kw => lower.includes(kw));
+  }, [selectedCategory]);
 
   const handleUpdateCustoms = () => {
     if (!user || !firestore || !currentCategoryObj) return;
@@ -368,6 +383,8 @@ export default function CategoriesView({
       tvaRate: customsForm.tvaRate === '' ? null : Number(customsForm.tvaRate),
       defaultPcsPerCtn: customsForm.defaultPcsPerCtn === '' ? null : Number(customsForm.defaultPcsPerCtn),
       availableSizes: customsForm.availableSizes.length > 0 ? customsForm.availableSizes : null,
+      availableGsm: customsForm.availableGsm.length > 0 ? customsForm.availableGsm : null,
+      availableWidths: customsForm.availableWidths.length > 0 ? customsForm.availableWidths : null,
     });
     toast({ title: 'Données douanières mises à jour' });
     setIsCustomsModalOpen(false);
@@ -1320,6 +1337,120 @@ export default function CategoriesView({
           </div>
         </div>
 
+        {/* ── Type de Produit — Fabric only ── */}
+        {isFabricCat && (() => {
+          // Group articles by unique product type (same GSM + width + rollLength = same quality)
+          const productTypes = new Map<string, { designation: string; gsm: number | null; fabricWidth: number | null; rollLength: number | null; rollLengthUnit: string; packagingPerBag: number | null; count: number; totalQty: number; totalValue: number; sizes: Set<string>; suppliers: Set<string>; articles: any[] }>();
+          
+          catArticles.forEach((a: any) => {
+            const gsm = a.gsm || null;
+            const width = a.fabricWidth || null;
+            const rl = a.rollLength || null;
+            const rlu = a.rollLengthUnit || 'm';
+            const pkg = a.packagingPerBag || null;
+            const key = `${gsm || '?'}_${width || '?'}_${rl || '?'}_${rlu}`;
+            
+            if (!productTypes.has(key)) {
+              productTypes.set(key, {
+                designation: a.name || a.categoryId || selectedCategory || '',
+                gsm, fabricWidth: width, rollLength: rl, rollLengthUnit: rlu, packagingPerBag: pkg,
+                count: 0, totalQty: 0, totalValue: 0, sizes: new Set(), suppliers: new Set(), articles: [],
+              });
+            }
+            const pt = productTypes.get(key)!;
+            pt.count++;
+            pt.totalQty += Number(a.quantity) || 0;
+            pt.totalValue += (Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0);
+            if (a.size) pt.sizes.add(a.size);
+            if (a.supplierId) pt.suppliers.add(a.supplierId);
+            pt.articles.push(a);
+            // Use the latest non-null values
+            if (!pt.gsm && gsm) pt.gsm = gsm;
+            if (!pt.fabricWidth && width) pt.fabricWidth = width;
+            if (!pt.rollLength && rl) pt.rollLength = rl;
+            if (!pt.packagingPerBag && pkg) pt.packagingPerBag = pkg;
+          });
+
+          const types = Array.from(productTypes.values()).sort((a, b) => (b.gsm || 0) - (a.gsm || 0));
+
+          return (
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <div className="h-1.5 w-full bg-violet-500" />
+              <CardHeader className="py-4 border-b border-stone-50">
+                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                  <Factory className="w-3 h-3 text-violet-500" /> Types de Produit — Qualités Référencées
+                  <span className="ml-auto text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{types.length} qualités</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-stone-50/50">
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Désignation</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">GSM</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Largeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Longueur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Condit.</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Tailles</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {types.map((pt, idx) => (
+                        <TableRow key={idx} className="hover:bg-violet-50/30 transition-colors">
+                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.designation}</TableCell>
+                          <TableCell className="text-center">
+                            {pt.gsm ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">{pt.gsm}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.fabricWidth ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.fabricWidth}cm</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.rollLength ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.rollLength}{pt.rollLengthUnit}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.packagingPerBag ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.packagingPerBag}rlx/sac</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.sizes.size > 0 ? [...pt.sizes].join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.size > 0 ? [...pt.suppliers].join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
+                          </TableCell>
+                          <TableCell className="text-right text-[10px] font-black text-stone-800">
+                            {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {types.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                            Aucune qualité enregistrée — ajoutez GSM/largeur lors de la prochaine commande
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* ── Analytics Charts ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
@@ -1606,6 +1737,76 @@ export default function CategoriesView({
                 )}
               </div>
             </div>
+
+            {/* ── Fabric: GSM & Largeurs pré-définies ── */}
+            {isFabricCat && (
+              <div className="space-y-4 p-4 rounded-2xl bg-violet-50/50 border border-violet-100">
+                <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">⚙️ Config Fabric — GSM & Largeurs</p>
+                
+                {/* GSM pré-définis */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-stone-500 uppercase">Grammages (GSM)</span>
+                    {customsForm.availableGsm.length > 0 && (
+                      <span className="text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{customsForm.availableGsm.length} gsm</span>
+                    )}
+                  </div>
+                  {customsForm.availableGsm.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {customsForm.availableGsm.sort((a, b) => a - b).map((g, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">
+                          {g} g/m²
+                          <button type="button" className="text-violet-400 hover:text-red-500 transition-colors"
+                            onClick={() => setCustomsForm(p => ({ ...p, availableGsm: p.availableGsm.filter((_, i) => i !== idx) }))}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Ex: 225" value={newGsmInput} onChange={e => setNewGsmInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const v = Number(newGsmInput); if (v > 0 && !customsForm.availableGsm.includes(v)) { setCustomsForm(p => ({ ...p, availableGsm: [...p.availableGsm, v] })); setNewGsmInput(''); } } }}
+                      className="h-9 border-violet-200 text-sm font-bold rounded-lg flex-1" />
+                    <Button type="button" variant="outline" size="sm"
+                      className="h-9 px-3 border-violet-200 text-violet-600 hover:bg-violet-50 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                      onClick={() => { const v = Number(newGsmInput); if (v > 0 && !customsForm.availableGsm.includes(v)) { setCustomsForm(p => ({ ...p, availableGsm: [...p.availableGsm, v] })); setNewGsmInput(''); } }}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Largeurs pré-définies */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-stone-500 uppercase">Largeurs (cm)</span>
+                    {customsForm.availableWidths.length > 0 && (
+                      <span className="text-[8px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{customsForm.availableWidths.length} largeurs</span>
+                    )}
+                  </div>
+                  {customsForm.availableWidths.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {customsForm.availableWidths.sort((a, b) => a - b).map((w, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">
+                          {w} cm
+                          <button type="button" className="text-blue-400 hover:text-red-500 transition-colors"
+                            onClick={() => setCustomsForm(p => ({ ...p, availableWidths: p.availableWidths.filter((_, i) => i !== idx) }))}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Ex: 160" value={newWidthInput} onChange={e => setNewWidthInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const v = Number(newWidthInput); if (v > 0 && !customsForm.availableWidths.includes(v)) { setCustomsForm(p => ({ ...p, availableWidths: [...p.availableWidths, v] })); setNewWidthInput(''); } } }}
+                      className="h-9 border-blue-200 text-sm font-bold rounded-lg flex-1" />
+                    <Button type="button" variant="outline" size="sm"
+                      className="h-9 px-3 border-blue-200 text-blue-600 hover:bg-blue-50 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                      onClick={() => { const v = Number(newWidthInput); if (v > 0 && !customsForm.availableWidths.includes(v)) { setCustomsForm(p => ({ ...p, availableWidths: [...p.availableWidths, v] })); setNewWidthInput(''); } }}>
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="p-6 bg-stone-50 gap-3">
               <Button variant="ghost" onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
               <Button onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">Enregistrer</Button>

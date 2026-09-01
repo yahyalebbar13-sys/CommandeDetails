@@ -31,3 +31,14 @@ export function isZipperCategory(catName: string | undefined): boolean {
   const upper = catName.toUpperCase();
   return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
 }
+
+const FABRIC_KEYWORDS = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining'];
+
+/**
+ * Détecte si un nom de catégorie appartient au pôle Fabric
+ */
+export function isFabricCategory(catName: string | undefined): boolean {
+  if (!catName) return false;
+  const lower = catName.toLowerCase();
+  return FABRIC_KEYWORDS.some(kw => lower.includes(kw));
+}

@@ -27,6 +27,9 @@ export type Category = {
   tpiRate?: number;
   tvaRate?: number;
   availableSizes?: string[];
+  // Fabric config
+  availableGsm?: number[];     // GSM pré-définis (ex: [30, 40, 225])
+  availableWidths?: number[];  // Largeurs pré-définies en cm (ex: [100, 150, 160])
 };
 
 export type Order = {
@@ -54,6 +57,12 @@ export type Order = {
   status: OrderStatus;
   initialQtyByStore?: Partial<Record<StoreLocation, number>>;
   createdAt?: any;
+  // Fabric-specific fields
+  gsm?: number;              // Grammage g/m²
+  fabricWidth?: number;       // Largeur rouleau cm
+  rollLength?: number;        // Longueur rouleau
+  rollLengthUnit?: 'm' | 'yds'; // Unité longueur
+  packagingPerBag?: number;   // Nb rouleaux par sac/bale
 };
 
 export type Facture = {

@@ -54,6 +54,12 @@ const EMPTY_FORM = {
   estimatedProductionDelay: '',
   designRef: '',
   designImageUrl: '',
+  // Fabric fields
+  gsm: '' as string | number,
+  fabricWidth: '' as string | number,
+  rollLength: '' as string | number,
+  rollLengthUnit: 'm' as 'm' | 'yds',
+  packagingPerBag: '' as string | number,
 };
 
 export function AddOrderForm({ 
@@ -172,6 +178,24 @@ export function AddOrderForm({
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData.categoryId, subCategories]);
 
+  // ── Fabric detection ──
+  const isFabric = useMemo(() => {
+    const lower = (formData.categoryId || '').toLowerCase();
+    const fabricKw = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining'];
+    return fabricKw.some(kw => lower.includes(kw));
+  }, [formData.categoryId]);
+
+  const availableGsm = useMemo(() => {
+    if (!formData.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.availableGsm) && cat.availableGsm.length > 0 ? cat.availableGsm.map(String) : [];
+  }, [formData.categoryId, subCategories]);
+
+  const availableWidths = useMemo(() => {
+    if (!formData.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.availableWidths) && cat.availableWidths.length > 0 ? cat.availableWidths.map(String) : [];
+  }, [formData.categoryId, subCategories]);
   // Validation
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -217,6 +241,12 @@ export function AddOrderForm({
       ticRate: selectedSubCat?.ticRate ?? null,
       tvaRate: selectedSubCat?.tvaRate ?? null,
       pcsPerCtn: selectedSubCat?.defaultPcsPerCtn ?? null,
+      // Fabric fields — convert to numbers, null if empty
+      gsm: formData.gsm ? Number(formData.gsm) : null,
+      fabricWidth: formData.fabricWidth ? Number(formData.fabricWidth) : null,
+      rollLength: formData.rollLength ? Number(formData.rollLength) : null,
+      rollLengthUnit: formData.rollLength ? formData.rollLengthUnit : null,
+      packagingPerBag: formData.packagingPerBag ? Number(formData.packagingPerBag) : null,
     };
 
     if (isInventoryMode) {
@@ -550,6 +580,74 @@ export function AddOrderForm({
                     {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+          )}
+
+          {/* ── Fabric extra fields ── */}
+          {isFabric && (
+            <div className="space-y-3 p-4 rounded-2xl bg-violet-50/50 border border-violet-100">
+              <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
+                <Maximize className="w-3 h-3" /> Spécifications Fabric
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {/* GSM */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage (GSM)</Label>
+                  {availableGsm.length > 0 ? (
+                    <Select value={String(formData.gsm || '')} onValueChange={v => setFormData((p: any) => ({ ...p, gsm: Number(v) }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                        <SelectValue placeholder="GSM..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableGsm.map(g => <SelectItem key={g} value={g} className="font-bold">{g} g/m²</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input type="number" placeholder="Ex: 225" className="h-11 border-stone-200 font-bold rounded-xl"
+                      value={formData.gsm} onChange={e => setFormData((p: any) => ({ ...p, gsm: e.target.value }))} />
+                  )}
+                </div>
+                {/* Largeur */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Largeur (cm)</Label>
+                  {availableWidths.length > 0 ? (
+                    <Select value={String(formData.fabricWidth || '')} onValueChange={v => setFormData((p: any) => ({ ...p, fabricWidth: Number(v) }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                        <SelectValue placeholder="Largeur..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableWidths.map(w => <SelectItem key={w} value={w} className="font-bold">{w} cm</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input type="number" placeholder="Ex: 160" className="h-11 border-stone-200 font-bold rounded-xl"
+                      value={formData.fabricWidth} onChange={e => setFormData((p: any) => ({ ...p, fabricWidth: e.target.value }))} />
+                  )}
+                </div>
+                {/* Longueur rouleau */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur rouleau</Label>
+                  <div className="flex gap-2">
+                    <Input type="number" placeholder="Ex: 100" className="h-11 border-stone-200 font-bold rounded-xl flex-1"
+                      value={formData.rollLength} onChange={e => setFormData((p: any) => ({ ...p, rollLength: e.target.value }))} />
+                    <Select value={formData.rollLengthUnit} onValueChange={v => setFormData((p: any) => ({ ...p, rollLengthUnit: v }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="m" className="font-bold">m</SelectItem>
+                        <SelectItem value="yds" className="font-bold">yds</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* Conditionnement */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Rlx par sac</Label>
+                  <Input type="number" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
+                    value={formData.packagingPerBag} onChange={e => setFormData((p: any) => ({ ...p, packagingPerBag: e.target.value }))} />
+                </div>
               </div>
             </div>
           )}
