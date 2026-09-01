@@ -364,12 +364,14 @@ export default function CategoriesView({
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
-  // Detect if current category is Fabric
+  // Detect if current category is in the Fabric pôle
   const isFabricCat = useMemo(() => {
-    const lower = (selectedCategory || '').toLowerCase();
-    const fabricKw = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining'];
-    return fabricKw.some(kw => lower.includes(kw));
-  }, [selectedCategory]);
+    if (!selectedGeneralCategoryId) return false;
+    const genCat = generalCategories.find(g => g.id === selectedGeneralCategoryId);
+    if (!genCat) return false;
+    const lower = (genCat.name || '').toLowerCase();
+    return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
+  }, [selectedGeneralCategoryId, generalCategories]);
 
   const handleUpdateCustoms = () => {
     if (!user || !firestore || !currentCategoryObj) return;

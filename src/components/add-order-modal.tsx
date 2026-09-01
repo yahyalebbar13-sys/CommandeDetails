@@ -178,12 +178,14 @@ export function AddOrderForm({
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData.categoryId, subCategories]);
 
-  // ── Fabric detection ──
+  // ── Fabric detection — based on pôle (generalCategory), not category name ──
   const isFabric = useMemo(() => {
-    const lower = (formData.categoryId || '').toLowerCase();
-    const fabricKw = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining'];
-    return fabricKw.some(kw => lower.includes(kw));
-  }, [formData.categoryId]);
+    if (!selectedGenCatId) return false;
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+    if (!genCat) return false;
+    const lower = (genCat.name || '').toLowerCase();
+    return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
+  }, [selectedGenCatId, generalCategories]);
 
   const availableGsm = useMemo(() => {
     if (!formData.categoryId) return [];
