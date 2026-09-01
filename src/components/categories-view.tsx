@@ -1342,7 +1342,7 @@ export default function CategoriesView({
           // Group articles by unique product type (same GSM + width + rollLength = same quality)
           const productTypes = new Map<string, { designation: string; gsm: number | null; fabricWidth: number | null; rollLength: number | null; rollLengthUnit: string; packagingPerBag: number | null; count: number; totalQty: number; totalValue: number; sizes: Set<string>; suppliers: Set<string>; articles: any[] }>();
           
-          catArticles.forEach((a: any) => {
+          currentArticles.forEach((a: any) => {
             const gsm = a.gsm || null;
             const width = a.fabricWidth || null;
             const rl = a.rollLength || null;
