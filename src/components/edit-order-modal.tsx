@@ -51,8 +51,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return collection(firestore, 'users', user.uid, 'categories');
   }, [firestore, user]);
 
+  const articlesRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'articles');
+  }, [firestore, user]);
+
   const { data: generalCategories = [] } = useCollection(genCatsRef);
   const { data: subCategories = [] } = useCollection(catsRef);
+  const { data: allArticles = [] } = useCollection(articlesRef);
 
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
   const [formData, setFormData] = useState<any>(null);
@@ -238,6 +244,27 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData?.categoryId, subCategories]);
 
+  // ── Fabric detection ──
+  const isFabric = useMemo(() => {
+    if (!selectedGenCatId) return false;
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+    if (!genCat) return false;
+    const lower = (genCat.name || '').toLowerCase();
+    return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
+  }, [selectedGenCatId, generalCategories]);
+
+  const availableGsm = useMemo(() => {
+    if (!formData?.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.availableGsm) && cat.availableGsm.length > 0 ? cat.availableGsm.map(String) : [];
+  }, [formData?.categoryId, subCategories]);
+
+  const availableWidths = useMemo(() => {
+    if (!formData?.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.availableWidths) && cat.availableWidths.length > 0 ? cat.availableWidths.map(String) : [];
+  }, [formData?.categoryId, subCategories]);
+
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
     setIsSuggesting(true);
@@ -267,7 +294,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       : formData.status;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...cleanFormData } = formData;
+    const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...rawFormData } = formData;
+    const cleanFormData = {
+      ...rawFormData,
+      gsm: isFabric && rawFormData.gsm ? Number(rawFormData.gsm) : null,
+      fabricWidth: isFabric && rawFormData.fabricWidth ? Number(rawFormData.fabricWidth) : null,
+      rollLength: isFabric && rawFormData.rollLength ? Number(rawFormData.rollLength) : null,
+      packagingPerBag: isFabric && rawFormData.packagingPerBag ? Number(rawFormData.packagingPerBag) : null,
+    };
     
     let isSplit = false;
     let splitCount = 1;
@@ -719,6 +753,114 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 </div>
               </>
             )}
+
+            {/* ── Fabric extra fields ── */}
+            {isFabric && (() => {
+              // Build unique qualities from past articles with same categoryId
+              const existingQualities: { label: string; gsm: number; fabricWidth: number; rollLength: number; rollLengthUnit: string; packagingPerBag: number }[] = [];
+              const seenKeys = new Set<string>();
+              (allArticles || []).forEach((a: any) => {
+                if (a.categoryId !== formData.categoryId) return;
+                if (!a.gsm && !a.fabricWidth) return;
+                const key = `${a.gsm || 0}_${a.fabricWidth || 0}_${a.rollLength || 0}_${a.rollLengthUnit || 'm'}`;
+                if (seenKeys.has(key)) return;
+                seenKeys.add(key);
+                existingQualities.push({
+                  label: [a.gsm ? `${a.gsm}gsm` : null, a.fabricWidth ? `${a.fabricWidth}cm` : null, a.rollLength ? `${a.rollLength}${a.rollLengthUnit || 'm'}/rlx` : null, a.packagingPerBag ? `${a.packagingPerBag}rlx/sac` : null].filter(Boolean).join(' · '),
+                  gsm: a.gsm || 0,
+                  fabricWidth: a.fabricWidth || 0,
+                  rollLength: a.rollLength || 0,
+                  rollLengthUnit: a.rollLengthUnit || 'm',
+                  packagingPerBag: a.packagingPerBag || 0,
+                });
+              });
+
+              return (
+              <div className="space-y-3 p-4 rounded-2xl bg-violet-50/50 border border-violet-100 md:col-span-2">
+                <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <Maximize className="w-3 h-3" /> Spécifications Fabric
+                </p>
+
+                {/* Quick quality selector */}
+                {existingQualities.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">⚡ Qualité existante</Label>
+                    <Select onValueChange={v => {
+                      const q = existingQualities[Number(v)];
+                      if (q) setFormData((p: any) => ({ ...p, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit, packagingPerBag: q.packagingPerBag || '' }));
+                    }}>
+                      <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
+                        <SelectValue placeholder="Choisir une qualité existante..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {existingQualities.map((q, i) => (
+                          <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* GSM */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">GSM (g/m²)</Label>
+                    {availableGsm.length > 0 ? (
+                      <Select value={String(formData.gsm || '')} onValueChange={v => setFormData((p: any) => ({ ...p, gsm: Number(v) }))}>
+                        <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                          <SelectValue placeholder="GSM..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableGsm.map((g: string) => <SelectItem key={g} value={g} className="font-bold">{g} g/m²</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input type="number" placeholder="Ex: 225" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.gsm || ''} onChange={e => setFormData((p: any) => ({ ...p, gsm: e.target.value }))} />
+                    )}
+                  </div>
+                  {/* Largeur */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Largeur (cm)</Label>
+                    {availableWidths.length > 0 ? (
+                      <Select value={String(formData.fabricWidth || '')} onValueChange={v => setFormData((p: any) => ({ ...p, fabricWidth: Number(v) }))}>
+                        <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                          <SelectValue placeholder="Largeur..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableWidths.map((w: string) => <SelectItem key={w} value={w} className="font-bold">{w} cm</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input type="number" placeholder="Ex: 160" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.fabricWidth || ''} onChange={e => setFormData((p: any) => ({ ...p, fabricWidth: e.target.value }))} />
+                    )}
+                  </div>
+                  {/* Longueur Rlx */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur Rlx</Label>
+                    <div className="flex gap-1">
+                      <Input type="number" placeholder="Ex: 100" className="h-11 border-stone-200 font-bold rounded-xl flex-1"
+                        value={formData.rollLength || ''} onChange={e => setFormData((p: any) => ({ ...p, rollLength: e.target.value }))} />
+                      <Select value={formData.rollLengthUnit || 'm'} onValueChange={v => setFormData((p: any) => ({ ...p, rollLengthUnit: v }))}>
+                        <SelectTrigger className="w-[70px] h-11 border-stone-200 bg-stone-50 font-bold rounded-xl px-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="m" className="font-bold">m</SelectItem>
+                          <SelectItem value="yds" className="font-bold">yds</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {/* Conditionnement */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Rlx par sac</Label>
+                    <Input type="number" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
+                      value={formData.packagingPerBag || ''} onChange={e => setFormData((p: any) => ({ ...p, packagingPerBag: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+            ); })()}
 
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
