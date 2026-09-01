@@ -366,12 +366,13 @@ export default function CategoriesView({
 
   // Detect if current category is in the Fabric pôle
   const isFabricCat = useMemo(() => {
-    if (!selectedGeneralCategoryId) return false;
-    const genCat = generalCategories.find(g => g.id === selectedGeneralCategoryId);
+    const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
+    if (!genCatId) return false;
+    const genCat = generalCategories.find(g => g.id === genCatId);
     if (!genCat) return false;
     const lower = (genCat.name || '').toLowerCase();
     return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
-  }, [selectedGeneralCategoryId, generalCategories]);
+  }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories]);
 
   const handleUpdateCustoms = () => {
     if (!user || !firestore || !currentCategoryObj) return;

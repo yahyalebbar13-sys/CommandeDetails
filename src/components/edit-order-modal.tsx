@@ -246,12 +246,19 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   // ── Fabric detection ──
   const isFabric = useMemo(() => {
-    if (!selectedGenCatId) return false;
-    const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+    // Try to get generalCategoryId from state, fallback to looking up the category's parent
+    let genCatId = selectedGenCatId;
+    if (!genCatId && formData?.categoryId) {
+      const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+      if (cat) genCatId = cat.generalCategoryId;
+    }
+    if (!genCatId) return false;
+    
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
     if (!genCat) return false;
     const lower = (genCat.name || '').toLowerCase();
     return lower.includes('fabric') || lower.includes('tissu') || lower.includes('textile');
-  }, [selectedGenCatId, generalCategories]);
+  }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
 
   const availableGsm = useMemo(() => {
     if (!formData?.categoryId) return [];
