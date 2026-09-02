@@ -1823,10 +1823,10 @@ export default function CategoriesView({
                   <Button type="button" variant="outline" size="sm"
                     className="h-8 w-full border-violet-300 text-violet-600 hover:bg-violet-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
                     onClick={() => {
-                      const gsm = newQualityForm.gsm ? Number(newQualityForm.gsm) : undefined;
-                      const fabricWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : undefined;
-                      const rollLength = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : undefined;
-                      const packagingPerBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : undefined;
+                      const gsm = newQualityForm.gsm ? Number(newQualityForm.gsm) : null;
+                      const fabricWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : null;
+                      const rollLength = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : null;
+                      const packagingPerBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : null;
                       const autoLabel = [gsm ? `${gsm}gsm` : null, fabricWidth ? `${fabricWidth}cm` : null, rollLength ? `${rollLength}${newQualityForm.rollLengthUnit}/rlx` : null, packagingPerBag ? `${packagingPerBag}rlx/sac` : null].filter(Boolean).join(' · ');
                       const label = newQualityForm.label.trim() || autoLabel || 'Qualité';
                       if (!gsm && !fabricWidth) return; // At least GSM or width required
