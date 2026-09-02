@@ -1664,7 +1664,7 @@ export default function CategoriesView({
         )}
 
         <Dialog open={isCustomsModalOpen} onOpenChange={setIsCustomsModalOpen}>
-          <DialogContent className="max-w-md rounded-[1.5rem] p-0 border-none overflow-hidden">
+          <DialogContent className="max-w-md max-h-[90vh] rounded-[1.5rem] p-0 border-none overflow-y-auto">
             <div className="bg-amber-600 p-6 text-white">
               <DialogTitle className="text-lg font-black uppercase tracking-tight">Configuration & Douane</DialogTitle>
               <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">Audit Analytique Produit — {selectedCategory}</p>
