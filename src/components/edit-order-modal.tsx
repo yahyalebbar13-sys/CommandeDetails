@@ -705,31 +705,37 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <Maximize className="w-3 h-3" /> Taille / Dimension
-              </Label>
-              {availableSizes.length > 0 ? (
-                <Select value={formData.size || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, size: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue placeholder="Choisir la taille..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSizes.map((sz: string) => (
-                      <SelectItem key={sz} value={sz} className="font-bold uppercase">{sz}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  value={formData.size || ''}
-                  onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))}
-                  className="h-12 border-stone-200 font-bold rounded-xl"
-                  placeholder="Ex: No.5, 20cm..."
-                />
-              )}
-            </div>
+                   {/* Taille - caché pour Fabric */}
+            {!isFabric && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <Maximize className="w-3 h-3" /> Taille / Dimension
+                </Label>
+                {sizeBreakdown && sizeBreakdown.length > 0 ? (
+                  <div className="h-12 border border-teal-200 bg-teal-50 rounded-xl flex items-center px-4 shadow-inner">
+                    <span className="text-[10px] font-black text-teal-700 uppercase tracking-widest">VARIOUS (multi-tailles)</span>
+                  </div>
+                ) : availableSizes.length > 0 ? (
+                  <Select value={formData.size || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, size: v }))}>
+                    <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
+                      <SelectValue placeholder="Choisir la taille..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSizes.map((sz: string) => (
+                        <SelectItem key={sz} value={sz} className="font-bold uppercase">{sz}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={formData.size || ''}
+                    onChange={e => setFormData((prev: any) => ({ ...prev, size: e.target.value }))}
+                    className="h-12 border-stone-200 font-bold rounded-xl"
+                    placeholder="Ex: No.5, 20cm..."
+                  />
+                )}
+              </div>
+            )}
 
             {isZipper && (
               <div className="space-y-1.5">
