@@ -30,6 +30,7 @@ export type Category = {
   // Fabric config
   availableGsm?: number[];     // GSM pré-définis (ex: [30, 40, 225])
   availableWidths?: number[];  // Largeurs pré-définies en cm (ex: [100, 150, 160])
+  fabricQualities?: { label: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
 };
 
 export type Order = {

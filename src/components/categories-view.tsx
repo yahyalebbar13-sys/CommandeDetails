@@ -339,10 +339,12 @@ export default function CategoriesView({
     availableSizes: [] as string[],
     availableGsm: [] as number[],
     availableWidths: [] as number[],
+    fabricQualities: [] as { label: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[],
   });
   const [newSizeInput, setNewSizeInput] = useState('');
   const [newGsmInput, setNewGsmInput] = useState('');
   const [newWidthInput, setNewWidthInput] = useState('');
+  const [newQualityForm, setNewQualityForm] = useState({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
 
   useEffect(() => {
     if (currentCategoryObj && isCustomsModalOpen) {
@@ -357,17 +359,19 @@ export default function CategoriesView({
         availableSizes: Array.isArray(currentCategoryObj.availableSizes) ? currentCategoryObj.availableSizes : [],
         availableGsm: Array.isArray(currentCategoryObj.availableGsm) ? currentCategoryObj.availableGsm : [],
         availableWidths: Array.isArray(currentCategoryObj.availableWidths) ? currentCategoryObj.availableWidths : [],
+        fabricQualities: Array.isArray(currentCategoryObj.fabricQualities) ? currentCategoryObj.fabricQualities : [],
       });
       setNewSizeInput('');
       setNewGsmInput('');
       setNewWidthInput('');
+      setNewQualityForm({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
   // Detect if current category is in the Fabric pôle
   // Strategy: check pôle name first, then fallback to subcategory name keywords
   const FABRIC_POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
-  const FABRIC_CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing'];
+  const FABRIC_CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing', 'eva film', 't/c twill', 'oxford', 'twill'];
   const isFabricCat = useMemo(() => {
     // 1) Check pôle name
     const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
@@ -400,6 +404,7 @@ export default function CategoriesView({
       availableSizes: customsForm.availableSizes.length > 0 ? customsForm.availableSizes : null,
       availableGsm: customsForm.availableGsm.length > 0 ? customsForm.availableGsm : null,
       availableWidths: customsForm.availableWidths.length > 0 ? customsForm.availableWidths : null,
+      fabricQualities: customsForm.fabricQualities.length > 0 ? customsForm.fabricQualities : null,
     });
     toast({ title: 'Données douanières mises à jour' });
     setIsCustomsModalOpen(false);
@@ -1389,47 +1394,31 @@ export default function CategoriesView({
 
         {/* ── Type de Produit — Fabric only ── */}
         {isFabricCat && (() => {
-          // Group articles by unique product type (same GSM + width + rollLength = same quality)
-          const productTypes = new Map<string, { designation: string; gsm: number | null; fabricWidth: number | null; rollLength: number | null; rollLengthUnit: string; packagingPerBag: number | null; count: number; totalQty: number; totalValue: number; sizes: Set<string>; suppliers: Set<string>; articles: any[] }>();
+          const qualities = Array.isArray(currentCategoryObj?.fabricQualities) ? currentCategoryObj.fabricQualities : [];
           
-          currentArticles.forEach((a: any) => {
-            const gsm = a.gsm || null;
-            const width = a.fabricWidth || null;
-            const rl = a.rollLength || null;
-            const rlu = a.rollLengthUnit || 'm';
-            const pkg = a.packagingPerBag || null;
-            const key = `${gsm || '?'}_${width || '?'}_${rl || '?'}_${rlu}`;
-            
-            if (!productTypes.has(key)) {
-              productTypes.set(key, {
-                designation: a.name || a.categoryId || selectedCategory || '',
-                gsm, fabricWidth: width, rollLength: rl, rollLengthUnit: rlu, packagingPerBag: pkg,
-                count: 0, totalQty: 0, totalValue: 0, sizes: new Set(), suppliers: new Set(), articles: [],
-              });
-            }
-            const pt = productTypes.get(key)!;
-            pt.count++;
-            pt.totalQty += Number(a.quantity) || 0;
-            pt.totalValue += (Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0);
-            if (a.size) pt.sizes.add(a.size);
-            if (a.supplierId) pt.suppliers.add(a.supplierId);
-            pt.articles.push(a);
-            // Use the latest non-null values
-            if (!pt.gsm && gsm) pt.gsm = gsm;
-            if (!pt.fabricWidth && width) pt.fabricWidth = width;
-            if (!pt.rollLength && rl) pt.rollLength = rl;
-            if (!pt.packagingPerBag && pkg) pt.packagingPerBag = pkg;
+          // Also compute order stats per quality
+          const qualityStats = qualities.map(q => {
+            const matchingArticles = currentArticles.filter((a: any) => {
+              if (q.gsm && Number(a.gsm) !== q.gsm) return false;
+              if (q.fabricWidth && Number(a.fabricWidth) !== q.fabricWidth) return false;
+              return true;
+            });
+            return {
+              ...q,
+              count: matchingArticles.length,
+              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
+              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
+            };
           });
-
-          const types = Array.from(productTypes.values()).sort((a, b) => (b.gsm || 0) - (a.gsm || 0));
 
           return (
             <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
               <div className="h-1.5 w-full bg-violet-500" />
               <CardHeader className="py-4 border-b border-stone-50">
                 <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                  <Factory className="w-3 h-3 text-violet-500" /> Types de Produit — Qualités Référencées
-                  <span className="ml-auto text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{types.length} qualités</span>
+                  <Factory className="w-3 h-3 text-violet-500" /> Types de Produit — Qualités Fixes
+                  <span className="ml-auto text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{qualities.length} qualités</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -1437,21 +1426,20 @@ export default function CategoriesView({
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-stone-50/50">
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Désignation</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Qualité</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">GSM</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Largeur</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Longueur</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Condit.</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Tailles</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {types.map((pt, idx) => (
+                      {qualityStats.map((pt, idx) => (
                         <TableRow key={idx} className="hover:bg-violet-50/30 transition-colors">
-                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.designation}</TableCell>
+                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.label}</TableCell>
                           <TableCell className="text-center">
                             {pt.gsm ? (
                               <span className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">{pt.gsm}</span>
@@ -1464,7 +1452,7 @@ export default function CategoriesView({
                           </TableCell>
                           <TableCell className="text-center">
                             {pt.rollLength ? (
-                              <span className="text-[10px] font-black text-stone-700">{pt.rollLength}{pt.rollLengthUnit}</span>
+                              <span className="text-[10px] font-black text-stone-700">{pt.rollLength}{pt.rollLengthUnit || 'm'}</span>
                             ) : <span className="text-stone-200 text-[9px]">—</span>}
                           </TableCell>
                           <TableCell className="text-center">
@@ -1473,10 +1461,7 @@ export default function CategoriesView({
                             ) : <span className="text-stone-200 text-[9px]">—</span>}
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="text-[9px] font-bold text-stone-500">{pt.sizes.size > 0 ? [...pt.sizes].join(', ') : '—'}</span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.size > 0 ? [...pt.suppliers].join(', ') : '—'}</span>
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
                           </TableCell>
                           <TableCell className="text-center">
                             <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
@@ -1486,10 +1471,10 @@ export default function CategoriesView({
                           </TableCell>
                         </TableRow>
                       ))}
-                      {types.length === 0 && (
+                      {qualities.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
-                            Aucune qualité enregistrée — ajoutez GSM/largeur lors de la prochaine commande
+                          <TableCell colSpan={8} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                            Aucune qualité définie — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
                       )}
@@ -1788,71 +1773,68 @@ export default function CategoriesView({
               </div>
             </div>
 
-            {/* ── Fabric: GSM & Largeurs pré-définies ── */}
+            {/* ── Fabric: Qualités pré-définies ── */}
             {isFabricCat && (
               <div className="space-y-4 p-4 rounded-2xl bg-violet-50/50 border border-violet-100">
-                <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">⚙️ Config Fabric — GSM & Largeurs</p>
+                <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest">⚙️ Qualités Fabric Pré-définies</p>
                 
-                {/* GSM pré-définis */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-stone-500 uppercase">Grammages (GSM)</span>
-                    {customsForm.availableGsm.length > 0 && (
-                      <span className="text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{customsForm.availableGsm.length} gsm</span>
-                    )}
+                {/* Existing qualities */}
+                {customsForm.fabricQualities.length > 0 && (
+                  <div className="space-y-2">
+                    {customsForm.fabricQualities.map((q, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-violet-100">
+                        <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
+                        <div className="flex gap-1">
+                          {q.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{q.gsm}gsm</span>}
+                          {q.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{q.fabricWidth}cm</span>}
+                          {q.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{q.rollLength}{q.rollLengthUnit || 'm'}</span>}
+                          {q.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{q.packagingPerBag}rlx/sac</span>}
+                        </div>
+                        <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
+                          onClick={() => setCustomsForm(p => ({ ...p, fabricQualities: p.fabricQualities.filter((_, i) => i !== idx) }))}>×</button>
+                      </div>
+                    ))}
                   </div>
-                  {customsForm.availableGsm.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...customsForm.availableGsm].sort((a, b) => a - b).map((g, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">
-                          {g} g/m²
-                          <button type="button" className="text-violet-400 hover:text-red-500 transition-colors"
-                            onClick={() => setCustomsForm(p => ({ ...p, availableGsm: p.availableGsm.filter(x => x !== g) }))}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Ex: 225" value={newGsmInput} onChange={e => setNewGsmInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const v = Number(newGsmInput); if (v > 0 && !customsForm.availableGsm.includes(v)) { setCustomsForm(p => ({ ...p, availableGsm: [...p.availableGsm, v] })); setNewGsmInput(''); } } }}
-                      className="h-9 border-violet-200 text-sm font-bold rounded-lg flex-1" />
-                    <Button type="button" variant="outline" size="sm"
-                      className="h-9 px-3 border-violet-200 text-violet-600 hover:bg-violet-50 font-black text-[9px] uppercase tracking-widest rounded-lg"
-                      onClick={() => { const v = Number(newGsmInput); if (v > 0 && !customsForm.availableGsm.includes(v)) { setCustomsForm(p => ({ ...p, availableGsm: [...p.availableGsm, v] })); setNewGsmInput(''); } }}>
-                      <Plus className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
+                )}
+                {customsForm.fabricQualities.length === 0 && (
+                  <p className="text-[8px] font-bold text-stone-400 uppercase italic">Aucune qualité définie</p>
+                )}
 
-                {/* Largeurs pré-définies */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-stone-500 uppercase">Largeurs (cm)</span>
-                    {customsForm.availableWidths.length > 0 && (
-                      <span className="text-[8px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{customsForm.availableWidths.length} largeurs</span>
-                    )}
+                {/* Add new quality form */}
+                <div className="space-y-2 p-3 rounded-xl bg-violet-100/30 border border-violet-200">
+                  <p className="text-[8px] font-black text-violet-500 uppercase tracking-widest">+ Nouvelle Qualité</p>
+                  <Input placeholder="Label (auto si vide)" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                    value={newQualityForm.label} onChange={e => setNewQualityForm(p => ({ ...p, label: e.target.value }))} />
+                  <div className="grid grid-cols-5 gap-2">
+                    <Input type="number" placeholder="GSM" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                      value={newQualityForm.gsm} onChange={e => setNewQualityForm(p => ({ ...p, gsm: e.target.value }))} />
+                    <Input type="number" placeholder="Larg. cm" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                      value={newQualityForm.fabricWidth} onChange={e => setNewQualityForm(p => ({ ...p, fabricWidth: e.target.value }))} />
+                    <Input type="number" placeholder="Long. rlx" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                      value={newQualityForm.rollLength} onChange={e => setNewQualityForm(p => ({ ...p, rollLength: e.target.value }))} />
+                    <select className="h-8 text-[10px] font-bold border border-violet-200 rounded-lg bg-white px-1"
+                      value={newQualityForm.rollLengthUnit} onChange={e => setNewQualityForm(p => ({ ...p, rollLengthUnit: e.target.value }))}>
+                      <option value="m">m</option>
+                      <option value="yds">yds</option>
+                    </select>
+                    <Input type="number" placeholder="Rlx/sac" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                      value={newQualityForm.packagingPerBag} onChange={e => setNewQualityForm(p => ({ ...p, packagingPerBag: e.target.value }))} />
                   </div>
-                  {customsForm.availableWidths.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {[...customsForm.availableWidths].sort((a, b) => a - b).map((w, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">
-                          {w} cm
-                          <button type="button" className="text-blue-400 hover:text-red-500 transition-colors"
-                            onClick={() => setCustomsForm(p => ({ ...p, availableWidths: p.availableWidths.filter(x => x !== w) }))}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Ex: 160" value={newWidthInput} onChange={e => setNewWidthInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const v = Number(newWidthInput); if (v > 0 && !customsForm.availableWidths.includes(v)) { setCustomsForm(p => ({ ...p, availableWidths: [...p.availableWidths, v] })); setNewWidthInput(''); } } }}
-                      className="h-9 border-blue-200 text-sm font-bold rounded-lg flex-1" />
-                    <Button type="button" variant="outline" size="sm"
-                      className="h-9 px-3 border-blue-200 text-blue-600 hover:bg-blue-50 font-black text-[9px] uppercase tracking-widest rounded-lg"
-                      onClick={() => { const v = Number(newWidthInput); if (v > 0 && !customsForm.availableWidths.includes(v)) { setCustomsForm(p => ({ ...p, availableWidths: [...p.availableWidths, v] })); setNewWidthInput(''); } }}>
-                      <Plus className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+                  <Button type="button" variant="outline" size="sm"
+                    className="h-8 w-full border-violet-300 text-violet-600 hover:bg-violet-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                    onClick={() => {
+                      const gsm = newQualityForm.gsm ? Number(newQualityForm.gsm) : undefined;
+                      const fabricWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : undefined;
+                      const rollLength = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : undefined;
+                      const packagingPerBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : undefined;
+                      const autoLabel = [gsm ? `${gsm}gsm` : null, fabricWidth ? `${fabricWidth}cm` : null, rollLength ? `${rollLength}${newQualityForm.rollLengthUnit}/rlx` : null, packagingPerBag ? `${packagingPerBag}rlx/sac` : null].filter(Boolean).join(' · ');
+                      const label = newQualityForm.label.trim() || autoLabel || 'Qualité';
+                      if (!gsm && !fabricWidth) return; // At least GSM or width required
+                      setCustomsForm(p => ({ ...p, fabricQualities: [...p.fabricQualities, { label, gsm, fabricWidth, rollLength, rollLengthUnit: newQualityForm.rollLengthUnit, packagingPerBag }] }));
+                      setNewQualityForm({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
+                    }}>
+                    <Plus className="w-3 h-3 mr-1" /> Ajouter Qualité
+                  </Button>
                 </div>
               </div>
             )}

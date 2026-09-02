@@ -181,7 +181,7 @@ export function AddOrderForm({
   // ── Fabric detection — check pôle name, fallback to category name keywords ──
   const isFabric = useMemo(() => {
     const POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
-    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing'];
+    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing', 'eva film', 't/c twill', 'oxford', 'twill'];
     // 1) Check pôle name
     if (selectedGenCatId) {
       const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
@@ -208,6 +208,12 @@ export function AddOrderForm({
     if (!formData.categoryId) return [];
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
     return Array.isArray(cat?.availableWidths) && cat.availableWidths.length > 0 ? cat.availableWidths.map(String) : [];
+  }, [formData.categoryId, subCategories]);
+
+  const fabricQualities = useMemo(() => {
+    if (!formData.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : [];
   }, [formData.categoryId, subCategories]);
   // Validation
   const errors = useMemo(() => {
@@ -597,113 +603,77 @@ export function AddOrderForm({
             </div>
           )}
 
-          {/* ── Fabric extra fields ── */}
-          {isFabric && (() => {
-            // Build unique qualities from past articles with same categoryId
-            const existingQualities: { label: string; gsm: number; fabricWidth: number; rollLength: number; rollLengthUnit: string; packagingPerBag: number }[] = [];
-            const seenKeys = new Set<string>();
-            (allArticles || []).forEach((a: any) => {
-              if (a.categoryId !== formData.categoryId) return;
-              if (!a.gsm && !a.fabricWidth) return;
-              const key = `${a.gsm || 0}_${a.fabricWidth || 0}_${a.rollLength || 0}_${a.rollLengthUnit || 'm'}`;
-              if (seenKeys.has(key)) return;
-              seenKeys.add(key);
-              existingQualities.push({
-                label: [a.gsm ? `${a.gsm}gsm` : null, a.fabricWidth ? `${a.fabricWidth}cm` : null, a.rollLength ? `${a.rollLength}${a.rollLengthUnit || 'm'}/rlx` : null, a.packagingPerBag ? `${a.packagingPerBag}rlx/sac` : null].filter(Boolean).join(' · '),
-                gsm: a.gsm || 0,
-                fabricWidth: a.fabricWidth || 0,
-                rollLength: a.rollLength || 0,
-                rollLengthUnit: a.rollLengthUnit || 'm',
-                packagingPerBag: a.packagingPerBag || 0,
-              });
-            });
-
-            return (
+          {/* ── Fabric fields ── */}
+          {isFabric && (
             <div className="space-y-3 p-4 rounded-2xl bg-violet-50/50 border border-violet-100">
               <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
                 <Maximize className="w-3 h-3" /> Spécifications Fabric
               </p>
-
-              {/* Quick quality selector */}
-              {existingQualities.length > 0 && (
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">⚡ Qualité existante</Label>
-                  <Select onValueChange={v => {
-                    const q = existingQualities[Number(v)];
-                    if (q) setFormData((p: any) => ({ ...p, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit, packagingPerBag: q.packagingPerBag || '' }));
-                  }}>
-                    <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
-                      <SelectValue placeholder="Choisir une qualité existante..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingQualities.map((q, i) => (
-                        <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                {/* GSM */}
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage (GSM)</Label>
-                  {availableGsm.length > 0 ? (
-                    <Select value={String(formData.gsm || '')} onValueChange={v => setFormData((p: any) => ({ ...p, gsm: Number(v) }))}>
-                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                        <SelectValue placeholder="GSM..." />
+              {fabricQualities.length > 0 ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">Qualité</Label>
+                    <Select onValueChange={v => {
+                      const q = fabricQualities[Number(v)];
+                      if (q) setFormData((p: any) => ({ ...p, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit || 'm', packagingPerBag: q.packagingPerBag || '' }));
+                    }}>
+                      <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
+                        <SelectValue placeholder="Choisir une qualité..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableGsm.map(g => <SelectItem key={g} value={g} className="font-bold">{g} g/m²</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input type="number" placeholder="Ex: 225" className="h-11 border-stone-200 font-bold rounded-xl"
-                      value={formData.gsm} onChange={e => setFormData((p: any) => ({ ...p, gsm: e.target.value }))} />
-                  )}
-                </div>
-                {/* Largeur */}
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Largeur (cm)</Label>
-                  {availableWidths.length > 0 ? (
-                    <Select value={String(formData.fabricWidth || '')} onValueChange={v => setFormData((p: any) => ({ ...p, fabricWidth: Number(v) }))}>
-                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                        <SelectValue placeholder="Largeur..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableWidths.map(w => <SelectItem key={w} value={w} className="font-bold">{w} cm</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input type="number" placeholder="Ex: 160" className="h-11 border-stone-200 font-bold rounded-xl"
-                      value={formData.fabricWidth} onChange={e => setFormData((p: any) => ({ ...p, fabricWidth: e.target.value }))} />
-                  )}
-                </div>
-                {/* Longueur rouleau */}
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur rouleau</Label>
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Ex: 100" className="h-11 border-stone-200 font-bold rounded-xl flex-1"
-                      value={formData.rollLength} onChange={e => setFormData((p: any) => ({ ...p, rollLength: e.target.value }))} />
-                    <Select value={formData.rollLengthUnit} onValueChange={v => setFormData((p: any) => ({ ...p, rollLengthUnit: v }))}>
-                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="m" className="font-bold">m</SelectItem>
-                        <SelectItem value="yds" className="font-bold">yds</SelectItem>
+                        {fabricQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Show current values as badges */}
+                  {(formData.gsm || formData.fabricWidth) && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {formData.gsm && <span className="px-2 py-1 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">{formData.gsm} g/m²</span>}
+                      {formData.fabricWidth && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">{formData.fabricWidth} cm</span>}
+                      {formData.rollLength && <span className="px-2 py-1 rounded-lg bg-stone-100 text-stone-600 text-[10px] font-black">{formData.rollLength}{formData.rollLengthUnit || 'm'}/rlx</span>}
+                      {formData.packagingPerBag && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.packagingPerBag} rlx/sac</span>}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">GSM (g/m²)</Label>
+                    <Input type="number" placeholder="Ex: 225" className="h-11 border-stone-200 font-bold rounded-xl"
+                      value={formData.gsm || ''} onChange={e => setFormData((p: any) => ({ ...p, gsm: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Largeur (cm)</Label>
+                    <Input type="number" placeholder="Ex: 160" className="h-11 border-stone-200 font-bold rounded-xl"
+                      value={formData.fabricWidth || ''} onChange={e => setFormData((p: any) => ({ ...p, fabricWidth: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur Rlx</Label>
+                    <div className="flex gap-1">
+                      <Input type="number" placeholder="Ex: 100" className="h-11 border-stone-200 font-bold rounded-xl flex-1"
+                        value={formData.rollLength || ''} onChange={e => setFormData((p: any) => ({ ...p, rollLength: e.target.value }))} />
+                      <Select value={formData.rollLengthUnit || 'm'} onValueChange={v => setFormData((p: any) => ({ ...p, rollLengthUnit: v }))}>
+                        <SelectTrigger className="w-[70px] h-11 border-stone-200 bg-stone-50 font-bold rounded-xl px-2">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="m" className="font-bold">m</SelectItem>
+                          <SelectItem value="yds" className="font-bold">yds</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Rlx par sac</Label>
+                    <Input type="number" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
+                      value={formData.packagingPerBag || ''} onChange={e => setFormData((p: any) => ({ ...p, packagingPerBag: e.target.value }))} />
+                  </div>
                 </div>
-                {/* Conditionnement */}
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Rlx par sac</Label>
-                  <Input type="number" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
-                    value={formData.packagingPerBag} onChange={e => setFormData((p: any) => ({ ...p, packagingPerBag: e.target.value }))} />
-                </div>
-              </div>
+              )}
             </div>
-          ); })()}
+          )}
 
           {/* Specs / Notes */}
           <div className="space-y-1.5">
