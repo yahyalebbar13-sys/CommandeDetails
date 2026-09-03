@@ -6,13 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Layers, Plus, Trash2, ArrowRight, FolderSearch, PlusCircle,
-  Truck, DollarSign, TrendingUp, Package, Search, BarChart3, ChevronRight
+  Truck, DollarSign, TrendingUp, Package, Search, BarChart3, ChevronRight,
+  ArrowRightLeft
 } from 'lucide-react';
-import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { GeneralCategory, Category } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface GeneralCategoriesViewProps {
@@ -59,6 +62,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newSubTvaRate, setNewSubTvaRate] = useState<number | ''>('');
   const [targetGenCatId, setTargetGenCatId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
+  const [movingPole, setMovingPole] = useState<GeneralCategory | null>(null);
+  const [moveTargetLine, setMoveTargetLine] = useState('');
 
   const now = new Date();
 
@@ -156,7 +161,13 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     });
 
     const allGroups = [...result, ...Array.from(customGroupsMap.values())];
-    return allGroups.filter(g => g.items.length > 0);
+    const filtered = allGroups.filter(g => g.items.length > 0);
+    filtered.sort((a, b) => {
+      const aTotal = a.items.reduce((s: number, i: any) => s + (i.stats?.totalValue || 0), 0);
+      const bTotal = b.items.reduce((s: number, i: any) => s + (i.stats?.totalValue || 0), 0);
+      return bTotal - aTotal;
+    });
+    return filtered;
   }, [generalCategories, groupStats, searchTerm]);
 
   // Dynamically compute all available lines for the modal
@@ -333,6 +344,15 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                 onClick={(e) => openSubModal(e, gc.id)}
                               >
                                 <PlusCircle className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Changer de ligne"
+                                onClick={(e) => { e.stopPropagation(); setMovingPole(gc); }}
+                              >
+                                <ArrowRightLeft className="w-3 h-3" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -541,6 +561,48 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Modal changer de ligne ── */}
+      <Dialog open={!!movingPole} onOpenChange={open => { if (!open) { setMovingPole(null); setMoveTargetLine(''); } }}>
+        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-blue-600 p-5 text-white">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Changer de Ligne</DialogTitle>
+            <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingPole?.name}</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouvelle Ligne</Label>
+              <Select value={moveTargetLine} onValueChange={setMoveTargetLine}>
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                  <SelectValue placeholder="Choisir une ligne..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableLines.map(line => (
+                    <SelectItem key={line} value={line} className="font-bold uppercase">{line}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingPole(null); setMoveTargetLine(''); }}>Annuler</Button>
+              <Button
+                className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={!moveTargetLine}
+                onClick={() => {
+                  if (!user || !firestore || !movingPole || !moveTargetLine) return;
+                  const docRef = doc(firestore, 'users', user.uid, 'generalCategories', movingPole.id);
+                  updateDocumentNonBlocking(docRef, { line: moveTargetLine });
+                  toast({ title: '✅ Ligne modifiée', description: `${movingPole.name} → ${moveTargetLine}` });
+                  setMovingPole(null);
+                  setMoveTargetLine('');
+                }}
+              >
+                Déplacer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
