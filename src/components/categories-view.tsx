@@ -2275,7 +2275,7 @@ export default function CategoriesView({
                         size="icon"
                         className="h-7 w-7 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                         title="Déplacer vers un autre pôle"
-                        onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) setMovingCategory(catObj); }}
+                        onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) setMovingGeneralCategory(catObj); }}
                       >
                         <ArrowRightLeft className="w-3.5 h-3.5" />
                       </Button>
