@@ -1956,15 +1956,6 @@ export default function CategoriesView({
                       >
                         <Settings2 className="w-3 h-3" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="Déplacer vers un autre pôle"
-                        onClick={(e) => { e.stopPropagation(); if (catObj) setMovingCategory(catObj); }}
-                      >
-                        <ArrowRightLeft className="w-3 h-3" />
-                      </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -2094,56 +2085,6 @@ export default function CategoriesView({
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal déplacer catégorie (dans vue pôle) ── */}
-      <Dialog open={!!movingCategory} onOpenChange={open => { if (!open) { setMovingCategory(null); setMoveTargetPoleId(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-blue-600 p-5 text-white">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Déplacer la catégorie</DialogTitle>
-            <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingCategory?.name}</p>
-          </div>
-          <div className="p-5 space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouveau Pôle</Label>
-              <Select value={moveTargetPoleId} onValueChange={setMoveTargetPoleId}>
-                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                  <SelectValue placeholder="Choisir un pôle..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {generalCategories
-                    .filter(gc => gc.id !== selectedGeneralCategoryId)
-                    .map(gc => (
-                      <SelectItem key={gc.id} value={gc.id} className="font-bold uppercase">{gc.name}</SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingCategory(null); setMoveTargetPoleId(''); }}>Annuler</Button>
-              <Button
-                className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                disabled={!moveTargetPoleId}
-                onClick={() => {
-                  if (!user || !firestore || !movingCategory || !moveTargetPoleId) return;
-                  const docRef = doc(firestore, 'users', user.uid, 'categories', movingCategory.id);
-                  updateDocumentNonBlocking(docRef, { generalCategoryId: moveTargetPoleId });
-                  const catArticles = articles.filter(a => a.categoryId === movingCategory.name);
-                  catArticles.forEach(a => {
-                    const aRef = doc(firestore, 'users', user.uid, 'articles', a.id);
-                    updateDocumentNonBlocking(aRef, { generalCategoryId: moveTargetPoleId });
-                  });
-                  const targetPole = generalCategories.find(gc => gc.id === moveTargetPoleId);
-                  toast({ title: '✅ Catégorie déplacée', description: `${movingCategory.name} → ${targetPole?.name || moveTargetPoleId}` });
-                  setMovingCategory(null);
-                  setMoveTargetPoleId('');
-                }}
-              >
-                Déplacer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       </>
     );
   }
@@ -2177,7 +2118,7 @@ export default function CategoriesView({
       <Dialog open={!!movingCategory} onOpenChange={open => { if (!open) { setMovingCategory(null); setMoveTargetPoleId(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-blue-600 p-5 text-white">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Déplacer la catégorie</DialogTitle>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Changer de Pôle</DialogTitle>
             <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingCategory?.name}</p>
           </div>
           <div className="p-5 space-y-4">
@@ -2188,11 +2129,9 @@ export default function CategoriesView({
                   <SelectValue placeholder="Choisir un pôle..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {generalCategories
-                    .filter(gc => gc.id !== movingCategory?.generalCategoryId)
-                    .map(gc => (
-                      <SelectItem key={gc.id} value={gc.id} className="font-bold uppercase">{gc.name}</SelectItem>
-                    ))}
+                  {["Fabric", "Slider et puller", "Zipper", "Bouton", "Reste"].map(pole => (
+                    <SelectItem key={pole} value={pole} className="font-bold uppercase">{pole}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -2203,16 +2142,9 @@ export default function CategoriesView({
                 disabled={!moveTargetPoleId}
                 onClick={() => {
                   if (!user || !firestore || !movingCategory || !moveTargetPoleId) return;
-                  const docRef = doc(firestore, 'users', user.uid, 'categories', movingCategory.id);
-                  updateDocumentNonBlocking(docRef, { generalCategoryId: moveTargetPoleId });
-                  // Also update all articles of this category
-                  const catArticles = articles.filter(a => a.categoryId === movingCategory.name);
-                  catArticles.forEach(a => {
-                    const aRef = doc(firestore, 'users', user.uid, 'articles', a.id);
-                    updateDocumentNonBlocking(aRef, { generalCategoryId: moveTargetPoleId });
-                  });
-                  const targetPole = generalCategories.find(gc => gc.id === moveTargetPoleId);
-                  toast({ title: '✅ Catégorie déplacée', description: `${movingCategory.name} → ${targetPole?.name || moveTargetPoleId}` });
+                  const docRef = doc(firestore, 'users', user.uid, 'generalCategories', movingCategory.id);
+                  updateDocumentNonBlocking(docRef, { line: moveTargetPoleId });
+                  toast({ title: '✅ Pôle modifié', description: `${movingCategory.name} → ${moveTargetPoleId}` });
                   setMovingCategory(null);
                   setMoveTargetPoleId('');
                 }}
@@ -2277,7 +2209,16 @@ export default function CategoriesView({
                         </span>
                       </div>
                     </div>
-                    <div className="mt-6 flex justify-end">
+                    <div className="mt-6 flex justify-between items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        title="Déplacer vers un autre pôle"
+                        onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) setMovingCategory(catObj); }}
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                      </Button>
                       <div className="p-1.5 bg-stone-50 rounded opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
                         <ArrowUpRight className="w-3.5 h-3.5 text-stone-900" />
                       </div>
