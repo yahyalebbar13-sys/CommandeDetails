@@ -288,9 +288,10 @@ export default function CategoriesView({
   const [reorderConfigCat, setReorderConfigCat] = useState<any>(null);
   const [reorderSeasons, setReorderSeasons] = useState<OrderScheduleSeason[]>([]);
   const [reorderSaving, setReorderSaving] = useState(false);
-  // ── Move category to another pôle
-  const [movingCategory, setMovingCategory] = useState<any>(null);
-  const [moveTargetPoleId, setMoveTargetPoleId] = useState('');
+  // ── Move entities
+  const [movingSubCategory, setMovingSubCategory] = useState<any>(null);
+  const [movingGeneralCategory, setMovingGeneralCategory] = useState<any>(null);
+  const [moveTargetId, setMoveTargetId] = useState('');
   
   const [expandedStockItems, setExpandedStockItems] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'categories' | 'articles' | 'stock'>('categories');
@@ -1956,6 +1957,15 @@ export default function CategoriesView({
                       >
                         <Settings2 className="w-3 h-3" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Déplacer vers un autre pôle"
+                        onClick={(e) => { e.stopPropagation(); if (catObj) setMovingSubCategory(catObj); }}
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -2085,6 +2095,56 @@ export default function CategoriesView({
         </DialogContent>
       </Dialog>
 
+      {/* ── Modal changer de Pôle (pour SubCategory) ── */}
+      <Dialog open={!!movingSubCategory} onOpenChange={open => { if (!open) { setMovingSubCategory(null); setMoveTargetId(''); } }}>
+        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-blue-600 p-5 text-white">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Déplacer la catégorie</DialogTitle>
+            <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingSubCategory?.name}</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouveau Pôle</Label>
+              <Select value={moveTargetId} onValueChange={setMoveTargetId}>
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                  <SelectValue placeholder="Choisir un pôle..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {generalCategories
+                    .filter(gc => gc.id !== movingSubCategory?.generalCategoryId)
+                    .map(gc => (
+                      <SelectItem key={gc.id} value={gc.id} className="font-bold uppercase">{gc.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingSubCategory(null); setMoveTargetId(''); }}>Annuler</Button>
+              <Button
+                className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={!moveTargetId}
+                onClick={() => {
+                  if (!user || !firestore || !movingSubCategory || !moveTargetId) return;
+                  const docRef = doc(firestore, 'users', user.uid, 'categories', movingSubCategory.id);
+                  updateDocumentNonBlocking(docRef, { generalCategoryId: moveTargetId });
+                  const catArticles = articles.filter(a => a.categoryId === movingSubCategory.name);
+                  catArticles.forEach(a => {
+                    const aRef = doc(firestore, 'users', user.uid, 'articles', a.id);
+                    updateDocumentNonBlocking(aRef, { generalCategoryId: moveTargetId });
+                  });
+                  const targetPole = generalCategories.find(gc => gc.id === moveTargetId);
+                  toast({ title: '✅ Catégorie déplacée', description: `${movingSubCategory.name} → ${targetPole?.name || moveTargetId}` });
+                  setMovingSubCategory(null);
+                  setMoveTargetId('');
+                }}
+              >
+                Déplacer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       </>
     );
   }
@@ -2114,19 +2174,19 @@ export default function CategoriesView({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Modal déplacer catégorie vers un autre pôle ── */}
-      <Dialog open={!!movingCategory} onOpenChange={open => { if (!open) { setMovingCategory(null); setMoveTargetPoleId(''); } }}>
+      {/* ── Modal changer de Ligne de production (pour GeneralCategory) ── */}
+      <Dialog open={!!movingGeneralCategory} onOpenChange={open => { if (!open) { setMovingGeneralCategory(null); setMoveTargetId(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-blue-600 p-5 text-white">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Changer de Pôle</DialogTitle>
-            <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingCategory?.name}</p>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Changer de Ligne de Production</DialogTitle>
+            <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingGeneralCategory?.name}</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouveau Pôle</Label>
-              <Select value={moveTargetPoleId} onValueChange={setMoveTargetPoleId}>
+              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouvelle Ligne</Label>
+              <Select value={moveTargetId} onValueChange={setMoveTargetId}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                  <SelectValue placeholder="Choisir un pôle..." />
+                  <SelectValue placeholder="Choisir une ligne..." />
                 </SelectTrigger>
                 <SelectContent>
                   {["Fabric", "Slider et puller", "Zipper", "Bouton", "Reste"].map(pole => (
@@ -2136,17 +2196,17 @@ export default function CategoriesView({
               </Select>
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingCategory(null); setMoveTargetPoleId(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingGeneralCategory(null); setMoveTargetId(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                disabled={!moveTargetPoleId}
+                disabled={!moveTargetId}
                 onClick={() => {
-                  if (!user || !firestore || !movingCategory || !moveTargetPoleId) return;
-                  const docRef = doc(firestore, 'users', user.uid, 'generalCategories', movingCategory.id);
-                  updateDocumentNonBlocking(docRef, { line: moveTargetPoleId });
-                  toast({ title: '✅ Pôle modifié', description: `${movingCategory.name} → ${moveTargetPoleId}` });
-                  setMovingCategory(null);
-                  setMoveTargetPoleId('');
+                  if (!user || !firestore || !movingGeneralCategory || !moveTargetId) return;
+                  const docRef = doc(firestore, 'users', user.uid, 'generalCategories', movingGeneralCategory.id);
+                  updateDocumentNonBlocking(docRef, { line: moveTargetId });
+                  toast({ title: '✅ Ligne modifiée', description: `${movingGeneralCategory.name} → ${moveTargetId}` });
+                  setMovingGeneralCategory(null);
+                  setMoveTargetId('');
                 }}
               >
                 Déplacer
