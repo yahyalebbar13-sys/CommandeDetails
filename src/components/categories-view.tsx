@@ -2231,6 +2231,9 @@ export default function CategoriesView({
             <h3 className="text-xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
               <div className="w-2 h-6 bg-amber-500 rounded-full" />
               {group.title}
+              <span className="text-xs font-bold text-stone-400 normal-case tracking-normal">
+                ({group.items.reduce((s, i) => s + (i.stat.totalValue || 0), 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} $)
+              </span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {group.items.map(({ id, stat }, idx) => (
