@@ -6,6 +6,7 @@ import {
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
   UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
   Banknote, Landmark, FileCheck, Layers, Trash2, CreditCard,
+  Camera, Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +50,7 @@ interface CheckoutPaymentLine {
   bankName: string;
   checkNumber: string;
   dueDate: string;
+  scannedImageUrl: string;
 }
 
 interface StockSaleFlowProps {
@@ -101,7 +103,7 @@ export default function StockSaleFlow({
   const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'UNPAID'>('PAID');
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CHEQUE' | 'LC' | 'VIREMENT' | 'MIXED'>('CASH');
   const [paymentLines, setPaymentLines] = useState<CheckoutPaymentLine[]>([
-    { id: 'init-1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '' }
+    { id: 'init-1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
   ]);
   const [finalDate, setFinalDate] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -130,6 +132,7 @@ export default function StockSaleFlow({
             bankName: '',
             checkNumber: '',
             dueDate: '',
+            scannedImageUrl: '',
           },
           {
             id: 'line-2',
@@ -139,6 +142,7 @@ export default function StockSaleFlow({
             bankName: '',
             checkNumber: '',
             dueDate: '',
+            scannedImageUrl: '',
           }
         ]);
       }
@@ -151,6 +155,7 @@ export default function StockSaleFlow({
         bankName: '',
         checkNumber: '',
         dueDate: '',
+        scannedImageUrl: '',
       }]);
     }
   };
@@ -169,6 +174,7 @@ export default function StockSaleFlow({
         bankName: '',
         checkNumber: '',
         dueDate: '',
+        scannedImageUrl: '',
       }
     ]);
   };
@@ -193,6 +199,7 @@ export default function StockSaleFlow({
           bankName: '',
           checkNumber: '',
           dueDate: '',
+          scannedImageUrl: '',
         }]);
       }
     }
@@ -394,6 +401,20 @@ export default function StockSaleFlow({
       return;
     }
 
+    // ── Vérification obligatoire du scan pour Chèque et LC ──
+    if (!isFullCredit) {
+      const missingScanLine = validLines.find(
+        l => (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()
+      );
+      if (missingScanLine) {
+        alert(
+          `⚠️ Le scan ou la photo du chèque / de la LC est OBLIGATOIRE avant de valider la vente (${missingScanLine.method}).\n\n` +
+          `Veuillez prendre une photo ou importer le scan du document.`
+        );
+        return;
+      }
+    }
+
     // ── Vérification du plafond de crédit ──
     const debtToAdd = isFullCredit ? total : balanceRemaining;
     if (debtToAdd > 0 && selectedClient) {
@@ -512,6 +533,7 @@ export default function StockSaleFlow({
         checkNumber: l.checkNumber?.trim() || undefined,
         dueDate: l.dueDate || undefined,
         notes: l.notes?.trim() || undefined,
+        scannedImageUrl: l.scannedImageUrl?.trim() || undefined,
         clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
         clientId: selectedClient?.id || undefined,
       }));
@@ -1281,36 +1303,113 @@ export default function StockSaleFlow({
 
                       {/* Détails Chèque ou LC */}
                       {isPaper && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-stone-200/60">
-                          <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase text-stone-500">Banque</Label>
-                            <Input
-                              list="moroccan-banks-sale"
-                              placeholder="Ex: Attijariwafa, BCP..."
-                              value={line.bankName}
-                              onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
-                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
-                            />
+                        <div className="space-y-3 pt-2 border-t border-stone-200/60">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[9px] font-black uppercase text-stone-500">Banque</Label>
+                              <Input
+                                list="moroccan-banks-sale"
+                                placeholder="Ex: Attijariwafa, BCP..."
+                                value={line.bankName}
+                                onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
+                                className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[9px] font-black uppercase text-stone-500">
+                                {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
+                              </Label>
+                              <Input
+                                placeholder="N° de la pièce"
+                                value={line.checkNumber}
+                                onChange={e => updateCheckoutPaymentLine(line.id, 'checkNumber', e.target.value)}
+                                className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[9px] font-black uppercase text-stone-500">Date d'échéance</Label>
+                              <Input
+                                type="date"
+                                value={line.dueDate}
+                                onChange={e => updateCheckoutPaymentLine(line.id, 'dueDate', e.target.value)}
+                                className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                              />
+                            </div>
                           </div>
+
+                          {/* Scan / Photo obligatoire du Chèque / LC */}
                           <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase text-stone-500">
-                              {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
-                            </Label>
-                            <Input
-                              placeholder="N° de la pièce"
-                              value={line.checkNumber}
-                              onChange={e => updateCheckoutPaymentLine(line.id, 'checkNumber', e.target.value)}
-                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[9px] font-black uppercase text-stone-500">Date d'échéance</Label>
-                            <Input
-                              type="date"
-                              value={line.dueDate}
-                              onChange={e => updateCheckoutPaymentLine(line.id, 'dueDate', e.target.value)}
-                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
-                            />
+                            <div className="flex items-center justify-between">
+                              <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                                <Camera className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
+                                <span className="text-red-500 font-black">* Obligatoire</span>
+                              </Label>
+                              {!line.scannedImageUrl && (
+                                <span className="text-[8px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                  Scan requis avant validation
+                                </span>
+                              )}
+                            </div>
+
+                            <div className={`relative border-2 border-dashed rounded-xl p-3 transition-colors ${
+                              line.scannedImageUrl
+                                ? 'border-emerald-400 bg-emerald-50/40'
+                                : 'border-amber-400 bg-amber-50/50 hover:bg-amber-100/40'
+                            }`}>
+                              {line.scannedImageUrl ? (
+                                <div className="flex items-center gap-3 w-full">
+                                  <img
+                                    src={line.scannedImageUrl}
+                                    alt="Scan Chèque / LC"
+                                    className="w-16 h-12 rounded-lg object-contain bg-white border border-emerald-200 shadow-sm"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs">
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      <span>Document scanné avec succès</span>
+                                    </div>
+                                    <p className="text-[10px] text-stone-500 font-bold">Image jointe au paiement</p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateCheckoutPaymentLine(line.id, 'scannedImageUrl', '')}
+                                    className="h-8 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50 font-black rounded-lg"
+                                  >
+                                    Supprimer / Reprendre
+                                  </Button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col sm:flex-row items-center justify-center gap-3 py-2 cursor-pointer w-full text-stone-600 hover:text-stone-900 group">
+                                  <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 group-hover:bg-amber-200 flex items-center justify-center transition-colors shrink-0">
+                                    <Camera className="w-5 h-5" />
+                                  </div>
+                                  <div className="text-center sm:text-left">
+                                    <span className="text-xs font-black text-stone-900 group-hover:text-amber-900">
+                                      Prendre une photo ou importer le scan du chèque / de la LC
+                                    </span>
+                                    <p className="text-[10px] text-stone-500 font-medium">
+                                      Appareil photo mobile/tablette ou fichier image (JPG, PNG)
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="sr-only"
+                                    onChange={e => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => updateCheckoutPaymentLine(line.id, 'scannedImageUrl', reader.result as string);
+                                        reader.readAsDataURL(file);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1417,12 +1516,18 @@ export default function StockSaleFlow({
               )}
             </div>
           </div>
+          {paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
+            <div className="flex items-center gap-2.5 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 text-xs font-bold shadow-sm">
+              <Camera className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>⚠️ Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider la vente. Veuillez joindre la photo ci-dessus.</span>
+            </div>
+          )}
 
           <div className="flex justify-between">
             <Button variant="outline" onClick={() => setStep(2)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Modifier le panier
             </Button>
-            <Button onClick={handleFinalize} disabled={saving}
+            <Button onClick={handleFinalize} disabled={saving || (paymentStatus === 'PAID' && paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()))}
               className={`font-black uppercase text-xs h-12 px-10 rounded-2xl gap-2 shadow-lg transition-all ${
                 paymentStatus === 'PAID'
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30'

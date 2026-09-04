@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,6 +60,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
   const [paymentLines, setPaymentLines] = useState<PaymentLineState[]>([
     { id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
   ]);
+  const [viewScanUrl, setViewScanUrl] = useState<string | null>(null);
 
   const filtered = useMemo(() =>
     clients.filter(c => {
@@ -188,6 +189,18 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
     const validLines = paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
     if (validLines.length === 0) {
       alert('Veuillez saisir au moins un montant valide supérieur à 0.');
+      return;
+    }
+
+    // ── Vérification obligatoire du scan pour Chèque et LC ──
+    const missingScanLine = validLines.find(
+      l => (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()
+    );
+    if (missingScanLine) {
+      alert(
+        `⚠️ Le scan ou la photo du chèque / de la LC est OBLIGATOIRE avant de valider le règlement (${missingScanLine.method}).\n\n` +
+        `Veuillez prendre une photo ou importer le scan du document.`
+      );
       return;
     }
 
@@ -521,7 +534,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             : <table className="w-full">
                 <thead>
                   <tr className="bg-stone-50 border-b border-stone-100">
-                    {['Date saisie', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant'].map(h => (
+                    {['Date saisie', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant', 'Scan'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
                     ))}
                   </tr>
@@ -540,6 +553,20 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                       <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{p.bankName || '—'}</td>
                       <td className="px-4 py-3 text-[10px] font-black text-rose-600">{p.dueDate || '—'}</td>
                       <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(p.amount)} MAD</td>
+                      <td className="px-4 py-3 text-[10px]">
+                        {p.scannedImageUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setViewScanUrl(p.scannedImageUrl!)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold border border-emerald-200 transition-colors text-[9px]"
+                          >
+                            <Camera className="w-3 h-3" />
+                            Voir scan
+                          </button>
+                        ) : (
+                          <span className="text-stone-300 text-[9px] font-bold italic">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -749,29 +776,63 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                         </div>
                       </div>
 
-                      {/* Photo / Scan optionnel */}
-                      <div className="space-y-1">
-                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
-                          Photo / Scan (Optionnel)
-                        </Label>
-                        <div className="relative border border-dashed border-stone-300 rounded-xl p-3 bg-white hover:bg-stone-50 transition-colors flex items-center justify-between">
+                      {/* Photo / Scan OBLIGATOIRE pour chèque et LC */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-amber-800">
+                            <Camera className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Scan / Photo du {line.method === 'CHEQUE' ? 'Chèque' : 'la LC'}</span>
+                            <span className="text-red-500 font-black">* OBLIGATOIRE</span>
+                          </Label>
+                          {!line.scannedImageUrl && (
+                            <span className="text-[8px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                              Scan requis avant validation
+                            </span>
+                          )}
+                        </div>
+
+                        <div className={`relative border-2 border-dashed rounded-xl p-3 transition-colors ${
+                          line.scannedImageUrl
+                            ? 'border-emerald-400 bg-emerald-50/40'
+                            : 'border-amber-400 bg-amber-50/50 hover:bg-amber-100/40'
+                        }`}>
                           {line.scannedImageUrl ? (
                             <div className="flex items-center gap-3 w-full">
-                              <img src={line.scannedImageUrl} alt="Scan" className="w-16 h-10 rounded object-contain bg-stone-100" />
-                              <span className="text-[10px] font-bold text-emerald-600">Scan joint</span>
+                              <img
+                                src={line.scannedImageUrl}
+                                alt="Scan Chèque/LC"
+                                className="w-16 h-12 rounded-lg object-contain bg-white border border-emerald-200 shadow-sm cursor-pointer"
+                                onClick={() => setViewScanUrl(line.scannedImageUrl)}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  <span>Document scanné avec succès</span>
+                                </div>
+                                <p className="text-[10px] text-stone-500 font-bold">Image jointe au règlement</p>
+                              </div>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => updatePaymentLine(line.id, { scannedImageUrl: '' })}
-                                className="ml-auto h-7 text-[9px] text-red-600 font-black">
-                                Supprimer
+                                className="ml-auto h-8 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50 font-black rounded-lg">
+                                Supprimer / Reprendre
                               </Button>
                             </div>
                           ) : (
-                            <label className="flex items-center gap-2 cursor-pointer w-full text-stone-500 hover:text-stone-700">
-                              <CreditCard className="w-4 h-4 text-stone-400" />
-                              <span className="text-[10px] font-bold">Ajouter une photo ou un scan du chèque / LC</span>
+                            <label className="flex flex-col sm:flex-row items-center justify-center gap-3 py-2 cursor-pointer w-full text-stone-600 hover:text-stone-900 group">
+                              <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 group-hover:bg-amber-200 flex items-center justify-center transition-colors shrink-0">
+                                <Camera className="w-5 h-5" />
+                              </div>
+                              <div className="text-center sm:text-left">
+                                <span className="text-xs font-black text-stone-900 group-hover:text-amber-900">
+                                  Prendre une photo ou importer le scan du chèque / de la LC
+                                </span>
+                                <p className="text-[10px] text-stone-500 font-medium">
+                                  Appareil photo smartphone/tablette ou image locale (JPG, PNG)
+                                </p>
+                              </div>
                               <input
                                 type="file"
                                 accept="image/*"
@@ -839,6 +900,13 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             </div>
           </div>
 
+          {paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim()) && (
+            <div className="px-6 py-2.5 bg-amber-50 border-t border-amber-200 flex items-center gap-2 text-amber-900 text-xs font-bold">
+              <Camera className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>⚠️ Le scan ou la photo du chèque / de la LC est obligatoire pour pouvoir valider le règlement.</span>
+            </div>
+          )}
+
           <DialogFooter className="p-4 bg-stone-50 border-t border-stone-100 gap-2">
             <Button
               variant="ghost"
@@ -848,13 +916,39 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             </Button>
             <Button
               onClick={handleGlobalPayment}
-              disabled={totalPaymentEntered <= 0 || saving}
+              disabled={
+                totalPaymentEntered <= 0 || 
+                saving || 
+                paymentLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim())
+              }
               className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl shadow-lg shadow-emerald-600/20">
               {saving ? 'Validation en cours...' : `Valider le paiement (${fmt$(totalPaymentEntered)} MAD)`}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal aperçu scan plein écran */}
+      {viewScanUrl && (
+        <Dialog open={!!viewScanUrl} onOpenChange={() => setViewScanUrl(null)}>
+          <DialogContent className="max-w-2xl p-4 bg-white rounded-3xl overflow-hidden">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-black uppercase text-stone-800 flex items-center gap-2">
+                <Camera className="w-4 h-4 text-emerald-600" />
+                Scan du document (Chèque / LC)
+              </DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-auto flex items-center justify-center p-2 bg-stone-50 rounded-2xl">
+              <img src={viewScanUrl} alt="Scan grand format" className="max-w-full max-h-[65vh] object-contain rounded-xl shadow" />
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setViewScanUrl(null)} className="h-10 px-6 rounded-xl font-bold bg-stone-900 text-white">
+                Fermer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 
