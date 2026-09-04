@@ -423,13 +423,10 @@ export default function StockApp() {
   const transferOrders  = (rawTransfers  || []) as TransferOrder[];
   const stores          = rawStores      || [];
 
-  // Initialisation sur ALL_MAIN si le commercial est le magasin principal
+  // Initialisation du magasin pour le commercial
   useEffect(() => {
     if (userRole === 'COMMERCIAL' && stores.length > 0 && !hasInitMain && userStoreId) {
-      const s = stores.find(x => x.id === userStoreId);
-      if (s?.isMain || s?.id === 'CHRIFA') {
-        setActiveStore('ALL_MAIN');
-      }
+      setActiveStore(userStoreId as any);
       setHasInitMain(true);
     }
   }, [userRole, stores, userStoreId, hasInitMain]);
@@ -892,37 +889,37 @@ export default function StockApp() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center ml-4">
-            <Select value={activeStore} onValueChange={(val) => setActiveStore(val as any)}>
-              <SelectTrigger className="h-8 bg-stone-100 border-stone-200 text-[10px] font-black uppercase tracking-widest text-stone-600 rounded-lg min-w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {userRole === 'ADMIN' && (
-                  <SelectItem value="ALL">🌐 Vue Globale (Admin)</SelectItem>
-                )}
-                {userRole === 'COMMERCIAL' && stores.find(s => s.id === userStoreId)?.isMain && (
-                  <SelectItem value="ALL_MAIN">🌐 Vue Globale (Principal + Entrepôts)</SelectItem>
-                )}
-                
-                {stores.filter(s => {
-                  if (userRole === 'ADMIN') return true;
-                  if (userRole === 'COMMERCIAL') {
-                    const myStore = stores.find(x => x.id === userStoreId);
-                    if (myStore?.isMain) {
-                      return s.id === userStoreId || s.type === 'WAREHOUSE';
-                    }
-                    return s.id === userStoreId;
-                  }
-                  return false;
-                }).map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.type === 'WAREHOUSE' ? '📦' : '🏪'} {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Sélecteur de magasin : Réservé EXCLUSIVEMENT à l'Admin pour basculer dans les 3 magasins */}
+          {userRole === 'ADMIN' ? (
+            <div className="hidden md:flex items-center ml-4">
+              <Select value={activeStore} onValueChange={(val) => setActiveStore(val as any)}>
+                <SelectTrigger className="h-8 bg-stone-100 hover:bg-stone-200/70 border-stone-200 text-[10px] font-black uppercase tracking-widest text-stone-700 rounded-lg min-w-[200px] transition-colors shadow-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">🌐 Vue Globale (Tous)</SelectItem>
+                  {stores.filter(s => s.type !== 'WAREHOUSE').map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      🏪 Magasin {s.name}
+                    </SelectItem>
+                  ))}
+                  {isWarehouse && currentStore && (
+                    <SelectItem value={currentStore.id} disabled>
+                      📦 {currentStore.name} (Entrepôt)
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            /* Pour les comptes commerciaux : badge fixe indiquant leur magasin, sans possibilité de changer */
+            <div className="hidden md:flex items-center ml-4">
+              <div className="h-8 bg-emerald-50/80 border border-emerald-200 text-[10px] font-black uppercase tracking-widest text-emerald-800 rounded-lg px-3 flex items-center gap-1.5 shadow-sm">
+                <StoreIcon className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Magasin {stores.find(s => s.id === userStoreId)?.name || userStoreId || 'Principal'}</span>
+              </div>
+            </div>
+          )}
 
           {/* ── Ligne 1 : Mode Entrepôt ou Catégories normales ── */}
           {isWarehouse ? (
