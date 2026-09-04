@@ -1138,7 +1138,22 @@ export default function StockApp() {
             )}
 
             {activeView === 'dashboard' && (
-              <StockDashboard userRole={userRole} activeStore={activeStore} stores={stores} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
+              <StockDashboard
+                userRole={userRole}
+                activeStore={activeStore}
+                stores={stores}
+                stockItems={stockItems}
+                allStockItems={allStockItems}
+                articles={articles}
+                movements={movements}
+                categories={categories}
+                generalCategories={generalCategories}
+                sales={sales}
+                invoices={invoices}
+                clients={clients}
+                payments={payments}
+                onNavigate={(v) => setActiveView(v as any)}
+              />
             )}
             {activeView === 'sale' && (
               <StockSaleFlow

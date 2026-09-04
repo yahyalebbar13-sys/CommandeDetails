@@ -474,6 +474,8 @@ export default function StockSaleFlow({
             unitOfMeasure: sub.unitOfMeasure || '',
             qty: take,
             unitPrice: l.unitPrice,
+            purchasePricePerUnit: sub.purchasePricePerUnit || 0,
+            costPrice: sub.purchasePricePerUnit || 0,
             totalPrice: take * l.unitPrice,
             storeId: l.sourceStore || undefined,
           });
@@ -508,6 +510,8 @@ export default function StockSaleFlow({
             unitOfMeasure: lastSub.unitOfMeasure || '',
             qty: remainingQty,
             unitPrice: l.unitPrice,
+            purchasePricePerUnit: lastSub.purchasePricePerUnit || 0,
+            costPrice: lastSub.purchasePricePerUnit || 0,
             totalPrice: remainingQty * l.unitPrice,
             storeId: l.sourceStore || undefined,
           });
