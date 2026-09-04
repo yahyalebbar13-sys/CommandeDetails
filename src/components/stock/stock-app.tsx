@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
-  Settings, MapPin, Home
+  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -12,7 +12,7 @@ import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTi
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
-  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment,
+  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany
 } from '@/lib/types';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
@@ -28,6 +28,7 @@ import AuthView         from '@/components/auth-view';
 import { cleanUndefined } from '@/lib/utils';
 import { Button }       from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import ArrivalsView     from './arrivals-view';
 import SaleOrdersView   from './sale-orders-view';
 import InvoiceView      from './invoice-view';
@@ -323,6 +324,7 @@ export default function StockApp() {
   const { auth, firestore } = useFirebase();
   const { toast } = useToast();
   const [activeView, setActiveView] = useState<StockView>('dashboard');
+  const [arbitrageModalOpen, setArbitrageModalOpen] = useState(false);
 
   const [activeStore, setActiveStore] = useState<StoreLocation | 'ALL' | 'ALL_MAIN'>('ALL');
   const [hasInitMain, setHasInitMain] = useState(false);
@@ -742,6 +744,35 @@ export default function StockApp() {
     toast({ title: '✅ Statut mis à jour', description: `Effet marqué comme ${status}` });
   }, [user, firestore, adminUid, toast, payments, invoices]);
 
+  const handleAssignPaymentCompany = useCallback(async (paymentId: string, company: CashingCompany) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', paymentId), {
+      cashingCompany: company,
+      depositBank: 'Attijariwafa Bank',
+    });
+    toast({
+      title: '✅ Société affectée',
+      description: `Effet affecté à ${company} (Attijariwafa Bank)`,
+    });
+  }, [user, firestore, adminUid, toast]);
+
+  // Chèques et LCN à échéance <= 7 jours sans société affectée (Attijariwafa Bank)
+  const urgent7DaysEffects = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return payments.filter(p => {
+      const isPaper = p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN';
+      if (!isPaper || p.status === 'CLEARED' || p.status === 'REJECTED' || !p.dueDate) return false;
+      if (p.cashingCompany) return false; // Déjà assigné
+      const due = new Date(p.dueDate);
+      due.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    }).sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+  }, [payments]);
+
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
   const navItemsRaw = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard',    category: 'dashboard', icon: LayoutDashboard, adminOnly: true },
@@ -760,12 +791,12 @@ export default function StockApp() {
     { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: Boxes },
     { id: 'blind-inventory', label: 'Inv. Aveugle', category: 'logistique', icon: Boxes,        color: 'amber' },
 
-    { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        color: 'emerald', adminOnly: true },
+    { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        badge: urgent7DaysEffects.length > 0 ? urgent7DaysEffects.length : undefined, color: 'emerald', adminOnly: true },
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
     
     { id: 'warehouses', label: 'Lieux/Entrepôts', category: 'settings', icon: Home, adminOnly: true },
     { id: 'stores',     label: 'Magasins',      category: 'settings', icon: MapPin, adminOnly: true }
-  ], [pendingArrivals, openInvoices, alertCount]);
+  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length]);
 
   const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
   const isWarehouse = currentStore?.type === 'WAREHOUSE';
@@ -889,13 +920,16 @@ export default function StockApp() {
                 return (
                   <button key={cat.id} 
                     onClick={() => setActiveView(catItems[0].id as StockView)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap relative ${
                       isActive 
                         ? 'bg-stone-900 text-white shadow-md' 
                         : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
                     }`}>
                     <cat.icon className="w-4 h-4" />
                     {cat.label}
+                    {cat.id === 'finance' && urgent7DaysEffects.length > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-1.5 right-1.5" />
+                    )}
                   </button>
                 );
               })}
@@ -936,7 +970,7 @@ export default function StockApp() {
               {label}
               {badge != null && badge > 0 && (
                 <span className={`w-4 h-4 ml-1 rounded-full text-white text-[7.5px] font-black flex items-center justify-center ${
-                  id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : 'bg-emerald-500'
+                  id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
                 }`}>{badge > 99 ? '99+' : badge}</span>
               )}
             </button>
@@ -958,6 +992,42 @@ export default function StockApp() {
           </div>
         ) : (
           <div className="animate-in fade-in duration-300">
+            {/* Bannière Alerte J-7 Attijariwafa Bank */}
+            {urgent7DaysEffects.length > 0 && activeView !== 'treasury' && (
+              <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-xl shadow-amber-600/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
+                    <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="font-black text-sm uppercase tracking-tight flex items-center gap-2">
+                      <span>⚠️ Alerte Échéance J-7 · Arbitrage Société Requis</span>
+                      <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+                        {urgent7DaysEffects.length} chèque(s) / LCN
+                      </span>
+                    </p>
+                    <p className="text-xs text-amber-100 font-bold mt-0.5">
+                      Des effets arrivent à échéance dans 7 jours ou moins sur votre compte <span className="underline font-black">Attijariwafa Bank</span>. Choisissez la société d'encaissement (LEBTEX ou ROBE IN BOX).
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                  <Button
+                    onClick={() => setArbitrageModalOpen(true)}
+                    className="flex-1 md:flex-initial bg-white hover:bg-stone-100 text-amber-950 font-black text-xs uppercase px-4 py-2.5 rounded-2xl shadow-md transition-all active:scale-95"
+                  >
+                    ⚡ Arbitrer en 1-clic
+                  </Button>
+                  <Button
+                    onClick={() => setActiveView('treasury')}
+                    className="flex-1 md:flex-initial bg-amber-900/60 hover:bg-amber-900 text-white font-black text-xs uppercase px-4 py-2.5 rounded-2xl border border-white/20 transition-all"
+                  >
+                    Voir Trésorerie
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {activeView === 'dashboard' && (
               <StockDashboard userRole={userRole} activeStore={activeStore} stores={stores} stockItems={stockItems} movements={filteredMovements} categories={categories} sales={filteredSales} invoices={filteredInvoices} clients={filteredClients} onNavigate={(v) => setActiveView(v as any)} />
             )}
@@ -1026,7 +1096,13 @@ export default function StockApp() {
               />
             )}
             {activeView === 'treasury' && (
-              <TreasuryDashboard payments={payments} clients={clients} invoices={invoices} onUpdatePaymentStatus={handleUpdatePaymentStatus} />
+              <TreasuryDashboard 
+                payments={payments} 
+                clients={clients} 
+                invoices={invoices} 
+                onUpdatePaymentStatus={handleUpdatePaymentStatus}
+                onAssignPaymentCompany={handleAssignPaymentCompany}
+              />
             )}
             {activeView === 'reconciliation' && (
               <BankReconciliationView payments={payments} clients={clients} />
@@ -1192,6 +1268,78 @@ export default function StockApp() {
           subCategories={categories}
         />
       )}
+
+      {/* ── Modal Arbitrage J-7 (Attijariwafa Bank) ── */}
+      <Dialog open={arbitrageModalOpen} onOpenChange={setArbitrageModalOpen}>
+        <DialogContent className="sm:max-w-2xl bg-white p-6 rounded-3xl">
+          <DialogTitle className="text-base font-black text-stone-900 uppercase flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            Arbitrage J-7 · Émission sur Compte Attijariwafa Bank
+          </DialogTitle>
+          <DialogDescription className="text-xs font-bold text-stone-500">
+            Sélectionnez la société sur laquelle émettre chaque chèque ou LCN arrivant à échéance sous 7 jours.
+          </DialogDescription>
+
+          <div className="mt-4 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {urgent7DaysEffects.length === 0 ? (
+              <div className="p-8 text-center bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                <p className="font-black text-emerald-900 text-sm">Tous les effets ont été arbitrés !</p>
+                <p className="text-xs text-emerald-700 font-bold">Aucun effet sans société à moins de 7 jours de l'échéance.</p>
+              </div>
+            ) : (
+              urgent7DaysEffects.map(p => {
+                const due = p.dueDate ? new Date(p.dueDate) : null;
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const days = due ? Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                const clientName = clients.find(c => c.id === p.clientId)?.name || 'Client';
+
+                return (
+                  <div key={p.id} className="p-4 rounded-2xl border border-stone-200 bg-stone-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-violet-100 text-violet-800 rounded">
+                          {p.method}
+                        </span>
+                        <span className="text-xs font-black text-stone-900">{clientName}</span>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                          {days !== null && (days < 0 ? `Échu (+${Math.abs(days)}j)` : days === 0 ? "Aujourd'hui" : `J-${days}`)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-bold text-stone-500 mt-1">
+                        Échéance : <span className="font-mono text-stone-800">{p.dueDate}</span> · Tiré sur {p.bankName || 'Banque'} · N° {p.checkNumber || '—'}
+                      </p>
+                      <p className="text-sm font-black text-stone-900 mt-1">
+                        {p.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={() => handleAssignPaymentCompany(p.id, 'LEBTEX')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase rounded-xl h-8 px-3 gap-1 shadow-sm"
+                      >
+                        <Building2 className="w-3 h-3" />
+                        LEBTEX
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAssignPaymentCompany(p.id, 'ROBE IN BOX')}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-black text-[10px] uppercase rounded-xl h-8 px-3 gap-1 shadow-sm"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        ROBE IN BOX
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

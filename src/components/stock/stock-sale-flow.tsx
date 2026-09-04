@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod } from '@/lib/types';
+import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,6 +51,7 @@ interface CheckoutPaymentLine {
   checkNumber: string;
   dueDate: string;
   scannedImageUrl: string;
+  cashingCompany?: CashingCompany;
 }
 
 interface StockSaleFlowProps {
@@ -536,6 +537,8 @@ export default function StockSaleFlow({
         scannedImageUrl: l.scannedImageUrl?.trim() || undefined,
         clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
         clientId: selectedClient?.id || undefined,
+        cashingCompany: l.cashingCompany || undefined,
+        depositBank: 'Attijariwafa Bank',
       }));
 
       let invStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PAID';
@@ -1304,12 +1307,12 @@ export default function StockSaleFlow({
                       {/* Détails Chèque ou LC */}
                       {isPaper && (
                         <div className="space-y-3 pt-2 border-t border-stone-200/60">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                             <div className="space-y-1">
-                              <Label className="text-[9px] font-black uppercase text-stone-500">Banque</Label>
+                              <Label className="text-[9px] font-black uppercase text-stone-500">Banque Tirée</Label>
                               <Input
                                 list="moroccan-banks-sale"
-                                placeholder="Ex: Attijariwafa, BCP..."
+                                placeholder="Ex: BCP, CIH..."
                                 value={line.bankName}
                                 onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
                                 className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
@@ -1334,6 +1337,22 @@ export default function StockSaleFlow({
                                 onChange={e => updateCheckoutPaymentLine(line.id, 'dueDate', e.target.value)}
                                 className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
                               />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[9px] font-black uppercase text-stone-500">Société Attijari</Label>
+                              <Select
+                                value={line.cashingCompany || 'PENDING'}
+                                onValueChange={v => updateCheckoutPaymentLine(line.id, 'cashingCompany', v === 'PENDING' ? undefined : v as CashingCompany)}
+                              >
+                                <SelectTrigger className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
+                                  <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
+                                  <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
 

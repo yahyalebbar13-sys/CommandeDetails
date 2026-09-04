@@ -259,6 +259,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
         if (line.scannedImageUrl?.trim()) p.scannedImageUrl = line.scannedImageUrl.trim();
         if (line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') {
           p.status = 'PENDING';
+          p.depositBank = 'Attijariwafa Bank';
+          if ((line as any).cashingCompany) p.cashingCompany = (line as any).cashingCompany;
         }
         return cleanUndefined(p);
       });
@@ -740,13 +742,13 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                   {/* Champs spécifiques : Chèque ou LC (Effet) */}
                   {(line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') && (
                     <div className="pt-3 border-t border-stone-200/60 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div className="space-y-1">
                           <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
-                            Banque
+                            Banque Tirée
                           </Label>
                           <Input
-                            placeholder="Ex: Attijariwafa, BCP, BMCE..."
+                            placeholder="Ex: BCP, CIH..."
                             value={line.bankName}
                             onChange={e => updatePaymentLine(line.id, { bankName: e.target.value })}
                             className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
@@ -773,6 +775,24 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                             onChange={e => updatePaymentLine(line.id, { dueDate: e.target.value })}
                             className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
                           />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                            Société Attijari
+                          </Label>
+                          <Select
+                            value={(line as any).cashingCompany || 'PENDING'}
+                            onValueChange={v => updatePaymentLine(line.id, { cashingCompany: v === 'PENDING' ? undefined : v } as any)}
+                          >
+                            <SelectTrigger className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
+                              <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
+                              <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 

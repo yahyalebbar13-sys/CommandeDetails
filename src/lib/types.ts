@@ -290,6 +290,7 @@ export type Invoice = {
 };
 
 export type PaymentMethod = 'CASH' | 'VIREMENT' | 'CHEQUE' | 'EFFET' | 'LC' | 'LCN' | 'AUTRE';
+export type CashingCompany = 'LEBTEX' | 'ROBE IN BOX';
 
 export interface PaymentLine {
   id: string;
@@ -301,6 +302,8 @@ export interface PaymentLine {
   dueDate?: string;
   scannedImageUrl?: string;
   status?: 'PENDING' | 'CLEARED' | 'REJECTED';
+  cashingCompany?: CashingCompany;
+  depositBank?: string;
 }
 
 export type ClientPayment = {
@@ -317,6 +320,8 @@ export type ClientPayment = {
   dueDate?: string; // Date d'échéance de l'effet / LC
   status?: 'PENDING' | 'CLEARED' | 'REJECTED'; // PENDING par défaut pour les effets non encaissés
   scannedImageUrl?: string; // URL ou base64 du scan
+  cashingCompany?: CashingCompany; // Société choisie pour l'encaissement (LEBTEX ou ROBE IN BOX)
+  depositBank?: string; // 'Attijariwafa Bank'
   createdAt?: any;
 };
 

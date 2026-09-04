@@ -16,11 +16,11 @@ import * as XLSX from 'xlsx';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ── Banques marocaines courantes ──
-const BANKS = [
-  'Attijariwafa Bank', 'BMCE Bank (BOA)', 'Banque Populaire (BCP)',
-  'BMCI', 'Société Générale Maroc', 'CIH Bank', 'Crédit du Maroc',
-  'Al Barid Bank', 'CFG Bank', 'Autre',
+// ── Comptes Attijariwafa Bank ──
+const ATTIJARI_ACCOUNTS = [
+  { id: 'ALL', name: 'Tous les comptes (Attijariwafa Bank)' },
+  { id: 'LEBTEX', name: 'LEBTEX SARL AU (Compte Attijari)' },
+  { id: 'ROBE IN BOX', name: 'ROBE IN BOX SARL (Compte Attijari)' },
 ];
 
 interface BankReconciliationViewProps {
@@ -31,7 +31,7 @@ interface BankReconciliationViewProps {
 export default function BankReconciliationView({ payments, clients }: BankReconciliationViewProps) {
   // ── State ──
   const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
-  const [selectedBank, setSelectedBank] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState<'ALL' | 'LEBTEX' | 'ROBE IN BOX'>('ALL');
   const [period, setPeriod] = useState(() => new Date().toISOString().substring(0, 7));
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'matched' | 'unmatched_bank' | 'unmatched_internal'>('all');
@@ -40,13 +40,16 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
   const [matchSearch, setMatchSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Paiements internes filtrés par période ──
+  // ── Paiements internes filtrés par période et compte société ──
   const internalPayments = useMemo(() => {
     return payments.filter(p => {
-      if (!period) return true;
-      return p.date?.startsWith(period);
+      if (period && !p.date?.startsWith(period)) return false;
+      if (selectedAccount !== 'ALL') {
+        return p.cashingCompany === selectedAccount;
+      }
+      return true;
     });
-  }, [payments, period]);
+  }, [payments, period, selectedAccount]);
 
   // ── Paiements non-rapprochés (pas liés à une transaction bancaire) ──
   const matchedPaymentIds = useMemo(() => {
@@ -227,13 +230,13 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <Landmark className="w-6 h-6 text-blue-300" />
-            <p className="text-[9px] font-black text-blue-300 uppercase tracking-[0.3em]">Comptabilité</p>
+            <p className="text-[9px] font-black text-blue-300 uppercase tracking-[0.3em]">Comptabilité · Attijariwafa Bank</p>
           </div>
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
-            Rapprochement <span className="text-blue-300">Bancaire</span>
+            Rapprochement <span className="text-blue-300">Bancaire Attijari</span>
           </h1>
           <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mt-2">
-            Comparez vos paiements internes avec votre relevé bancaire
+            Comptes LEBTEX & ROBE IN BOX · Comparez vos encaissements avec vos relevés bancaires
           </p>
         </div>
       </div>
@@ -241,11 +244,17 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
       {/* ── Toolbar ── */}
       <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-4 flex flex-wrap gap-3 items-end">
         <div>
-          <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Banque</Label>
-          <Select value={selectedBank} onValueChange={setSelectedBank}>
-            <SelectTrigger className="h-10 w-52 rounded-xl border-stone-200 font-bold text-sm"><SelectValue placeholder="Sélectionner la banque" /></SelectTrigger>
+          <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Compte Attijariwafa</Label>
+          <Select value={selectedAccount} onValueChange={(v: any) => setSelectedAccount(v)}>
+            <SelectTrigger className="h-10 w-64 rounded-xl border-stone-200 font-bold text-xs bg-white">
+              <SelectValue placeholder="Sélectionner le compte" />
+            </SelectTrigger>
             <SelectContent>
-              {BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              {ATTIJARI_ACCOUNTS.map(a => (
+                <SelectItem key={a.id} value={a.id} className="text-xs font-bold">
+                  {a.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
