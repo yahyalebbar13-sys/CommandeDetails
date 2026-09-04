@@ -25,6 +25,7 @@ import StockInvoices    from './stock-invoices';
 import PassToStockModal from '@/components/pass-to-stock-modal';
 import StockFiches      from './stock-fiches';
 import AuthView         from '@/components/auth-view';
+import { cleanUndefined } from '@/lib/utils';
 import { Button }       from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ArrivalsView     from './arrivals-view';
@@ -625,16 +626,34 @@ export default function StockApp() {
   // ── Factures ──────────────────────────────────────────────────────────────
   const handleCreateInvoice = useCallback(async (
     invoice: Omit<Invoice, 'id' | 'createdAt'>,
-    movementsOut: any[]
+    movementsOut: any[],
+    initialPayments?: Omit<ClientPayment, 'id' | 'createdAt'>[]
   ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
     const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
-    await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), { ...invoice, storeId, createdAt: serverTimestamp() });
+    const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
+      ...cleanUndefined(invoice),
+      storeId,
+      createdAt: serverTimestamp()
+    });
     for (const m of movementsOut) {
-      await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), { ...m, storeId, createdAt: serverTimestamp() });
+      await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
+        ...cleanUndefined(m),
+        storeId,
+        createdAt: serverTimestamp()
+      });
     }
-    toast({ title: '✅ Facture créée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
+    if (initialPayments && initialPayments.length > 0) {
+      for (const p of initialPayments) {
+        await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), {
+          ...cleanUndefined(p),
+          invoiceId: invRef.id,
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+    toast({ title: '✅ Facture créée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
   }, [user, firestore, toast, activeStore, adminUid]);
 
   const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
@@ -644,27 +663,58 @@ export default function StockApp() {
   }, [user, firestore, adminUid]);
 
   // ── Paiements clients ─────────────────────────────────────────────────────
-  const handleRecordPayment = useCallback(async (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => {
+  const handleRecordMultiplePayments = useCallback(async (
+    paymentList: Omit<ClientPayment, 'id' | 'createdAt'>[],
+    invoiceUpdates?: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[]
+  ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
-    await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), { ...payment, createdAt: serverTimestamp() });
 
-    // Mettre à jour paidAmount + remainingBalance + status sur la facture
-    if (payment.invoiceId) {
-      const inv = invoices.find(i => i.id === payment.invoiceId);
-      if (inv) {
-        const newPaid = inv.paidAmount + payment.amount;
-        const newBalance = Math.max(0, inv.totalAfterDiscount - newPaid);
-        const newStatus: InvoiceStatus = newBalance === 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
-        await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
-          paidAmount: newPaid,
-          remainingBalance: newBalance,
-          status: newStatus,
+    for (const payment of paymentList) {
+      const cleaned = cleanUndefined(payment);
+      await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), {
+        ...cleaned,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    if (invoiceUpdates && invoiceUpdates.length > 0) {
+      for (const upd of invoiceUpdates) {
+        await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', upd.invoiceId), {
+          paidAmount: upd.paidAmount,
+          remainingBalance: upd.remainingBalance,
+          status: upd.status,
         });
       }
+    } else {
+      for (const payment of paymentList) {
+        if (payment.invoiceId) {
+          const inv = invoices.find(i => i.id === payment.invoiceId);
+          if (inv) {
+            const newPaid = (inv.paidAmount || 0) + payment.amount;
+            const newBalance = Math.max(0, (inv.totalAfterDiscount || 0) - newPaid);
+            const newStatus: InvoiceStatus = newBalance === 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
+            await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
+              paidAmount: newPaid,
+              remainingBalance: newBalance,
+              status: newStatus,
+            });
+          }
+        }
+      }
     }
-    toast({ title: '✅ Paiement enregistré', description: `${payment.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} · ${payment.method}` });
-  }, [user, firestore, invoices, toast, adminUid]);
+
+    const totalAmount = paymentList.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const methods = Array.from(new Set(paymentList.map(p => p.method))).join(', ');
+    toast({
+      title: '✅ Paiement(s) validé(s)',
+      description: `${totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
+    });
+  }, [user, firestore, adminUid, invoices, toast]);
+
+  const handleRecordPayment = useCallback(async (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => {
+    await handleRecordMultiplePayments([payment]);
+  }, [handleRecordMultiplePayments]);
 
   const handleUpdatePaymentStatus = useCallback(async (paymentId: string, status: 'PENDING' | 'CLEARED' | 'REJECTED') => {
     if (!user || !firestore) return;
@@ -928,12 +978,13 @@ export default function StockApp() {
             {activeView === 'clients' && (
               <StockClients
                 clients={filteredClients}
-                orders={filteredOrders}
-                invoices={filteredInvoices}
+                orders={orders}
+                invoices={invoices}
                 payments={payments}
                 onCreateClient={async (c) => { await handleCreateClient(c); }}
                 onUpdateClient={handleUpdateClient}
                 onRecordPayment={handleRecordPayment}
+                onRecordMultiplePayments={handleRecordMultiplePayments}
                 onNavigate={setActiveView}
               />
             )}
@@ -952,6 +1003,7 @@ export default function StockApp() {
                 clients={filteredClients}
                 payments={payments}
                 onRecordPayment={handleRecordPayment}
+                onRecordMultiplePayments={handleRecordMultiplePayments}
                 onUpdateStatus={handleUpdateInvoiceStatus}
                 onNavigate={setActiveView}
               />

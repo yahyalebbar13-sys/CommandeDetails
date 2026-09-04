@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send } from 'lucide-react';
+import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,12 +10,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import type { Invoice, InvoiceStatus, Client, ClientPayment, PaymentMethod } from '@/lib/types';
 import { exportToFile, formatInvoicesForExport } from '@/lib/export-utils';
 import { exportInvoicesPDF } from '@/lib/pdf-export-reports';
+import { cleanUndefined } from '@/lib/utils';
+
+interface PaymentLineState {
+  id: string;
+  amount: string;
+  method: PaymentMethod;
+  notes: string;
+  bankName: string;
+  checkNumber: string;
+  dueDate: string;
+  scannedImageUrl: string;
+}
 
 interface StockInvoicesProps {
   invoices: Invoice[];
   clients: Client[];
   payments: ClientPayment[];
   onRecordPayment: (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => Promise<void>;
+  onRecordMultiplePayments?: (
+    payments: Omit<ClientPayment, 'id' | 'createdAt'>[],
+    invoiceUpdates?: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[]
+  ) => Promise<void>;
   onUpdateStatus: (id: string, status: InvoiceStatus) => Promise<void>;
   onNavigate: (v: any) => void;
 }
@@ -29,7 +45,7 @@ const STATUS_BADGE: Record<InvoiceStatus, { label: string; cls: string }> = {
   CANCELLED: { label: 'Annulé',    cls: 'bg-stone-100 text-stone-500 border-stone-200' },
 };
 
-export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onUpdateStatus, onNavigate }: StockInvoicesProps) {
+export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onRecordMultiplePayments, onUpdateStatus, onNavigate }: StockInvoicesProps) {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth,  setFilterMonth]  = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -37,16 +53,10 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
 
   const [viewInvoice,   setViewInvoice]   = useState<Invoice | null>(null);
   const [payInvoice,    setPayInvoice]    = useState<Invoice | null>(null);
-  const [paymentForm,   setPaymentForm]   = useState({ 
-    amount: '', 
-    method: 'CASH' as PaymentMethod, 
-    date: new Date().toISOString().split('T')[0], 
-    notes: '',
-    bankName: '',
-    checkNumber: '',
-    dueDate: '',
-    scannedImageUrl: ''
-  });
+  const [payDate,       setPayDate]       = useState(new Date().toISOString().split('T')[0]);
+  const [payLines,      setPayLines]      = useState<PaymentLineState[]>([
+    { id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
+  ]);
   const [saving, setSaving] = useState(false);
 
   const months = useMemo(() => {
@@ -107,29 +117,106 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     }
   };
 
+  const openPayInvoice = (inv: Invoice) => {
+    setPayInvoice(inv);
+    setPayDate(new Date().toISOString().split('T')[0]);
+    const rem = typeof inv.remainingBalance === 'number'
+      ? inv.remainingBalance
+      : Math.max(0, (inv.totalAfterDiscount || 0) - (inv.paidAmount || 0));
+    setPayLines([
+      {
+        id: String(Date.now()),
+        amount: rem > 0 ? String(rem) : '',
+        method: 'CASH',
+        notes: `Paiement ${inv.invoiceNumber || 'Facture'}`,
+        bankName: '',
+        checkNumber: '',
+        dueDate: '',
+        scannedImageUrl: ''
+      }
+    ]);
+  };
+
+  const addPayLine = (defaultMethod: PaymentMethod = 'CHEQUE') => {
+    if (!payInvoice) return;
+    const invRem = typeof payInvoice.remainingBalance === 'number'
+      ? payInvoice.remainingBalance
+      : Math.max(0, (payInvoice.totalAfterDiscount || 0) - (payInvoice.paidAmount || 0));
+    const totalCurrent = payLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+    const rem = Math.max(0, invRem - totalCurrent);
+    setPayLines(prev => [
+      ...prev,
+      {
+        id: String(Date.now() + Math.random()),
+        amount: rem > 0 ? String(rem) : '',
+        method: defaultMethod,
+        notes: '',
+        bankName: '',
+        checkNumber: '',
+        dueDate: '',
+        scannedImageUrl: ''
+      }
+    ]);
+  };
+
+  const removePayLine = (id: string) => {
+    if (payLines.length <= 1) return;
+    setPayLines(prev => prev.filter(l => l.id !== id));
+  };
+
+  const updatePayLine = (id: string, updates: Partial<PaymentLineState>) => {
+    setPayLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+  };
+
+  const totalInvoicePaymentEntered = payLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+  const payInvoiceRemaining = payInvoice ? (typeof payInvoice.remainingBalance === 'number' ? payInvoice.remainingBalance : Math.max(0, (payInvoice.totalAfterDiscount || 0) - (payInvoice.paidAmount || 0))) : 0;
+  const diffInvoiceBalance = payInvoiceRemaining - totalInvoicePaymentEntered;
+
   const handlePayment = async () => {
-    if (!payInvoice || !paymentForm.amount || saving) return;
+    if (!payInvoice || saving) return;
+    const validLines = payLines.filter(l => (parseFloat(l.amount) || 0) > 0);
+    if (validLines.length === 0) {
+      alert('Veuillez saisir au moins un montant valide supérieur à 0.');
+      return;
+    }
+
     setSaving(true);
     try {
-      const amount = parseFloat(paymentForm.amount);
-      await onRecordPayment({
-        clientId: payInvoice.clientId || '',
-        invoiceId: payInvoice.id,
-        amount,
-        date: paymentForm.date,
-        method: paymentForm.method,
-        notes: paymentForm.notes || undefined,
-        ...((paymentForm.method === 'CHEQUE' || paymentForm.method === 'EFFET') ? {
-           bankName: paymentForm.bankName || undefined,
-           checkNumber: paymentForm.checkNumber || undefined,
-           dueDate: paymentForm.dueDate || undefined,
-           scannedImageUrl: paymentForm.scannedImageUrl || undefined,
-           status: 'PENDING'
-        } : {})
+      const paymentsToRecord: Omit<ClientPayment, 'id' | 'createdAt'>[] = validLines.map(line => {
+        const amt = parseFloat(line.amount);
+        const p: any = {
+          clientId: payInvoice.clientId || '',
+          invoiceId: payInvoice.id,
+          amount: amt,
+          date: payDate,
+          method: line.method,
+          notes: line.notes || (validLines.length > 1 ? `Paiement mixte (${line.method})` : `Paiement ${payInvoice.invoiceNumber || 'Facture'}`),
+        };
+        if (line.bankName?.trim()) p.bankName = line.bankName.trim();
+        if (line.checkNumber?.trim()) p.checkNumber = line.checkNumber.trim();
+        if (line.dueDate?.trim()) p.dueDate = line.dueDate.trim();
+        if (line.scannedImageUrl?.trim()) p.scannedImageUrl = line.scannedImageUrl.trim();
+        if (line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') {
+          p.status = 'PENDING';
+        }
+        return cleanUndefined(p);
       });
+
+      if (onRecordMultiplePayments) {
+        await onRecordMultiplePayments(paymentsToRecord);
+      } else {
+        for (const p of paymentsToRecord) {
+          await onRecordPayment(p);
+        }
+      }
+
       setPayInvoice(null);
-      setPaymentForm({ amount: '', method: 'CASH', date: new Date().toISOString().split('T')[0], notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' });
-    } finally { setSaving(false); }
+    } catch (err: any) {
+      console.error('Erreur lors du paiement de la facture:', err);
+      alert('❌ Erreur : ' + (err?.message || 'Erreur inconnue'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const printInvoice = (inv: Invoice) => {
@@ -315,7 +402,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
                                 className="h-7 w-7 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 flex items-center justify-center transition-colors disabled:opacity-50">
                                 <Mail className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => { setPayInvoice(inv); setPaymentForm(f => ({ ...f, amount: String(inv.remainingBalance) })); }}
+                              <button onClick={() => openPayInvoice(inv)}
                                 title="Enregistrer paiement"
                                 className="w-7 h-7 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 flex items-center justify-center">
                                 <CreditCard className="w-3 h-3" />
@@ -341,116 +428,289 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
         )}
       </div>
 
-      {/* Modal paiement */}
+      {/* Modal paiement (Multi-modes: Cash, Chèque, LC, Virement) */}
       <Dialog open={!!payInvoice} onOpenChange={o => !o && setPayInvoice(null)}>
-        <DialogContent className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 text-white">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Enregistrer un paiement</DialogTitle>
-            <p className="text-[10px] font-bold text-emerald-200 mt-1">
-              {payInvoice && invoiceNumber(payInvoice)} · {payInvoice?.clientName || 'Anonyme'}
-            </p>
-            <p className="text-lg font-black text-white mt-2">Solde : {fmt$(payInvoice?.remainingBalance || 0)}</p>
+        <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-800 to-teal-700 p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-lg font-black uppercase tracking-tight">Enregistrer un paiement</DialogTitle>
+                <p className="text-xs font-bold text-emerald-200 mt-1">
+                  {payInvoice && invoiceNumber(payInvoice)} · <span className="text-white uppercase font-black">{payInvoice?.clientName || 'Anonyme'}</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-200">Solde Dû</span>
+                <p className="text-2xl font-black text-white">{fmt$(payInvoiceRemaining)} MAD</p>
+              </div>
+            </div>
+
+            {/* Suivi récapitulatif */}
+            <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10 text-center">
+              <div className="bg-white/10 rounded-xl p-2.5">
+                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Reste Dû</span>
+                <p className="text-sm font-black text-white mt-0.5">{fmt$(payInvoiceRemaining)} MAD</p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-2.5">
+                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
+                <p className="text-sm font-black text-white mt-0.5">{fmt$(totalInvoicePaymentEntered)} MAD</p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-2.5">
+                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">État</span>
+                <p className={`text-sm font-black mt-0.5 ${
+                  totalInvoicePaymentEntered === 0 ? 'text-emerald-200' :
+                  diffInvoiceBalance === 0 ? 'text-emerald-300' :
+                  diffInvoiceBalance > 0 ? 'text-amber-300' : 'text-cyan-200'
+                }`}>
+                  {totalInvoicePaymentEntered === 0 ? 'En attente' :
+                   diffInvoiceBalance === 0 ? 'Soldé (100%)' :
+                   diffInvoiceBalance > 0 ? `Reste ${fmt$(diffInvoiceBalance)}` : `+${fmt$(-diffInvoiceBalance)} avance`}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="p-5 space-y-3 bg-white max-h-[70vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant *</Label>
-                <Input type="number" min={0} step="any" value={paymentForm.amount}
-                  onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
-                  className="h-11 text-lg font-black rounded-xl border-stone-200" autoFocus />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Méthode *</Label>
-                <Select value={paymentForm.method} onValueChange={v => setPaymentForm(f => ({ ...f, method: v as PaymentMethod }))}>
-                  <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CASH">💵 Espèces</SelectItem>
-                    <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
-                    <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
-                    <SelectItem value="EFFET">📜 Effet Bancaire</SelectItem>
-                    <SelectItem value="AUTRE">📋 Autre</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date *</Label>
-                <Input type="date" value={paymentForm.date}
-                  onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))}
-                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
-                <Input placeholder="Infos supplémentaires..." value={paymentForm.notes}
-                  onChange={e => setPaymentForm(f => ({ ...f, notes: e.target.value }))}
-                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
-              </div>
+
+          <div className="p-5 space-y-4 bg-white max-h-[72vh] overflow-y-auto">
+            <div className="flex items-center gap-3">
+              <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest shrink-0">Date de transaction :</Label>
+              <Input
+                type="date"
+                value={payDate}
+                onChange={e => setPayDate(e.target.value)}
+                className="h-10 rounded-xl border-stone-200 font-bold text-xs max-w-xs"
+              />
             </div>
 
-            {(paymentForm.method === 'CHEQUE' || paymentForm.method === 'EFFET') && (
-              <div className="pt-4 border-t border-stone-100 mt-4 space-y-4">
-                <h4 className="text-[10px] font-black text-stone-800 uppercase tracking-widest flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-emerald-600" /> Détails Bancaires
-                </h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Nom de la Banque</Label>
-                    <Input placeholder="Ex: Attijariwafa Bank" value={paymentForm.bankName}
-                      onChange={e => setPaymentForm(f => ({ ...f, bankName: e.target.value }))}
-                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Chèque / Effet</Label>
-                    <Input placeholder="Ex: 0123456" value={paymentForm.checkNumber}
-                      onChange={e => setPaymentForm(f => ({ ...f, checkNumber: e.target.value }))}
-                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
-                  </div>
+            {/* Lignes de paiements */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-black text-stone-800 uppercase tracking-widest">
+                  Modes de règlement ({payLines.length})
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPayLine('CASH')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
+                    + Espèces
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPayLine('CHEQUE')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
+                    + Chèque
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPayLine('EFFET')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
+                    + LC (Effet)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPayLine('VIREMENT')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
+                    + Virement
+                  </Button>
                 </div>
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance prévue</Label>
-                  <Input type="date" value={paymentForm.dueDate}
-                    onChange={e => setPaymentForm(f => ({ ...f, dueDate: e.target.value }))}
-                    className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Scan du document (Photo)</Label>
-                  <div className="relative border-2 border-dashed border-stone-200 rounded-xl p-4 hover:bg-stone-50 transition-colors flex flex-col items-center justify-center text-center">
-                    {paymentForm.scannedImageUrl ? (
-                      <div className="relative w-full">
-                        <img src={paymentForm.scannedImageUrl} alt="Scan" className="w-full rounded-lg max-h-40 object-contain" />
-                        <button type="button" onClick={() => setPaymentForm(f => ({ ...f, scannedImageUrl: '' }))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <CreditCard className="w-6 h-6 text-stone-300 mb-2" />
-                        <span className="text-[10px] font-bold text-stone-500">Cliquez ou prenez une photo</span>
-                        <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setPaymentForm(f => ({ ...f, scannedImageUrl: reader.result as string }));
-                            reader.readAsDataURL(file);
-                          }
-                        }} />
-                      </>
+              {payLines.map((line, idx) => (
+                <div key={line.id} className="p-4 rounded-2xl border-2 border-stone-100 bg-stone-50/60 hover:border-stone-200 transition-all space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
+                      Règlement #{idx + 1}
+                    </span>
+                    {payLines.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removePayLine(line.id)}
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     )}
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
+                      <Select value={line.method} onValueChange={v => updatePayLine(line.id, { method: v as PaymentMethod })}>
+                        <SelectTrigger className="h-10 rounded-xl border-stone-200 bg-white font-bold text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CASH">💵 Espèces (Cash)</SelectItem>
+                          <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
+                          <SelectItem value="EFFET">📜 LC (Lettre de Change / Effet)</SelectItem>
+                          <SelectItem value="VIREMENT">🏦 Virement bancaire</SelectItem>
+                          <SelectItem value="AUTRE">📋 Autre mode</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
+                        {diffInvoiceBalance > 0 && parseFloat(line.amount || '0') !== payInvoiceRemaining && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const otherSum = payLines.filter(l => l.id !== line.id).reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+                              updatePayLine(line.id, { amount: String(Math.max(0, payInvoiceRemaining - otherSum)) });
+                            }}
+                            className="text-[8px] font-bold text-emerald-600 hover:underline">
+                            Compléter le reste
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="any"
+                        placeholder="0.00"
+                        value={line.amount}
+                        onChange={e => updatePayLine(line.id, { amount: e.target.value })}
+                        className="h-10 text-base font-black rounded-xl border-stone-200 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Champs spécifiques : Chèque ou LC (Effet) */}
+                  {(line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') && (
+                    <div className="pt-3 border-t border-stone-200/60 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Banque</Label>
+                          <Input
+                            placeholder="Ex: Attijariwafa, BCP, BMCE..."
+                            value={line.bankName}
+                            onChange={e => updatePayLine(line.id, { bankName: e.target.value })}
+                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                            {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
+                          </Label>
+                          <Input
+                            placeholder={line.method === 'CHEQUE' ? 'Ex: CHQ-987654' : 'Ex: LC-123456'}
+                            value={line.checkNumber}
+                            onChange={e => updatePayLine(line.id, { checkNumber: e.target.value })}
+                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance</Label>
+                          <Input
+                            type="date"
+                            value={line.dueDate}
+                            onChange={e => updatePayLine(line.id, { dueDate: e.target.value })}
+                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Photo / Scan (Optionnel)</Label>
+                        <div className="relative border border-dashed border-stone-300 rounded-xl p-3 bg-white hover:bg-stone-50 transition-colors flex items-center justify-between">
+                          {line.scannedImageUrl ? (
+                            <div className="flex items-center gap-3 w-full">
+                              <img src={line.scannedImageUrl} alt="Scan" className="w-16 h-10 rounded object-contain bg-stone-100" />
+                              <span className="text-[10px] font-bold text-emerald-600">Scan joint</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => updatePayLine(line.id, { scannedImageUrl: '' })}
+                                className="ml-auto h-7 text-[9px] text-red-600 font-black">
+                                Supprimer
+                              </Button>
+                            </div>
+                          ) : (
+                            <label className="flex items-center gap-2 cursor-pointer w-full text-stone-500 hover:text-stone-700">
+                              <CreditCard className="w-4 h-4 text-stone-400" />
+                              <span className="text-[10px] font-bold">Ajouter une photo du chèque / LC</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="sr-only"
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => updatePayLine(line.id, { scannedImageUrl: reader.result as string });
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Champs spécifiques : Virement */}
+                  {line.method === 'VIREMENT' && (
+                    <div className="pt-3 border-t border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Banque</Label>
+                        <Input
+                          placeholder="Ex: Attijariwafa, CIH..."
+                          value={line.bankName}
+                          onChange={e => updatePayLine(line.id, { bankName: e.target.value })}
+                          className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
+                        <Input
+                          placeholder="Ex: VIR-2026-9901"
+                          value={line.checkNumber}
+                          onChange={e => updatePayLine(line.id, { checkNumber: e.target.value })}
+                          className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
+                    <Input
+                      placeholder="Commentaire sur ce versement..."
+                      value={line.notes}
+                      onChange={e => updatePayLine(line.id, { notes: e.target.value })}
+                      className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => addPayLine()}
+                className="w-full h-11 rounded-2xl border-dashed border-2 border-stone-300 hover:border-emerald-500 text-stone-600 hover:text-emerald-700 font-black uppercase text-[10px] tracking-widest gap-2">
+                <Plus className="w-4 h-4" /> Ajouter un autre moyen de paiement (Chèque, LC, Virement, Espèces...)
+              </Button>
+            </div>
           </div>
-          <DialogFooter className="p-4 bg-stone-50 gap-2">
-            <Button variant="ghost" onClick={() => setPayInvoice(null)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>
-            <Button onClick={handlePayment} disabled={!paymentForm.amount || saving}
-              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl">
-              {saving ? 'Enregistrement...' : 'Confirmer le paiement'}
+
+          <DialogFooter className="p-4 bg-stone-50 border-t border-stone-100 gap-2">
+            <Button variant="ghost" onClick={() => setPayInvoice(null)} className="flex-1 font-black uppercase text-[10px] rounded-xl h-11">Annuler</Button>
+            <Button onClick={handlePayment} disabled={totalInvoicePaymentEntered <= 0 || saving}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl shadow-lg shadow-emerald-600/20">
+              {saving ? 'Enregistrement...' : `Confirmer le paiement (${fmt$(totalInvoicePaymentEntered)} MAD)`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -518,7 +778,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
               <Printer className="w-3.5 h-3.5" /> Imprimer
             </Button>
             {viewInvoice && viewInvoice.status !== 'PAID' && viewInvoice.status !== 'CANCELLED' && (
-              <Button onClick={() => { const inv = viewInvoice; setViewInvoice(null); setPayInvoice(inv); setPaymentForm(f => ({ ...f, amount: String(inv.remainingBalance) })); }}
+              <Button onClick={() => { const inv = viewInvoice; setViewInvoice(null); openPayInvoice(inv); }}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-10 px-5 rounded-xl gap-2">
                 <CreditCard className="w-3.5 h-3.5" /> Paiement
               </Button>

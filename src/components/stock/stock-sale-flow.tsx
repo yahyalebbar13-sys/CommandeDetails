@@ -5,15 +5,29 @@ import {
   Users, ShoppingBag, ClipboardList, CheckCircle2,
   Search, Plus, Minus, X, ChevronRight, ChevronLeft,
   UserPlus, Tag, Percent, ArrowRight, Phone, Mail, Printer,
+  Banknote, Landmark, FileCheck, Layers, Trash2, CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import type { Client, SaleOrder, Invoice, OrderItem, StockItem } from '@/lib/types';
+import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod } from '@/lib/types';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MOROCCAN_BANKS = [
+  'Attijariwafa Bank',
+  'Banque Populaire (BCP)',
+  'BMCE Bank (Bank of Africa)',
+  'CIH Bank',
+  'Crédit du Maroc',
+  'Société Générale (SGMB)',
+  'CFG Bank',
+  'Al Barid Bank',
+  'Autre banque'
+];
+
 function getColorCSS(c: string): string {
   const m: Record<string, string> = {
     rouge:'#ef4444',red:'#ef4444',bleu:'#3b82f6',blue:'#3b82f6',vert:'#22c55e',green:'#22c55e',
@@ -27,6 +41,16 @@ function getColorCSS(c: string): string {
 
 interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
 
+interface CheckoutPaymentLine {
+  id: string;
+  amount: string;
+  method: PaymentMethod;
+  notes: string;
+  bankName: string;
+  checkNumber: string;
+  dueDate: string;
+}
+
 interface StockSaleFlowProps {
   stockItems: StockItem[];
   categories: any[];
@@ -34,7 +58,7 @@ interface StockSaleFlowProps {
   clients: Client[];
   invoices: Invoice[];              // Pour vérifier le plafond de crédit
   onCreateOrder: (order: Omit<SaleOrder, 'id' | 'createdAt'>) => Promise<string>;
-  onCreateInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>, movementsOut: any[]) => Promise<void>;
+  onCreateInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>, movementsOut: any[], initialPayments?: any[]) => Promise<void>;
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<Client>;
   userRole?: 'ADMIN' | 'COMMERCIAL';
   onNavigate: (v: any) => void;
@@ -75,6 +99,10 @@ export default function StockSaleFlow({
 
   // Étape 4 — Finalisation
   const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'UNPAID'>('PAID');
+  const [paymentMode, setPaymentMode] = useState<'CASH' | 'CHEQUE' | 'LC' | 'VIREMENT' | 'MIXED'>('CASH');
+  const [paymentLines, setPaymentLines] = useState<CheckoutPaymentLine[]>([
+    { id: 'init-1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '' }
+  ]);
   const [finalDate, setFinalDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // ── Calculs ──
@@ -82,6 +110,94 @@ export default function StockSaleFlow({
   const discountAmt = subTotal * (discount / 100);
   const total = subTotal - discountAmt;
   const cartCount = cart.reduce((s, l) => s + l.qty, 0);
+
+  const totalPaid = paymentStatus === 'UNPAID' ? 0 : paymentLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+  const remainingBalance = Math.max(0, total - totalPaid);
+  const isOverpaid = totalPaid > total + 0.01;
+
+  const setQuickPaymentMethod = (mode: 'CASH' | 'CHEQUE' | 'LC' | 'VIREMENT' | 'MIXED') => {
+    setPaymentMode(mode);
+    setPaymentStatus('PAID');
+    if (mode === 'MIXED') {
+      if (paymentLines.length <= 1) {
+        const half = Math.round(total / 2);
+        setPaymentLines([
+          {
+            id: 'line-1',
+            amount: paymentLines[0]?.amount || String(half),
+            method: 'CASH',
+            notes: '',
+            bankName: '',
+            checkNumber: '',
+            dueDate: '',
+          },
+          {
+            id: 'line-2',
+            amount: String(Math.max(0, total - (parseFloat(paymentLines[0]?.amount) || half))),
+            method: 'CHEQUE',
+            notes: '',
+            bankName: '',
+            checkNumber: '',
+            dueDate: '',
+          }
+        ]);
+      }
+    } else {
+      setPaymentLines([{
+        id: Date.now().toString(),
+        amount: String(total),
+        method: mode,
+        notes: '',
+        bankName: '',
+        checkNumber: '',
+        dueDate: '',
+      }]);
+    }
+  };
+
+  const addCheckoutPaymentLine = (method: PaymentMethod = 'CASH') => {
+    const curPaid = paymentLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+    const rem = Math.max(0, total - curPaid);
+    setPaymentMode('MIXED');
+    setPaymentLines(prev => [
+      ...prev,
+      {
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+        amount: rem > 0 ? String(rem) : '',
+        method,
+        notes: '',
+        bankName: '',
+        checkNumber: '',
+        dueDate: '',
+      }
+    ]);
+  };
+
+  const removeCheckoutPaymentLine = (id: string) => {
+    if (paymentLines.length <= 1) return;
+    setPaymentLines(prev => prev.filter(l => l.id !== id));
+  };
+
+  const updateCheckoutPaymentLine = (id: string, field: keyof CheckoutPaymentLine, val: any) => {
+    setPaymentLines(prev => prev.map(l => l.id === id ? { ...l, [field]: val } : l));
+  };
+
+  const goToValidation = () => {
+    if (paymentStatus === 'PAID') {
+      if (paymentLines.length === 1 && (!paymentLines[0].amount || parseFloat(paymentLines[0].amount) === 0)) {
+        setPaymentLines([{
+          id: 'init-1',
+          amount: String(total),
+          method: paymentLines[0].method || 'CASH',
+          notes: '',
+          bankName: '',
+          checkNumber: '',
+          dueDate: '',
+        }]);
+      }
+    }
+    setStep(3);
+  };
 
   // ── Filtres catégories ──
   const filteredCats = useMemo(() =>
@@ -260,8 +376,27 @@ export default function StockSaleFlow({
   const handleFinalize = async () => {
     if (cart.length === 0 || saving) return;
 
+    const isFullCredit = paymentStatus === 'UNPAID';
+    const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
+    const totalPaidCalculated = isFullCredit ? 0 : validLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+    const balanceRemaining = isFullCredit ? total : Math.max(0, total - totalPaidCalculated);
+
+    if (!isFullCredit && totalPaidCalculated <= 0) {
+      alert("⚠️ Veuillez saisir au moins un montant payé ou choisir 'À Crédit'.");
+      return;
+    }
+    if (!isFullCredit && totalPaidCalculated > total + 0.01) {
+      alert(`⚠️ Le montant saisi (${fmt$(totalPaidCalculated)} MAD) dépasse le montant de la vente (${fmt$(total)} MAD).`);
+      return;
+    }
+    if (!isFullCredit && balanceRemaining > 0.01 && (anonymous || !selectedClient)) {
+      alert("⚠️ Une vente avec reste à crédit nécessite de sélectionner un client identifié (non anonyme).");
+      return;
+    }
+
     // ── Vérification du plafond de crédit ──
-    if (paymentStatus === 'UNPAID' && selectedClient) {
+    const debtToAdd = isFullCredit ? total : balanceRemaining;
+    if (debtToAdd > 0 && selectedClient) {
       if (selectedClient.creditBlocked) {
         alert(`⛔ Le crédit est bloqué pour le client "${selectedClient.name}". Veuillez contacter l'administrateur.`);
         return;
@@ -269,13 +404,13 @@ export default function StockSaleFlow({
       if (selectedClient.creditLimit != null && selectedClient.creditLimit > 0) {
         const currentDebt = invoices
           .filter(inv => inv.clientId === selectedClient.id && inv.status !== 'PAID' && inv.status !== 'CANCELLED')
-          .reduce((sum, inv) => sum + (inv.remainingBalance || 0), 0);
-        const newDebt = currentDebt + total;
+          .reduce((sum, inv) => sum + (inv.remainingBalance ?? (inv.totalAfterDiscount - inv.paidAmount)), 0);
+        const newDebt = currentDebt + debtToAdd;
         if (newDebt > selectedClient.creditLimit) {
           const confirmed = confirm(
             `⚠️ Attention : Cette vente porterait l'encours du client "${selectedClient.name}" à ${fmt$(newDebt)} MAD, ` +
             `dépassant le plafond de crédit de ${fmt$(selectedClient.creditLimit)} MAD.\n\n` +
-            `Encours actuel : ${fmt$(currentDebt)} MAD\nMontant de cette vente : ${fmt$(total)} MAD\n\nContinuer quand même ?`
+            `Encours actuel : ${fmt$(currentDebt)} MAD\nNouveau crédit : ${fmt$(debtToAdd)} MAD\n\nContinuer quand même ?`
           );
           if (!confirmed) return;
         }
@@ -314,7 +449,7 @@ export default function StockSaleFlow({
             qty: take,
             unitPrice: l.unitPrice,
             totalPrice: take * l.unitPrice,
-            storeId: l.sourceStore || null,
+            storeId: l.sourceStore || undefined,
           });
 
           movements.push({
@@ -348,7 +483,7 @@ export default function StockSaleFlow({
             qty: remainingQty,
             unitPrice: l.unitPrice,
             totalPrice: remainingQty * l.unitPrice,
-            storeId: l.sourceStore || null,
+            storeId: l.sourceStore || undefined,
           });
           movements.push({
             articleId: lastSub.articleId,
@@ -367,23 +502,51 @@ export default function StockSaleFlow({
         }
       }
 
-      const isPaid = paymentStatus === 'PAID';
-      
+      const initialPayments = isFullCredit ? [] : validLines.map(l => ({
+        amount: parseFloat(l.amount),
+        paymentDate: today,
+        date: today,
+        method: l.method,
+        status: (l.method === 'CASH' || l.method === 'VIREMENT') ? ('CONFIRMED' as const) : ('PENDING' as const),
+        bankName: l.bankName?.trim() || undefined,
+        checkNumber: l.checkNumber?.trim() || undefined,
+        dueDate: l.dueDate || undefined,
+        notes: l.notes?.trim() || undefined,
+        clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
+        clientId: selectedClient?.id || undefined,
+      }));
+
+      let invStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PAID';
+      if (isFullCredit || totalPaidCalculated <= 0) {
+        invStatus = 'UNPAID';
+      } else if (balanceRemaining > 0.01) {
+        invStatus = 'PARTIAL';
+      } else {
+        invStatus = 'PAID';
+      }
+
+      const invMethod = isFullCredit
+        ? undefined
+        : validLines.length === 1
+          ? validLines[0].method
+          : 'MIXTE';
+
       const invoiceData: any = {
         clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
         items,
         totalAmount: subTotal,
         discount,
         totalAfterDiscount: total,
-        paidAmount: isPaid ? total : 0,
-        remainingBalance: isPaid ? 0 : total,
-        status: isPaid ? 'PAID' : 'UNPAID',
+        paidAmount: totalPaidCalculated,
+        remainingBalance: balanceRemaining,
+        status: invStatus,
+        paymentMethod: invMethod,
         date: today,
         notes,
       };
       if (selectedClient?.id) invoiceData.clientId = selectedClient.id;
 
-      await onCreateInvoice(invoiceData, movements);
+      await onCreateInvoice(invoiceData, movements, initialPayments);
       setDone(true);
     } finally { setSaving(false); }
   };
@@ -392,6 +555,9 @@ export default function StockSaleFlow({
     setStep(0); setCart([]); setSelectedClient(null); setAnonymous(false);
     setDiscount(0); setNotes(''); setDone(false); setFinalDate(new Date().toISOString().split('T')[0]);
     setSelGenCat(null); setSelCat(null); setProdSearch('');
+    setPaymentStatus('PAID');
+    setPaymentMode('CASH');
+    setPaymentLines([{ id: 'init-1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '' }]);
   };
 
   const printBonDeCommande = useCallback(() => {
@@ -399,6 +565,24 @@ export default function StockSaleFlow({
     if (!win) return;
     const bcNum = `BC-${Date.now().toString(36).toUpperCase()}`;
     const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const isFullCredit = paymentStatus === 'UNPAID';
+    const validLines = isFullCredit ? [] : paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
+    const totalPaidCalculated = isFullCredit ? 0 : validLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+    const balanceRemaining = isFullCredit ? total : Math.max(0, total - totalPaidCalculated);
+
+    const paymentDetailsText = isFullCredit
+      ? 'À Crédit (Compte Client)'
+      : validLines.length === 0
+        ? 'Payé comptant'
+        : validLines.map(l => {
+            const mLabel = l.method === 'CASH' ? 'Espèces' :
+              l.method === 'CHEQUE' ? `Chèque ${l.checkNumber ? 'N° ' + l.checkNumber : ''}` :
+              (l.method === 'LC' || l.method === 'LCN' || l.method === 'EFFET') ? `LC ${l.checkNumber ? 'N° ' + l.checkNumber : ''}` :
+              l.method === 'VIREMENT' ? 'Virement' : l.method;
+            const extra = [l.bankName, l.dueDate ? `Éch: ${l.dueDate}` : ''].filter(Boolean).join(' - ');
+            return `${fmt$(parseFloat(l.amount))} MAD (${mLabel}${extra ? ' - ' + extra : ''})`;
+          }).join(' + ');
+
     win.document.write(`<!DOCTYPE html><html><head><title>Bon de Commande ${bcNum}</title>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
@@ -420,7 +604,7 @@ export default function StockSaleFlow({
       tbody td{padding:12px 16px;border-bottom:1px solid #f5f5f4;font-size:12px;font-weight:600}
       tbody td:nth-child(3),tbody td:nth-child(4),tbody td:last-child{text-align:right}
       .variant{font-size:10px;color:#78716c;font-weight:700}
-      .totals{margin-left:auto;width:280px}
+      .totals{margin-left:auto;width:320px}
       .totals .row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;font-weight:600;color:#57534e}
       .totals .total{border-top:3px solid #1c1917;padding-top:12px;margin-top:8px;font-size:18px;font-weight:900;color:#1c1917}
       .no-price{color:#a8a29e;font-style:italic}
@@ -433,7 +617,7 @@ export default function StockSaleFlow({
     </div>
     <div class="info-grid">
       <div class="info-box"><h4>Client</h4><p>${selectedClient?.name || 'Comptoir (Anonyme)'}</p>${selectedClient?.phone ? `<p class="sub">${selectedClient.phone}</p>` : ''}</div>
-      <div class="info-box"><h4>Conditions</h4><p>${paymentStatus === 'PAID' ? 'Payé comptant' : 'À crédit'}</p><p class="sub">Date : ${dateStr}</p></div>
+      <div class="info-box"><h4>Règlement</h4><p>${paymentDetailsText}</p><p class="sub">Date : ${dateStr}</p></div>
     </div>
     <table><thead><tr><th>Désignation</th><th>Variante</th><th>Qté</th><th>P.U. (MAD)</th><th>Total (MAD)</th></tr></thead>
     <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${item.productName}</td><td class="variant">${[item.color, item.size ? 'T.' + item.size : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${qty}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
@@ -441,13 +625,15 @@ export default function StockSaleFlow({
       <div class="row"><span>Sous-total</span><span>${fmt$(subTotal)}</span></div>
       ${discount > 0 ? `<div class="row" style="color:#16a34a"><span>Remise ${discount}%</span><span>-${fmt$(discountAmt)}</span></div>` : ''}
       <div class="row total"><span>TOTAL</span><span>${fmt$(total)}</span></div>
+      ${totalPaidCalculated > 0 ? `<div class="row" style="color:#16a34a;font-weight:700"><span>Montant Payé</span><span>${fmt$(totalPaidCalculated)}</span></div>` : ''}
+      ${balanceRemaining > 0.01 ? `<div class="row" style="color:#d97706;font-weight:700"><span>Reste dû</span><span>${fmt$(balanceRemaining)}</span></div>` : ''}
     </div>
     ${notes ? `<div style="margin-top:24px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px"><h4 style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:6px">Notes</h4><p style="font-size:12px;font-weight:600">${notes}</p></div>` : ''}
     <div class="footer"><p>Ce document est un bon de commande et ne constitue pas une facture officielle.</p><p style="margin-top:4px">LEBTEX</p></div>
     </body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 400);
-  }, [cart, selectedClient, paymentStatus, subTotal, discount, discountAmt, total, notes]);
+  }, [cart, selectedClient, paymentStatus, paymentLines, subTotal, discount, discountAmt, total, notes]);
 
   // ── Succès ──
   if (done) return (
@@ -896,7 +1082,7 @@ export default function StockSaleFlow({
             <Button variant="outline" onClick={() => setStep(1)} className="gap-2 font-black uppercase text-xs h-11 rounded-2xl">
               <ChevronLeft className="w-4 h-4" /> Ajouter des produits
             </Button>
-            <Button onClick={() => setStep(3)}
+            <Button onClick={goToValidation}
               className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-xs h-11 px-8 rounded-2xl gap-2">
               Finaliser <ChevronRight className="w-4 h-4" />
             </Button>
@@ -911,38 +1097,289 @@ export default function StockSaleFlow({
             <p className="text-[9px] font-black text-emerald-300 uppercase tracking-[0.3em]">Étape 4</p>
             <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-1">Finaliser la vente</h2>
             <p className="text-emerald-300/70 text-xs font-bold mt-1">
-              {selectedClient?.name || 'Comptoir'} · {cart.length} produit{cart.length > 1 ? 's' : ''} · Total : {fmt$(total)}
+              {selectedClient?.name || 'Comptoir'} · {cart.length} produit{cart.length > 1 ? 's' : ''} · Total : {fmt$(total)} MAD
             </p>
           </div>
 
-          {/* Choix type */}
-          {/* Choix paiement */}
+          {/* Choix type de règlement */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button onClick={() => setPaymentStatus('PAID')}
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentStatus('PAID');
+                if (paymentLines.length === 1 && (!paymentLines[0].amount || parseFloat(paymentLines[0].amount) === 0)) {
+                  setPaymentLines([{
+                    id: 'init-1',
+                    amount: String(total),
+                    method: paymentMode === 'MIXED' ? 'CASH' : paymentMode,
+                    notes: '',
+                    bankName: '',
+                    checkNumber: '',
+                    dueDate: '',
+                  }]);
+                }
+              }}
               className={`p-6 rounded-2xl border-2 text-left transition-all ${
-                paymentStatus === 'PAID' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-stone-200 bg-white hover:border-emerald-300'
+                paymentStatus === 'PAID' ? 'border-emerald-600 bg-emerald-600 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-emerald-300'
               }`}>
-              <CheckCircle2 className="w-8 h-8 mb-3 opacity-70" />
-              <p className="font-black text-lg uppercase tracking-tighter">Payé (Espèce / Comptant)</p>
-              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'PAID' ? 'text-emerald-200' : 'text-stone-400'}`}>
-                La vente est réglée. Le stock est décompté immédiatement.
+              <CheckCircle2 className="w-8 h-8 mb-3 opacity-80" />
+              <p className="font-black text-lg uppercase tracking-tighter">Payé immédiatement (Comptant / Effets)</p>
+              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'PAID' ? 'text-emerald-100' : 'text-stone-400'}`}>
+                Règlement par Espèces, Chèque, LC, Virement ou Mixte.
               </p>
             </button>
 
-            <button onClick={() => setPaymentStatus('UNPAID')}
+            <button
+              type="button"
+              onClick={() => setPaymentStatus('UNPAID')}
               disabled={anonymous}
               className={`p-6 rounded-2xl border-2 text-left transition-all ${
-                paymentStatus === 'UNPAID' ? 'border-amber-600 bg-amber-600 text-white' : 'border-stone-200 bg-white hover:border-amber-300'
+                paymentStatus === 'UNPAID' ? 'border-amber-600 bg-amber-600 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-amber-300'
               } ${anonymous ? 'opacity-50 cursor-not-allowed' : ''}`}>
-              <ClipboardList className="w-8 h-8 mb-3 opacity-70" />
-              <p className="font-black text-lg uppercase tracking-tighter">À Crédit (Compte Client)</p>
-              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'UNPAID' ? 'text-amber-200' : 'text-stone-400'}`}>
-                {anonymous ? "Sélectionnez un client à l'étape 1" : "Ajouté à la dette du client. Le stock est décompté."}
+              <ClipboardList className="w-8 h-8 mb-3 opacity-80" />
+              <p className="font-black text-lg uppercase tracking-tighter">À Crédit (100% Compte Client)</p>
+              <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'UNPAID' ? 'text-amber-100' : 'text-stone-400'}`}>
+                {anonymous ? "Sélectionnez un client à l'étape 1" : "Ajouté intégralement à la dette du client. Le stock est décompté."}
               </p>
             </button>
           </div>
 
-          {/* Champs date */}
+          {/* Si règlement immédiat / partiel : modes de paiement */}
+          {paymentStatus === 'PAID' && (
+            <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
+                <div>
+                  <Label className="text-xs font-black text-stone-900 uppercase tracking-wide">
+                    Mode de paiement
+                  </Label>
+                  <p className="text-[10px] text-stone-400 font-bold">
+                    Choisissez le mode de paiement ou combinez plusieurs modes
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setQuickPaymentMethod('CASH')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      paymentMode === 'CASH'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    <Banknote className="w-3.5 h-3.5" />
+                    Espèces
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPaymentMethod('CHEQUE')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      paymentMode === 'CHEQUE'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    <FileCheck className="w-3.5 h-3.5" />
+                    Chèque
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPaymentMethod('LC')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      paymentMode === 'LC'
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    LC / Effet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPaymentMethod('VIREMENT')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      paymentMode === 'VIREMENT'
+                        ? 'bg-teal-600 text-white shadow-md shadow-teal-500/20'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    <Landmark className="w-3.5 h-3.5" />
+                    Virement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPaymentMethod('MIXED')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      paymentMode === 'MIXED'
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Mixte
+                  </button>
+                </div>
+              </div>
+
+              {/* Datalist pour suggestions banques marocaines */}
+              <datalist id="moroccan-banks-sale">
+                {MOROCCAN_BANKS.map(b => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+
+              {/* Lignes de paiement */}
+              <div className="space-y-3">
+                {paymentLines.map((line) => {
+                  const isPaper = line.method === 'CHEQUE' || line.method === 'LC' || line.method === 'LCN' || line.method === 'EFFET';
+                  const isTransfer = line.method === 'VIREMENT';
+
+                  return (
+                    <div key={line.id} className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-3">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div className="w-full sm:w-56">
+                          <Select
+                            value={line.method}
+                            onValueChange={v => updateCheckoutPaymentLine(line.id, 'method', v as PaymentMethod)}
+                          >
+                            <SelectTrigger className="h-11 bg-white font-black text-xs rounded-xl border-stone-200">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="CASH">💵 Espèces (Cash)</SelectItem>
+                              <SelectItem value="CHEQUE">📑 Chèque</SelectItem>
+                              <SelectItem value="LC">📜 LC (Lettre de Change)</SelectItem>
+                              <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex-1 relative">
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="Montant (MAD)"
+                            value={line.amount}
+                            onChange={e => updateCheckoutPaymentLine(line.id, 'amount', e.target.value)}
+                            className="h-11 bg-white font-black text-base pr-14 rounded-xl border-stone-200"
+                          />
+                          <span className="absolute right-3 top-3 text-xs font-black text-stone-400">MAD</span>
+                        </div>
+
+                        {paymentLines.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeCheckoutPaymentLine(line.id)}
+                            className="h-11 w-11 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Détails Chèque ou LC */}
+                      {isPaper && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-stone-200/60">
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase text-stone-500">Banque</Label>
+                            <Input
+                              list="moroccan-banks-sale"
+                              placeholder="Ex: Attijariwafa, BCP..."
+                              value={line.bankName}
+                              onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
+                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase text-stone-500">
+                              {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
+                            </Label>
+                            <Input
+                              placeholder="N° de la pièce"
+                              value={line.checkNumber}
+                              onChange={e => updateCheckoutPaymentLine(line.id, 'checkNumber', e.target.value)}
+                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase text-stone-500">Date d'échéance</Label>
+                            <Input
+                              type="date"
+                              value={line.dueDate}
+                              onChange={e => updateCheckoutPaymentLine(line.id, 'dueDate', e.target.value)}
+                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Détails Virement */}
+                      {isTransfer && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-stone-200/60">
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase text-stone-500">Banque</Label>
+                            <Input
+                              list="moroccan-banks-sale"
+                              placeholder="Ex: CIH, BMCE..."
+                              value={line.bankName}
+                              onChange={e => updateCheckoutPaymentLine(line.id, 'bankName', e.target.value)}
+                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-black uppercase text-stone-500">Réf. Virement</Label>
+                            <Input
+                              placeholder="N° référence ou transaction"
+                              value={line.checkNumber}
+                              onChange={e => updateCheckoutPaymentLine(line.id, 'checkNumber', e.target.value)}
+                              className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bouton ajouter mode si split / multi-mode */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addCheckoutPaymentLine('CASH')}
+                  className="text-xs font-black uppercase rounded-xl border-dashed border-stone-300 gap-1.5 h-9"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Ajouter un mode de paiement (Mixte)
+                </Button>
+
+                {/* Statut de paiement en direct */}
+                <div className="flex items-center gap-2">
+                  {Math.abs(remainingBalance) < 0.01 && (
+                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-800">
+                      ✓ Réglé en totalité ({fmt$(total)} MAD)
+                    </span>
+                  )}
+                  {remainingBalance > 0.01 && (
+                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-amber-100 text-amber-800">
+                      Acompte : {fmt$(totalPaid)} MAD · Reste à crédit : {fmt$(remainingBalance)} MAD
+                    </span>
+                  )}
+                  {isOverpaid && (
+                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-red-100 text-red-800">
+                      Attention : Total saisi ({fmt$(totalPaid)} MAD) dépasse la vente
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Champs date & Récapitulatif */}
           <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5 space-y-4">
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1.5">
@@ -966,6 +1403,18 @@ export default function StockSaleFlow({
                 <span>Total de la vente</span>
                 <span className={paymentStatus === 'PAID' ? 'text-emerald-700' : 'text-amber-700'}>{fmt$(total)}</span>
               </div>
+              {paymentStatus === 'PAID' && totalPaid > 0 && (
+                <div className="flex justify-between text-xs font-bold text-emerald-700">
+                  <span>Montant réglé immédiatement</span>
+                  <span>{fmt$(totalPaid)}</span>
+                </div>
+              )}
+              {paymentStatus === 'PAID' && remainingBalance > 0.01 && (
+                <div className="flex justify-between text-xs font-bold text-amber-700">
+                  <span>Reste à reporter au crédit du client</span>
+                  <span>{fmt$(remainingBalance)}</span>
+                </div>
+              )}
             </div>
           </div>
 

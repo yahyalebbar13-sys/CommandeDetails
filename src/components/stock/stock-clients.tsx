@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer } from 'lucide-react';
+import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer, Plus, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import type { Client, SaleOrder, Invoice, ClientPayment, PaymentMethod } from '@/lib/types';
+import type { Client, SaleOrder, Invoice, ClientPayment, PaymentMethod, InvoiceStatus } from '@/lib/types';
+import { cleanUndefined } from '@/lib/utils';
 
 interface StockClientsProps {
   clients: Client[];
@@ -17,6 +18,10 @@ interface StockClientsProps {
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateClient: (id: string, c: Partial<Client>) => Promise<void>;
   onRecordPayment?: (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => Promise<void>;
+  onRecordMultiplePayments?: (
+    payments: Omit<ClientPayment, 'id' | 'createdAt'>[],
+    invoiceUpdates?: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[]
+  ) => Promise<void>;
   onNavigate: (v: any) => void;
 }
 
@@ -28,7 +33,18 @@ const CATEGORY_BADGE: Record<string, { label: string; cls: string }> = {
   DETAILLANT:      { label: 'Détaillant',       cls: 'bg-emerald-100 text-emerald-700' },
 };
 
-export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onNavigate }: StockClientsProps) {
+interface PaymentLineState {
+  id: string;
+  amount: string;
+  method: PaymentMethod;
+  notes: string;
+  bankName: string;
+  checkNumber: string;
+  dueDate: string;
+  scannedImageUrl: string;
+}
+
+export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [selected, setSelected] = useState<Client | null>(null);
@@ -40,10 +56,10 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   
   const [globalPaymentOpen, setGlobalPaymentOpen] = useState(false);
-  const [globalPaymentForm, setGlobalPaymentForm] = useState({ 
-    amount: '', method: 'CASH' as PaymentMethod, date: new Date().toISOString().split('T')[0], notes: '',
-    bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: ''
-  });
+  const [globalPaymentDate, setGlobalPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentLines, setPaymentLines] = useState<PaymentLineState[]>([
+    { id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
+  ]);
 
   const filtered = useMemo(() =>
     clients.filter(c => {
@@ -65,7 +81,10 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
     for (const inv of invoices) {
       if (inv.clientId) {
         if (inv.status !== 'CANCELLED') {
-          balances.set(inv.clientId, (balances.get(inv.clientId) || 0) + (inv.remainingBalance || 0));
+          const invBalance = typeof inv.remainingBalance === 'number'
+            ? inv.remainingBalance
+            : Math.max(0, (inv.totalAfterDiscount || 0) - (inv.paidAmount || 0));
+          balances.set(inv.clientId, (balances.get(inv.clientId) || 0) + invBalance);
           cas.set(inv.clientId, (cas.get(inv.clientId) || 0) + (inv.totalAfterDiscount || 0));
         }
         iCounts.set(inv.clientId, (iCounts.get(inv.clientId) || 0) + 1);
@@ -76,8 +95,15 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
         oCounts.set(ord.clientId, (oCounts.get(ord.clientId) || 0) + 1);
       }
     }
+    // Déduire les paiements directs sans facture (acomptes / règlements de solde généraux)
+    for (const p of payments) {
+      if (p.clientId && !p.invoiceId && p.status !== 'REJECTED') {
+        const cur = balances.get(p.clientId) || 0;
+        balances.set(p.clientId, Math.max(0, cur - (p.amount || 0)));
+      }
+    }
     return { clientBalances: balances, clientCAs: cas, invoiceCounts: iCounts, orderCounts: oCounts };
-  }, [invoices, orders]);
+  }, [invoices, orders, payments]);
 
   const clientBalance = (clientId: string) => clientBalances.get(clientId) || 0;
   const clientCA = (clientId: string) => clientCAs.get(clientId) || 0;
@@ -113,46 +139,137 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
     UNPAID: 'Non payé', PARTIAL: 'Partiel', PAID: 'Payé',
   };
 
+  const handleOpenGlobalPayment = () => {
+    setGlobalPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentLines([
+      {
+        id: String(Date.now()),
+        amount: selBalance > 0 ? String(selBalance) : '',
+        method: 'CASH',
+        notes: 'Règlement de solde',
+        bankName: '',
+        checkNumber: '',
+        dueDate: '',
+        scannedImageUrl: ''
+      }
+    ]);
+    setGlobalPaymentOpen(true);
+  };
+
+  const addPaymentLine = (defaultMethod: PaymentMethod = 'CHEQUE') => {
+    const totalCurrent = paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+    const rem = Math.max(0, selBalance - totalCurrent);
+    setPaymentLines(prev => [
+      ...prev,
+      {
+        id: String(Date.now() + Math.random()),
+        amount: rem > 0 ? String(rem) : '',
+        method: defaultMethod,
+        notes: '',
+        bankName: '',
+        checkNumber: '',
+        dueDate: '',
+        scannedImageUrl: ''
+      }
+    ]);
+  };
+
+  const removePaymentLine = (id: string) => {
+    if (paymentLines.length <= 1) return;
+    setPaymentLines(prev => prev.filter(l => l.id !== id));
+  };
+
+  const updatePaymentLine = (id: string, updates: Partial<PaymentLineState>) => {
+    setPaymentLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+  };
+
   const handleGlobalPayment = async () => {
-    if (!selected || !globalPaymentForm.amount || !onRecordPayment) return;
-    const amountReceived = parseFloat(globalPaymentForm.amount);
-    if (amountReceived <= 0) return;
+    if (!selected || (!onRecordMultiplePayments && !onRecordPayment)) return;
+    const validLines = paymentLines.filter(l => (parseFloat(l.amount) || 0) > 0);
+    if (validLines.length === 0) {
+      alert('Veuillez saisir au moins un montant valide supérieur à 0.');
+      return;
+    }
+
+    const totalReceived = validLines.reduce((s, l) => s + parseFloat(l.amount), 0);
     setSaving(true);
     try {
-      // Trier les factures impayées de la plus ancienne à la plus récente
+      // Factures impayées triées de la plus ancienne à la plus récente
       const unpaidInvoices = selInvoices
-        .filter(i => i.status !== 'CANCELLED' && i.remainingBalance > 0)
+        .filter(i => i.status !== 'CANCELLED')
+        .map(i => ({
+          ...i,
+          remBalance: typeof i.remainingBalance === 'number'
+            ? i.remainingBalance
+            : Math.max(0, (i.totalAfterDiscount || 0) - (i.paidAmount || 0))
+        }))
+        .filter(i => i.remBalance > 0)
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      let remainingToAllocate = amountReceived;
-      
+      let remainingToAllocate = totalReceived;
+      const invoiceUpdates: { invoiceId: string; paidAmount: number; remainingBalance: number; status: InvoiceStatus }[] = [];
+
       for (const inv of unpaidInvoices) {
         if (remainingToAllocate <= 0) break;
-        const allocated = Math.min(remainingToAllocate, inv.remainingBalance);
-        
-        await onRecordPayment({
-          clientId: selected.id,
+        const alloc = Math.min(remainingToAllocate, inv.remBalance);
+        const newPaid = (inv.paidAmount || 0) + alloc;
+        const newRem = Math.max(0, (inv.totalAfterDiscount || 0) - newPaid);
+        invoiceUpdates.push({
           invoiceId: inv.id,
-          amount: allocated,
-          date: globalPaymentForm.date,
-          method: globalPaymentForm.method,
-          notes: globalPaymentForm.notes || 'Paiement global de solde',
-          ...((globalPaymentForm.method === 'CHEQUE' || globalPaymentForm.method === 'EFFET') ? {
-             bankName: globalPaymentForm.bankName || undefined,
-             checkNumber: globalPaymentForm.checkNumber || undefined,
-             dueDate: globalPaymentForm.dueDate || undefined,
-             scannedImageUrl: globalPaymentForm.scannedImageUrl || undefined,
-             status: 'PENDING'
-          } : {})
+          paidAmount: newPaid,
+          remainingBalance: newRem,
+          status: newRem === 0 ? 'PAID' : 'PARTIAL'
         });
-        remainingToAllocate -= allocated;
+        remainingToAllocate -= alloc;
       }
+
+      // Préparer les enregistrements de paiement
+      const paymentsToRecord: Omit<ClientPayment, 'id' | 'createdAt'>[] = validLines.map((line, idx) => {
+        const amt = parseFloat(line.amount);
+        const p: any = {
+          clientId: selected.id,
+          amount: amt,
+          date: globalPaymentDate,
+          method: line.method,
+          notes: line.notes || (validLines.length > 1 ? `Paiement mixte (${line.method})` : 'Paiement global de solde'),
+        };
+
+        if (invoiceUpdates.length > 0 && invoiceUpdates[idx % invoiceUpdates.length]) {
+          p.invoiceId = invoiceUpdates[idx % invoiceUpdates.length].invoiceId;
+        } else if (unpaidInvoices.length > 0) {
+          p.invoiceId = unpaidInvoices[0].id;
+        }
+
+        if (line.bankName?.trim()) p.bankName = line.bankName.trim();
+        if (line.checkNumber?.trim()) p.checkNumber = line.checkNumber.trim();
+        if (line.dueDate?.trim()) p.dueDate = line.dueDate.trim();
+        if (line.scannedImageUrl?.trim()) p.scannedImageUrl = line.scannedImageUrl.trim();
+        if (line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') {
+          p.status = 'PENDING';
+        }
+        return cleanUndefined(p);
+      });
+
+      if (onRecordMultiplePayments) {
+        await onRecordMultiplePayments(paymentsToRecord, invoiceUpdates);
+      } else if (onRecordPayment) {
+        for (const p of paymentsToRecord) {
+          await onRecordPayment(p);
+        }
+      }
+
       setGlobalPaymentOpen(false);
-      setGlobalPaymentForm({ amount: '', method: 'CASH', date: new Date().toISOString().split('T')[0], notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' });
+      setPaymentLines([{ id: '1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }]);
+    } catch (err: any) {
+      console.error('Erreur lors du règlement du solde:', err);
+      alert('❌ Erreur lors de l\'enregistrement : ' + (err?.message || 'Erreur inconnue'));
     } finally {
       setSaving(false);
     }
   };
+
+  const totalPaymentEntered = paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+  const diffBalance = selBalance - totalPaymentEntered;
 
   const printClientStatement = () => {
     if (!selected) return;
@@ -267,8 +384,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
         
         {/* Actions Rapides */}
         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/10">
-          <Button onClick={() => { setGlobalPaymentForm(f => ({ ...f, amount: String(selBalance) })); setGlobalPaymentOpen(true); }} disabled={selBalance <= 0 || !onRecordPayment} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] rounded-xl h-9">
-            <CreditCard className="w-4 h-4 mr-2" /> Régler le solde
+          <Button onClick={handleOpenGlobalPayment} disabled={!onRecordPayment && !onRecordMultiplePayments} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] rounded-xl h-9">
+            <CreditCard className="w-4 h-4 mr-2" /> {selBalance > 0 ? `Régler le solde (${fmt$(selBalance)} MAD)` : 'Enregistrer un règlement / Acompte'}
           </Button>
           <Button onClick={printClientStatement} className="bg-white/10 hover:bg-white/20 text-white font-black uppercase text-[10px] rounded-xl h-9">
             <Printer className="w-4 h-4 mr-2" /> Exporter Relevé (PDF)
@@ -327,7 +444,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
           { id: 'invoices' as const, label: `Factures (${selInvoices.length})` },
           { id: 'orders' as const, label: `Commandes (${selOrders.length})` },
           { id: 'payments' as const, label: `Paiements (${selPayments.length})` },
-          { id: 'checks' as const, label: `Chèques / LCN (${selPayments.filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET').length})` },
+          { id: 'checks' as const, label: `Chèques / LC & Effets (${selPayments.filter(p => (p.method as string) === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET' || p.method === 'LC').length})` },
         ].map(({ id, label }) => (
           <button key={id} onClick={() => setActiveTab(id)}
             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
@@ -399,8 +516,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
           </table>
         )}
         {activeTab === 'checks' && (
-          selPayments.filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET').length === 0 
-            ? <p className="text-center text-stone-300 font-black uppercase text-[10px] py-12">Aucun chèque ou effet</p> 
+          selPayments.filter(p => (p.method as string) === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET' || p.method === 'LC').length === 0 
+            ? <p className="text-center text-stone-300 font-black uppercase text-[10px] py-12">Aucun chèque ou effet / LC</p> 
             : <table className="w-full">
                 <thead>
                   <tr className="bg-stone-50 border-b border-stone-100">
@@ -411,13 +528,13 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                 </thead>
                 <tbody className="divide-y divide-stone-50">
                   {selPayments
-                    .filter(p => p.method === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET')
+                    .filter(p => (p.method as string) === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET' || p.method === 'LC')
                     .sort((a, b) => b.date.localeCompare(a.date))
                     .map(p => (
                     <tr key={p.id} className="hover:bg-stone-50/50">
                       <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{p.date}</td>
                       <td className="px-4 py-3 text-[10px] font-black text-amber-700">
-                        {(p.method === 'CHECK' || p.method === 'CHEQUE') ? 'CHÈQUE' : 'EFFET (LCN)'}
+                        {((p.method as string) === 'CHECK' || p.method === 'CHEQUE') ? 'CHÈQUE' : 'LC / EFFET'}
                       </td>
                       <td className="px-4 py-3 text-[10px] font-bold text-stone-900">{p.checkNumber || '—'}</td>
                       <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{p.bankName || '—'}</td>
@@ -429,6 +546,315 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
               </table>
         )}
       </div>
+      {/* Modal Paiement Global (Multi-modes: Cash, Chèque, LC, Virement) */}
+      <Dialog open={globalPaymentOpen} onOpenChange={setGlobalPaymentOpen}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-800 to-teal-700 p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-lg font-black uppercase tracking-tight">Règlement du Solde Client</DialogTitle>
+                <p className="text-xs font-bold text-emerald-200 mt-1">Client : <span className="text-white uppercase font-black">{selected?.name}</span></p>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-200">Solde Actuel Dû</span>
+                <p className="text-2xl font-black text-white">{fmt$(selBalance)} MAD</p>
+              </div>
+            </div>
+
+            {/* Suivi récapitulatif en temps réel */}
+            <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10 text-center">
+              <div className="bg-white/10 rounded-xl p-2.5">
+                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Total à régler</span>
+                <p className="text-sm font-black text-white mt-0.5">{fmt$(selBalance)} MAD</p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-2.5">
+                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
+                <p className={`text-sm font-black mt-0.5 ${totalPaymentEntered > 0 ? 'text-white' : 'text-emerald-300'}`}>
+                  {fmt$(totalPaymentEntered)} MAD
+                </p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-2.5">
+                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-200">État</span>
+                <p className={`text-sm font-black mt-0.5 ${
+                  totalPaymentEntered === 0 ? 'text-emerald-200' :
+                  diffBalance === 0 ? 'text-emerald-300' :
+                  diffBalance > 0 ? 'text-amber-300' : 'text-cyan-200'
+                }`}>
+                  {totalPaymentEntered === 0 ? 'En attente' :
+                   diffBalance === 0 ? 'Couvert (100%)' :
+                   diffBalance > 0 ? `Reste ${fmt$(diffBalance)}` : `+${fmt$(-diffBalance)} avance`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-4 bg-white max-h-[72vh] overflow-y-auto">
+            {/* Info répartition automatique */}
+            <div className="flex items-center gap-2 bg-emerald-50 text-emerald-900 text-[11px] p-3 rounded-xl font-bold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Ce règlement sera automatiquement affecté aux factures impayées du client (de la plus ancienne à la plus récente).</span>
+            </div>
+
+            {/* Date générale de transaction */}
+            <div className="flex items-center gap-3">
+              <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest shrink-0">Date du règlement :</Label>
+              <Input
+                type="date"
+                value={globalPaymentDate}
+                onChange={e => setGlobalPaymentDate(e.target.value)}
+                className="h-10 rounded-xl border-stone-200 font-bold text-xs max-w-xs"
+              />
+            </div>
+
+            {/* Lignes de paiements (Multi-Modes) */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-black text-stone-800 uppercase tracking-widest">
+                  Modes de règlement ({paymentLines.length})
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPaymentLine('CASH')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-emerald-700 hover:border-emerald-300">
+                    + Espèces
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPaymentLine('CHEQUE')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-blue-700 hover:border-blue-300">
+                    + Chèque
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPaymentLine('EFFET')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-amber-700 hover:border-amber-300">
+                    + LC (Effet)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addPaymentLine('VIREMENT')}
+                    className="h-7 text-[9px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
+                    + Virement
+                  </Button>
+                </div>
+              </div>
+
+              {paymentLines.map((line, idx) => (
+                <div key={line.id} className="p-4 rounded-2xl border-2 border-stone-100 bg-stone-50/60 hover:border-stone-200 transition-all space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-stone-200 text-stone-700">
+                      Règlement #{idx + 1}
+                    </span>
+                    {paymentLines.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removePaymentLine(line.id)}
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Mode de paiement *</Label>
+                      <Select value={line.method} onValueChange={v => updatePaymentLine(line.id, { method: v as PaymentMethod })}>
+                        <SelectTrigger className="h-10 rounded-xl border-stone-200 bg-white font-bold text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CASH">💵 Espèces (Cash)</SelectItem>
+                          <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
+                          <SelectItem value="EFFET">📜 LC (Lettre de Change / Effet)</SelectItem>
+                          <SelectItem value="VIREMENT">🏦 Virement bancaire</SelectItem>
+                          <SelectItem value="AUTRE">📋 Autre mode</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant (MAD) *</Label>
+                        {diffBalance > 0 && parseFloat(line.amount || '0') !== selBalance && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const otherSum = paymentLines.filter(l => l.id !== line.id).reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+                              updatePaymentLine(line.id, { amount: String(Math.max(0, selBalance - otherSum)) });
+                            }}
+                            className="text-[8px] font-bold text-emerald-600 hover:underline">
+                            Compléter le reste
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="any"
+                        placeholder="0.00"
+                        value={line.amount}
+                        onChange={e => updatePaymentLine(line.id, { amount: e.target.value })}
+                        className="h-10 text-base font-black rounded-xl border-stone-200 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Champs spécifiques : Chèque ou LC (Effet) */}
+                  {(line.method === 'CHEQUE' || line.method === 'EFFET' || line.method === 'LC' || line.method === 'LCN') && (
+                    <div className="pt-3 border-t border-stone-200/60 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                            Banque
+                          </Label>
+                          <Input
+                            placeholder="Ex: Attijariwafa, BCP, BMCE..."
+                            value={line.bankName}
+                            onChange={e => updatePaymentLine(line.id, { bankName: e.target.value })}
+                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                            {line.method === 'CHEQUE' ? 'N° de Chèque' : 'N° LC / Effet'}
+                          </Label>
+                          <Input
+                            placeholder={line.method === 'CHEQUE' ? 'Ex: CHQ-987654' : 'Ex: LC-123456'}
+                            value={line.checkNumber}
+                            onChange={e => updatePaymentLine(line.id, { checkNumber: e.target.value })}
+                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                            Date d'échéance
+                          </Label>
+                          <Input
+                            type="date"
+                            value={line.dueDate}
+                            onChange={e => updatePaymentLine(line.id, { dueDate: e.target.value })}
+                            className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Photo / Scan optionnel */}
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                          Photo / Scan (Optionnel)
+                        </Label>
+                        <div className="relative border border-dashed border-stone-300 rounded-xl p-3 bg-white hover:bg-stone-50 transition-colors flex items-center justify-between">
+                          {line.scannedImageUrl ? (
+                            <div className="flex items-center gap-3 w-full">
+                              <img src={line.scannedImageUrl} alt="Scan" className="w-16 h-10 rounded object-contain bg-stone-100" />
+                              <span className="text-[10px] font-bold text-emerald-600">Scan joint</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => updatePaymentLine(line.id, { scannedImageUrl: '' })}
+                                className="ml-auto h-7 text-[9px] text-red-600 font-black">
+                                Supprimer
+                              </Button>
+                            </div>
+                          ) : (
+                            <label className="flex items-center gap-2 cursor-pointer w-full text-stone-500 hover:text-stone-700">
+                              <CreditCard className="w-4 h-4 text-stone-400" />
+                              <span className="text-[10px] font-bold">Ajouter une photo ou un scan du chèque / LC</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="sr-only"
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => updatePaymentLine(line.id, { scannedImageUrl: reader.result as string });
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Champs spécifiques : Virement */}
+                  {line.method === 'VIREMENT' && (
+                    <div className="pt-3 border-t border-stone-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Banque émettrice / réceptrice</Label>
+                        <Input
+                          placeholder="Ex: Attijariwafa, CIH..."
+                          value={line.bankName}
+                          onChange={e => updatePaymentLine(line.id, { bankName: e.target.value })}
+                          className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Référence Virement</Label>
+                        <Input
+                          placeholder="Ex: VIR-2026-9901"
+                          value={line.checkNumber}
+                          onChange={e => updatePaymentLine(line.id, { checkNumber: e.target.value })}
+                          className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remarques / Référence libre */}
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Référence libre</Label>
+                    <Input
+                      placeholder="Commentaire ou numéro de reçu..."
+                      value={line.notes}
+                      onChange={e => updatePaymentLine(line.id, { notes: e.target.value })}
+                      className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => addPaymentLine()}
+                className="w-full h-11 rounded-2xl border-dashed border-2 border-stone-300 hover:border-emerald-500 text-stone-600 hover:text-emerald-700 font-black uppercase text-[10px] tracking-widest gap-2">
+                <Plus className="w-4 h-4" /> Ajouter un autre moyen de paiement (Chèque, LC, Virement, Espèces...)
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-stone-50 border-t border-stone-100 gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setGlobalPaymentOpen(false)}
+              className="flex-1 font-black uppercase text-[10px] rounded-xl h-11">
+              Annuler
+            </Button>
+            <Button
+              onClick={handleGlobalPayment}
+              disabled={totalPaymentEntered <= 0 || saving}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl shadow-lg shadow-emerald-600/20">
+              {saving ? 'Validation en cours...' : `Valider le paiement (${fmt$(totalPaymentEntered)} MAD)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
@@ -620,122 +1046,6 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
         </DialogContent>
       </Dialog>
       
-      {/* Modal Paiement Global */}
-      <Dialog open={globalPaymentOpen} onOpenChange={setGlobalPaymentOpen}>
-        <DialogContent className="sm:max-w-xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 p-6 text-white">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Paiement Global (Solde)</DialogTitle>
-            <p className="text-[10px] font-bold text-emerald-200 mt-1">Client : {selected?.name}</p>
-            <p className="text-lg font-black text-white mt-2">Solde Total Dû : {fmt$(selBalance)}</p>
-          </div>
-          <div className="p-5 space-y-3 bg-white max-h-[70vh] overflow-y-auto">
-            <div className="bg-emerald-50 text-emerald-800 text-[10px] p-3 rounded-xl font-bold mb-4">
-              Ce paiement sera automatiquement réparti sur les factures impayées du client, en commençant par les plus anciennes.
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Montant Reçu *</Label>
-                <Input type="number" min={0} max={selBalance} step="any" value={globalPaymentForm.amount}
-                  onChange={e => setGlobalPaymentForm(f => ({ ...f, amount: e.target.value }))}
-                  className="h-11 text-lg font-black rounded-xl border-stone-200" autoFocus />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Méthode *</Label>
-                <Select value={globalPaymentForm.method} onValueChange={v => setGlobalPaymentForm(f => ({ ...f, method: v as PaymentMethod }))}>
-                  <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CASH">💵 Espèces</SelectItem>
-                    <SelectItem value="VIREMENT">🏦 Virement</SelectItem>
-                    <SelectItem value="CHEQUE">📄 Chèque</SelectItem>
-                    <SelectItem value="EFFET">📜 Effet Bancaire</SelectItem>
-                    <SelectItem value="AUTRE">📋 Autre</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date *</Label>
-                <Input type="date" value={globalPaymentForm.date}
-                  onChange={e => setGlobalPaymentForm(f => ({ ...f, date: e.target.value }))}
-                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Notes / Réf.</Label>
-                <Input placeholder="Infos supplémentaires..." value={globalPaymentForm.notes}
-                  onChange={e => setGlobalPaymentForm(f => ({ ...f, notes: e.target.value }))}
-                  className="h-11 rounded-xl border-stone-200 font-bold text-xs" />
-              </div>
-            </div>
-
-            {(globalPaymentForm.method === 'CHEQUE' || globalPaymentForm.method === 'EFFET') && (
-              <div className="pt-4 border-t border-stone-100 mt-4 space-y-4">
-                <h4 className="text-[10px] font-black text-stone-800 uppercase tracking-widest flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-emerald-600" /> Détails Bancaires
-                </h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Nom de la Banque</Label>
-                    <Input placeholder="Ex: Attijariwafa Bank" value={globalPaymentForm.bankName}
-                      onChange={e => setGlobalPaymentForm(f => ({ ...f, bankName: e.target.value }))}
-                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">N° Chèque / Effet</Label>
-                    <Input placeholder="Ex: 0123456" value={globalPaymentForm.checkNumber}
-                      onChange={e => setGlobalPaymentForm(f => ({ ...f, checkNumber: e.target.value }))}
-                      className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Date d'échéance prévue</Label>
-                  <Input type="date" value={globalPaymentForm.dueDate}
-                    onChange={e => setGlobalPaymentForm(f => ({ ...f, dueDate: e.target.value }))}
-                    className="h-10 rounded-xl border-stone-200 text-xs font-bold" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Scan du document (Photo)</Label>
-                  <div className="relative border-2 border-dashed border-stone-200 rounded-xl p-4 hover:bg-stone-50 transition-colors flex flex-col items-center justify-center text-center">
-                    {globalPaymentForm.scannedImageUrl ? (
-                      <div className="relative w-full">
-                        <img src={globalPaymentForm.scannedImageUrl} alt="Scan" className="w-full rounded-lg max-h-40 object-contain" />
-                        <button type="button" onClick={() => setGlobalPaymentForm(f => ({ ...f, scannedImageUrl: '' }))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <CreditCard className="w-6 h-6 text-stone-300 mb-2" />
-                        <span className="text-[10px] font-bold text-stone-500">Cliquez ou prenez une photo</span>
-                        <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setGlobalPaymentForm(f => ({ ...f, scannedImageUrl: reader.result as string }));
-                            reader.readAsDataURL(file);
-                          }
-                        }} />
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="p-4 bg-stone-50 gap-2">
-            <Button variant="ghost" onClick={() => setGlobalPaymentOpen(false)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>
-            <Button onClick={handleGlobalPayment} disabled={!globalPaymentForm.amount || saving}
-              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] h-11 rounded-xl">
-              {saving ? 'Validation...' : 'Valider le paiement'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

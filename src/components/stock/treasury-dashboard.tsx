@@ -23,12 +23,13 @@ export default function TreasuryDashboard({ payments, clients, invoices, onUpdat
   // Statistiques globales
   const stats = useMemo(() => {
     let directCash = 0; // CASH + VIREMENT + AUTRE
-    let pendingEffects = 0; // EFFET / CHEQUE (PENDING)
-    let clearedEffects = 0; // EFFET / CHEQUE (CLEARED)
-    let rejectedEffects = 0; // EFFET / CHEQUE (REJECTED)
+    let pendingEffects = 0; // EFFET / CHEQUE / LC (PENDING)
+    let clearedEffects = 0; // EFFET / CHEQUE / LC (CLEARED)
+    let rejectedEffects = 0; // EFFET / CHEQUE / LC (REJECTED)
 
     payments.forEach(p => {
-      if (p.method === 'CHEQUE' || p.method === 'EFFET') {
+      const isPaper = p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN';
+      if (isPaper) {
         if (p.status === 'CLEARED') clearedEffects += p.amount;
         else if (p.status === 'REJECTED') rejectedEffects += p.amount;
         else pendingEffects += p.amount; // PENDING par défaut
@@ -43,7 +44,7 @@ export default function TreasuryDashboard({ payments, clients, invoices, onUpdat
   // Liste des effets en attente triés par date d'échéance (plus proche d'abord)
   const pendingPayments = useMemo(() => {
     return payments
-      .filter(p => (p.method === 'CHEQUE' || p.method === 'EFFET') && p.status !== 'CLEARED' && p.status !== 'REJECTED')
+      .filter(p => (p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') && p.status !== 'CLEARED' && p.status !== 'REJECTED')
       .sort((a, b) => {
         const d1 = a.dueDate || '9999-12-31';
         const d2 = b.dueDate || '9999-12-31';
@@ -60,7 +61,8 @@ export default function TreasuryDashboard({ payments, clients, invoices, onUpdat
       { name: '90+ jours', min: 91, max: 9999, amount: 0 },
     ];
     payments.forEach(p => {
-      if ((p.method === 'CHEQUE' || p.method === 'EFFET') && p.status !== 'CLEARED' && p.status !== 'REJECTED' && p.dueDate) {
+      const isPaper = p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN';
+      if (isPaper && p.status !== 'CLEARED' && p.status !== 'REJECTED' && p.dueDate) {
         const due = new Date(p.dueDate);
         const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         const period = periods.find(pr => daysUntilDue >= pr.min && daysUntilDue <= pr.max);
@@ -159,7 +161,11 @@ export default function TreasuryDashboard({ payments, clients, invoices, onUpdat
                 return (
                   <tr key={p.id} className="hover:bg-stone-50/30 transition-colors">
                     <td className="px-5 py-4">
-                      <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${p.method === 'CHEQUE' ? 'bg-blue-50 text-blue-700' : 'bg-violet-50 text-violet-700'}`}>
+                      <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${
+                        p.method === 'CHEQUE' ? 'bg-blue-50 text-blue-700' :
+                        (p.method === 'LC' || p.method === 'LCN') ? 'bg-purple-50 text-purple-700' :
+                        'bg-violet-50 text-violet-700'
+                      }`}>
                         {p.method}
                       </span>
                     </td>

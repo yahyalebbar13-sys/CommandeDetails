@@ -428,7 +428,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
                     <td className="px-5 py-3">
                       <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${
                         p.method === 'CHEQUE' ? 'bg-blue-50 text-blue-700' :
-                        p.method === 'EFFET' ? 'bg-violet-50 text-violet-700' :
+                        (p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') ? 'bg-violet-50 text-violet-700' :
                         p.method === 'VIREMENT' ? 'bg-emerald-50 text-emerald-700' :
                         'bg-stone-50 text-stone-600'
                       }`}>{p.method}</span>

@@ -289,7 +289,19 @@ export type Invoice = {
   createdAt?: any;
 };
 
-export type PaymentMethod = 'CASH' | 'VIREMENT' | 'CHEQUE' | 'EFFET' | 'AUTRE';
+export type PaymentMethod = 'CASH' | 'VIREMENT' | 'CHEQUE' | 'EFFET' | 'LC' | 'LCN' | 'AUTRE';
+
+export interface PaymentLine {
+  id: string;
+  amount: number;
+  method: PaymentMethod;
+  notes?: string;
+  bankName?: string;
+  checkNumber?: string;
+  dueDate?: string;
+  scannedImageUrl?: string;
+  status?: 'PENDING' | 'CLEARED' | 'REJECTED';
+}
 
 export type ClientPayment = {
   id: string;
@@ -299,10 +311,10 @@ export type ClientPayment = {
   date: string;
   method: PaymentMethod;
   notes?: string;
-  // Champs pour Chèque / Effet bancaire
+  // Champs pour Chèque / Effet bancaire / LC
   bankName?: string;
   checkNumber?: string;
-  dueDate?: string; // Date d'échéance de l'effet
+  dueDate?: string; // Date d'échéance de l'effet / LC
   status?: 'PENDING' | 'CLEARED' | 'REJECTED'; // PENDING par défaut pour les effets non encaissés
   scannedImageUrl?: string; // URL ou base64 du scan
   createdAt?: any;
