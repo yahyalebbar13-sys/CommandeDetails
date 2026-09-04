@@ -39,10 +39,11 @@ interface StockInvoicesProps {
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const STATUS_BADGE: Record<InvoiceStatus, { label: string; cls: string }> = {
-  UNPAID:    { label: 'Non payé',  cls: 'bg-red-100 text-red-700 border-red-200' },
-  PARTIAL:   { label: 'Partiel',   cls: 'bg-orange-100 text-orange-700 border-orange-200' },
-  PAID:      { label: 'Payé',      cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  CANCELLED: { label: 'Annulé',    cls: 'bg-stone-100 text-stone-500 border-stone-200' },
+  UNPAID:    { label: 'Non payé',   cls: 'bg-red-100 text-red-700 border-red-200' },
+  PARTIAL:   { label: 'Partiel',    cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+  PENDING:   { label: 'En attente', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+  PAID:      { label: 'Payé',       cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  CANCELLED: { label: 'Annulé',     cls: 'bg-stone-100 text-stone-500 border-stone-200' },
 };
 
 export default function StockInvoices({ invoices, clients, payments, onRecordPayment, onRecordMultiplePayments, onUpdateStatus, onNavigate }: StockInvoicesProps) {
@@ -335,6 +336,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
           <SelectContent>
             <SelectItem value="all">Tous</SelectItem>
             <SelectItem value="UNPAID">Non payé</SelectItem>
+            <SelectItem value="PENDING">En attente (Chèque/LC)</SelectItem>
             <SelectItem value="PARTIAL">Partiel</SelectItem>
             <SelectItem value="PAID">Payé</SelectItem>
             <SelectItem value="CANCELLED">Annulé</SelectItem>

@@ -60,6 +60,9 @@ interface StockSaleFlowProps {
   generalCategories: any[];
   clients: Client[];
   invoices: Invoice[];              // Pour vérifier le plafond de crédit
+  stores?: any[];
+  selectedStoreId?: string;
+  onStoreChange?: (storeId: string) => void;
   onCreateOrder: (order: Omit<SaleOrder, 'id' | 'createdAt'>) => Promise<string>;
   onCreateInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt'>, movementsOut: any[], initialPayments?: any[]) => Promise<void>;
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<Client>;
@@ -76,6 +79,7 @@ const STEPS = [
 
 export default function StockSaleFlow({
   stockItems, categories, generalCategories, clients, invoices, userRole = 'ADMIN',
+  stores = [], selectedStoreId = 'CHRIFA', onStoreChange,
   onCreateOrder, onCreateInvoice, onCreateClient, onNavigate,
 }: StockSaleFlowProps) {
   const [step, setStep] = useState(0);
@@ -519,10 +523,14 @@ export default function StockSaleFlow({
             quantity: remainingQty,
             date: today,
             notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
-            storeId: l.sourceStore || null,
+            storeId: l.sourceStore || selectedStoreId || null,
           });
         }
       }
+
+      const hasPaperEffects = validLines.some(l => 
+        l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN'
+      );
 
       const initialPayments = isFullCredit ? [] : validLines.map(l => ({
         amount: parseFloat(l.amount),
@@ -539,11 +547,15 @@ export default function StockSaleFlow({
         clientId: selectedClient?.id || undefined,
         cashingCompany: l.cashingCompany || undefined,
         depositBank: 'Attijariwafa Bank',
+        storeId: selectedStoreId,
       }));
 
-      let invStatus: 'PAID' | 'PARTIAL' | 'UNPAID' = 'PAID';
+      let invStatus: any = 'PAID';
       if (isFullCredit || totalPaidCalculated <= 0) {
         invStatus = 'UNPAID';
+      } else if (hasPaperEffects) {
+        // Un chèque ou une LC a été donné : le paiement est EN ATTENTE d'encaissement, PAS PAYÉ !
+        invStatus = 'PENDING';
       } else if (balanceRemaining > 0.01) {
         invStatus = 'PARTIAL';
       } else {
@@ -567,6 +579,7 @@ export default function StockSaleFlow({
         status: invStatus,
         paymentMethod: invMethod,
         date: today,
+        storeId: selectedStoreId,
         notes,
       };
       if (selectedClient?.id) invoiceData.clientId = selectedClient.id;
@@ -692,6 +705,35 @@ export default function StockSaleFlow({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+
+      {/* ── Sélecteur de Magasin pour Admin ── */}
+      {userRole === 'ADMIN' && stores && stores.length > 0 && (
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-200 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center text-violet-600">
+              <ShoppingBag className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">Magasin de vente (Caisse)</p>
+              <p className="text-sm font-black text-stone-800">
+                {stores.find(s => s.id === selectedStoreId)?.name || selectedStoreId}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-stone-500">Choisir le magasin :</span>
+            <select
+              value={selectedStoreId}
+              onChange={(e) => onStoreChange && onStoreChange(e.target.value)}
+              className="h-10 px-3 rounded-xl border border-stone-200 bg-stone-50 font-bold text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
+            >
+              {stores.filter(s => s.type === 'STORE').map(s => (
+                <option key={s.id} value={s.id}>🏪 {s.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* ── Stepper ── */}
       <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-5">
@@ -1148,9 +1190,9 @@ export default function StockSaleFlow({
                 paymentStatus === 'PAID' ? 'border-emerald-600 bg-emerald-600 text-white shadow-lg' : 'border-stone-200 bg-white hover:border-emerald-300'
               }`}>
               <CheckCircle2 className="w-8 h-8 mb-3 opacity-80" />
-              <p className="font-black text-lg uppercase tracking-tighter">Payé immédiatement (Comptant / Effets)</p>
+              <p className="font-black text-lg uppercase tracking-tighter">Règlement (Comptant / Chèque / LC)</p>
               <p className={`text-[10px] font-bold mt-1 ${paymentStatus === 'PAID' ? 'text-emerald-100' : 'text-stone-400'}`}>
-                Règlement par Espèces, Chèque, LC, Virement ou Mixte.
+                Espèces encaissées, ou Effets (Chèque / LC) enregistrés en attente d'encaissement.
               </p>
             </button>
 

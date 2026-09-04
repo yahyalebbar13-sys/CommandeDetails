@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
   ChevronLeft, AlertTriangle, CheckCircle2, BarChart3, DollarSign,
-  Boxes, TrendingUp, Hash, Calendar, Tag, Info
+  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -618,11 +618,13 @@ function ProductsTable({
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
   stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
-  isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement
+  isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement,
+  stores, selectedWarehouseId, onWarehouseChange
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
   isInventoryView?: boolean; activeStore?: string; adminUid?: string | null; onAddMovement?: any;
+  stores?: any[]; selectedWarehouseId?: string; onWarehouseChange?: (id: string) => void;
 }) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -637,10 +639,12 @@ export default function StockFiches({
     return rawStockItems.filter(i => i.currentQty > 0);
   }, [rawStockItems, inventoryMode, isInventoryView]);
 
+  const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : activeStore;
+
   const handleValidateInventory = async () => {
     if (!user || !firestore) return;
-    if (activeStore === 'ALL') {
-      toast({ title: 'Erreur', description: 'Veuillez sélectionner un magasin spécifique pour l\'inventaire', variant: 'destructive' });
+    if (targetStore === 'ALL') {
+      toast({ title: 'Erreur', description: 'Veuillez sélectionner un entrepôt ou magasin spécifique pour l\'inventaire', variant: 'destructive' });
       return;
     }
 
@@ -664,7 +668,7 @@ export default function StockFiches({
             quantity: absDiff,
             reason: 'INVENTAIRE',
             date: new Date().toISOString().split('T')[0],
-            storeId: activeStore,
+            storeId: targetStore,
             productName: item.productName,
             categoryId: item.categoryId,
             color: item.color,
@@ -708,6 +712,34 @@ export default function StockFiches({
   const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
 
+  const warehouseSelectorElement = isInventoryView && userRole === 'ADMIN' && stores && stores.length > 0 ? (
+    <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-wrap items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+          <Warehouse className="w-5 h-5" />
+        </div>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">Entrepôt à inventorier (Admin)</p>
+          <p className="text-sm font-black text-stone-800">
+            {stores.find(s => s.id === targetStore)?.name || targetStore}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-bold text-stone-500">Choisir l'entrepôt :</span>
+        <select
+          value={targetStore}
+          onChange={(e) => onWarehouseChange && onWarehouseChange(e.target.value)}
+          className="h-10 px-3 rounded-xl border border-stone-200 bg-stone-50 font-bold text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        >
+          {stores.filter(s => s.type === 'WAREHOUSE').map(w => (
+            <option key={w.id} value={w.id}>📦 {w.name}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  ) : null;
+
   // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
@@ -720,6 +752,7 @@ export default function StockFiches({
           onBack={() => setSelSubCat(null)}
           headerProp={
             <div className="space-y-4 mb-6">
+              {warehouseSelectorElement}
               <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
               {isInventoryView && (
                 <div className="flex justify-end gap-3">
@@ -756,6 +789,7 @@ export default function StockFiches({
     );
     return (
       <div className="space-y-6">
+        {warehouseSelectorElement}
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
         {isInventoryView && (
           <div className="flex justify-end gap-3">
@@ -842,6 +876,7 @@ export default function StockFiches({
   // ── Niveau 1 : familles ───────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {warehouseSelectorElement}
       <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
       {isInventoryView && (
         <div className="flex justify-end gap-3">

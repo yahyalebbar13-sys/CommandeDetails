@@ -260,7 +260,7 @@ export type SaleOrder = {
   createdAt?: any;
 };
 
-export type InvoiceStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'CANCELLED';
+export type InvoiceStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'PENDING' | 'CANCELLED';
 
 // Taux de TVA marocains autorisés
 export type TvaRate = 0 | 7 | 10 | 14 | 20;

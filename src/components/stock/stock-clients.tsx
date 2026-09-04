@@ -47,8 +47,9 @@ interface PaymentLineState {
 export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [unpaidOnlyFilter, setUnpaidOnlyFilter] = useState(false);
   const [selected, setSelected] = useState<Client | null>(null);
-  const [activeTab, setActiveTab] = useState<'orders' | 'invoices' | 'payments' | 'checks'>('invoices');
+  const [activeTab, setActiveTab] = useState<'impayes' | 'invoices' | 'orders' | 'payments' | 'checks'>('impayes');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '', category: '', ice: '', identifiantFiscal: '', creditLimit: 0, creditBlocked: false });
   const [saving, setSaving] = useState(false);
@@ -62,52 +63,71 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
   ]);
   const [viewScanUrl, setViewScanUrl] = useState<string | null>(null);
 
+  const resolveClientId = (id?: string, name?: string) => {
+    if (id && clients.some(c => c.id === id)) return id;
+    if (name) {
+      const found = clients.find(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+      if (found) return found.id;
+    }
+    return id;
+  };
+
+  const { clientBalances, clientCAs, clientPendingChecks, invoiceCounts, orderCounts } = useMemo(() => {
+    const balances = new Map<string, number>();
+    const cas = new Map<string, number>();
+    const pendingChecks = new Map<string, number>();
+    const iCounts = new Map<string, number>();
+    const oCounts = new Map<string, number>();
+    
+    for (const inv of invoices) {
+      const cId = resolveClientId(inv.clientId, inv.clientName);
+      if (cId) {
+        if (inv.status !== 'CANCELLED') {
+          const invBalance = typeof inv.remainingBalance === 'number'
+            ? inv.remainingBalance
+            : Math.max(0, (inv.totalAfterDiscount || 0) - (inv.paidAmount || 0));
+          balances.set(cId, (balances.get(cId) || 0) + invBalance);
+          cas.set(cId, (cas.get(cId) || 0) + (inv.totalAfterDiscount || 0));
+        }
+        iCounts.set(cId, (iCounts.get(cId) || 0) + 1);
+      }
+    }
+    for (const ord of orders) {
+      const cId = resolveClientId(ord.clientId, ord.clientName);
+      if (cId) {
+        oCounts.set(cId, (oCounts.get(cId) || 0) + 1);
+      }
+    }
+    for (const p of payments) {
+      const cId = resolveClientId(p.clientId, (p as any).clientName);
+      if (cId) {
+        const isPaper = p.method === 'CHEQUE' || p.method === 'LC' || p.method === 'EFFET' || p.method === 'LCN';
+        if (isPaper && p.status === 'PENDING') {
+          pendingChecks.set(cId, (pendingChecks.get(cId) || 0) + (p.amount || 0));
+        }
+        if (!p.invoiceId && (p.status === 'CONFIRMED' || p.status === 'CLEARED' || p.method === 'CASH')) {
+          const cur = balances.get(cId) || 0;
+          balances.set(cId, Math.max(0, cur - (p.amount || 0)));
+        }
+      }
+    }
+    return { clientBalances: balances, clientCAs: cas, clientPendingChecks: pendingChecks, invoiceCounts: iCounts, orderCounts: oCounts };
+  }, [invoices, orders, payments, clients]);
+
+  const clientBalance = (clientId: string) => clientBalances.get(clientId) || 0;
+  const clientCA = (clientId: string) => clientCAs.get(clientId) || 0;
+
   const filtered = useMemo(() =>
     clients.filter(c => {
       const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.phone?.includes(search) ||
         c.email?.toLowerCase().includes(search.toLowerCase());
       const matchCat = categoryFilter === 'ALL' || c.category === categoryFilter;
-      return matchSearch && matchCat;
+      const matchUnpaid = !unpaidOnlyFilter || (clientBalance(c.id) > 0 || (clientPendingChecks.get(c.id) || 0) > 0);
+      return matchSearch && matchCat && matchUnpaid;
     }),
-    [clients, search, categoryFilter]
+    [clients, search, categoryFilter, unpaidOnlyFilter, clientBalances, clientPendingChecks]
   );
-
-  const { clientBalances, clientCAs, invoiceCounts, orderCounts } = useMemo(() => {
-    const balances = new Map<string, number>();
-    const cas = new Map<string, number>();
-    const iCounts = new Map<string, number>();
-    const oCounts = new Map<string, number>();
-    
-    for (const inv of invoices) {
-      if (inv.clientId) {
-        if (inv.status !== 'CANCELLED') {
-          const invBalance = typeof inv.remainingBalance === 'number'
-            ? inv.remainingBalance
-            : Math.max(0, (inv.totalAfterDiscount || 0) - (inv.paidAmount || 0));
-          balances.set(inv.clientId, (balances.get(inv.clientId) || 0) + invBalance);
-          cas.set(inv.clientId, (cas.get(inv.clientId) || 0) + (inv.totalAfterDiscount || 0));
-        }
-        iCounts.set(inv.clientId, (iCounts.get(inv.clientId) || 0) + 1);
-      }
-    }
-    for (const ord of orders) {
-      if (ord.clientId) {
-        oCounts.set(ord.clientId, (oCounts.get(ord.clientId) || 0) + 1);
-      }
-    }
-    // Déduire les paiements directs sans facture (acomptes / règlements de solde généraux)
-    for (const p of payments) {
-      if (p.clientId && !p.invoiceId && p.status !== 'REJECTED') {
-        const cur = balances.get(p.clientId) || 0;
-        balances.set(p.clientId, Math.max(0, cur - (p.amount || 0)));
-      }
-    }
-    return { clientBalances: balances, clientCAs: cas, invoiceCounts: iCounts, orderCounts: oCounts };
-  }, [invoices, orders, payments]);
-
-  const clientBalance = (clientId: string) => clientBalances.get(clientId) || 0;
-  const clientCA = (clientId: string) => clientCAs.get(clientId) || 0;
 
   const handleCreate = async () => {
     if (!form.name.trim()) return;
@@ -122,22 +142,41 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
     setEditMode(false);
   };
 
-  const selOrders   = orders.filter(o => o.clientId === selected?.id);
-  const selInvoices = invoices.filter(i => i.clientId === selected?.id);
-  const selPayments = payments.filter(p => p.clientId === selected?.id);
+  const selOrders   = orders.filter(o => o.clientId === selected?.id || (selected?.name && o.clientName?.trim().toLowerCase() === selected.name.trim().toLowerCase()));
+  const selInvoices = invoices.filter(i => i.clientId === selected?.id || (selected?.name && i.clientName?.trim().toLowerCase() === selected.name.trim().toLowerCase()));
+  const selPayments = payments.filter(p => p.clientId === selected?.id || (selected?.name && (p as any).clientName?.trim().toLowerCase() === selected.name.trim().toLowerCase()));
   const selBalance  = selected ? clientBalance(selected.id) : 0;
   const selCA       = selected ? clientCA(selected.id) : 0;
+  const selPendingChecks = selected ? (clientPendingChecks.get(selected.id) || 0) : 0;
   const selPaid     = selPayments.reduce((s, p) => s + p.amount, 0);
+
+  const selUnpaidInvoices = useMemo(() => {
+    return selInvoices.filter(i => 
+      i.status !== 'CANCELLED' && (
+        i.status === 'UNPAID' || 
+        i.status === 'PARTIAL' || 
+        i.status === 'PENDING' || 
+        (i.remainingBalance != null && i.remainingBalance > 0)
+      )
+    ).sort((a, b) => b.date.localeCompare(a.date));
+  }, [selInvoices]);
+
+  const selPendingEffects = useMemo(() => {
+    return selPayments.filter(p => {
+      const isPaper = p.method === 'CHEQUE' || p.method === 'LC' || p.method === 'EFFET' || p.method === 'LCN';
+      return isPaper && p.status === 'PENDING';
+    }).sort((a, b) => (a.dueDate || a.date).localeCompare(b.dueDate || b.date));
+  }, [selPayments]);
 
   const statusColors: Record<string, string> = {
     DRAFT: 'bg-stone-100 text-stone-500', CONFIRMED: 'bg-blue-100 text-blue-700',
     INVOICED: 'bg-emerald-100 text-emerald-700', CANCELLED: 'bg-red-100 text-red-600',
     UNPAID: 'bg-red-100 text-red-700', PARTIAL: 'bg-orange-100 text-orange-700',
-    PAID: 'bg-emerald-100 text-emerald-700',
+    PENDING: 'bg-amber-100 text-amber-700 border-amber-200', PAID: 'bg-emerald-100 text-emerald-700',
   };
   const statusLabels: Record<string, string> = {
     DRAFT: 'Brouillon', CONFIRMED: 'Confirmé', INVOICED: 'Facturé', CANCELLED: 'Annulé',
-    UNPAID: 'Non payé', PARTIAL: 'Partiel', PAID: 'Payé',
+    UNPAID: 'Non payé', PARTIAL: 'Partiel', PENDING: 'En attente', PAID: 'Payé',
   };
 
   const handleOpenGlobalPayment = () => {
@@ -384,17 +423,23 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-3 gap-3 mt-5">
-          {[
-            { label: 'CA Total', value: fmt$(selCA), color: 'text-white' },
-            { label: 'Total Payé', value: fmt$(selPaid), color: 'text-emerald-300' },
-            { label: 'Solde Dû', value: fmt$(selBalance), color: selBalance > 0 ? 'text-red-300' : 'text-emerald-300' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white/10 rounded-xl p-3">
-              <p className={`text-lg font-black ${color}`}>{value}</p>
-              <p className="text-[8px] font-black text-violet-300 uppercase tracking-widest mt-0.5">{label}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+          <div className="bg-white/10 rounded-xl p-3">
+            <p className="text-lg font-black text-white">{fmt$(selCA)}</p>
+            <p className="text-[8px] font-black text-violet-300 uppercase tracking-widest mt-0.5">CA Total</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3">
+            <p className="text-lg font-black text-emerald-300">{fmt$(selPaid)}</p>
+            <p className="text-[8px] font-black text-violet-300 uppercase tracking-widest mt-0.5">Total Payé / Saisi</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3 border border-red-400/30">
+            <p className={`text-lg font-black ${selBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{fmt$(selBalance)}</p>
+            <p className="text-[8px] font-black text-rose-200 uppercase tracking-widest mt-0.5">Reste Dû (Impayés)</p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-3 border border-amber-400/30">
+            <p className={`text-lg font-black ${selPendingChecks > 0 ? 'text-amber-300' : 'text-stone-300'}`}>{fmt$(selPendingChecks)}</p>
+            <p className="text-[8px] font-black text-amber-200 uppercase tracking-widest mt-0.5">Chèques / LC en attente</p>
+          </div>
         </div>
         
         {/* Actions Rapides */}
@@ -454,21 +499,148 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-stone-100 p-1 rounded-2xl w-fit">
+      <div className="flex flex-wrap gap-2 bg-stone-100 p-1 rounded-2xl w-fit">
         {[
+          { id: 'impayes' as const, label: `⚠️ Impayés & En attente (${selUnpaidInvoices.length + selPendingEffects.length})`, highlight: (selUnpaidInvoices.length + selPendingEffects.length) > 0 },
           { id: 'invoices' as const, label: `Factures (${selInvoices.length})` },
           { id: 'orders' as const, label: `Commandes (${selOrders.length})` },
           { id: 'payments' as const, label: `Paiements (${selPayments.length})` },
           { id: 'checks' as const, label: `Chèques / LC & Effets (${selPayments.filter(p => (p.method as string) === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET' || p.method === 'LC').length})` },
-        ].map(({ id, label }) => (
+        ].map(({ id, label, highlight }) => (
           <button key={id} onClick={() => setActiveTab(id)}
             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-              activeTab === id ? 'bg-white shadow text-stone-900' : 'text-stone-400 hover:text-stone-600'
+              activeTab === id 
+                ? (highlight ? 'bg-red-600 shadow text-white' : 'bg-white shadow text-stone-900') 
+                : (highlight ? 'text-red-600 hover:text-red-700 bg-red-50' : 'text-stone-400 hover:text-stone-600')
             }`}>{label}</button>
         ))}
       </div>
 
       <div className="bg-white rounded-2xl shadow-lg border border-stone-100 overflow-hidden">
+        {activeTab === 'impayes' && (
+          <div className="p-5 space-y-6">
+            {/* Factures impayées */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" /> Factures Impayées & En Attente ({selUnpaidInvoices.length})
+                </h3>
+                {selBalance > 0 && (
+                  <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2.5 py-1 rounded-lg">
+                    Reste dû total : {fmt$(selBalance)} MAD
+                  </span>
+                )}
+              </div>
+
+              {selUnpaidInvoices.length === 0 ? (
+                <div className="p-8 text-center bg-stone-50 rounded-xl border border-stone-100">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Aucune facture impayée !</p>
+                  <p className="text-[10px] text-stone-400 font-bold mt-1">Toutes les factures de ce client sont soldées.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-stone-100">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-stone-50 border-b border-stone-100">
+                        {['Date', 'Facture N°', 'Montant Total', 'Déjà Payé', 'Reste à Payer', 'Statut', 'Action'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {selUnpaidInvoices.map(inv => (
+                        <tr key={inv.id} className="hover:bg-stone-50/50">
+                          <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{inv.date}</td>
+                          <td className="px-4 py-3 text-[10px] font-black text-violet-800">{inv.invoiceNumber || `FAC-${inv.id.slice(0, 6)}`}</td>
+                          <td className="px-4 py-3 text-[10px] font-bold text-stone-900">{fmt$(inv.totalAfterDiscount)} MAD</td>
+                          <td className="px-4 py-3 text-[10px] font-bold text-emerald-600">{fmt$(inv.paidAmount)} MAD</td>
+                          <td className="px-4 py-3 text-[10px] font-black text-rose-600">{fmt$(inv.remainingBalance)} MAD</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg ${statusColors[inv.status] || 'bg-stone-100 text-stone-600'}`}>
+                              {statusLabels[inv.status] || inv.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setGlobalPaymentDate(new Date().toISOString().split('T')[0]);
+                                setPaymentLines([{
+                                  id: String(Date.now()),
+                                  amount: String(inv.remainingBalance || inv.totalAfterDiscount),
+                                  method: 'CASH',
+                                  notes: `Règlement ${inv.invoiceNumber || 'Facture'}`,
+                                  bankName: '',
+                                  checkNumber: '',
+                                  dueDate: '',
+                                  scannedImageUrl: ''
+                                }]);
+                                setGlobalPaymentOpen(true);
+                              }}
+                              className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[9px] uppercase rounded-lg"
+                            >
+                              Régler
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Chèques et effets en attente */}
+            <div className="space-y-3 pt-4 border-t border-stone-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-700 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" /> Chèques & LC en Attente d'Encaissement ({selPendingEffects.length})
+                </h3>
+                {selPendingChecks > 0 && (
+                  <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg">
+                    Total en portefeuille : {fmt$(selPendingChecks)} MAD
+                  </span>
+                )}
+              </div>
+
+              {selPendingEffects.length === 0 ? (
+                <div className="p-6 text-center bg-stone-50 rounded-xl border border-stone-100">
+                  <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Aucun chèque ou LC en attente pour ce client.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-stone-100">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-stone-50 border-b border-stone-100">
+                        {['Date Reçu', 'Type', 'N° Pièce', 'Banque', 'Échéance', 'Montant', 'Statut'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-[8px] font-black uppercase tracking-widest text-stone-400">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {selPendingEffects.map(p => (
+                        <tr key={p.id} className="hover:bg-stone-50/50">
+                          <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{p.date}</td>
+                          <td className="px-4 py-3 text-[10px] font-black text-amber-800">{p.method}</td>
+                          <td className="px-4 py-3 text-[10px] font-bold text-stone-900">{p.checkNumber || '—'}</td>
+                          <td className="px-4 py-3 text-[10px] font-bold text-stone-600">{p.bankName || 'Attijariwafa Bank'}</td>
+                          <td className="px-4 py-3 text-[10px] font-black text-rose-600">{p.dueDate || '—'}</td>
+                          <td className="px-4 py-3 text-[10px] font-black text-stone-900">{fmt$(p.amount)} MAD</td>
+                          <td className="px-4 py-3">
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200">
+                              En attente
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {activeTab === 'invoices' && (
           selInvoices.length === 0 ? <p className="text-center text-stone-300 font-black uppercase text-[10px] py-12">Aucune facture</p> :
           <table className="w-full">
@@ -1005,8 +1177,8 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
       </div>
 
       {/* Recherche */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap gap-4">
+        <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
           <Input placeholder="Rechercher par nom, téléphone, email..." value={search}
             onChange={e => setSearch(e.target.value)}
@@ -1023,6 +1195,19 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
             <SelectItem value="DETAILLANT">Détaillant</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant={unpaidOnlyFilter ? "default" : "outline"}
+          onClick={() => setUnpaidOnlyFilter(!unpaidOnlyFilter)}
+          className={`h-12 rounded-2xl text-xs font-black uppercase tracking-wider gap-2 shadow-sm ${
+            unpaidOnlyFilter 
+              ? 'bg-rose-600 hover:bg-rose-700 text-white' 
+              : 'border-stone-200 text-stone-600 hover:text-rose-600 hover:border-rose-300'
+          }`}
+        >
+          <AlertCircle className={`w-4 h-4 ${unpaidOnlyFilter ? 'text-white' : 'text-rose-500'}`} />
+          {unpaidOnlyFilter ? '⚠️ Avec Impayés (Filtre actif)' : 'Filtrer avec Impayés'}
+        </Button>
       </div>
 
       {/* Grille clients */}
@@ -1035,6 +1220,7 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
           {filtered.map(c => {
             const balance = clientBalance(c.id);
             const ca = clientCA(c.id);
+            const pendingChecks = clientPendingChecks.get(c.id) || 0;
             const nInv = invoiceCounts.get(c.id) || 0;
             const nOrd = orderCounts.get(c.id) || 0;
             return (
@@ -1073,9 +1259,15 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                         balance < ca * 0.5 ? 'bg-orange-100 text-orange-700' :
                         'bg-red-100 text-red-700'
                       }`}>
-                        Dû: {fmt$(balance)}
+                        {balance > 0 ? `Impayé: ${fmt$(balance)}` : 'À jour'}
                       </span>
                     </div>
+                    {pendingChecks > 0 && (
+                      <div className="text-[8px] font-bold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex justify-between items-center">
+                        <span>Chèques/LC en attente:</span>
+                        <span className="font-black">{fmt$(pendingChecks)} MAD</span>
+                      </div>
+                    )}
                     {c.creditLimit && c.creditLimit > 0 ? (
                       <div className="mt-2">
                         <div className="flex justify-between text-[8px] font-bold uppercase tracking-widest text-stone-400 mb-1">
