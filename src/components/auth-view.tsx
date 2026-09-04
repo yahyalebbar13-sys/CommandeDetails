@@ -20,17 +20,35 @@ export default function AuthView() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    let targetEmail = email.trim();
+    const normalized = targetEmail.toLowerCase().replace(/[\s_-]+/g, '');
+
+    // Résolution automatique du nom de magasin vers son compte
+    if (normalized === 'chrifa') {
+      targetEmail = 'chrifa@lebtex.ma';
+    } else if (normalized === 'derbomar') {
+      targetEmail = 'derbomar@lebtex.ma';
+    } else if (normalized === 'idaa' || normalized === 'alidaa') {
+      targetEmail = 'idaa@lebtex.ma';
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, targetEmail, password);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Accès refusé",
-        description: "Identifiants invalides ou accès non autorisé."
+        description: "Identifiant ou mot de passe invalide."
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickStoreSelect = (storeName: string) => {
+    setEmail(storeName);
+    setPassword('Lebtex2026');
   };
 
   return (
@@ -44,17 +62,17 @@ export default function AuthView() {
             📦 StockVue <span className="text-amber-600">Commandes</span>
           </CardTitle>
           <CardDescription>
-            Accès unique et privé à la gestion globale
+            Accès aux magasins (CHRIFA, Derb omar, IDAA) & Administration
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Identifiant (Email)</Label>
+              <Label htmlFor="email">Identifiant (Nom du magasin ou Email)</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="votre@email.com"
+                type="text"
+                placeholder="Ex: CHRIFA, Derb omar, IDAA ou email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -73,6 +91,37 @@ export default function AuthView() {
                 className="bg-white border-stone-200"
               />
             </div>
+
+            {/* Boutons de connexion rapide pour les 3 magasins */}
+            <div className="pt-1 pb-1">
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-wider mb-2 text-center">
+                Connexion rapide magasin (MDP: Lebtex2026)
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickStoreSelect('CHRIFA')}
+                  className="py-2 px-2 text-center bg-stone-50 hover:bg-emerald-50 hover:border-emerald-400 border border-stone-200 rounded-xl text-xs font-black text-stone-700 hover:text-emerald-700 transition-all shadow-sm"
+                >
+                  🏪 CHRIFA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickStoreSelect('Derb omar')}
+                  className="py-2 px-2 text-center bg-stone-50 hover:bg-emerald-50 hover:border-emerald-400 border border-stone-200 rounded-xl text-xs font-black text-stone-700 hover:text-emerald-700 transition-all shadow-sm"
+                >
+                  🏪 Derb omar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickStoreSelect('IDAA')}
+                  className="py-2 px-2 text-center bg-stone-50 hover:bg-emerald-50 hover:border-emerald-400 border border-stone-200 rounded-xl text-xs font-black text-stone-700 hover:text-emerald-700 transition-all shadow-sm"
+                >
+                  🏪 IDAA
+                </button>
+              </div>
+            </div>
+
             <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-6" disabled={loading}>
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "SE CONNECTER"}
             </Button>

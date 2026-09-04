@@ -17,12 +17,19 @@ interface PassToStockModalProps {
   facture: any;
   associatedArticles: any[];
   subCategories: any[];
+  stores?: any[];
 }
 
-export default function PassToStockModal({ open, onOpenChange, facture, associatedArticles, subCategories }: PassToStockModalProps) {
+export default function PassToStockModal({ open, onOpenChange, facture, associatedArticles, subCategories, stores }: PassToStockModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+
+  const warehouseOptions = React.useMemo(() => {
+    const list = (stores || []).filter((s: any) => s.type === 'WAREHOUSE');
+    if (list.length > 0) return list;
+    return [{ id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE' }];
+  }, [stores]);
 
   const [formData, setFormData] = useState({
     stockEntryDate: '',
@@ -45,14 +52,15 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
       });
       
       if (associatedArticles && associatedArticles.length > 0) {
+        const defaultWh = warehouseOptions[0]?.id || 'ENTREPOT';
         const initialSelections: Record<string, string> = {};
         associatedArticles.forEach(a => {
-          initialSelections[a.id] = 'ENTREPOT';
+          initialSelections[a.id] = defaultWh;
         });
         setStoreSelections(initialSelections);
       }
     }
-  }, [facture, open, associatedArticles]);
+  }, [facture, open, associatedArticles, warehouseOptions]);
 
   // Calcul automatique du total droits payés (DI+TPI+TVA) depuis les articles liés
   const calculatedDroitsPayes = React.useMemo(() => {
@@ -321,7 +329,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
           {associatedArticles && associatedArticles.length > 0 && (
             <div className="pt-4 border-t border-stone-100">
               <h4 className="text-[11px] font-black text-stone-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Archive className="w-4 h-4 text-emerald-500" /> Affectation des Entrepôts
+                <Archive className="w-4 h-4 text-emerald-500" /> Affectation Entrepôt (Arrivage)
               </h4>
               <div className="space-y-3">
                 {associatedArticles.map((article: any) => {
@@ -341,13 +349,13 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
                         </div>
                       </div>
                       <select
-                        value={storeSelections[article.id] || 'ENTREPOT'}
+                        value={storeSelections[article.id] || warehouseOptions[0]?.id || 'ENTREPOT'}
                         onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
                         className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white"
                       >
-                        <option value="ENTREPOT">Magasin CHRIFA</option>
-                        <option value="DERB_OMAR">Magasin Derb Omar</option>
-                        <option value="IDAA">Magasin Idaa</option>
+                        {warehouseOptions.map((w: any) => (
+                          <option key={w.id} value={w.id}>{w.name}</option>
+                        ))}
                       </select>
                     </div>
                   );

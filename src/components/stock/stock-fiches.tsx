@@ -324,7 +324,7 @@ function ProductFiche({
                             {Object.entries(v.qtyByStore).map(([sId, q]: any) => q > 0 && (
                               <div key={sId} className="flex items-center gap-1 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md">
                                 <span className="text-[8px] font-black uppercase text-stone-500 tracking-wider">
-                                  {sId === 'ENTREPOT' ? 'CHRIFA' : sId.replace('_', ' ')}:
+                                  {sId === 'ENTREPOT' ? 'Entrepôt' : sId === 'CHRIFA' ? 'CHRIFA' : sId === 'DERB_OMAR' ? 'Derb omar' : sId === 'IDAA' ? 'IDAA' : sId.replace('_', ' ')}:
                                 </span>
                                 <span className="text-[10px] font-bold text-stone-700">{fmt(q)}</span>
                               </div>

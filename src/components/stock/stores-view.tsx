@@ -154,11 +154,23 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
           <div key={store.id} className="bg-white p-6 rounded-2xl border-2 border-stone-100 shadow-sm flex flex-col gap-4">
             <div className="flex items-start justify-between">
               <div>
-                <span className={`inline-flex items-center px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest mb-2 ${store.type === 'WAREHOUSE' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                  {store.type === 'WAREHOUSE' ? 'Entrepôt' : 'Magasin'}
-                </span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${store.type === 'WAREHOUSE' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {store.type === 'WAREHOUSE' ? 'Entrepôt' : 'Magasin'}
+                  </span>
+                  {store.isMain && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
+                      ⭐ Principal
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-xl font-black text-stone-900">{store.name}</h3>
                 <p className="text-[10px] text-stone-400 font-bold font-mono mt-1">ID: {store.id}</p>
+                {store.accessEmail && (
+                  <p className="text-[10px] text-stone-500 font-bold mt-1">
+                    🔑 Identifiant: <span className="font-mono text-emerald-700">{store.name}</span> (ou {store.accessEmail})
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => openEditModal(store)} className="p-2 text-stone-400 hover:text-blue-600 bg-stone-50 hover:bg-blue-50 rounded-lg transition-colors">

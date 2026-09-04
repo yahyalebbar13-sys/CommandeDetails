@@ -51,7 +51,7 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
   const legacyQty = Number(item.rolls || item.quantity || 0);
 
   if (!byStore) {
-    if (activeStore === 'ALL' || activeStore === 'ALL_MAIN' || activeStore === 'ENTREPOT') return legacyQty;
+    if (activeStore === 'ALL' || activeStore === 'ALL_MAIN' || activeStore === 'ENTREPOT' || activeStore === 'CHRIFA') return legacyQty;
     return 0;
   }
 
@@ -62,9 +62,10 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
   if (activeStore === 'ALL_MAIN') {
     let sum = 0;
     if (byStore[userStoreId]) sum += byStore[userStoreId];
+    if (byStore['CHRIFA']) sum += byStore['CHRIFA'];
     if (byStore['ENTREPOT']) sum += byStore['ENTREPOT'];
     for (const s of stores) {
-      if (s.type === 'WAREHOUSE' && byStore[s.id]) {
+      if (s.type === 'WAREHOUSE' && byStore[s.id] && s.id !== 'ENTREPOT') {
         sum += byStore[s.id];
       }
     }
@@ -90,9 +91,9 @@ export function computeStockItems(
     
     if (activeStore === 'ALL_MAIN') {
       if (sId === userStoreId) return true;
-      if (sId === 'ENTREPOT') return true;
+      if (sId === 'CHRIFA' || sId === 'ENTREPOT') return true;
       const s = stores.find(x => x.id === sId);
-      if (s && s.type === 'WAREHOUSE') return true;
+      if (s && (s.isMain || s.type === 'WAREHOUSE')) return true;
       return false;
     }
 
@@ -437,13 +438,14 @@ export default function StockApp() {
   useEffect(() => {
     if (!firestore || !adminUid || loadingStores || userRole !== 'ADMIN') return;
     const runMigration = async () => {
-      const migrated = localStorage.getItem('stores_migrated_v3');
+      const migrated = localStorage.getItem('stores_migrated_v5');
       if (migrated) return;
       
       const defaults = [
-        { id: 'ENTREPOT', name: 'Magasin CHRIFA', type: 'STORE', isMain: true },
-        { id: 'DERB_OMAR', name: 'Magasin Derb Omar', type: 'STORE', isMain: false },
-        { id: 'IDAA', name: 'Magasin Idaa', type: 'STORE', isMain: false },
+        { id: 'CHRIFA', name: 'CHRIFA', type: 'STORE', isMain: true, accessEmail: 'chrifa@lebtex.ma' },
+        { id: 'DERB_OMAR', name: 'Derb omar', type: 'STORE', isMain: false, accessEmail: 'derbomar@lebtex.ma' },
+        { id: 'IDAA', name: 'IDAA', type: 'STORE', isMain: false, accessEmail: 'idaa@lebtex.ma' },
+        { id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE', isMain: false },
       ];
 
       // Delete existing stores not in defaults
@@ -458,7 +460,7 @@ export default function StockApp() {
         await setDoc(doc(firestore, 'users', adminUid, 'stores', s.id), s, { merge: true });
       }
       
-      localStorage.setItem('stores_migrated_v3', 'true');
+      localStorage.setItem('stores_migrated_v5', 'true');
     };
     runMigration();
   }, [userRole, firestore, adminUid, loadingStores, stores]);
@@ -481,17 +483,17 @@ export default function StockApp() {
   );
 
   const isIncludedInAllMain = (id: string | undefined) => {
-    if (!id || id === 'ENTREPOT') return true;
+    if (!id || id === 'ENTREPOT' || id === 'CHRIFA') return true;
     const store = stores.find(s => s.id === id);
     return store ? (store.isMain || store.type === 'WAREHOUSE') : false;
   };
 
   // Filtrer les données selon le magasin actif pour les vues (sauf Admin "ALL")
-  const filteredSales = useMemo(() => sales.filter(s => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(s.storeId)) || s.storeId === activeStore || (!s.storeId && activeStore === 'ENTREPOT')), [sales, activeStore, stores]);
-  const filteredClients = useMemo(() => clients.filter(c => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(c.storeId)) || c.storeId === activeStore || (!c.storeId && activeStore === 'ENTREPOT')), [clients, activeStore, stores]);
-  const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(o.storeId)) || o.storeId === activeStore || (!o.storeId && activeStore === 'ENTREPOT')), [orders, activeStore, stores]);
-  const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(i.storeId)) || i.storeId === activeStore || (!i.storeId && activeStore === 'ENTREPOT')), [invoices, activeStore, stores]);
-  const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(m.storeId) || isIncludedInAllMain(m.toStoreId))) || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && activeStore === 'ENTREPOT')), [movements, activeStore, stores]);
+  const filteredSales = useMemo(() => sales.filter(s => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(s.storeId)) || s.storeId === activeStore || (!s.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [sales, activeStore, stores]);
+  const filteredClients = useMemo(() => clients.filter(c => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(c.storeId)) || c.storeId === activeStore || (!c.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [clients, activeStore, stores]);
+  const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(o.storeId)) || o.storeId === activeStore || (!o.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [orders, activeStore, stores]);
+  const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(i.storeId)) || i.storeId === activeStore || (!i.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [invoices, activeStore, stores]);
+  const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(m.storeId) || isIncludedInAllMain(m.toStoreId))) || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [movements, activeStore, stores]);
   const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(t.fromStore) || isIncludedInAllMain(t.toStore))) || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore, stores]);
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
@@ -551,7 +553,8 @@ export default function StockApp() {
   const handleValidateSale = useCallback(async (sale: Omit<Sale, 'id' | 'createdAt'>) => {
     if (!user || !firestore || (!adminUid && userRole !== 'ADMIN')) return;
     const effectiveUid = adminUid || user.uid;
-    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore;
     await addDoc(collection(firestore, 'users', effectiveUid, 'sales'), { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
       await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
@@ -565,7 +568,7 @@ export default function StockApp() {
       });
     }
     toast({ title: '✅ Vente enregistrée !', description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
-  }, [user, firestore, toast, activeStore, adminUid, userRole]);
+  }, [user, firestore, toast, activeStore, adminUid, userRole, stores]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
   const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
@@ -589,11 +592,12 @@ export default function StockApp() {
   const handleCreateOrder = useCallback(async (order: Omit<SaleOrder, 'id' | 'createdAt'>): Promise<string> => {
     if (!user || !firestore) throw new Error('Not authenticated');
     const effectiveUid = adminUid || user.uid;
-    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore;
     const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'saleOrders'), { ...order, storeId, createdAt: serverTimestamp() });
     toast({ title: '✅ Bon de commande créé', description: `${order.items.length} article(s) · ${order.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })}` });
     return ref.id;
-  }, [user, firestore, toast, activeStore, adminUid]);
+  }, [user, firestore, toast, activeStore, adminUid, stores]);
 
   const handleUpdateOrderStatus = useCallback(async (id: string, status: SaleOrderStatus) => {
     if (!user || !firestore) return;
@@ -604,6 +608,7 @@ export default function StockApp() {
   const handleConvertToInvoice = useCallback(async (order: SaleOrder) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
     const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
       clientId: order.clientId,
       clientName: order.clientName,
@@ -617,13 +622,13 @@ export default function StockApp() {
       status: 'UNPAID',
       date: new Date().toISOString().split('T')[0],
       notes: order.notes,
-      storeId: order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore),
+      storeId: order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore),
       createdAt: serverTimestamp(),
     });
     await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', order.id), { status: 'INVOICED' });
     toast({ title: '✅ Facture créée', description: `BC converti en facture` });
     setActiveView('invoices');
-  }, [user, firestore, toast, activeStore, adminUid]);
+  }, [user, firestore, toast, activeStore, adminUid, stores]);
 
   // ── Factures ──────────────────────────────────────────────────────────────
   const handleCreateInvoice = useCallback(async (
@@ -633,7 +638,8 @@ export default function StockApp() {
   ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
-    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? 'ENTREPOT' : activeStore;
+    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+    const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore;
     const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
       ...cleanUndefined(invoice),
       storeId,
@@ -1266,6 +1272,7 @@ export default function StockApp() {
           facture={factures.find((f: any) => f.id === passToStockId)}
           associatedArticles={articles.filter((a: any) => a.factureId === passToStockId)}
           subCategories={categories}
+          stores={stores}
         />
       )}
 

@@ -590,7 +590,21 @@ export default function StockMovementModal({
               {/* Raison */}
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">Raison *</Label>
-                <Select value={form.reason} onValueChange={v => setForm(f => ({ ...f, reason: v as StockMovementReason }))}>
+                <Select
+                  value={form.reason}
+                  onValueChange={v => {
+                    setForm(f => {
+                      let nextStoreId = f.storeId;
+                      if (f.type === 'IN' && v === 'ARRIVAGE') {
+                        const isWh = stores.some(s => s.id === f.storeId && s.type === 'WAREHOUSE');
+                        if (!isWh) {
+                          nextStoreId = (stores.find(s => s.type === 'WAREHOUSE')?.id || 'ENTREPOT') as StoreLocation;
+                        }
+                      }
+                      return { ...f, reason: v as StockMovementReason, storeId: nextStoreId };
+                    });
+                  }}
+                >
                   <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
                     <SelectValue placeholder="Choisir la raison..." />
                   </SelectTrigger>
@@ -604,18 +618,22 @@ export default function StockMovementModal({
                 </Select>
               </div>
 
-              {/* Sélection du Magasin (si non forcé) */}
+              {/* Sélection du Magasin ou Entrepôt (si non forcé) */}
               {canChooseStore && (
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500">
-                    {form.type === 'IN' ? 'Emplacement (Destination) *' : 'Emplacement (Origine) *'}
+                    {form.type === 'IN' && form.reason === 'ARRIVAGE'
+                      ? 'Entrepôt (Destination Arrivage) *'
+                      : form.type === 'IN'
+                      ? 'Emplacement (Destination) *'
+                      : 'Emplacement (Origine) *'}
                   </Label>
                   <Select value={form.storeId} onValueChange={v => setForm(f => ({ ...f, storeId: v as StoreLocation }))}>
                     <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
-                      <SelectValue placeholder="Choisir le magasin..." />
+                      <SelectValue placeholder={form.type === 'IN' && form.reason === 'ARRIVAGE' ? "Choisir l'entrepôt..." : "Choisir l'emplacement..."} />
                     </SelectTrigger>
                     <SelectContent>
-                      {stores.map(s => (
+                      {(form.type === 'IN' && form.reason === 'ARRIVAGE' ? stores.filter(s => s.type === 'WAREHOUSE') : stores).map(s => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
                     </SelectContent>

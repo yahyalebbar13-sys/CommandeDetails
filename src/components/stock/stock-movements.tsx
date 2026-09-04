@@ -246,10 +246,10 @@ export default function StockMovements({ movements, stockItems, categories, arti
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-0.5">
                           <span className="text-[9px] font-black text-stone-600 uppercase">
-                            {m.storeId ? m.storeId.replace('_', ' ') : 'ENTREPOT'}
+                            {m.storeId ? (m.storeId === 'ENTREPOT' ? 'Entrepôt' : m.storeId.replace('_', ' ')) : 'Entrepôt'}
                           </span>
                           {m.reason === 'TRANSFERT' && m.toStoreId && (
-                            <span className="text-[8px] font-bold text-stone-400 uppercase">→ {m.toStoreId.replace('_', ' ')}</span>
+                            <span className="text-[8px] font-bold text-stone-400 uppercase">→ {m.toStoreId === 'ENTREPOT' ? 'Entrepôt' : m.toStoreId.replace('_', ' ')}</span>
                           )}
                         </div>
                       </td>
