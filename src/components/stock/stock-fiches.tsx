@@ -115,7 +115,7 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, variants, movements, factures, onBack, color, inline = false, userRole = 'ADMIN',
+  article, variants, movements, factures, onBack, color, inline = false, userRole = 'COMMERCIAL',
   inventoryMode = false, countedQuantities = {}, setCountedQuantities
 }: {
   article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean; userRole?: string;
@@ -419,7 +419,7 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, headerProp, userRole = 'ADMIN',
+  items, subCatName, movements, factures, onBack, headerProp, userRole = 'COMMERCIAL',
   inventoryMode = false, countedQuantities = {}, setCountedQuantities
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
@@ -517,7 +517,9 @@ function ProductsTable({
           </div>
           <div className="flex gap-4 text-[9px] font-bold text-stone-400">
             <span>Stock : <strong className="text-stone-700">{fmt(totalQty)}</strong></span>
-            <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
+            {userRole === 'ADMIN' && (
+              <span>Valeur : <strong className="text-emerald-700">{fmt(totalVal)} MAD</strong></span>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
@@ -590,10 +592,12 @@ function ProductsTable({
                           {fmt(totalCurrent)} <span className="text-[10px] text-stone-400 font-bold">{a.unitOfMeasure}</span>
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
-                        <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
-                      </div>
+                      {userRole === 'ADMIN' && (
+                        <div className="text-right">
+                          <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-0.5">Valeur FIFO</p>
+                          <p className="text-sm font-black text-violet-700">{fmt(fifoVal)} <span className="text-[9px]">MAD</span></p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
@@ -613,7 +617,7 @@ function ProductsTable({
 
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
-  stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'ADMIN',
+  stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
   isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
@@ -813,10 +817,12 @@ export default function StockFiches({
                         <span className="text-stone-400 font-black uppercase">Stock</span>
                         <span className="font-black text-stone-800">{fmt(qty)}</span>
                       </div>
-                      <div className="flex justify-between text-[8px]">
-                        <span className="text-stone-400 font-black uppercase">Valeur</span>
-                        <span className="font-black" style={{ color }}>{val > 0 ? `${fmt(val)} MAD` : '—'}</span>
-                      </div>
+                      {userRole === 'ADMIN' && (
+                        <div className="flex justify-between text-[8px]">
+                          <span className="text-stone-400 font-black uppercase">Valeur</span>
+                          <span className="font-black" style={{ color }}>{val > 0 ? `${fmt(val)} MAD` : '—'}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-end">
                       <div className="p-1.5 bg-stone-50 rounded-lg group-hover:bg-stone-900 transition-colors">

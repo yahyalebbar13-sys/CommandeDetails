@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
-  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles
+  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -791,6 +791,7 @@ export default function StockApp() {
     { id: 'invoices',  label: 'Bons de Commande', category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
 
     { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
+    { id: 'warehouses', label: 'Entrepôts',    category: 'logistique', icon: Warehouse,       adminOrMainOnly: true, color: 'blue' },
     { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
@@ -800,29 +801,43 @@ export default function StockApp() {
     { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        badge: urgent7DaysEffects.length > 0 ? urgent7DaysEffects.length : undefined, color: 'emerald', adminOnly: true },
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
     
-    { id: 'warehouses', label: 'Lieux/Entrepôts', category: 'settings', icon: Home, adminOnly: true },
-    { id: 'stores',     label: 'Magasins',      category: 'settings', icon: MapPin, adminOnly: true }
+    { id: 'stores',     label: 'Paramètres',    category: 'settings', icon: Settings, adminOnly: true }
   ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length]);
 
-  const currentStore = activeStore !== 'ALL' ? stores.find(s => s.id === activeStore) : null;
-  const isWarehouse = currentStore?.type === 'WAREHOUSE';
+  const currentStore = (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') ? stores.find(s => s.id === activeStore) : null;
+  const isWarehouse = currentStore?.type === 'WAREHOUSE' || activeStore === 'ENTREPOT';
+  const isChrifa = userRole === 'COMMERCIAL' && (userStoreId === 'CHRIFA' || stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')));
 
-  const navItems = useMemo(() => navItemsRaw.filter(item => {
-    // removed the arbitrary activeStore restriction
-    if (item.adminOnly && userRole === 'COMMERCIAL') return false;
-    if (item.commercialOnly && userRole === 'ADMIN') return false;
-    if (item.pointOfSaleOnly && isWarehouse) return false;
-    if (item.adminOrMainOnly && userRole !== 'ADMIN' && !(userRole === 'COMMERCIAL' && stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')))) return false;
-    return true;
-  }), [navItemsRaw, userRole, isWarehouse, stores, userStoreId, activeStore]);
+  const navItems = useMemo(() => {
+    // Règle stricte pour les entrepôts :
+    // "Pour les entrepôts, les seules pages qu'ils doivent avoir c'est Inventaire, Mouvements et Inventaire aveugle."
+    if (isWarehouse) {
+      return navItemsRaw.filter(item => 
+        item.id === 'inventory' || item.id === 'movements' || item.id === 'blind-inventory'
+      );
+    }
+
+    return navItemsRaw.filter(item => {
+      if (item.adminOnly && userRole !== 'ADMIN') return false;
+      if (item.commercialOnly && userRole === 'ADMIN') return false;
+      if (item.adminOrMainOnly && userRole !== 'ADMIN' && !isChrifa) return false;
+      return true;
+    });
+  }, [navItemsRaw, userRole, isWarehouse, isChrifa]);
 
   // Si on est sur une vue cachée par le changement de magasin (ex: WAREHOUSE), on switch
   useEffect(() => {
-    if (!navItems.find(n => n.id === activeView)) {
-      if (userRole === 'ADMIN') setActiveView('dashboard');
-      else setActiveView('stock');
+    if (isWarehouse) {
+      if (!['inventory', 'movements', 'blind-inventory'].includes(activeView)) {
+        setActiveView('inventory');
+      }
+    } else {
+      if (!navItems.find(n => n.id === activeView)) {
+        if (userRole === 'ADMIN') setActiveView('dashboard');
+        else setActiveView('stock');
+      }
     }
-  }, [navItems, activeView, userRole]);
+  }, [navItems, activeView, userRole, isWarehouse]);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   if (isUserLoading) return (
@@ -909,38 +924,94 @@ export default function StockApp() {
             </Select>
           </div>
 
-          {/* ── Ligne 1 : Catégories principales ── */}
-          <div className="flex-1 flex items-center justify-center overflow-x-auto px-4 hide-scrollbar">
-            <div className="flex items-center gap-1">
-              {[
-                { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
-                { id: 'commerce', label: 'Commerce', icon: ShoppingCart },
-                { id: 'logistique', label: 'Logistique', icon: Package },
-                { id: 'finance', label: 'Finance', icon: Landmark },
-                { id: 'settings', label: 'Paramètres', icon: Settings }
-              ].map(cat => {
-                const catItems = navItems.filter(n => n.category === cat.id);
-                if (catItems.length === 0) return null;
-                const isActive = navItems.find(n => n.id === activeView)?.category === cat.id;
-                
-                return (
-                  <button key={cat.id} 
-                    onClick={() => setActiveView(catItems[0].id as StockView)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap relative ${
-                      isActive 
-                        ? 'bg-stone-900 text-white shadow-md' 
-                        : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
-                    }`}>
-                    <cat.icon className="w-4 h-4" />
-                    {cat.label}
-                    {cat.id === 'finance' && urgent7DaysEffects.length > 0 && (
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-1.5 right-1.5" />
-                    )}
-                  </button>
-                );
-              })}
+          {/* ── Ligne 1 : Mode Entrepôt ou Catégories normales ── */}
+          {isWarehouse ? (
+            <div className="flex-1 flex items-center justify-between overflow-x-auto px-4 hide-scrollbar gap-3">
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl shrink-0">
+                <Warehouse className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-black text-blue-950 uppercase tracking-tight">
+                  {currentStore?.name || 'Entrepôt Principal'}
+                </span>
+                <span className="text-[8px] font-black uppercase tracking-widest bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
+                  Entrepôt
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                {[
+                  { id: 'inventory', label: 'Inventaire', icon: Boxes },
+                  { id: 'movements', label: 'Mouvements', icon: ArrowLeftRight },
+                  { id: 'blind-inventory', label: 'Inv. Aveugle', icon: Boxes, color: 'amber' }
+                ].map(tab => {
+                  const isActive = activeView === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveView(tab.id as StockView)}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                        isActive
+                          ? tab.color === 'amber'
+                            ? 'bg-amber-500 text-white shadow-md'
+                            : 'bg-stone-900 text-white shadow-md'
+                          : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                      }`}
+                    >
+                      <tab.icon className="w-3.5 h-3.5" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <Button
+                onClick={() => {
+                  if (userRole === 'ADMIN') {
+                    setActiveStore('ALL');
+                    setActiveView('dashboard');
+                  } else {
+                    setActiveStore('CHRIFA');
+                    setActiveView('stock');
+                  }
+                }}
+                variant="outline"
+                className="h-8 text-[9px] font-black uppercase tracking-wider bg-white border-stone-300 text-stone-700 hover:bg-stone-900 hover:text-white rounded-xl flex items-center gap-1.5 shadow-sm shrink-0"
+              >
+                ⬅ {userRole === 'ADMIN' ? 'Quitter Entrepôt' : 'Retour Magasin CHRIFA'}
+              </Button>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center overflow-x-auto px-4 hide-scrollbar">
+              <div className="flex items-center gap-1">
+                {[
+                  { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
+                  { id: 'commerce', label: 'Commerce', icon: ShoppingCart },
+                  { id: 'logistique', label: 'Logistique', icon: Package },
+                  { id: 'finance', label: 'Finance', icon: Landmark },
+                  { id: 'settings', label: 'Paramètres', icon: Settings }
+                ].map(cat => {
+                  const catItems = navItems.filter(n => n.category === cat.id);
+                  if (catItems.length === 0) return null;
+                  const isActive = navItems.find(n => n.id === activeView)?.category === cat.id;
+                  
+                  return (
+                    <button key={cat.id} 
+                      onClick={() => setActiveView(catItems[0].id as StockView)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap relative ${
+                        isActive 
+                          ? 'bg-stone-900 text-white shadow-md' 
+                          : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
+                      }`}>
+                      <cat.icon className="w-4 h-4" />
+                      {cat.label}
+                      {cat.id === 'finance' && urgent7DaysEffects.length > 0 && (
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-1.5 right-1.5" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
@@ -959,29 +1030,31 @@ export default function StockApp() {
           </div>
         </div>
 
-        {/* ── Ligne 2 : Sous-menu contextuel (Desktop & Mobile) ── */}
-        <div className="flex border-t border-stone-100 bg-stone-50 px-4 py-2 gap-2 overflow-x-auto hide-scrollbar shadow-inner">
-          {navItems.filter(n => n.category === (navItems.find(n => n.id === activeView)?.category || 'dashboard')).map(({ id, label, icon: Icon, badge, color }) => (
-            <button key={id} onClick={() => setActiveView(id as StockView)}
-              className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all ${
-                activeView === id
-                  ? color === 'violet' ? 'bg-violet-600 text-white shadow-sm' 
-                    : color === 'amber' ? 'bg-amber-500 text-white shadow-sm'
-                    : color === 'emerald' ? 'bg-emerald-600 text-white shadow-sm'
-                    : color === 'blue' ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-stone-900 shadow-sm border border-stone-200'
-                  : 'text-stone-500 hover:bg-stone-200/50'
-              }`}>
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-              {badge != null && badge > 0 && (
-                <span className={`w-4 h-4 ml-1 rounded-full text-white text-[7.5px] font-black flex items-center justify-center ${
-                  id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-                }`}>{badge > 99 ? '99+' : badge}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* ── Ligne 2 : Sous-menu contextuel (Seulement en mode normal Magasin, pas en Entrepôt) ── */}
+        {!isWarehouse && (
+          <div className="flex border-t border-stone-100 bg-stone-50 px-4 py-2 gap-2 overflow-x-auto hide-scrollbar shadow-inner">
+            {navItems.filter(n => n.category === (navItems.find(n => n.id === activeView)?.category || 'dashboard')).map(({ id, label, icon: Icon, badge, color }) => (
+              <button key={id} onClick={() => setActiveView(id as StockView)}
+                className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all ${
+                  activeView === id
+                    ? color === 'violet' ? 'bg-violet-600 text-white shadow-sm' 
+                      : color === 'amber' ? 'bg-amber-500 text-white shadow-sm'
+                      : color === 'emerald' ? 'bg-emerald-600 text-white shadow-sm'
+                      : color === 'blue' ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white text-stone-900 shadow-sm border border-stone-200'
+                    : 'text-stone-500 hover:bg-stone-200/50'
+                }`}>
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+                {badge != null && badge > 0 && (
+                  <span className={`w-4 h-4 ml-1 rounded-full text-white text-[7.5px] font-black flex items-center justify-center ${
+                    id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                  }`}>{badge > 99 ? '99+' : badge}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* ── Content ── */}
@@ -1085,7 +1158,17 @@ export default function StockApp() {
               />
             )}
             {activeView === 'stock' && (
-              <StockFiches stockItems={stockItems} movements={movements} categories={categories} generalCategories={generalCategories} factures={factures} />
+              <StockFiches
+                stockItems={stockItems}
+                movements={movements}
+                categories={categories}
+                generalCategories={generalCategories}
+                factures={factures}
+                userRole={userRole}
+                activeStore={activeStore}
+                adminUid={adminUid}
+                onAddMovement={handleAddMovement}
+              />
             )}
             {activeView === 'inventory' && (
               <StockFiches
@@ -1142,13 +1225,13 @@ export default function StockApp() {
                 movements={filteredMovements}
                 userRole={userRole}
                 userStoreId={userStoreId}
-                onSelectStore={(storeId) => {
+                onSelectStore={(storeId, view) => {
                   setActiveStore(storeId as any);
-                  setActiveView('inventory');
+                  setActiveView(view || 'inventory');
                 }}
               />
             )}
-            {activeView === 'stores' && (
+            {activeView === 'stores' && userRole === 'ADMIN' && (
               <StoresView stores={stores} adminUid={adminUid} />
             )}
             {activeView === 'arrivals' && (
