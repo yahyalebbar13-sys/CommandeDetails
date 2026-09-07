@@ -978,11 +978,55 @@ export default function StockApp() {
   const handleAddExpense = useCallback(async (exp: Omit<CommercialExpense, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
+
+    let movementId: string | undefined = undefined;
+
+    // Si c'est un achat marchandise du marché et que la case "Ajouter au stock" est cochée
+    if (exp.category === 'ACHAT_MARCHANDISE' && exp.addToStock && exp.articleName && exp.quantity && exp.quantity > 0) {
+      const targetStore = exp.storeId || effectiveSaleStoreId || 'CHRIFA';
+      const unitPrice = exp.unitPrice || (exp.quantity > 0 ? exp.amount / exp.quantity : 0);
+      const movPayload = {
+        type: 'IN' as const,
+        reason: 'ACHAT_LOCAL',
+        productName: exp.articleName.trim(),
+        quantity: Number(exp.quantity),
+        unitOfMeasure: exp.unitOfMeasure || 'pcs',
+        purchasePricePerUnit: unitPrice,
+        storeId: targetStore,
+        date: exp.date || new Date().toISOString().split('T')[0],
+        notes: `Achat Marchandise du marché (${exp.supplierName ? `Vendeur: ${exp.supplierName}` : 'Marché local'}) par ${exp.commercialName || 'Commercial'} · Dépense ${exp.amount} MAD`,
+        createdAt: serverTimestamp(),
+      };
+
+      const movRef = await addDoc(
+        collection(firestore, 'users', effectiveUid, 'stockMovements'),
+        cleanUndefined(movPayload)
+      );
+      movementId = movRef.id;
+    }
+
+    const payload = {
+      ...exp,
+      ...(movementId ? { stockMovementId: movementId } : {}),
+    };
+
     await addDoc(collection(firestore, 'users', effectiveUid, 'commercialExpenses'), {
-      ...cleanUndefined(exp),
+      ...cleanUndefined(payload),
       createdAt: serverTimestamp(),
     });
-  }, [user, firestore, adminUid]);
+
+    if (movementId) {
+      toast({
+        title: '📦 Marchandise entrée en stock !',
+        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock et dépense enregistrée.`,
+      });
+    } else {
+      toast({
+        title: '✅ Dépense enregistrée',
+        description: `${exp.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+      });
+    }
+  }, [user, firestore, adminUid, effectiveSaleStoreId, toast]);
 
   const handleUpdateExpenseStatus = useCallback(async (id: string, status: 'PENDING' | 'APPROVED' | 'REIMBURSED') => {
     if (!user || !firestore) return;

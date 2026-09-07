@@ -454,7 +454,7 @@ export type BankReconciliation = {
 };
 
 // ── Frais & Dépenses Commerciaux ─────────────────────────────────────────────
-export type ExpenseCategory = 'CARBURANT' | 'TRANSPORT' | 'REPAS' | 'PEAGE_PARKING' | 'FOURNITURES' | 'AUTRE';
+export type ExpenseCategory = 'CARBURANT' | 'TRANSPORT' | 'REPAS' | 'PEAGE_PARKING' | 'FOURNITURES' | 'ACHAT_MARCHANDISE' | 'AUTRE';
 
 export interface CommercialExpense {
   id: string;
@@ -467,6 +467,16 @@ export interface CommercialExpense {
   storeId?: string;                 // Magasin rattaché
   receiptUrl?: string;              // Photo / scan du ticket ou justificatif
   status?: 'PENDING' | 'APPROVED' | 'REIMBURSED';
+  
+  // Champs spécifiques Achat Marchandise du Marché :
+  articleName?: string;             // Désignation de l'article / marchandise achetée
+  quantity?: number;                // Quantité achetée
+  unitPrice?: number;               // Prix unitaire d'achat constaté
+  unitOfMeasure?: string;           // Unité (pcs, rouleaux, mètres, kg...)
+  supplierName?: string;            // Fournisseur / vendeur du marché
+  addToStock?: boolean;             // Si true, entré automatiquement en stock magasin
+  stockMovementId?: string;         // Référence du mouvement d'entrée en stock
+  
   createdAt?: any;
 }
 
