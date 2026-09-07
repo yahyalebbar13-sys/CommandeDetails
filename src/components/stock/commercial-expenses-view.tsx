@@ -141,9 +141,9 @@ export default function CommercialExpensesView({
         category: newCategory,
         description: newDescription.trim(),
         commercialName: newCommercialName.trim() || currentUserName || 'Commercial',
-        commercialId: currentUserId || undefined,
-        storeId: newStoreId || undefined,
-        receiptUrl: newReceiptUrl.trim() || undefined,
+        ...(currentUserId ? { commercialId: currentUserId } : {}),
+        ...(newStoreId ? { storeId: newStoreId } : {}),
+        ...(newReceiptUrl.trim() ? { receiptUrl: newReceiptUrl.trim() } : {}),
         status: userRole === 'ADMIN' ? 'APPROVED' : 'PENDING',
       });
 

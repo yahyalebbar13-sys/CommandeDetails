@@ -915,7 +915,7 @@ export default function StockApp() {
       createdAt: serverTimestamp(),
     };
 
-    const docRef = await addDoc(collection(firestore, 'users', effectiveUid, 'checkRemittances'), remittanceData);
+    const docRef = await addDoc(collection(firestore, 'users', effectiveUid, 'checkRemittances'), cleanUndefined(remittanceData));
     const createdRemittance: CheckRemittance = {
       id: docRef.id,
       ...remittanceData,
@@ -979,7 +979,7 @@ export default function StockApp() {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
     await addDoc(collection(firestore, 'users', effectiveUid, 'commercialExpenses'), {
-      ...exp,
+      ...cleanUndefined(exp),
       createdAt: serverTimestamp(),
     });
   }, [user, firestore, adminUid]);
