@@ -23,6 +23,7 @@ import { Switch } from '@/components/ui/switch';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
+import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
 
@@ -94,6 +95,7 @@ export function AddOrderForm({
   const { data: allArticles = [] } = useCollection(articlesRef);
 
   const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
+  const [qualityBreakdown, setQualityBreakdown] = useState<QualityBreakdownRow[] | null>(null);
   const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
   const [sizeBreakdown, setSizeBreakdown] = useState<SizeBreakdownRow[] | null>(null);
   const [designBreakdown, setDesignBreakdown] = useState<DesignBreakdownRow[] | null>(null);
@@ -170,6 +172,32 @@ export function AddOrderForm({
     setDesignBreakdown(rows);
     if (rows && rows.length > 0) {
       setFormData((p: any) => ({ ...p, quantity: total, designRef: 'various' }));
+    }
+  }, []);
+
+  const handleQualityBreakdownChange = useCallback((rows: QualityBreakdownRow[] | null, total: number) => {
+    if (rows && rows.length === 1) {
+      setQualityBreakdown(null);
+      const q = rows[0];
+      setFormData((p: any) => ({
+        ...p,
+        quantity: total,
+        ...(q.gsm ? { gsm: q.gsm } : {}),
+        ...(q.fabricWidth ? { fabricWidth: q.fabricWidth } : {}),
+        ...(q.rollLength ? { rollLength: q.rollLength, rollLengthUnit: q.rollLengthUnit || 'm' } : {}),
+        ...(q.packagingPerBag ? { packagingPerBag: q.packagingPerBag } : {}),
+        ...(q.size ? { size: q.size } : {}),
+        ...(q.zipperType ? { zipperType: q.zipperType } : {}),
+        ...(q.slider ? { slider: q.slider } : {}),
+        ...(q.sliderType ? { sliderType: q.sliderType } : {}),
+        ...(q.tapeWeightGsm ? { tapeWeightGsm: q.tapeWeightGsm } : {}),
+        ...(q.sliderWeightG ? { sliderWeightG: q.sliderWeightG } : {}),
+      }));
+    } else if (rows && rows.length > 1) {
+      setQualityBreakdown(rows);
+      setFormData((p: any) => ({ ...p, quantity: total }));
+    } else {
+      setQualityBreakdown(null);
     }
   }, []);
 
@@ -274,15 +302,16 @@ export function AddOrderForm({
     const e: Record<string, string> = {};
     if (!selectedGenCatId) e.genCat = 'Requis';
     if (!formData.categoryId) e.category = 'Requis';
-    if (!colorBreakdown?.length && !sizeBreakdown?.length && !designBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
+    if (!qualityBreakdown?.length && !colorBreakdown?.length && !sizeBreakdown?.length && !designBreakdown?.length && (!formData.quantity || Number(formData.quantity) <= 0))
       e.quantity = 'Quantité requise';
     return e;
-  }, [selectedGenCatId, formData.categoryId, formData.quantity, colorBreakdown, sizeBreakdown, designBreakdown]);
+  }, [selectedGenCatId, formData.categoryId, formData.quantity, qualityBreakdown, colorBreakdown, sizeBreakdown, designBreakdown]);
 
   const isValid = Object.keys(errors).length === 0;
   const priorityConf = PRIORITY_CONFIG.find(p => p.value === formData.priority) || PRIORITY_CONFIG[2];
 
   const resetForm = () => {
+    setQualityBreakdown(null);
     setColorBreakdown(null);
     setSizeBreakdown(null);
     setDesignBreakdown(null);
@@ -335,7 +364,51 @@ export function AddOrderForm({
       basePayload.stockEntryDate = new Date().toISOString().split('T')[0];
     }
 
-    if (designBreakdown && designBreakdown.length > 0) {
+    if (qualityBreakdown && qualityBreakdown.length > 0) {
+      const groups = new Map<number, QualityBreakdownRow[]>();
+      for (const row of qualityBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
+          ? Number(row.priceOverride)
+          : Number(formData.purchasePricePerUnit || 0);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+      groups.forEach((rows, price) => {
+        const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
+        const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || 0), 0);
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
+        const firstRow = rows[0];
+        const rowSpecs = rows.length === 1 ? {
+          ...(firstRow.gsm ? { gsm: firstRow.gsm } : {}),
+          ...(firstRow.fabricWidth ? { fabricWidth: firstRow.fabricWidth } : {}),
+          ...(firstRow.rollLength ? { rollLength: firstRow.rollLength, rollLengthUnit: firstRow.rollLengthUnit || 'm' } : {}),
+          ...(firstRow.packagingPerBag ? { packagingPerBag: firstRow.packagingPerBag } : {}),
+          ...(firstRow.size ? { size: firstRow.size } : {}),
+          ...(firstRow.zipperType ? { zipperType: firstRow.zipperType } : {}),
+          ...(firstRow.slider ? { slider: firstRow.slider } : {}),
+          ...(firstRow.sliderType ? { sliderType: firstRow.sliderType } : {}),
+          ...(firstRow.tapeWeightGsm ? { tapeWeightGsm: firstRow.tapeWeightGsm } : {}),
+          ...(firstRow.sliderWeightG ? { sliderWeightG: firstRow.sliderWeightG } : {}),
+        } : {};
+
+        setDocumentNonBlocking(
+          doc(firestore, 'users', effectiveUid, 'articles', id),
+          {
+            ...basePayload,
+            ...rowSpecs,
+            id,
+            purchasePricePerUnit: price,
+            quantity: groupQty,
+            qualityBreakdown: rows,
+            colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
+            sizeBreakdown: null,
+            designBreakdown: null,
+            ...extraPayload
+          },
+          { merge: true }
+        );
+      });
+    } else if (designBreakdown && designBreakdown.length > 0) {
       const groups = new Map<number, DesignBreakdownRow[]>();
       for (const row of designBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined)
@@ -350,7 +423,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, ...extraPayload },
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload },
           { merge: true }
         );
       });
@@ -369,7 +442,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, ...extraPayload },
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
           { merge: true }
         );
       });
@@ -388,7 +461,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, ...extraPayload },
+          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
           { merge: true }
         );
       });
@@ -397,15 +470,16 @@ export function AddOrderForm({
       const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: Number(formData.quantity) || 0 } } : {};
       setDocumentNonBlocking(
         doc(firestore, 'users', effectiveUid, 'articles', id),
-        { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, ...extraPayload },
+        { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
         { merge: true }
       );
     }
 
+    const qualitySplitCount = qualityBreakdown ? new Set(qualityBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
     const designSplitCount = designBreakdown ? new Set(designBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
     const colorSplitCount = colorBreakdown ? new Set(colorBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
     const sizeSplitCount = sizeBreakdown ? new Set(sizeBreakdown.map(r => r.priceOverride !== '' && r.priceOverride !== undefined ? r.priceOverride : 'default')).size : 1;
-    const splitCount = Math.max(designSplitCount, colorSplitCount, sizeSplitCount);
+    const splitCount = Math.max(qualitySplitCount, designSplitCount, colorSplitCount, sizeSplitCount);
 
     toast({
       title: "✅ Besoin enregistré",
@@ -563,7 +637,11 @@ export function AddOrderForm({
                   <Label className="text-[10px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
                     <Maximize className="w-3 h-3" /> Qualité Fabric
                   </Label>
-                  {fabricQualities.length > 0 ? (
+                  {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                  ) : fabricQualities.length > 0 ? (
                     <Select onValueChange={v => {
                       const q = fabricQualities[Number(v)];
                       if (q) setFormData((p: any) => ({
@@ -615,7 +693,13 @@ export function AddOrderForm({
               </div>
 
               {/* Badges résumant la qualité choisie */}
-              {(formData.gsm || formData.fabricWidth || formData.rollLength) && (
+              {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                    {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'rolls'})
+                  </span>
+                </div>
+              ) : (formData.gsm || formData.fabricWidth || formData.rollLength) && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {formData.gsm && <span className="px-2 py-1 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">{formData.gsm} g/m²</span>}
                   {formData.fabricWidth && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">{formData.fabricWidth} cm</span>}
@@ -665,7 +749,11 @@ export function AddOrderForm({
                   <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
                     <Settings2 className="w-3 h-3" /> Qualité Zipper
                   </Label>
-                  {zipperQualities.length > 0 ? (
+                  {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                  ) : zipperQualities.length > 0 ? (
                     <Select onValueChange={v => {
                       const q = zipperQualities[Number(v)];
                       if (q) {
@@ -719,7 +807,13 @@ export function AddOrderForm({
               </div>
 
               {/* Badges résumant la qualité choisie */}
-              {(formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
+              {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                    {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                  </span>
+                </div>
+              ) : (formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Taille: {formData.size}</span>}
                   {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
@@ -858,17 +952,27 @@ export function AddOrderForm({
             />
           )}
 
-          {/* ── Section 3a: Tailles Multi ──────────────────────────────────── */}
+          {/* ── Section 3a: Qualités Multi ─────────────────────────────────── */}
+          <QualityBreakdownInput
+            value={qualityBreakdown}
+            onChange={handleQualityBreakdownChange}
+            unit={formData.unitOfMeasure}
+            availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : []}
+            isFabric={isFabric}
+            isZipper={isZipper}
+          />
+
+          {/* ── Section 3b: Tailles Multi ──────────────────────────────────── */}
           <SizeBreakdownInput value={sizeBreakdown} onChange={handleSizeBreakdownChange} availableSizes={availableSizes} />
 
-          {/* ── Section 3b: Couleurs Multi ─────────────────────────────────── */}
+          {/* ── Section 3c: Couleurs Multi ─────────────────────────────────── */}
           <ColorBreakdownInput
             value={colorBreakdown}
             onChange={handleColorBreakdownChange}
             unit={formData.unitOfMeasure}
           />
 
-          {/* ── Section 3c: Modèles Multi ─────────────────────────────────── */}
+          {/* ── Section 3d: Modèles Multi ─────────────────────────────────── */}
           {isDesignCategory && formData.categoryId && (
             <DesignBreakdownInput
               categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
@@ -903,7 +1007,7 @@ export function AddOrderForm({
                 Quantité
                 {errors.quantity && <AlertCircle className="w-3 h-3 text-red-400 ml-auto" />}
               </Label>
-              {((colorBreakdown && colorBreakdown.length > 0) || (sizeBreakdown && sizeBreakdown.length > 0) || (designBreakdown && designBreakdown.length > 0)) ? (
+              {((qualityBreakdown && qualityBreakdown.length > 0) || (colorBreakdown && colorBreakdown.length > 0) || (sizeBreakdown && sizeBreakdown.length > 0) || (designBreakdown && designBreakdown.length > 0)) ? (
                 <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
                   <span className="text-[10px] font-black text-violet-700">{Number(formData.quantity).toLocaleString()}</span>
                   <span className="text-[8px] font-bold text-violet-400 uppercase">auto</span>

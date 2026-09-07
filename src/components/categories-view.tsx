@@ -39,7 +39,8 @@ import {
   ShieldAlert,
   Calculator,
   Plus,
-  Maximize
+  Maximize,
+  Sparkles
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary from './design-library';
@@ -282,6 +283,7 @@ export default function CategoriesView({
   });
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [colorDetailArticle, setColorDetailArticle] = useState<any>(null);
+  const [qualityDetailArticle, setQualityDetailArticle] = useState<any>(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
   // ── Reorder schedule config modal
@@ -1356,7 +1358,12 @@ export default function CategoriesView({
                           )}
                         </TableCell>
                         <TableCell className="text-[10px] py-3.5">
-                          {isTechnical ? (
+                          {a.qualityBreakdown && a.qualityBreakdown.length > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-fuchsia-700 font-black uppercase text-[9px]">VARIOUS ({a.qualityBreakdown.length})</span>
+                              <button onClick={() => setQualityDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-fuchsia-100 text-fuchsia-600 hover:bg-fuchsia-200 px-2 py-0.5 rounded-full transition-colors"><Sparkles className="w-2.5 h-2.5" /> Détail</button>
+                            </div>
+                          ) : isTechnical ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
@@ -1431,7 +1438,12 @@ export default function CategoriesView({
                           ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
                         </TableCell>
                         <TableCell className="text-[10px] py-3.5">
-                          {isTechnical ? (
+                          {a.qualityBreakdown && a.qualityBreakdown.length > 0 ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-fuchsia-700 font-black uppercase text-[9px]">VARIOUS ({a.qualityBreakdown.length})</span>
+                              <button onClick={() => setQualityDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-fuchsia-100 text-fuchsia-600 hover:bg-fuchsia-200 px-2 py-0.5 rounded-full transition-colors"><Sparkles className="w-2.5 h-2.5" /> Détail</button>
+                            </div>
+                          ) : isTechnical ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
@@ -1537,7 +1549,12 @@ export default function CategoriesView({
                               ) : <span className="text-[10px] text-stone-900 uppercase font-bold">{a.color || '-'}</span>}
                             </TableCell>
                             <TableCell className="text-[10px] py-3.5">
-                              {isTechnical ? (
+                              {a.qualityBreakdown && a.qualityBreakdown.length > 0 ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-fuchsia-700 font-black uppercase text-[9px]">VARIOUS ({a.qualityBreakdown.length})</span>
+                                  <button onClick={() => setQualityDetailArticle(a)} className="flex items-center gap-1 text-[8px] font-black uppercase bg-fuchsia-100 text-fuchsia-600 hover:bg-fuchsia-200 px-2 py-0.5 rounded-full transition-colors"><Sparkles className="w-2.5 h-2.5" /> Détail</button>
+                                </div>
+                              ) : isTechnical ? (
                                 <div className="flex flex-col gap-0.5">
                                   <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                                   <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'}</span>
@@ -1981,6 +1998,53 @@ export default function CategoriesView({
                   <div className="grid grid-cols-[1fr_100px] bg-violet-600 text-white">
                     <div className="py-2.5 px-3 text-[9px] font-black uppercase tracking-widest">TOTAL</div>
                     <div className="py-2.5 px-3 text-right text-[11px] font-black">{(colorDetailArticle.colorBreakdown || []).reduce((s: number, r: any) => s + (Number(r.rolls) || 0), 0).toLocaleString('en-US')} rolls</div>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {qualityDetailArticle && (
+          <Dialog open={!!qualityDetailArticle} onOpenChange={(open) => !open && setQualityDetailArticle(null)}>
+            <DialogContent className="max-w-md border-stone-200 rounded-2xl p-0 overflow-hidden">
+              <div className="bg-fuchsia-700 p-5 flex items-center gap-3 text-white">
+                <div className="p-2 bg-white/10 rounded-lg"><Sparkles className="w-5 h-5" /></div>
+                <div>
+                  <DialogTitle className="text-base font-black uppercase tracking-tight leading-none">Détail Multi-Qualités</DialogTitle>
+                  <p className="text-[9px] font-bold text-fuchsia-300 uppercase tracking-widest mt-0.5">{qualityDetailArticle.name} · {qualityDetailArticle.supplierId || ''}</p>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="rounded-xl overflow-hidden border border-fuchsia-100">
+                  <div className="grid grid-cols-[1fr_100px] bg-fuchsia-100/60">
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-fuchsia-700 tracking-widest">Qualité</div>
+                    <div className="py-2 px-3 text-[9px] font-black uppercase text-fuchsia-700 tracking-widest text-right">Quantité</div>
+                  </div>
+                  <div className="divide-y divide-fuchsia-50">
+                    {(qualityDetailArticle.qualityBreakdown || []).map((row: any, i: number) => (
+                      <div key={i} className="grid grid-cols-[1fr_100px] hover:bg-fuchsia-50/30 transition-colors p-2.5 items-center">
+                        <div>
+                          <p className="text-[11px] font-black text-stone-800 uppercase">{row.quality}</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {row.gsm && <span className="px-1.5 py-0.2 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{row.gsm}gsm</span>}
+                            {row.fabricWidth && <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{row.fabricWidth}cm</span>}
+                            {row.size && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{row.size}</span>}
+                            {row.zipperType && <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{row.zipperType}</span>}
+                            {row.slider && <span className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-700 text-[8px] font-black">{row.slider} {row.sliderType ? `(${row.sliderType})` : ''}</span>}
+                          </div>
+                        </div>
+                        <div className="text-[11px] font-black text-stone-900 text-right">
+                          {Number(row.quantity).toLocaleString()} <span className="text-[8px] text-stone-400 font-bold uppercase">{qualityDetailArticle.unitOfMeasure || ''}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-[1fr_100px] bg-fuchsia-600 text-white p-2.5">
+                    <div className="text-[9px] font-black uppercase tracking-widest">TOTAL</div>
+                    <div className="text-right text-[11px] font-black">
+                      {(qualityDetailArticle.qualityBreakdown || []).reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString('en-US')} {qualityDetailArticle.unitOfMeasure || ''}
+                    </div>
                   </div>
                 </div>
               </div>

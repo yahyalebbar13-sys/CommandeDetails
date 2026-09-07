@@ -8,7 +8,7 @@ import {
   Clock, ArrowRight, Trash2, Pencil,
   Container, UserCircle2,
   Maximize, Palette, ChevronDown, ChevronUp, Package,
-  Building2, Tag, Layers
+  Building2, Tag, Layers, Sparkles
 } from 'lucide-react';
 import ValidateOrderModal from './validate-order-modal';
 import { useUser, useFirestore, deleteDocumentNonBlocking } from '@/firebase';
@@ -152,7 +152,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
   const ArticleCard = ({ o }: { o: any }) => {
     const isZipper = isZipperCategory(o.categoryId);
     const expanded = expandedIds.has(o.id);
-    const hasBreakdown = (o.colorBreakdown?.length > 0) || (o.sizeBreakdown?.length > 0);
+    const hasBreakdown = (o.colorBreakdown?.length > 0) || (o.sizeBreakdown?.length > 0) || (o.qualityBreakdown?.length > 0);
     return (
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-all p-4 space-y-2.5">
         <div className="flex flex-wrap items-start gap-3">
@@ -195,6 +195,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
                   <Building2 className="w-2.5 h-2.5" /> {o.supplierId}
                 </span>
               )}
+              {o.qualityBreakdown?.length > 0 && <span className="text-[8px] font-bold text-fuchsia-600 bg-fuchsia-50 border border-fuchsia-100 px-1.5 py-0.5 rounded uppercase">{o.qualityBreakdown.length} qualités</span>}
               {o.size && o.size !== 'various' && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.size}</span>}
               {o.sizeBreakdown?.length > 0 && <span className="text-[8px] font-bold text-teal-600 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded uppercase">{o.sizeBreakdown.length} tailles</span>}
               {o.color && o.color !== 'various' && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.color}</span>}
@@ -237,6 +238,26 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
         {/* Breakdown detail */}
         {expanded && hasBreakdown && (
           <div className="mt-3 pt-3 border-t border-stone-50 grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in duration-200">
+            {o.qualityBreakdown?.length > 0 && (
+              <div className="rounded-xl border border-fuchsia-100 overflow-hidden">
+                <div className="bg-fuchsia-600 px-3 py-1.5 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-fuchsia-200" />
+                  <span className="text-[8px] font-black text-fuchsia-200 uppercase tracking-widest">Détail Qualités — {o.qualityBreakdown.length} qualités</span>
+                </div>
+                <div className="divide-y divide-fuchsia-50 bg-white">
+                  {o.qualityBreakdown.map((r: any, i: number) => (
+                    <div key={i} className="grid grid-cols-[1fr_90px] px-3 py-1.5 text-[10px]">
+                      <span className="font-black text-stone-800 uppercase">{r.quality}</span>
+                      <span className="font-bold text-stone-500 text-right">{Number(r.quantity).toLocaleString()} {o.unitOfMeasure}</span>
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-[1fr_90px] px-3 py-1.5 bg-fuchsia-600 text-white">
+                    <span className="text-[8px] font-black uppercase">TOTAL</span>
+                    <span className="text-[9px] font-black text-right">{o.qualityBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {o.unitOfMeasure}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             {o.sizeBreakdown?.length > 0 && (
               <div className="rounded-xl border border-teal-100 overflow-hidden">
                 <div className="bg-teal-600 px-3 py-1.5 flex items-center gap-1.5">

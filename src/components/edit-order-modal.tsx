@@ -23,6 +23,7 @@ import { Check, ChevronDown as ChevronDownIcon } from 'lucide-react';
 import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input';
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
+import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
 
@@ -77,7 +78,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     }
     onOpenChange(o);
   };
-
+  const [qualityBreakdown, setQualityBreakdown] = useState<QualityBreakdownRow[] | null>(null);
   const [sizeBreakdown, setSizeBreakdown] = useState<any[] | null>(null);
   const [designBreakdown, setDesignBreakdown] = useState<DesignBreakdownRow[] | null>(null);
   const [colorOpen, setColorOpen] = useState(false);
@@ -115,6 +116,32 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     }
   };
 
+  const handleQualityBreakdownChange = (rows: QualityBreakdownRow[] | null, total: number) => {
+    if (rows && rows.length === 1) {
+      setQualityBreakdown(null);
+      const q = rows[0];
+      setFormData((p: any) => p ? {
+        ...p,
+        quantity: total,
+        ...(q.gsm ? { gsm: q.gsm } : {}),
+        ...(q.fabricWidth ? { fabricWidth: q.fabricWidth } : {}),
+        ...(q.rollLength ? { rollLength: q.rollLength, rollLengthUnit: q.rollLengthUnit || 'm' } : {}),
+        ...(q.packagingPerBag ? { packagingPerBag: q.packagingPerBag } : {}),
+        ...(q.size ? { size: q.size } : {}),
+        ...(q.zipperType ? { zipperType: q.zipperType } : {}),
+        ...(q.slider ? { slider: q.slider } : {}),
+        ...(q.sliderType ? { sliderType: q.sliderType } : {}),
+        ...(q.tapeWeightGsm ? { tapeWeightGsm: q.tapeWeightGsm } : {}),
+        ...(q.sliderWeightG ? { sliderWeightG: q.sliderWeightG } : {}),
+      } : p);
+    } else if (rows && rows.length > 1) {
+      setQualityBreakdown(rows);
+      setFormData((p: any) => p ? { ...p, quantity: total } : p);
+    } else {
+      setQualityBreakdown(null);
+    }
+  };
+
   useEffect(() => {
     if (article) {
       setFormData({
@@ -139,11 +166,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       setColorBreakdown(article.colorBreakdown || null);
       setSizeBreakdown(Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : null);
       setDesignBreakdown(article.designBreakdown || null);
+      setQualityBreakdown(Array.isArray(article.qualityBreakdown) ? article.qualityBreakdown : null);
     } else {
       setFormData(null);
       setColorBreakdown(null);
       setSizeBreakdown(null);
       setDesignBreakdown(null);
+      setQualityBreakdown(null);
     }
   }, [article]);
 
@@ -393,7 +422,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const groups = new Map<number, any[]>();
     let splitType = '';
 
-    if (designBreakdown && designBreakdown.length > 0) {
+    if (qualityBreakdown && qualityBreakdown.length > 0) {
+      splitType = 'quality';
+      for (const row of qualityBreakdown) {
+        const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(formData.purchasePricePerUnit || 0);
+        if (!groups.has(price)) groups.set(price, []);
+        groups.get(price)!.push(row);
+      }
+    } else if (designBreakdown && designBreakdown.length > 0) {
       splitType = 'design';
       for (const row of designBreakdown) {
         const price = (row.priceOverride !== '' && row.priceOverride !== undefined) ? Number(row.priceOverride) : Number(formData.purchasePricePerUnit || 0);
@@ -423,6 +459,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       groups.forEach((rows, price) => {
         const groupQty = rows.reduce((s, r) => s + (Number(r.rolls || r.quantity) || 0), 0);
         const splitData = {
+          qualityBreakdown: splitType === 'quality' ? rows : (qualityBreakdown && qualityBreakdown.length > 0 ? qualityBreakdown : null),
           designBreakdown: splitType === 'design' ? rows : (designBreakdown && designBreakdown.length > 0 ? designBreakdown : null),
           colorBreakdown: splitType === 'color' ? rows : (colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null),
           sizeBreakdown: splitType === 'size' ? rows : (sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null),
@@ -465,6 +502,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         generalCategoryId: selectedGenCatId,
         factureId: finalFactureId,
         status: statusToSave,
+        qualityBreakdown: qualityBreakdown && qualityBreakdown.length > 0 ? qualityBreakdown : null,
         designBreakdown: designBreakdown && designBreakdown.length > 0 ? designBreakdown : null,
         colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
         sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
@@ -805,7 +843,21 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Settings2 className="w-3 h-3" /> Spécifications Zipper
                 </p>
-                {zipperQualities.length > 0 && (
+                {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
+                      <Settings2 className="w-3 h-3" /> Qualité Zipper
+                    </Label>
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                      </span>
+                    </div>
+                  </div>
+                ) : zipperQualities.length > 0 ? (
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Qualité Zipper Fixe</Label>
                     <Select onValueChange={v => {
@@ -832,10 +884,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       </SelectContent>
                     </Select>
                   </div>
-                )}
+                ) : null}
 
                 {/* Show current values as badges */}
-                {(formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
+                {!qualityBreakdown && (formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
                   <div className="flex flex-wrap gap-1.5">
                     {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Taille: {formData.size}</span>}
                     {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
@@ -925,7 +977,21 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Maximize className="w-3 h-3" /> Spécifications Fabric
                 </p>
-                {fabricQualities.length > 0 ? (
+                {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
+                      <Maximize className="w-3 h-3" /> Qualité Fabric
+                    </Label>
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'rolls'})
+                      </span>
+                    </div>
+                  </div>
+                ) : fabricQualities.length > 0 ? (
                   <>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">Qualité</Label>
@@ -1087,7 +1153,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             <div className="grid grid-cols-2 gap-4 md:col-span-2">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quantit</Label>
-                {colorBreakdown && colorBreakdown.length > 0 ? (
+                {((qualityBreakdown && qualityBreakdown.length > 0) || (colorBreakdown && colorBreakdown.length > 0) || (sizeBreakdown && sizeBreakdown.length > 0)) ? (
                   <div className="h-12 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3 justify-between">
                     <span className="text-[10px] font-black text-violet-700">{(formData.quantity || 0).toLocaleString()} {formData.unitOfMeasure}</span>
                     <span className="text-[9px] font-bold text-violet-400 uppercase">calcul auto</span>
@@ -1210,6 +1276,14 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
             <div className="space-y-3 p-4 bg-stone-50 rounded-xl border border-stone-200 md:col-span-2">
               <div className="md:col-span-2 space-y-4">
+                <QualityBreakdownInput
+                  value={qualityBreakdown}
+                  onChange={handleQualityBreakdownChange}
+                  unit={formData?.unitOfMeasure}
+                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : []}
+                  isFabric={isFabric}
+                  isZipper={isZipper}
+                />
                 <ColorBreakdownInput
                   categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
                   value={colorBreakdown}

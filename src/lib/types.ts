@@ -43,6 +43,25 @@ export type Category = {
   }[];
 };
 
+export interface QualityBreakdownRow {
+  quality: string;             // Label de la qualité
+  quantity: number;            // Quantité (rouleaux, pièces, etc.)
+  priceOverride?: string | number; // Prix d'achat optionnel
+  // Attributs Fabric
+  gsm?: number;
+  fabricWidth?: number;
+  rollLength?: number;
+  rollLengthUnit?: string;
+  packagingPerBag?: number;
+  // Attributs Zipper
+  size?: string;
+  zipperType?: string;
+  slider?: string;
+  sliderType?: string;
+  tapeWeightGsm?: number;
+  sliderWeightG?: number;
+}
+
 export type Order = {
   id: string;
   generalCategoryId?: string;
@@ -68,6 +87,10 @@ export type Order = {
   status: OrderStatus;
   initialQtyByStore?: Partial<Record<StoreLocation, number>>;
   createdAt?: any;
+  // Breakdowns
+  colorBreakdown?: any[] | null;
+  sizeBreakdown?: any[] | null;
+  qualityBreakdown?: QualityBreakdownRow[] | null;
   // Fabric-specific fields
   gsm?: number;              // Grammage g/m²
   fabricWidth?: number;       // Largeur rouleau cm
