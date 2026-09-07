@@ -24,6 +24,7 @@ import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input'
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import DesignPicker from './design-picker';
+import { findLastOrderPrice } from '@/lib/order-utils';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -286,6 +287,36 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
     return Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : [];
   }, [formData?.categoryId, subCategories]);
+
+  const lastOrderInfo = useMemo(() => {
+    if (!formData?.categoryId && !article?.name) return null;
+    return findLastOrderPrice(
+      {
+        id: article?.id,
+        categoryId: formData?.categoryId || article?.categoryId,
+        name: formData?.categoryId || article?.name,
+        size: formData?.size,
+        color: formData?.color,
+        specs: formData?.specs,
+        zipperType: formData?.zipperType,
+        gsm: formData?.gsm,
+        fabricWidth: formData?.fabricWidth,
+      },
+      allArticles || []
+    );
+  }, [
+    article?.id,
+    article?.name,
+    article?.categoryId,
+    formData?.categoryId,
+    formData?.size,
+    formData?.color,
+    formData?.specs,
+    formData?.zipperType,
+    formData?.gsm,
+    formData?.fabricWidth,
+    allArticles
+  ]);
 
   const handleSuggestSpecs = async () => {
     if (!formData?.categoryId) return;
@@ -982,7 +1013,20 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire ($)</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Prix Unitaire ($)</Label>
+                  {lastOrderInfo && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev: any) => ({ ...prev, purchasePricePerUnit: lastOrderInfo.price }))}
+                      className="text-[8px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                      title="Cliquer pour appliquer le dernier prix"
+                    >
+                      <span>Dernier: {lastOrderInfo.price} $</span>
+                      {lastOrderInfo.supplierId && <span className="text-stone-400 font-bold">({lastOrderInfo.supplierId})</span>}
+                    </button>
+                  )}
+                </div>
                 <Input
                   type="number"
                   step="0.0001"

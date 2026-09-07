@@ -15,6 +15,7 @@ import ExportBonCommande from './export-bon-commande';
 import ExportClientCommande from './export-client-commande';
 import { exportPropositionFournisseurPDF, exportPriceProposalPDF } from '@/lib/export-proposition-pdf';
 import { exportBesoinsPDF } from '@/lib/pdf-export';
+import { findLastOrderPrice } from '@/lib/order-utils';
 
 interface ToOrderViewProps {
   articles: any[];
@@ -487,6 +488,35 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                             {isZipper && o.zipperType && <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded uppercase">{o.zipperType} {o.slider || ''}</span>}
                             {!isZipper && o.specs && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">{o.specs}</span>}
                           </div>
+                          {(() => {
+                            const lastOrder = findLastOrderPrice(o, articles);
+                            return (
+                              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px]">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <DollarSign className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span className="font-bold text-stone-600 text-[9px] uppercase tracking-wider shrink-0">Dernier prix :</span>
+                                  {lastOrder ? (
+                                    <span className="font-black text-amber-700 text-[11px] truncate">
+                                      {lastOrder.price} $
+                                      <span className="text-[8px] text-stone-400 font-bold"> / {lastOrder.unitOfMeasure || o.unitOfMeasure}</span>
+                                    </span>
+                                  ) : Number(o.purchasePricePerUnit) > 0 ? (
+                                    <span className="font-black text-amber-700 text-[11px] truncate">
+                                      {o.purchasePricePerUnit} $
+                                      <span className="text-[8px] text-stone-400 font-bold"> / {o.unitOfMeasure}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-stone-300 text-[9px] font-bold italic">Non renseigné</span>
+                                  )}
+                                </div>
+                                {lastOrder?.supplierId && (
+                                  <span className="text-[8px] font-black text-stone-400 uppercase bg-white px-1.5 py-0.5 rounded border border-stone-200/60 shrink-0 ml-1.5 shadow-2xs">
+                                    {lastOrder.supplierId} {lastOrder.orderDate ? `· ${lastOrder.orderDate}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                           <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
                             {o.clientName && <ExportClientCommande article={o} />}
                             <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
@@ -644,6 +674,35 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                               {isZipper && o.zipperType && <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg uppercase">{o.zipperType} {o.slider || ''}</span>}
                               {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
                             </div>
+                            {(() => {
+                              const lastOrder = findLastOrderPrice(o, articles);
+                              return (
+                                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px]">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <DollarSign className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span className="font-bold text-stone-600 text-[9px] uppercase tracking-wider shrink-0">Dernier prix :</span>
+                                    {lastOrder ? (
+                                      <span className="font-black text-amber-700 text-[11px] truncate">
+                                        {lastOrder.price} $
+                                        <span className="text-[8px] text-stone-400 font-bold"> / {lastOrder.unitOfMeasure || o.unitOfMeasure}</span>
+                                      </span>
+                                    ) : Number(o.purchasePricePerUnit) > 0 ? (
+                                      <span className="font-black text-amber-700 text-[11px] truncate">
+                                        {o.purchasePricePerUnit} $
+                                        <span className="text-[8px] text-stone-400 font-bold"> / {o.unitOfMeasure}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-stone-300 text-[9px] font-bold italic">Non renseigné</span>
+                                    )}
+                                  </div>
+                                  {lastOrder?.supplierId && (
+                                    <span className="text-[8px] font-black text-stone-400 uppercase bg-white px-1.5 py-0.5 rounded border border-stone-200/60 shrink-0 ml-1.5 shadow-2xs">
+                                      {lastOrder.supplierId} {lastOrder.orderDate ? `· ${lastOrder.orderDate}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <div className="flex items-center justify-end gap-1 pt-2 border-t border-stone-50">
                               {o.clientName && <ExportClientCommande article={o} />}
                               <ExportBonCommande article={o} supplierProfile={supplierProfileMap[o.supplierId] || undefined} />
@@ -939,7 +998,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
         )}
       </div>
 
-      <LaunchOrderModal open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen} article={selectedArticle} />
+      <LaunchOrderModal open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen} article={selectedArticle} allArticles={articles} />
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* MODAL — Proposition fournisseur                               */}

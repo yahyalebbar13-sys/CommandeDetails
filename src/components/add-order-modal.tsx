@@ -24,6 +24,7 @@ import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input'
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import DesignPicker from './design-picker';
+import { findLastOrderPrice } from '@/lib/order-utils';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -102,6 +103,33 @@ export function AddOrderForm({
     (allArticles || []).forEach((a: any) => { if (a.supplierId) set.add(a.supplierId); });
     return Array.from(set).sort();
   }, [allArticles]);
+
+  // Find last order price for selected product / variant
+  const lastOrderInfo = useMemo(() => {
+    if (!formData.categoryId) return null;
+    return findLastOrderPrice(
+      {
+        categoryId: formData.categoryId,
+        name: formData.categoryId,
+        size: formData.size,
+        color: formData.color,
+        specs: formData.specs,
+        zipperType: formData.zipperType,
+        gsm: formData.gsm,
+        fabricWidth: formData.fabricWidth,
+      },
+      allArticles || []
+    );
+  }, [
+    formData.categoryId,
+    formData.size,
+    formData.color,
+    formData.specs,
+    formData.zipperType,
+    formData.gsm,
+    formData.fabricWidth,
+    allArticles
+  ]);
 
   const handleColorBreakdownChange = useCallback((rows: ColorBreakdownRow[] | null, total: number) => {
     if (rows && rows.length === 1) {
@@ -247,8 +275,14 @@ export function AddOrderForm({
     if (!user || !firestore || !isValid) return;
 
     const selectedSubCat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const finalPrice = (formData.purchasePricePerUnit !== '' && Number(formData.purchasePricePerUnit) > 0)
+      ? Number(formData.purchasePricePerUnit)
+      : (lastOrderInfo?.price || 0);
+
     const basePayload: any = {
       ...formData,
+      purchasePricePerUnit: finalPrice,
+      lastOrderPrice: lastOrderInfo?.price || null,
       name: formData.categoryId,
       generalCategoryId: selectedGenCatId,
       status: isInventoryMode ? 'SHIPPED' : 'TO_ORDER',
@@ -468,7 +502,15 @@ export function AddOrderForm({
               <Select
                 disabled={!selectedGenCatId}
                 value={formData.categoryId}
-                onValueChange={v => setFormData((p: any) => ({ ...p, categoryId: v }))}
+                onValueChange={v => {
+                  const lastForCat = findLastOrderPrice({ categoryId: v, name: v }, allArticles || []);
+                  setFormData((p: any) => ({
+                    ...p,
+                    categoryId: v,
+                    purchasePricePerUnit: (!p.purchasePricePerUnit || p.purchasePricePerUnit === 0) && lastForCat?.price ? lastForCat.price : p.purchasePricePerUnit,
+                    supplierId: (!p.supplierId && lastForCat?.supplierId) ? lastForCat.supplierId : p.supplierId,
+                  }));
+                }}
               >
                 <SelectTrigger className={`h-11 font-bold rounded-xl border ${!selectedGenCatId ? 'opacity-50' : errors.category ? 'border-red-300 bg-red-50' : 'border-stone-200 bg-white'}`}>
                   <SelectValue placeholder={selectedGenCatId ? "Choisir..." : "← Pôle d'abord"} />
@@ -774,13 +816,26 @@ export function AddOrderForm({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <DollarSign className="w-3 h-3" /> PA ($)
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" /> PA ($)
+                </Label>
+                {lastOrderInfo && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData((p: any) => ({ ...p, purchasePricePerUnit: lastOrderInfo.price }))}
+                    className="text-[8px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                    title="Cliquer pour appliquer le dernier prix"
+                  >
+                    <span>Dernier: {lastOrderInfo.price} $</span>
+                    {lastOrderInfo.supplierId && <span className="text-stone-400 font-bold">({lastOrderInfo.supplierId})</span>}
+                  </button>
+                )}
+              </div>
               <Input
                 type="text"
                 inputMode="decimal"
-                placeholder="0.00"
+                placeholder={lastOrderInfo ? String(lastOrderInfo.price) : "0.00"}
                 className="h-11 border-stone-200 font-black rounded-xl text-center text-amber-700"
                 value={formData.purchasePricePerUnit === 0 ? '' : formData.purchasePricePerUnit}
                 onChange={e => {
