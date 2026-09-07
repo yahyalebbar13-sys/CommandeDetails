@@ -61,6 +61,9 @@ const EMPTY_FORM = {
   rollLength: '' as string | number,
   rollLengthUnit: 'm' as 'm' | 'yds',
   packagingPerBag: '' as string | number,
+  // Zipper fields
+  tapeWeightGsm: '' as string | number,
+  sliderWeightG: '' as string | number,
 };
 
 export function AddOrderForm({ 
@@ -115,8 +118,12 @@ export function AddOrderForm({
         color: formData.color,
         specs: formData.specs,
         zipperType: formData.zipperType,
+        slider: formData.slider,
+        sliderType: formData.sliderType,
         gsm: formData.gsm,
         fabricWidth: formData.fabricWidth,
+        tapeWeightGsm: formData.tapeWeightGsm,
+        sliderWeightG: formData.sliderWeightG,
       },
       allArticles || []
     );
@@ -126,8 +133,12 @@ export function AddOrderForm({
     formData.color,
     formData.specs,
     formData.zipperType,
+    formData.slider,
+    formData.sliderType,
     formData.gsm,
     formData.fabricWidth,
+    formData.tapeWeightGsm,
+    formData.sliderWeightG,
     allArticles
   ]);
 
@@ -186,9 +197,16 @@ export function AddOrderForm({
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
+    if (selectedGenCatId) {
+      const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (lower.includes('zipper') && !lower.includes('slider') && !lower.includes('puller')) return true;
+      }
+    }
     const upper = (formData.categoryId || '').toUpperCase();
-    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
-  }, [formData.categoryId]);
+    return upper.includes('ZIPPER') && !upper.includes('SLIDER') && !upper.includes('PULLER');
+  }, [selectedGenCatId, generalCategories, formData.categoryId]);
 
   const isSlider = useMemo(() => {
     const upper = (formData.categoryId || '').toUpperCase();
@@ -243,6 +261,13 @@ export function AddOrderForm({
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
     return Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : [];
   }, [formData.categoryId, subCategories]);
+
+  const zipperQualities = useMemo(() => {
+    if (!formData.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
+  }, [formData.categoryId, subCategories]);
+
   // Validation
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -300,6 +325,9 @@ export function AddOrderForm({
       rollLength: formData.rollLength ? Number(formData.rollLength) : null,
       rollLengthUnit: formData.rollLength ? formData.rollLengthUnit : null,
       packagingPerBag: formData.packagingPerBag ? Number(formData.packagingPerBag) : null,
+      // Zipper fields — convert to numbers, null if empty
+      tapeWeightGsm: formData.tapeWeightGsm ? Number(formData.tapeWeightGsm) : null,
+      sliderWeightG: formData.sliderWeightG ? Number(formData.sliderWeightG) : null,
     };
 
     if (isInventoryMode) {
@@ -595,52 +623,124 @@ export function AddOrderForm({
             )}
           </div>
 
-          {/* Zipper extra fields */}
+          {/* Zipper fields & qualities */}
           {isZipper && (
-            <div className="grid grid-cols-3 gap-3">
-              {/* Couleur pour zipper */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                  <Palette className="w-3 h-3" /> Couleur
-                </Label>
-                {colorBreakdown && colorBreakdown.length > 0 ? (
-                  <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
-                    <span className="text-[9px] font-black text-violet-700 uppercase">VARIOUS</span>
-                  </div>
-                ) : (
-                  <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
-                    <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                      <SelectValue />
+            <div className="space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-100">
+              <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
+                <Settings2 className="w-3 h-3" /> Spécifications Zipper
+              </p>
+              {zipperQualities.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Qualité Zipper Fixe</Label>
+                  <Select onValueChange={v => {
+                    const q = zipperQualities[Number(v)];
+                    if (q) {
+                      setFormData((p: any) => ({
+                        ...p,
+                        size: q.length || p.size,
+                        zipperType: q.zipperType || p.zipperType,
+                        slider: q.slider || p.slider,
+                        sliderType: q.sliderType || p.sliderType,
+                        tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
+                        sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                      }));
+                    }
+                  }}>
+                    <SelectTrigger className="h-11 border-amber-200 bg-white font-bold rounded-xl text-amber-800">
+                      <SelectValue placeholder="Choisir une qualité Zipper..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                      {zipperQualities.map((q: any, i: number) => (
+                        <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                )}
+                </div>
+              )}
+
+              {/* Show current values as badges */}
+              {(formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Long: {formData.size}</span>}
+                  {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
+                  {formData.slider && <span className="px-2 py-1 rounded-lg bg-stone-100 text-stone-700 text-[10px] font-black">Curseur: {formData.slider}</span>}
+                  {formData.sliderType && <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-black">Type: {formData.sliderType}</span>}
+                  {formData.tapeWeightGsm && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-black">Ruban: {formData.tapeWeightGsm} g/m</span>}
+                  {formData.sliderWeightG && <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-700 text-[10px] font-black">Curseur: {formData.sliderWeightG} g/pc</span>}
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3">
+                {/* Couleur pour zipper */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Palette className="w-3 h-3" /> Couleur
+                  </Label>
+                  {colorBreakdown && colorBreakdown.length > 0 ? (
+                    <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                      <span className="text-[9px] font-black text-violet-700 uppercase">VARIOUS</span>
+                    </div>
+                  ) : (
+                    <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <MousePointer2 className="w-3 h-3" /> Curseur
+                  </Label>
+                  <Input
+                    placeholder="Auto-lock..."
+                    className="h-11 border-stone-200 font-bold rounded-xl"
+                    value={formData.slider}
+                    onChange={e => setFormData((p: any) => ({ ...p, slider: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Scissors className="w-3 h-3" /> Type Curseur
+                  </Label>
+                  <Select value={formData.sliderType} onValueChange={v => setFormData((p: any) => ({ ...p, sliderType: v }))}>
+                    <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                      <SelectValue placeholder="..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                  <MousePointer2 className="w-3 h-3" /> Curseur
-                </Label>
-                <Input
-                  placeholder="Auto-lock..."
-                  className="h-11 border-stone-200 font-bold rounded-xl"
-                  value={formData.slider}
-                  onChange={e => setFormData((p: any) => ({ ...p, slider: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                  <Scissors className="w-3 h-3" /> Type Curseur
-                </Label>
-                <Select value={formData.sliderType} onValueChange={v => setFormData((p: any) => ({ ...p, sliderType: v }))}>
-                  <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue placeholder="..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+
+              {/* Ruban g/m & Curseur g/pc */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Ruban (g/m)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="Ex: 20.5"
+                    className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                    value={formData.tapeWeightGsm || ''}
+                    onChange={e => setFormData((p: any) => ({ ...p, tapeWeightGsm: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids Curseur (g/pcs)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="Ex: 1.2"
+                    className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                    value={formData.sliderWeightG || ''}
+                    onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
           )}

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Utility function to find the last purchase price (PA) of an article / product
  * among all existing articles in the database.
  */
@@ -44,8 +44,12 @@ export function findLastOrderPrice(
   const targetColor = String(target.color || '').trim().toLowerCase();
   const targetSpecs = String(target.specs || '').trim().toLowerCase();
   const targetZipper = String(target.zipperType || '').trim().toLowerCase();
+  const targetSlider = String(target.slider || '').trim().toLowerCase();
+  const targetSliderType = String(target.sliderType || '').trim().toLowerCase();
   const targetGsm = Number(target.gsm) || null;
   const targetWidth = Number(target.fabricWidth) || null;
+  const targetTapeWeight = Number(target.tapeWeightGsm) || null;
+  const targetSliderWeight = Number(target.sliderWeightG) || null;
 
   if (!targetCat && !targetName) return null;
 
@@ -117,6 +121,27 @@ export function findLastOrderPrice(
     if (targetZipper && cZipper) {
       if (targetZipper === cZipper) score += 30;
       else score -= 15;
+    }
+
+    // Zipper slider matching
+    const cSlider = String(c.slider || '').trim().toLowerCase();
+    if (targetSlider && cSlider) {
+      if (targetSlider === cSlider) score += 25;
+      else score -= 10;
+    }
+
+    // Zipper slider type matching
+    const cSliderType = String(c.sliderType || '').trim().toLowerCase();
+    if (targetSliderType && cSliderType) {
+      if (targetSliderType === cSliderType) score += 20;
+      else score -= 10;
+    }
+
+    // Zipper tape weight matching
+    const cTapeWeight = Number(c.tapeWeightGsm) || null;
+    if (targetTapeWeight && cTapeWeight) {
+      if (targetTapeWeight === cTapeWeight) score += 20;
+      else score -= 10;
     }
 
     // Specs matching

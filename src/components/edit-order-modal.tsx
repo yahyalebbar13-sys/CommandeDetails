@@ -125,6 +125,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         zipperType: article.zipperType || '',
         slider: article.slider || '',
         sliderType: article.sliderType || '',
+        tapeWeightGsm: article.tapeWeightGsm ?? '',
+        sliderWeightG: article.sliderWeightG ?? '',
         priority: article.priority || 'todo',
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
@@ -225,9 +227,21 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
+    let genCatId = selectedGenCatId;
+    if (!genCatId && formData?.categoryId) {
+      const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+      if (cat) genCatId = cat.generalCategoryId;
+    }
+    if (genCatId) {
+      const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (lower.includes('zipper') && !lower.includes('slider') && !lower.includes('puller')) return true;
+      }
+    }
     const upper = formData?.categoryId?.toUpperCase() || "";
-    return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
-  }, [formData?.categoryId]);
+    return upper.includes('ZIPPER') && !upper.includes('SLIDER') && !upper.includes('PULLER');
+  }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
 
   const isSlider = useMemo(() => {
     const upper = formData?.categoryId?.toUpperCase() || '';
@@ -288,6 +302,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : [];
   }, [formData?.categoryId, subCategories]);
 
+  const zipperQualities = useMemo(() => {
+    if (!formData?.categoryId) return [];
+    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    return Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
+  }, [formData?.categoryId, subCategories]);
+
   const lastOrderInfo = useMemo(() => {
     if (!formData?.categoryId && !article?.name) return null;
     return findLastOrderPrice(
@@ -299,8 +319,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         color: formData?.color,
         specs: formData?.specs,
         zipperType: formData?.zipperType,
+        slider: formData?.slider,
+        sliderType: formData?.sliderType,
         gsm: formData?.gsm,
         fabricWidth: formData?.fabricWidth,
+        tapeWeightGsm: formData?.tapeWeightGsm,
+        sliderWeightG: formData?.sliderWeightG,
       },
       allArticles || []
     );
@@ -313,8 +337,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     formData?.color,
     formData?.specs,
     formData?.zipperType,
+    formData?.slider,
+    formData?.sliderType,
     formData?.gsm,
     formData?.fabricWidth,
+    formData?.tapeWeightGsm,
+    formData?.sliderWeightG,
     allArticles
   ]);
 
@@ -354,6 +382,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       fabricWidth: isFabric && rawFormData.fabricWidth ? Number(rawFormData.fabricWidth) : null,
       rollLength: isFabric && rawFormData.rollLength ? Number(rawFormData.rollLength) : null,
       packagingPerBag: isFabric && rawFormData.packagingPerBag ? Number(rawFormData.packagingPerBag) : null,
+      tapeWeightGsm: isZipper && rawFormData.tapeWeightGsm ? Number(rawFormData.tapeWeightGsm) : null,
+      sliderWeightG: isZipper && rawFormData.sliderWeightG ? Number(rawFormData.sliderWeightG) : null,
     };
     
     let isSplit = false;
@@ -768,49 +798,119 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             )}
 
+            {/* ── Zipper fields & qualities ── */}
             {isZipper && (
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                  <Settings2 className="w-3 h-3" /> Type Zipper
-                </Label>
-                <Select value={formData.zipperType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, zipperType: v }))}>
-                  <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                    <SelectValue placeholder="Type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ZIPPER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+              <div className="space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-100 md:col-span-2">
+                <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <Settings2 className="w-3 h-3" /> Spécifications Zipper
+                </p>
+                {zipperQualities.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Qualité Zipper Fixe</Label>
+                    <Select onValueChange={v => {
+                      const q = zipperQualities[Number(v)];
+                      if (q) {
+                        setFormData((p: any) => ({
+                          ...p,
+                          size: q.length || p.size,
+                          zipperType: q.zipperType || p.zipperType,
+                          slider: q.slider || p.slider,
+                          sliderType: q.sliderType || p.sliderType,
+                          tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
+                          sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                        }));
+                      }
+                    }}>
+                      <SelectTrigger className="h-11 border-amber-200 bg-white font-bold rounded-xl text-amber-800">
+                        <SelectValue placeholder="Choisir une qualité Zipper..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {zipperQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
-            {isZipper && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                    <MousePointer2 className="w-3 h-3" /> Curseur
-                  </Label>
-                  <Input
-                    value={formData.slider || ''}
-                    onChange={e => setFormData((prev: any) => ({ ...prev, slider: e.target.value }))}
-                    className="h-12 border-stone-200 font-bold rounded-xl"
-                    placeholder="Ex: Auto-lock..."
-                  />
+                {/* Show current values as badges */}
+                {(formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Long: {formData.size}</span>}
+                    {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
+                    {formData.slider && <span className="px-2 py-1 rounded-lg bg-stone-100 text-stone-700 text-[10px] font-black">Curseur: {formData.slider}</span>}
+                    {formData.sliderType && <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-black">Type: {formData.sliderType}</span>}
+                    {formData.tapeWeightGsm && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-black">Ruban: {formData.tapeWeightGsm} g/m</span>}
+                    {formData.sliderWeightG && <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-700 text-[10px] font-black">Curseur: {formData.sliderWeightG} g/pc</span>}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                      <Settings2 className="w-3 h-3" /> Type Zipper
+                    </Label>
+                    <Select value={formData.zipperType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, zipperType: v }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                        <SelectValue placeholder="Type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ZIPPER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                      <MousePointer2 className="w-3 h-3" /> Curseur
+                    </Label>
+                    <Input
+                      value={formData.slider || ''}
+                      onChange={e => setFormData((prev: any) => ({ ...prev, slider: e.target.value }))}
+                      className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                      placeholder="Ex: Auto-lock..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                      <Scissors className="w-3 h-3" /> Type Curseur
+                    </Label>
+                    <Select value={formData.sliderType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, sliderType: v }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                        <SelectValue placeholder="Type Curseur..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                    <Scissors className="w-3 h-3" /> Type Curseur
-                  </Label>
-                  <Select value={formData.sliderType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, sliderType: v }))}>
-                    <SelectTrigger className="h-12 border-stone-200 bg-white font-bold rounded-xl">
-                      <SelectValue placeholder="Type Curseur..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+
+                {/* Ruban g/m & Curseur g/pc */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Ruban (g/m)</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="Ex: 20.5"
+                      className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                      value={formData.tapeWeightGsm || ''}
+                      onChange={e => setFormData((p: any) => ({ ...p, tapeWeightGsm: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids Curseur (g/pcs)</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="Ex: 1.2"
+                      className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                      value={formData.sliderWeightG || ''}
+                      onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))}
+                    />
+                  </div>
                 </div>
-              </>
+              </div>
             )}
 
                  {/* ── Fabric fields ── */}

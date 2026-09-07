@@ -31,6 +31,16 @@ export type Category = {
   availableGsm?: number[];     // GSM pré-définis (ex: [30, 40, 225])
   availableWidths?: number[];  // Largeurs pré-définies en cm (ex: [100, 150, 160])
   fabricQualities?: { label: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
+  // Zipper config
+  zipperQualities?: {
+    label: string;
+    length?: string;           // longueur (ex: "20cm", "15cm", "100m")
+    zipperType?: 'C/E' | 'O/E' | string; // Type fermeture: C/E ou O/E
+    slider?: string;           // Curseur (ex: "Standard", "HT", "O SLIDER")
+    sliderType?: string;       // Type du curseur (ex: "A/L", "P/L", "N/L", "SEMI A/L")
+    tapeWeightGsm?: number;    // Grammage du ruban/m (ex: 20.5 g/m, 13 g/m)
+    sliderWeightG?: number;    // Poids du curseur/pcs (ex: 1 g/pc, 2.5 g/pc)
+  }[];
 };
 
 export type Order = {
@@ -64,6 +74,9 @@ export type Order = {
   rollLength?: number;        // Longueur rouleau
   rollLengthUnit?: 'm' | 'yds'; // Unité longueur
   packagingPerBag?: number;   // Nb rouleaux par sac/bale
+  // Zipper-specific fields
+  tapeWeightGsm?: number;     // Grammage du ruban/m
+  sliderWeightG?: number;     // Poids du curseur/pcs
 };
 
 export type Facture = {
