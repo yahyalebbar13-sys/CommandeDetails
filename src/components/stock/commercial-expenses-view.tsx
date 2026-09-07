@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Receipt, Fuel, Utensils, Car, ParkingCircle, Package, MoreHorizontal,
   Plus, Search, Filter, Calendar, Download, Trash2, CheckCircle2, 

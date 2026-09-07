@@ -50,10 +50,7 @@ type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'c
 
 function getInitialQtyForStore(item: any, activeStore: string, userStoreId: string, stores: any[]): number {
   const byStore = item.initialQtyByStore;
-  const legacyQty = Number(item.rolls || item.quantity || 0);
-
   if (!byStore) {
-    if (activeStore === 'ALL' || activeStore === 'ALL_MAIN' || activeStore === 'ENTREPOT' || activeStore === 'CHRIFA') return legacyQty;
     return 0;
   }
 
@@ -63,18 +60,17 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
 
   if (activeStore === 'ALL_MAIN') {
     let sum = 0;
-    if (byStore[userStoreId]) sum += byStore[userStoreId];
-    if (byStore['CHRIFA']) sum += byStore['CHRIFA'];
-    if (byStore['ENTREPOT']) sum += byStore['ENTREPOT'];
+    if (userStoreId && byStore[userStoreId]) sum += (Number(byStore[userStoreId]) || 0);
+    if (byStore['CHRIFA']) sum += (Number(byStore['CHRIFA']) || 0);
     for (const s of stores) {
-      if (s.type === 'WAREHOUSE' && byStore[s.id] && s.id !== 'ENTREPOT') {
-        sum += byStore[s.id];
+      if (s.type === 'WAREHOUSE' && byStore[s.id]) {
+        sum += (Number(byStore[s.id]) || 0);
       }
     }
     return sum;
   }
 
-  return byStore[activeStore] || 0;
+  return Number(byStore[activeStore]) || 0;
 }
 
 export function computeStockItems(
@@ -89,11 +85,11 @@ export function computeStockItems(
 ): StockItem[] {
   const isVisibleForUser = (storeId: string | undefined) => {
     if (activeStore === 'ALL') return true;
-    const sId = storeId || 'ENTREPOT';
+    const sId = storeId || 'CHRIFA';
     
     if (activeStore === 'ALL_MAIN') {
       if (sId === userStoreId) return true;
-      if (sId === 'CHRIFA' || sId === 'ENTREPOT') return true;
+      if (sId === 'CHRIFA') return true;
       const s = stores.find(x => x.id === sId);
       if (s && (s.isMain || s.type === 'WAREHOUSE')) return true;
       return false;
@@ -104,13 +100,12 @@ export function computeStockItems(
 
   const computeQtyByStoreHelper = (itemRow: any, targetMovs: any[]) => {
     const qtyByStore: Record<string, number> = { ...(itemRow.initialQtyByStore || {}) };
-    if (!itemRow.initialQtyByStore) qtyByStore['ENTREPOT'] = Number(itemRow.rolls || itemRow.quantity || 0);
     for (const m of targetMovs) {
       if (m.reason === 'TRANSFERT') {
         if (m.storeId) qtyByStore[m.storeId] = (qtyByStore[m.storeId] || 0) - m.quantity;
         if (m.toStoreId) qtyByStore[m.toStoreId] = (qtyByStore[m.toStoreId] || 0) + m.quantity;
       } else {
-        const sId = m.storeId || 'ENTREPOT';
+        const sId = m.storeId || 'CHRIFA';
         qtyByStore[sId] = qtyByStore[sId] || 0;
         if (m.type === 'IN') qtyByStore[sId] += m.quantity;
         if (m.type === 'OUT') qtyByStore[sId] -= m.quantity;
@@ -480,8 +475,10 @@ export default function StockApp() {
   useEffect(() => {
     if (warehouses.length > 0 && (!inventoryWarehouseId || !warehouses.some(w => w.id === inventoryWarehouseId))) {
       setInventoryWarehouseId(warehouses[0].id);
+    } else if (warehouses.length === 0 && stores.length > 0 && (!inventoryWarehouseId || !stores.some(s => s.id === inventoryWarehouseId))) {
+      setInventoryWarehouseId(stores[0].id);
     }
-  }, [warehouses, inventoryWarehouseId]);
+  }, [warehouses, stores, inventoryWarehouseId]);
 
   const defaultSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : 'CHRIFA';
   const [saleStoreId, setSaleStoreId] = useState<string>(defaultSaleStoreId);
@@ -502,7 +499,7 @@ export default function StockApp() {
     [articles, movements, categories, activeStore, userRole, stores]
   );
 
-  const effectiveInventoryStoreId = userRole === 'ADMIN' ? inventoryWarehouseId : activeStore;
+  const effectiveInventoryStoreId = (userRole === 'ADMIN' && inventoryWarehouseId) ? inventoryWarehouseId : activeStore;
   const inventoryStockItems = useMemo(() =>
     computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores),
     [articles, movements, categories, effectiveInventoryStoreId, userRole, stores]
@@ -1654,6 +1651,7 @@ export default function StockApp() {
                 movements={filteredMovements}
                 userRole={userRole}
                 userStoreId={userStoreId}
+                adminUid={adminUid}
                 onSelectStore={(storeId, view) => {
                   setActiveStore(storeId as any);
                   setActiveView(view || 'inventory');

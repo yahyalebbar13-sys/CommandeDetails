@@ -647,7 +647,7 @@ export default function StockFiches({
     return rawStockItems.filter(i => i.currentQty > 0);
   }, [rawStockItems, inventoryMode, isInventoryView]);
 
-  const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : activeStore;
+  const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : (activeStore === 'ALL' ? (stores[0]?.id || 'CHRIFA') : activeStore);
 
   const handleValidateInventory = async () => {
     if (!user || !firestore) return;
@@ -798,21 +798,23 @@ export default function StockFiches({
           <Warehouse className="w-5 h-5" />
         </div>
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">Entrepôt à inventorier (Admin)</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">Emplacement à inventorier (Admin)</p>
           <p className="text-sm font-black text-stone-800">
             {stores.find(s => s.id === targetStore)?.name || targetStore}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-bold text-stone-500">Choisir l'entrepôt :</span>
+        <span className="text-[11px] font-bold text-stone-500">Choisir l'emplacement :</span>
         <select
           value={targetStore}
           onChange={(e) => onWarehouseChange && onWarehouseChange(e.target.value)}
           className="h-10 px-3 rounded-xl border border-stone-200 bg-stone-50 font-bold text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
         >
-          {stores.filter(s => s.type === 'WAREHOUSE').map(w => (
-            <option key={w.id} value={w.id}>📦 {w.name}</option>
+          {stores.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.type === 'WAREHOUSE' ? '📦 Entrepôt' : '🏪 Magasin'} {s.name}
+            </option>
           ))}
         </select>
       </div>
