@@ -984,7 +984,7 @@ export default function StockApp() {
 
     // Si c'est un achat marchandise du marché et que la case "Ajouter au stock" est cochée
     if (exp.category === 'ACHAT_MARCHANDISE' && exp.addToStock && exp.articleName && exp.quantity && exp.quantity > 0) {
-      const targetStore = exp.storeId || effectiveSaleStoreId || 'CHRIFA';
+      const targetStore = 'ENTREPOT'; // Achat marchandise = TOUJOURS ENTREPOT !
       const unitPrice = exp.unitPrice || (exp.quantity > 0 ? exp.amount / exp.quantity : 0);
 
       // 1. Créer l'article dans la collection articles pour qu'il soit reconnu dans tout le système (fiches de stock, caisse, etc.)
@@ -1008,7 +1008,7 @@ export default function StockApp() {
         purchasePricePerUnit: unitPrice,
         stockEntryDate: exp.date || new Date().toISOString().split('T')[0],
         supplierId: exp.supplierName || 'Marché local',
-        initialQtyByStore: { [targetStore]: Number(exp.quantity) },
+        initialQtyByStore: { ['ENTREPOT']: Number(exp.quantity) },
         createdAt: serverTimestamp(),
       };
       await setDoc(doc(firestore, 'users', effectiveUid, 'articles', artId), cleanUndefined(articlePayload));
@@ -1025,9 +1025,9 @@ export default function StockApp() {
         quantity: Number(exp.quantity),
         unitOfMeasure: exp.unitOfMeasure || 'pcs',
         purchasePricePerUnit: unitPrice,
-        storeId: targetStore,
+        storeId: 'ENTREPOT',
         date: exp.date || new Date().toISOString().split('T')[0],
-        notes: `Achat Marchandise du marché (${exp.supplierName ? `Vendeur: ${exp.supplierName}` : 'Marché local'}) par ${exp.commercialName || 'Commercial'} · Dépense ${exp.amount} MAD`,
+        notes: `Achat Marchandise du marché (${exp.supplierName ? `Vendeur: ${exp.supplierName}` : 'Marché local'}) · Entrée Stock Entrepôt · Dépense ${exp.amount} MAD`,
         createdAt: serverTimestamp(),
       };
 
@@ -1040,6 +1040,7 @@ export default function StockApp() {
 
     const payload = {
       ...exp,
+      ...(exp.category === 'ACHAT_MARCHANDISE' ? { storeId: 'ENTREPOT' } : {}),
       ...(movementId ? { stockMovementId: movementId } : {}),
       ...(createdArticleId ? { articleId: createdArticleId } : {}),
     };
@@ -1051,8 +1052,8 @@ export default function StockApp() {
 
     if (movementId) {
       toast({
-        title: '📦 Marchandise entrée en stock !',
-        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock magasin et dépense enregistrée.`,
+        title: '📦 Marchandise entrée à l\'Entrepôt !',
+        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés à l'Entrepôt Principal (ENTREPOT) et dépense enregistrée.`,
       });
     } else {
       toast({

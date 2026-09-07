@@ -90,7 +90,6 @@ export default function CommercialExpensesView({
   const [newAmount, setNewAmount] = useState<string>('');
   const [newCategory, setNewCategory] = useState<ExpenseCategory>('ACHAT_MARCHANDISE');
   const [newDescription, setNewDescription] = useState('');
-  const [newCommercialName, setNewCommercialName] = useState(currentUserName || '');
   const [newStoreId, setNewStoreId] = useState<string>(activeStore !== 'ALL' && activeStore !== 'ALL_MAIN' ? activeStore : (stores[0]?.id || ''));
   const [newReceiptUrl, setNewReceiptUrl] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -407,9 +406,9 @@ export default function CommercialExpensesView({
         amount: amt,
         category: newCategory,
         description: desc,
-        commercialName: newCommercialName.trim() || currentUserName || 'Commercial',
+        commercialName: currentUserName || 'Admin',
         ...(currentUserId ? { commercialId: currentUserId } : {}),
-        ...(newStoreId ? { storeId: newStoreId } : {}),
+        storeId: isMarchandise ? 'ENTREPOT' : (newStoreId || (stores[0]?.id || 'CHRIFA')),
         ...(newReceiptUrl.trim() ? { receiptUrl: newReceiptUrl.trim() } : {}),
         status: userRole === 'ADMIN' ? 'APPROVED' : 'PENDING',
         ...(isMarchandise ? {
@@ -711,7 +710,7 @@ export default function CommercialExpensesView({
               <thead>
                 <tr className="border-b border-stone-100 bg-stone-50/50 text-[10px] font-black uppercase tracking-widest text-stone-400">
                   <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Commercial / Magasin</th>
+                  <th className="py-3 px-4">Affectation / Magasin</th>
                   <th className="py-3 px-4">Catégorie</th>
                   <th className="py-3 px-4">Détails & Marchandise</th>
                   <th className="py-3 px-4 text-right">Montant</th>
@@ -732,14 +731,21 @@ export default function CommercialExpensesView({
                         {expense.date || '—'}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="font-bold text-stone-900 flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-stone-400" />
-                          <span>{expense.commercialName || 'Commercial'}</span>
-                        </div>
-                        {store && (
-                          <span className="text-[10px] text-stone-400 font-bold flex items-center gap-1 mt-0.5">
-                            <Building2 className="w-3 h-3" /> {store.name}
+                        {isMarchandise ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black uppercase">
+                            <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                            Entrepôt Principal
                           </span>
+                        ) : (
+                          <div>
+                            {store ? (
+                              <span className="text-xs text-stone-800 font-bold flex items-center gap-1">
+                                <Building2 className="w-3.5 h-3.5 text-stone-400" /> {store.name}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-stone-400 font-bold">Magasin général</span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
@@ -764,7 +770,7 @@ export default function CommercialExpensesView({
                               {(expense.stockMovementId || expense.addToStock) && (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
                                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                  Entré en stock magasin
+                                  Entré en stock (Entrepôt)
                                 </span>
                               )}
                               {expense.supplierName && (
@@ -1267,7 +1273,21 @@ export default function CommercialExpensesView({
                     </datalist>
                   </div>
 
-                  {/* Case à cocher : Entrée automatique en stock magasin */}
+                  {/* Affectation fixe Entrepôt */}
+                  <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/80 border border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-amber-700" />
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-wider text-amber-800">Affectation Stock</p>
+                        <p className="text-xs font-black text-amber-950">Entrepôt Principal (ENTREPOT)</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-lg bg-amber-200/80 text-amber-900 border border-amber-300">
+                      Entrepôt
+                    </span>
+                  </div>
+
+                  {/* Case à cocher : Entrée automatique en stock entrepôt */}
                   <div className="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-indigo-200 shadow-sm">
                     <input
                       type="checkbox"
@@ -1279,10 +1299,10 @@ export default function CommercialExpensesView({
                     <label htmlFor="addToStock" className="text-[11px] text-indigo-950 font-bold leading-tight cursor-pointer">
                       <span className="font-black flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Faire entrer automatiquement cette marchandise en stock magasin
+                        Faire entrer automatiquement cette marchandise dans l'ENTREPÔT
                       </span>
                       <span className="block text-[10px] text-indigo-700 font-normal mt-0.5">
-                        Crée l'article et le mouvement IN dans le stock magasin pour la vente immédiate en caisse.
+                        Crée l'article et le mouvement IN directement dans l'Entrepôt Principal (ENTREPOT).
                       </span>
                     </label>
                   </div>
@@ -1330,16 +1350,8 @@ export default function CommercialExpensesView({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-stone-500">Commercial</Label>
-                <Input
-                  placeholder="Nom du commercial"
-                  value={newCommercialName}
-                  onChange={e => setNewCommercialName(e.target.value)}
-                  className="rounded-xl h-10 text-xs font-bold"
-                />
-              </div>
+            {/* Magasin rattaché uniquement pour les frais généraux (pas pour l'achat marchandise qui va à l'Entrepôt) */}
+            {newCategory !== 'ACHAT_MARCHANDISE' && (
               <div className="space-y-1">
                 <Label className="text-[10px] font-black uppercase text-stone-500">Magasin rattaché</Label>
                 <Select value={newStoreId} onValueChange={setNewStoreId}>
@@ -1353,7 +1365,7 @@ export default function CommercialExpensesView({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
+            )}
 
             {/* Photo / Justificatif du reçu */}
             <div className="space-y-1 pt-1">
