@@ -837,7 +837,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 {/* Show current values as badges */}
                 {(formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
                   <div className="flex flex-wrap gap-1.5">
-                    {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Long: {formData.size}</span>}
+                    {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Taille: {formData.size}</span>}
                     {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
                     {formData.slider && <span className="px-2 py-1 rounded-lg bg-stone-100 text-stone-700 text-[10px] font-black">Curseur: {formData.slider}</span>}
                     {formData.sliderType && <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-black">Type: {formData.sliderType}</span>}

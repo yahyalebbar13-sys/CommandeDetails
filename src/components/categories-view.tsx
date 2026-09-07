@@ -543,6 +543,15 @@ export default function CategoriesView({
         return item;
       });
 
+    cleanZipperQualities.forEach(q => {
+      if (q.length) {
+        const upper = q.length.trim().toUpperCase();
+        if (upper && !currentSizes.includes(upper)) {
+          currentSizes.push(upper);
+        }
+      }
+    });
+
     const payload: Record<string, any> = {
       hsCode: customsForm.hsCode || null,
       customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
@@ -1677,10 +1686,10 @@ export default function CategoriesView({
           const qualityStats = qualities.map(q => {
             const matchingArticles = currentArticles.filter((a: any) => {
               if (q.length) {
-                const qLen = q.length.trim().toLowerCase();
-                const aSize = (a.size || '').trim().toLowerCase();
-                const aSpecs = (a.specs || '').trim().toLowerCase();
-                const aName = (a.name || '').trim().toLowerCase();
+                const qLen = q.length.trim().toLowerCase().replace(/\s+/g, '');
+                const aSize = (a.size || '').trim().toLowerCase().replace(/\s+/g, '');
+                const aSpecs = (a.specs || '').trim().toLowerCase().replace(/\s+/g, '');
+                const aName = (a.name || '').trim().toLowerCase().replace(/\s+/g, '');
                 if (aSize !== qLen && !aSpecs.includes(qLen) && !aName.includes(qLen)) return false;
               }
               if (q.zipperType) {
@@ -1688,19 +1697,21 @@ export default function CategoriesView({
                 const aZ = (a.zipperType || '').trim().toUpperCase();
                 const aSpecs = (a.specs || '').trim().toUpperCase();
                 const aName = (a.name || '').trim().toUpperCase();
-                if (aZ !== qZ && !aSpecs.includes(qZ) && !aName.includes(qZ)) return false;
+                if (aZ && aZ !== qZ) return false;
+                if ((qZ === 'C/E' && (aSpecs.includes('O/E') || aName.includes('O/E'))) ||
+                    (qZ === 'O/E' && (aSpecs.includes('C/E') || aName.includes('C/E')))) {
+                  return false;
+                }
               }
               if (q.slider) {
                 const qS = q.slider.trim().toLowerCase();
                 const aS = (a.slider || '').trim().toLowerCase();
-                const aSpecs = (a.specs || '').trim().toLowerCase();
-                if (!aS.includes(qS) && !aSpecs.includes(qS)) return false;
+                if (aS && !aS.includes(qS)) return false;
               }
               if (q.sliderType) {
                 const qST = q.sliderType.trim().toUpperCase();
                 const aST = (a.sliderType || '').trim().toUpperCase();
-                const aSpecs = (a.specs || '').trim().toUpperCase();
-                if (aST !== qST && !aSpecs.includes(qST)) return false;
+                if (aST && aST !== qST) return false;
               }
               return true;
             });
@@ -1729,7 +1740,7 @@ export default function CategoriesView({
                     <TableHeader>
                       <TableRow className="bg-stone-50/50">
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Qualité</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Longueur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Taille</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fermeture</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Curseur</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Type Curseur</TableHead>
@@ -2167,7 +2178,7 @@ export default function CategoriesView({
                       <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-amber-100">
                         <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
                         <div className="flex flex-wrap gap-1">
-                          {q.length && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{q.length}</span>}
+                          {q.length && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">Taille: {q.length}</span>}
                           {q.zipperType && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{q.zipperType}</span>}
                           {q.slider && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">Curseur: {q.slider}</span>}
                           {q.sliderType && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[8px] font-black">{q.sliderType}</span>}
@@ -2190,8 +2201,20 @@ export default function CategoriesView({
                   <Input placeholder="Label (auto si vide)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
                     value={newZipperQualityForm.label} onChange={e => setNewZipperQualityForm(p => ({ ...p, label: e.target.value }))} />
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    <Input placeholder="Longueur (ex: 20cm)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
-                      value={newZipperQualityForm.length} onChange={e => setNewZipperQualityForm(p => ({ ...p, length: e.target.value }))} />
+                    <div>
+                      <Input 
+                        list="zipper-sizes-datalist"
+                        placeholder="Taille (ex: 20cm)" 
+                        className="h-8 text-[10px] font-bold border-amber-200 rounded-lg w-full"
+                        value={newZipperQualityForm.length} 
+                        onChange={e => setNewZipperQualityForm(p => ({ ...p, length: e.target.value }))} 
+                      />
+                      <datalist id="zipper-sizes-datalist">
+                        {customsForm.availableSizes.map((sz, i) => (
+                          <option key={i} value={sz} />
+                        ))}
+                      </datalist>
+                    </div>
                     <select className="h-8 text-[10px] font-bold border border-amber-200 rounded-lg bg-white px-2"
                       value={newZipperQualityForm.zipperType} onChange={e => setNewZipperQualityForm(p => ({ ...p, zipperType: e.target.value }))}>
                       <option value="C/E">Fermeture: C/E</option>
