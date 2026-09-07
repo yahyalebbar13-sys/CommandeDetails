@@ -116,6 +116,27 @@ export default function CommercialExpensesView({
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newAddToStock, setNewAddToStock] = useState(true);
 
+  // Options d'entrepôts pour l'achat de marchandise
+  const warehouseOptions = useMemo(() => {
+    const list = (stores || []).filter((s: any) =>
+      s.type === 'WAREHOUSE' ||
+      s.id === 'ENTREPOT' ||
+      s.name?.toLowerCase().includes('entrep') ||
+      s.name?.toLowerCase().includes('dépôt') ||
+      s.name?.toLowerCase().includes('depot')
+    );
+    if (list.length > 0) return list;
+    return [{ id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE' }];
+  }, [stores]);
+
+  const [newWarehouseId, setNewWarehouseId] = useState<string>('ENTREPOT');
+
+  useEffect(() => {
+    if (warehouseOptions.length > 0 && (!newWarehouseId || !warehouseOptions.some(w => w.id === newWarehouseId))) {
+      setNewWarehouseId(warehouseOptions[0].id);
+    }
+  }, [warehouseOptions, newWarehouseId]);
+
   // Mois disponibles
   const availableMonths = useMemo(() => {
     const s = new Set<string>();
@@ -408,7 +429,7 @@ export default function CommercialExpensesView({
         description: desc,
         commercialName: currentUserName || 'Admin',
         ...(currentUserId ? { commercialId: currentUserId } : {}),
-        storeId: isMarchandise ? 'ENTREPOT' : (newStoreId || (stores[0]?.id || 'CHRIFA')),
+        storeId: isMarchandise ? (newWarehouseId || 'ENTREPOT') : (newStoreId || (stores[0]?.id || 'CHRIFA')),
         ...(newReceiptUrl.trim() ? { receiptUrl: newReceiptUrl.trim() } : {}),
         status: userRole === 'ADMIN' ? 'APPROVED' : 'PENDING',
         ...(isMarchandise ? {
@@ -441,6 +462,7 @@ export default function CommercialExpensesView({
       setNewUnitPrice('');
       setNewSupplierName('');
       setNewAddToStock(true);
+      setNewWarehouseId(warehouseOptions[0]?.id || 'ENTREPOT');
       setSelectedGenCatId('');
       setSelectedCategoryName('');
       setSelectedColor('white');
@@ -734,7 +756,7 @@ export default function CommercialExpensesView({
                         {isMarchandise ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black uppercase">
                             <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                            Entrepôt Principal
+                            {store?.name || (expense.storeId === 'ENTREPOT' ? 'Entrepôt Principal' : (expense.storeId || 'Entrepôt'))}
                           </span>
                         ) : (
                           <div>
@@ -769,8 +791,8 @@ export default function CommercialExpensesView({
                               )}
                               {(expense.stockMovementId || expense.addToStock) && (
                                 <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                  Entré en stock (Entrepôt)
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Entré en stock ({store?.name || (expense.storeId === 'ENTREPOT' ? 'Entrepôt Principal' : (expense.storeId || 'Entrepôt'))})
                                 </span>
                               )}
                               {expense.supplierName && (
@@ -1273,18 +1295,30 @@ export default function CommercialExpensesView({
                     </datalist>
                   </div>
 
-                  {/* Affectation fixe Entrepôt */}
-                  <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/80 border border-amber-200">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-amber-700" />
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-wider text-amber-800">Affectation Stock</p>
-                        <p className="text-xs font-black text-amber-950">Entrepôt Principal (ENTREPOT)</p>
-                      </div>
+                  {/* Sélection de l'Entrepôt de destination */}
+                  <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-amber-700" />
+                        Sélection de l'Entrepôt de destination *
+                      </Label>
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-200 text-amber-900">
+                        {warehouseOptions.length} entrepôt{warehouseOptions.length > 1 ? 's' : ''}
+                      </span>
                     </div>
-                    <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-lg bg-amber-200/80 text-amber-900 border border-amber-300">
-                      Entrepôt
-                    </span>
+
+                    <Select value={newWarehouseId} onValueChange={setNewWarehouseId}>
+                      <SelectTrigger className="rounded-xl h-10 text-xs font-black bg-white border-amber-300 shadow-sm">
+                        <SelectValue placeholder="Choisir l'entrepôt" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {warehouseOptions.map(wh => (
+                          <SelectItem key={wh.id} value={wh.id} className="text-xs font-bold">
+                            🏭 {wh.name} {wh.id === 'ENTREPOT' ? '(Principal)' : `(${wh.id})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Case à cocher : Entrée automatique en stock entrepôt */}
@@ -1299,10 +1333,10 @@ export default function CommercialExpensesView({
                     <label htmlFor="addToStock" className="text-[11px] text-indigo-950 font-bold leading-tight cursor-pointer">
                       <span className="font-black flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Faire entrer automatiquement cette marchandise dans l'ENTREPÔT
+                        Faire entrer automatiquement cette marchandise dans l'entrepôt sélectionné
                       </span>
                       <span className="block text-[10px] text-indigo-700 font-normal mt-0.5">
-                        Crée l'article et le mouvement IN directement dans l'Entrepôt Principal (ENTREPOT).
+                        Crée l'article et le mouvement IN directement dans {warehouseOptions.find(w => w.id === newWarehouseId)?.name || 'l\'entrepôt sélectionné'}.
                       </span>
                     </label>
                   </div>

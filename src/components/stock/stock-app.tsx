@@ -984,7 +984,9 @@ export default function StockApp() {
 
     // Si c'est un achat marchandise du marché et que la case "Ajouter au stock" est cochée
     if (exp.category === 'ACHAT_MARCHANDISE' && exp.addToStock && exp.articleName && exp.quantity && exp.quantity > 0) {
-      const targetStore = 'ENTREPOT'; // Achat marchandise = TOUJOURS ENTREPOT !
+      const targetStore = exp.storeId || 'ENTREPOT'; // Entrepôt choisi par l'utilisateur
+      const targetStoreObj = stores.find(s => s.id === targetStore);
+      const targetStoreName = targetStoreObj?.name || (targetStore === 'ENTREPOT' ? 'Entrepôt Principal' : targetStore);
       const unitPrice = exp.unitPrice || (exp.quantity > 0 ? exp.amount / exp.quantity : 0);
 
       // 1. Créer l'article dans la collection articles pour qu'il soit reconnu dans tout le système (fiches de stock, caisse, etc.)
@@ -1008,7 +1010,7 @@ export default function StockApp() {
         purchasePricePerUnit: unitPrice,
         stockEntryDate: exp.date || new Date().toISOString().split('T')[0],
         supplierId: exp.supplierName || 'Marché local',
-        initialQtyByStore: { ['ENTREPOT']: Number(exp.quantity) },
+        initialQtyByStore: { [targetStore]: Number(exp.quantity) },
         createdAt: serverTimestamp(),
       };
       await setDoc(doc(firestore, 'users', effectiveUid, 'articles', artId), cleanUndefined(articlePayload));
@@ -1025,9 +1027,9 @@ export default function StockApp() {
         quantity: Number(exp.quantity),
         unitOfMeasure: exp.unitOfMeasure || 'pcs',
         purchasePricePerUnit: unitPrice,
-        storeId: 'ENTREPOT',
+        storeId: targetStore,
         date: exp.date || new Date().toISOString().split('T')[0],
-        notes: `Achat Marchandise du marché (${exp.supplierName ? `Vendeur: ${exp.supplierName}` : 'Marché local'}) · Entrée Stock Entrepôt · Dépense ${exp.amount} MAD`,
+        notes: `Achat Marchandise du marché (${exp.supplierName ? `Vendeur: ${exp.supplierName}` : 'Marché local'}) · Entrée Stock ${targetStoreName} · Dépense ${exp.amount} MAD`,
         createdAt: serverTimestamp(),
       };
 
@@ -1040,7 +1042,7 @@ export default function StockApp() {
 
     const payload = {
       ...exp,
-      ...(exp.category === 'ACHAT_MARCHANDISE' ? { storeId: 'ENTREPOT' } : {}),
+      storeId: exp.storeId || (exp.category === 'ACHAT_MARCHANDISE' ? 'ENTREPOT' : 'CHRIFA'),
       ...(movementId ? { stockMovementId: movementId } : {}),
       ...(createdArticleId ? { articleId: createdArticleId } : {}),
     };
@@ -1051,9 +1053,12 @@ export default function StockApp() {
     });
 
     if (movementId) {
+      const targetStore = exp.storeId || 'ENTREPOT';
+      const targetStoreObj = stores.find(s => s.id === targetStore);
+      const targetStoreName = targetStoreObj?.name || (targetStore === 'ENTREPOT' ? 'Entrepôt Principal' : targetStore);
       toast({
-        title: '📦 Marchandise entrée à l\'Entrepôt !',
-        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés à l'Entrepôt Principal (ENTREPOT) et dépense enregistrée.`,
+        title: `📦 Marchandise entrée à ${targetStoreName} !`,
+        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock (${targetStoreName}) et dépense enregistrée.`,
       });
     } else {
       toast({
@@ -1061,7 +1066,7 @@ export default function StockApp() {
         description: `${exp.amount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
       });
     }
-  }, [user, firestore, adminUid, effectiveSaleStoreId, toast]);
+  }, [user, firestore, adminUid, effectiveSaleStoreId, stores, toast]);
 
   const handleUpdateExpenseStatus = useCallback(async (id: string, status: 'PENDING' | 'APPROVED' | 'REIMBURSED') => {
     if (!user || !firestore) return;
