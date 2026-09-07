@@ -2651,12 +2651,12 @@ export default function CategoriesView({
 
       {/* ── Modal changer de Pôle (pour SubCategory) ── */}
       <Dialog open={!!movingSubCategory} onOpenChange={open => { if (!open) { setMovingSubCategory(null); setMoveTargetId(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-blue-600 p-5 text-white">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-blue-600 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Déplacer la catégorie</DialogTitle>
             <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingSubCategory?.name}</p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouveau Pôle</Label>
               <Select value={moveTargetId} onValueChange={setMoveTargetId}>
@@ -2672,7 +2672,7 @@ export default function CategoriesView({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingSubCategory(null); setMoveTargetId(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
@@ -2730,12 +2730,12 @@ export default function CategoriesView({
 
       {/* ── Modal changer de Ligne de production (pour GeneralCategory) ── */}
       <Dialog open={!!movingGeneralCategory} onOpenChange={open => { if (!open) { setMovingGeneralCategory(null); setMoveTargetId(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-blue-600 p-5 text-white">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-blue-600 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Changer de Ligne de Production</DialogTitle>
             <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingGeneralCategory?.name}</p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouvelle Ligne</Label>
               <Select value={moveTargetId} onValueChange={setMoveTargetId}>
@@ -2749,7 +2749,7 @@ export default function CategoriesView({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingGeneralCategory(null); setMoveTargetId(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"

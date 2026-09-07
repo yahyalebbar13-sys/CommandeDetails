@@ -429,12 +429,12 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
       {/* ── Modal: Nouveau Pôle ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-sm rounded-[1.5rem] p-0 border-none overflow-hidden">
-          <div className="bg-stone-900 p-6 text-white">
+        <DialogContent className="max-w-sm max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-[1.5rem] p-0 border-none overflow-hidden shadow-2xl">
+          <div className="bg-stone-900 p-5 sm:p-6 text-white shrink-0">
             <DialogTitle className="text-lg font-black uppercase tracking-tight">Initialiser un Pôle</DialogTitle>
             <p className="text-stone-400 text-[9px] font-bold uppercase tracking-widest mt-1">Architecture logistique haut niveau</p>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="p-5 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Désignation du Pôle</label>
               <Input
@@ -454,6 +454,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   return (
                     <button
                       key={line}
+                      type="button"
                       onClick={() => setNewCatLine(line)}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${newCatLine === line ? 'border-stone-900 bg-stone-50' : 'border-stone-100 hover:border-stone-200'}`}
                     >
@@ -475,7 +476,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               </div>
             </div>
           </div>
-          <DialogFooter className="p-6 bg-stone-50 gap-3">
+          <DialogFooter className="p-4 sm:p-6 bg-stone-50 gap-2 sm:gap-3 shrink-0 border-t border-stone-100 flex-row">
             <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
             <Button
               onClick={handleAddGeneralCategory}
@@ -490,14 +491,14 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
       {/* ── Modal: Nouvelle Famille ── */}
       <Dialog open={isSubModalOpen} onOpenChange={setIsSubModalOpen}>
-        <DialogContent className="max-w-sm rounded-[1.5rem] p-0 border-none overflow-hidden">
-          <div className="bg-amber-600 p-6 text-white">
+        <DialogContent className="max-w-sm max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-[1.5rem] p-0 border-none overflow-hidden shadow-2xl">
+          <div className="bg-amber-600 p-5 sm:p-6 text-white shrink-0">
             <DialogTitle className="text-lg font-black uppercase tracking-tight">Nouvelle Famille</DialogTitle>
             <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">
               Pôle : {generalCategories.find(g => g.id === targetGenCatId)?.name}
             </p>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="p-5 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Nom de la famille produit</label>
               <Input
@@ -533,7 +534,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               </div>
             </div>
           </div>
-          <DialogFooter className="p-6 bg-stone-50 gap-3">
+          <DialogFooter className="p-4 sm:p-6 bg-stone-50 gap-2 sm:gap-3 shrink-0 border-t border-stone-100 flex-row">
             <Button variant="ghost" onClick={() => setIsSubModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
             <Button onClick={handleAddSubCategory} className="h-10 bg-amber-600 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">Ajouter</Button>
           </DialogFooter>
@@ -564,12 +565,12 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
       {/* ── Modal changer de ligne ── */}
       <Dialog open={!!movingPole} onOpenChange={open => { if (!open) { setMovingPole(null); setMoveTargetLine(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-blue-600 p-5 text-white">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] sm:max-h-[90vh] flex flex-col gap-0 rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-blue-600 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Changer de Ligne</DialogTitle>
             <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-1">{movingPole?.name}</p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nouvelle Ligne</Label>
               <Select value={moveTargetLine} onValueChange={setMoveTargetLine}>
@@ -583,7 +584,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setMovingPole(null); setMoveTargetLine(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"

@@ -178,6 +178,16 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     if (article.zipperType) {
       specs.push(["Type Fermeture", article.zipperType.toUpperCase()]);
       specs.push(["Curseur / Type", `${article.slider || "—"} / ${article.sliderType || "—"}`.toUpperCase()]);
+      if (article.tapeWeightGsm) specs.push(["Poids ruban", `${article.tapeWeightGsm} g/m`]);
+      if (article.sliderWeightG) specs.push(["Poids curseur", `${article.sliderWeightG} g/pc`]);
+      if (article.pcsPerBag) specs.push(["Condit. Sac", `${article.pcsPerBag} pcs/sac`]);
+      if (article.bagsPerCarton) specs.push(["Condit. Carton", `${article.bagsPerCarton} sacs/ctn`]);
+    }
+    if (article.gsm || article.fabricWidth || article.rollLength) {
+      if (article.gsm) specs.push(["Grammage (GSM)", `${article.gsm} g/m²`]);
+      if (article.fabricWidth) specs.push(["Largeur tissu", `${article.fabricWidth} cm`]);
+      if (article.rollLength) specs.push(["Longueur rouleau", `${article.rollLength} ${article.rollLengthUnit || 'm'}/rlx`]);
+      if (article.packagingPerBag) specs.push(["Conditionnement", `${article.packagingPerBag} rlx/sac`]);
     }
     if (article.specs) specs.push(["Notes Techniques", article.specs]);
 
@@ -215,6 +225,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
     const designBreakdown: any[] = Array.isArray(article.designBreakdown) ? article.designBreakdown : [];
+    const qualityBreakdown: any[] = Array.isArray(article.qualityBreakdown) ? article.qualityBreakdown : [];
 
     const drawTable = (title: string, head: string[][], body: any[][], totalRow: any[]) => {
       doc.setFontSize(8.5);
@@ -265,6 +276,33 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       y = (doc as any).lastAutoTable.finalY + 10;
     };
 
+    if (qualityBreakdown.length > 0) {
+      if (y > H - 60) { doc.addPage(); y = 20; }
+      const rows = qualityBreakdown.map((r: any, i: number) => {
+        const specsDetail = [
+          r.gsm ? `${r.gsm} gsm` : null,
+          r.fabricWidth ? `${r.fabricWidth} cm` : null,
+          r.rollLength ? `${r.rollLength} ${r.rollLengthUnit || 'm'}/rlx` : null,
+          r.packagingPerBag ? `${r.packagingPerBag} rlx/sac` : null,
+          r.zipperType ? `Zip: ${r.zipperType}` : null,
+          r.slider ? `Curseur: ${r.slider}` : null,
+          r.tapeWeightGsm ? `${r.tapeWeightGsm} g/m` : null,
+          r.sliderWeightG ? `${r.sliderWeightG} g/pc` : null,
+          r.pcsPerBag ? `${r.pcsPerBag} pcs/sac` : null,
+          r.bagsPerCarton ? `${r.bagsPerCarton} sacs/ctn` : null,
+        ].filter(Boolean).join(' · ');
+
+        return [
+          String(i + 1),
+          (r.quality || "—").toUpperCase(),
+          specsDetail || "—",
+          fmtQty(Number(r.quantity || 0), article.unitOfMeasure),
+        ];
+      });
+      const total = qualityBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
+      drawTable("DÉTAIL PAR QUALITÉ", [["#", "Qualité", "Spécifications & Conditionnement", "Quantité"]], rows, ["", "TOTAL GÉNÉRAL", "", fmtQty(total, article.unitOfMeasure)]);
+    }
+
     if (colorBreakdown.length > 0) {
       const rows = colorBreakdown.map((r: any, i: number) => [
         String(i + 1),
@@ -298,7 +336,7 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
       drawTable("DÉTAIL PAR MODÈLE", [["#", "Référence Modèle", "Quantité"]], rows, ["", "TOTAL GÉNÉRAL", fmtQty(total, article.unitOfMeasure)]);
     }
 
-    if (colorBreakdown.length === 0 && sizeBreakdown.length === 0 && designBreakdown.length === 0) {
+    if (qualityBreakdown.length === 0 && colorBreakdown.length === 0 && sizeBreakdown.length === 0 && designBreakdown.length === 0) {
       const rows = [[
         article.size && article.size !== "various" ? article.size.toUpperCase() : "—",
         article.color ? article.color.toUpperCase() : "—",

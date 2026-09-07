@@ -205,6 +205,16 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
     if (article.zipperType) {
       specs.push(["Zipper Type", article.zipperType.toUpperCase()]);
       specs.push(["Slider / Type", `${article.slider || "—"} / ${article.sliderType || "—"}`.toUpperCase()]);
+      if (article.tapeWeightGsm) specs.push(["Tape Weight", `${article.tapeWeightGsm} g/m`]);
+      if (article.sliderWeightG) specs.push(["Slider Weight", `${article.sliderWeightG} g/pc`]);
+      if (article.pcsPerBag) specs.push(["Packaging (Bag)", `${article.pcsPerBag} pcs/bag`]);
+      if (article.bagsPerCarton) specs.push(["Packaging (Carton)", `${article.bagsPerCarton} bags/ctn`]);
+    }
+    if (article.gsm || article.fabricWidth || article.rollLength) {
+      if (article.gsm) specs.push(["Weight (GSM)", `${article.gsm} g/m²`]);
+      if (article.fabricWidth) specs.push(["Fabric Width", `${article.fabricWidth} cm`]);
+      if (article.rollLength) specs.push(["Roll Length", `${article.rollLength} ${article.rollLengthUnit || 'm'}/roll`]);
+      if (article.packagingPerBag) specs.push(["Packaging", `${article.packagingPerBag} rolls/bag`]);
     }
     if (article.specs) specs.push(["Technical Notes", article.specs]);
 
@@ -244,6 +254,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
     const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
     const designBreakdown: any[] = Array.isArray(article.designBreakdown) ? article.designBreakdown : [];
+    const qualityBreakdown: any[] = Array.isArray(article.qualityBreakdown) ? article.qualityBreakdown : [];
 
     const drawTable = (title: string, head: string[][], body: any[][], totalRow: any[]) => {
       doc.setFontSize(8.5);
@@ -294,6 +305,33 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
       y = (doc as any).lastAutoTable.finalY + 10;
     };
 
+    if (qualityBreakdown.length > 0) {
+      if (y > H - 60) { doc.addPage(); y = 20; }
+      const rows = qualityBreakdown.map((r: any, i: number) => {
+        const specsDetail = [
+          r.gsm ? `${r.gsm}gsm` : null,
+          r.fabricWidth ? `${r.fabricWidth}cm` : null,
+          r.rollLength ? `${r.rollLength}${r.rollLengthUnit || 'm'}/roll` : null,
+          r.packagingPerBag ? `${r.packagingPerBag}rolls/bag` : null,
+          r.zipperType ? `Zip: ${r.zipperType}` : null,
+          r.slider ? `Slider: ${r.slider}` : null,
+          r.tapeWeightGsm ? `${r.tapeWeightGsm}g/m` : null,
+          r.sliderWeightG ? `${r.sliderWeightG}g/pc` : null,
+          r.pcsPerBag ? `${r.pcsPerBag}pcs/bag` : null,
+          r.bagsPerCarton ? `${r.bagsPerCarton}bags/ctn` : null,
+        ].filter(Boolean).join(' · ');
+
+        return [
+          String(i + 1),
+          (r.quality || "—").toUpperCase(),
+          specsDetail || "—",
+          fmtQty(Number(r.quantity || 0), article.unitOfMeasure),
+        ];
+      });
+      const total = qualityBreakdown.reduce((s: number, r: any) => s + (Number(r.quantity) || 0), 0);
+      drawTable("QUALITY BREAKDOWN", [["#", "Quality", "Specifications / Packaging", "Qty"]], rows, ["", "GRAND TOTAL", "", fmtQty(total, article.unitOfMeasure)]);
+    }
+
     if (colorBreakdown.length > 0) {
       const rows = colorBreakdown.map((r: any, i: number) => [
         String(i + 1),
@@ -327,7 +365,7 @@ export default function ExportBonCommande({ article, supplierProfile }: ExportBo
       drawTable("DESIGN BREAKDOWN", [["#", "Design Ref", "Qty"]], rows, ["", "GRAND TOTAL", fmtQty(total, article.unitOfMeasure)]);
     }
 
-    if (colorBreakdown.length === 0 && sizeBreakdown.length === 0 && designBreakdown.length === 0) {
+    if (qualityBreakdown.length === 0 && colorBreakdown.length === 0 && sizeBreakdown.length === 0 && designBreakdown.length === 0) {
       const rows = [[
         article.size && article.size !== "various" ? article.size.toUpperCase() : "—",
         article.color ? article.color.toUpperCase() : "—",

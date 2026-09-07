@@ -147,7 +147,24 @@ export async function exportFacturePDF(facture: any, articles: any[]) {
       (a.name || '').toUpperCase(),
       a.size || '-',
       a.color || '-',
-      a.specs || (a.zipperType ? `${a.zipperType} / ${a.slider || '-'} (${a.sliderType || '-'})` : '-'),
+      (() => {
+        if (Array.isArray(a.qualityBreakdown) && a.qualityBreakdown.length > 0) {
+          return `VARIOUS (${a.qualityBreakdown.length} qual.)`;
+        }
+        const parts: string[] = [];
+        if (a.zipperType) {
+          parts.push(`${a.zipperType} / ${a.slider || '-'} (${a.sliderType || '-'})`);
+          if (a.pcsPerBag && a.bagsPerCarton) parts.push(`${a.pcsPerBag}p/bag · ${a.bagsPerCarton}b/ctn`);
+          else if (a.pcsPerBag) parts.push(`${a.pcsPerBag}p/bag`);
+        } else if (a.gsm || a.fabricWidth) {
+          if (a.gsm) parts.push(`${a.gsm}gsm`);
+          if (a.fabricWidth) parts.push(`${a.fabricWidth}cm`);
+          if (a.rollLength) parts.push(`${a.rollLength}${a.rollLengthUnit || 'm'}`);
+          if (a.packagingPerBag) parts.push(`${a.packagingPerBag}rlx/sac`);
+        }
+        if (a.specs) parts.push(a.specs);
+        return parts.length > 0 ? parts.join(' · ') : '-';
+      })(),
       (a.supplierId || '').toUpperCase(),
       Number(a.quantity).toLocaleString('fr-MA'),
       (a.unitOfMeasure || '').toUpperCase(),
@@ -1949,6 +1966,16 @@ export async function exportDevisClientPIPDF(params: {
   if (article.zipperType) {
     specs.push(['Type Fermeture', article.zipperType.toUpperCase()]);
     specs.push(['Curseur / Type', `${article.slider || '—'} / ${article.sliderType || '—'}`.toUpperCase()]);
+    if (article.tapeWeightGsm) specs.push(['Poids Ruban', `${article.tapeWeightGsm} g/m`]);
+    if (article.sliderWeightG) specs.push(['Poids Curseur', `${article.sliderWeightG} g/pc`]);
+    if (article.pcsPerBag) specs.push(['Condit. Sac', `${article.pcsPerBag} pcs/sac`]);
+    if (article.bagsPerCarton) specs.push(['Condit. Carton', `${article.bagsPerCarton} sacs/ctn`]);
+  }
+  if (article.gsm || article.fabricWidth || article.rollLength) {
+    if (article.gsm) specs.push(['Grammage', `${article.gsm} g/m²`]);
+    if (article.fabricWidth) specs.push(['Largeur', `${article.fabricWidth} cm`]);
+    if (article.rollLength) specs.push(['Longueur', `${article.rollLength} ${article.rollLengthUnit || 'm'}/rlx`]);
+    if (article.packagingPerBag) specs.push(['Conditionnement', `${article.packagingPerBag} rlx/sac`]);
   }
   if (article.specs) specs.push(['Notes Techniques', article.specs]);
 
@@ -2000,10 +2027,29 @@ export async function exportDevisClientPIPDF(params: {
     totalRemiseMad += (pt - ptNet);
     totalDevisMad += ptNet;
 
+    const qualityBreakdown: any[] = Array.isArray(art.qualityBreakdown) ? art.qualityBreakdown : [];
     const colorBreakdown: any[] = Array.isArray(art.colorBreakdown) ? art.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(art.sizeBreakdown)  ? art.sizeBreakdown  : [];
 
-    if (colorBreakdown.length > 0) {
+    if (qualityBreakdown.length > 0) {
+      qualityBreakdown.forEach((r: any) => {
+        const qty = Number(r.quantity || 0);
+        if (qty <= 0) return;
+        const lineTotal = qty * puNet;
+        const row: string[] = [
+          String(index++),
+          `${(art.categoryId || '—').toUpperCase()} — ${(r.quality || '—').toUpperCase()}`,
+          fmtQty(qty, art.unitOfMeasure),
+          pu.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ];
+        if (hasRemise) {
+          row.push(remise > 0 ? `${remise}%` : '—');
+          row.push(puNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        }
+        row.push(lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        lineItems.push(row);
+      });
+    } else if (colorBreakdown.length > 0) {
       colorBreakdown.forEach((r: any) => {
         const qty = Number(r.rolls || 0);
         if (qty <= 0) return;
@@ -2407,18 +2453,30 @@ export async function exportBesoinsPDF(
       doc.text((a.categoryId || '').toUpperCase(), COL_LEFT, y + 14);
     }
 
-    // Specs row (size, color, specs, zipper)
+    // Specs row (size, color, specs, zipper, packaging, fabric)
     const specParts: string[] = [];
+    if (Array.isArray(a.qualityBreakdown) && a.qualityBreakdown.length > 0) {
+      specParts.push(`Multi-Qualités (${a.qualityBreakdown.length})`);
+    }
     if (a.size && a.size !== 'various') specParts.push(`Taille: ${a.size}`);
     if (a.color && a.color !== 'various') specParts.push(`Couleur: ${a.color}`);
-    if (a.zipperType) specParts.push(`${a.zipperType}${a.slider ? ' / ' + a.slider : ''}`);
+    if (a.zipperType) {
+      specParts.push(`${a.zipperType}${a.slider ? ' / ' + a.slider : ''}`);
+      if (a.pcsPerBag) specParts.push(`${a.pcsPerBag} p/bag`);
+      if (a.bagsPerCarton) specParts.push(`${a.bagsPerCarton} b/ctn`);
+    }
+    if (a.gsm || a.fabricWidth) {
+      if (a.gsm) specParts.push(`${a.gsm}gsm`);
+      if (a.fabricWidth) specParts.push(`${a.fabricWidth}cm`);
+      if (a.packagingPerBag) specParts.push(`${a.packagingPerBag} rlx/sac`);
+    }
     if (!a.zipperType && a.specs) specParts.push(a.specs);
     if (a.supplierId) specParts.push(`Fourn.: ${a.supplierId}`);
     if (specParts.length > 0) {
       doc.setTextColor(...MUTED);
       doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
-      doc.text(specParts.join('  ·  ').slice(0, 80), COL_LEFT, y + 20);
+      doc.text(specParts.join('  ·  ').slice(0, 100), COL_LEFT, y + 20);
     }
 
     // Client badge if preorder
@@ -3000,6 +3058,22 @@ export async function exportBaseOrderPDF(order: any) {
       ["Total Value",         article.purchasePricePerUnit && article.quantity ? `$${(Number(article.purchasePricePerUnit) * Number(article.quantity)).toFixed(2)}` : "—"],
     ];
 
+    if (article.zipperType) {
+      specs.push(["Zipper Type", article.zipperType.toUpperCase()]);
+      specs.push(["Slider / Type", `${article.slider || "—"} / ${article.sliderType || "—"}`.toUpperCase()]);
+      if (article.tapeWeightGsm) specs.push(["Tape Weight", `${article.tapeWeightGsm} g/m`]);
+      if (article.sliderWeightG) specs.push(["Slider Weight", `${article.sliderWeightG} g/pc`]);
+      if (article.pcsPerBag) specs.push(["Packaging (Bag)", `${article.pcsPerBag} pcs/bag`]);
+      if (article.bagsPerCarton) specs.push(["Packaging (Carton)", `${article.bagsPerCarton} bags/ctn`]);
+    }
+    if (article.gsm || article.fabricWidth || article.rollLength) {
+      if (article.gsm) specs.push(["Weight (GSM)", `${article.gsm} g/m²`]);
+      if (article.fabricWidth) specs.push(["Fabric Width", `${article.fabricWidth} cm`]);
+      if (article.rollLength) specs.push(["Roll Length", `${article.rollLength} ${article.rollLengthUnit || 'm'}/roll`]);
+      if (article.packagingPerBag) specs.push(["Packaging", `${article.packagingPerBag} rolls/bag`]);
+    }
+    if (article.specs) specs.push(["Technical Notes", article.specs]);
+
     const specCols = 2;
     const cellW = CW / specCols;
     const cellH = 10;
@@ -3032,6 +3106,7 @@ export async function exportBaseOrderPDF(order: any) {
     // ════════════════════════════════════════════════════════════════════════
     // BREAKDOWN TABLES
     // ════════════════════════════════════════════════════════════════════════
+    const qualityBreakdown: any[] = Array.isArray(article.qualityBreakdown) ? article.qualityBreakdown : [];
     const colorBreakdown: any[] = Array.isArray(article.colorBreakdown) ? article.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(article.sizeBreakdown)  ? article.sizeBreakdown  : [];
 
@@ -3091,7 +3166,39 @@ export async function exportBaseOrderPDF(order: any) {
       y = (doc as any).lastAutoTable.finalY + 10;
     };
 
-    if (colorBreakdown.length > 0) {
+    if (qualityBreakdown.length > 0) {
+      let totalValue = 0;
+      const rows = qualityBreakdown.map((r: any, i: number) => {
+        const rowPrice = (r.priceOverride !== '' && r.priceOverride !== undefined && r.priceOverride !== null) ? Number(r.priceOverride) : Number(article.purchasePricePerUnit || 0);
+        const qty = Number(r.quantity) || 0;
+        const rowTotal = qty * rowPrice;
+        totalValue += rowTotal;
+        const specsDetail = [
+          r.gsm ? `${r.gsm}gsm` : null,
+          r.fabricWidth ? `${r.fabricWidth}cm` : null,
+          r.rollLength ? `${r.rollLength}${r.rollLengthUnit || 'm'}` : null,
+          r.packagingPerBag ? `${r.packagingPerBag}rlx/sac` : null,
+          r.zipperType ? `Zip: ${r.zipperType}` : null,
+          r.slider ? `Slider: ${r.slider}` : null,
+          r.pcsPerBag ? `${r.pcsPerBag}p/bag` : null,
+          r.bagsPerCarton ? `${r.bagsPerCarton}b/ctn` : null,
+        ].filter(Boolean).join(' · ');
+
+        return [
+          String(i + 1),
+          `${(r.quality || "—").toUpperCase()}${specsDetail ? ' (' + specsDetail + ')' : ''}`,
+          fmtQty(qty, article.unitOfMeasure),
+          rowPrice > 0 ? `$${rowPrice.toFixed(4)}` : "—",
+          rowTotal > 0 ? `$${rowTotal.toFixed(2)}` : "—"
+        ];
+      });
+      drawTable("QUALITY BREAKDOWN", [["#", "Quality / Specifications", "Quantity", "Unit Price", "Total Price"]], rows, [
+        "", "TOTAL", 
+        fmtQty(qualityBreakdown.reduce((s, r) => s + (Number(r.quantity)||0), 0), article.unitOfMeasure),
+        "", 
+        totalValue > 0 ? `$${totalValue.toFixed(2)}` : "—"
+      ]);
+    } else if (colorBreakdown.length > 0) {
       let totalValue = 0;
       const rows = colorBreakdown.map((r: any, i: number) => {
         const rowPrice = (r.priceOverride !== '' && r.priceOverride !== undefined && r.priceOverride !== null) ? Number(r.priceOverride) : Number(article.purchasePricePerUnit || 0);
