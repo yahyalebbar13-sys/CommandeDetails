@@ -189,7 +189,7 @@ function ProductFiche({
   // Si la taille sélectionnée n'existe plus (ex: filtre change), on reset
   useEffect(() => {
     if (variantsBySize.length > 0 && !variantsBySize.some(v => v[0] === selectedSize)) {
-      setSelectedSize(variantsBySize[0][0]);
+      setSelectedSize(variantsBySize[0]?.[0] || 'STANDARD');
     }
   }, [variantsBySize, selectedSize]);
 
@@ -453,7 +453,8 @@ function ProductsTable({
 
   if (groupedVariants.length === 1) {
     const variants = groupedVariants[0];
-    const a = variants[0];
+    const a = variants?.[0];
+    if (!a) return null;
     return (
       <div className="animate-in fade-in duration-300">
         <ProductFiche
@@ -537,7 +538,8 @@ function ProductsTable({
             </div>
           ) : (
             groupedVariants.map((variants, idx) => {
-              const a = variants[0];
+              const a = variants?.[0];
+              if (!a) return null;
               const isMulti = variants.length > 1;
               const color  = UI_COLORS[idx % UI_COLORS.length];
               const cost   = a.purchasePricePerUnit || 0;
@@ -627,7 +629,7 @@ function ProductsTable({
 export default function StockFiches({
   stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
   isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement,
-  stores, selectedWarehouseId, onWarehouseChange
+  stores = [], selectedWarehouseId, onWarehouseChange
 }: {
   stockItems: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
@@ -647,7 +649,7 @@ export default function StockFiches({
     return rawStockItems.filter(i => i.currentQty > 0);
   }, [rawStockItems, inventoryMode, isInventoryView]);
 
-  const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : (activeStore === 'ALL' ? (stores[0]?.id || 'CHRIFA') : activeStore);
+  const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : (activeStore === 'ALL' ? (stores?.[0]?.id || 'CHRIFA') : activeStore);
 
   const handleValidateInventory = async () => {
     if (!user || !firestore) return;

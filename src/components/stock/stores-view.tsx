@@ -42,7 +42,8 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
     if (!firestore || !adminUid || !editingStore.id || !editingStore.name) return;
     
     const safeId = editingStore.id.toUpperCase().replace(/\s+/g, '_');
-    const newEmail = editingStore.accessEmail?.trim().toLowerCase() || null;
+    const isWarehouse = editingStore.type === 'WAREHOUSE';
+    const newEmail = isWarehouse ? null : (editingStore.accessEmail?.trim().toLowerCase() || null);
     const oldEmail = originalAccessEmail?.trim().toLowerCase() || null;
     setLoading(true);
     
@@ -166,11 +167,15 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
                 </div>
                 <h3 className="text-xl font-black text-stone-900">{store.name}</h3>
                 <p className="text-[10px] text-stone-400 font-bold font-mono mt-1">ID: {store.id}</p>
-                {store.accessEmail && (
+                {store.type === 'WAREHOUSE' ? (
+                  <p className="text-[9px] text-blue-700 font-bold mt-1">
+                    📦 Stock CHRIFA · Sans identifiant
+                  </p>
+                ) : store.accessEmail ? (
                   <p className="text-[10px] text-stone-500 font-bold mt-1">
                     🔑 Identifiant: <span className="font-mono text-emerald-700">{store.name}</span> (ou {store.accessEmail})
                   </p>
-                )}
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => openEditModal(store)} className="p-2 text-stone-400 hover:text-blue-600 bg-stone-50 hover:bg-blue-50 rounded-lg transition-colors">
@@ -214,20 +219,28 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
               </select>
             </div>
             
-            <div className="pt-4 border-t border-stone-100 space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-stone-500">Gérer l'Accès (Connexion)</h4>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-stone-500">E-mail de connexion</label>
-                <Input value={editingStore.accessEmail || ''} onChange={e => setEditingStore(s => ({ ...s, accessEmail: e.target.value }))} placeholder="Ex: vendeur@lebtex.ma" className="h-12 rounded-xl font-bold" />
+            {editingStore.type === 'STORE' ? (
+              <div className="pt-4 border-t border-stone-100 space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-stone-500">Gérer l'Accès (Connexion Magasin)</h4>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-stone-500">E-mail de connexion</label>
+                  <Input value={editingStore.accessEmail || ''} onChange={e => setEditingStore(s => ({ ...s, accessEmail: e.target.value }))} placeholder="Ex: vendeur@lebtex.ma" className="h-12 rounded-xl font-bold" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-stone-500">Mot de passe {editingStore.accessEmail && '(Laissez vide pour conserver)'}</label>
+                  <Input type="password" value={editingPassword} onChange={e => setEditingPassword(e.target.value)} placeholder="Nouveau mot de passe..." className="h-12 rounded-xl font-bold" />
+                  {editingPassword.length > 0 && editingPassword.length < 6 && (
+                    <p className="text-red-500 text-[10px] font-bold">Le mot de passe doit faire au moins 6 caractères.</p>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-stone-500">Mot de passe {editingStore.accessEmail && '(Laissez vide pour conserver)'}</label>
-                <Input type="password" value={editingPassword} onChange={e => setEditingPassword(e.target.value)} placeholder="Nouveau mot de passe..." className="h-12 rounded-xl font-bold" />
-                {editingPassword.length > 0 && editingPassword.length < 6 && (
-                  <p className="text-red-500 text-[10px] font-bold">Le mot de passe doit faire au moins 6 caractères.</p>
-                )}
+            ) : (
+              <div className="pt-2 border-t border-stone-100">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-900 font-medium">
+                  <span className="font-bold">ℹ️ Entrepôt rattaché à CHRIFA :</span> Aucun identifiant ni mot de passe. Accessible directement par Admin ou l'espace Chrifa.
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
           <DialogFooter>

@@ -58,10 +58,12 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
     return Object.values(byStore).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
   }
 
-  if (activeStore === 'ALL_MAIN') {
-    let sum = 0;
-    if (userStoreId && byStore[userStoreId]) sum += (Number(byStore[userStoreId]) || 0);
-    if (byStore['CHRIFA']) sum += (Number(byStore['CHRIFA']) || 0);
+  // Les entrepôts représentent le stock du magasin CHRIFA uniquement (ou ALL_MAIN)
+  if (activeStore === 'CHRIFA' || activeStore === 'ALL_MAIN') {
+    let sum = Number(byStore['CHRIFA']) || 0;
+    if (userStoreId && userStoreId !== 'CHRIFA' && byStore[userStoreId] && activeStore === 'ALL_MAIN') {
+      sum += (Number(byStore[userStoreId]) || 0);
+    }
     for (const s of stores) {
       if (s.type === 'WAREHOUSE' && byStore[s.id]) {
         sum += (Number(byStore[s.id]) || 0);
@@ -70,6 +72,8 @@ function getInitialQtyForStore(item: any, activeStore: string, userStoreId: stri
     return sum;
   }
 
+  // Pour les autres magasins (ex: DERB_OMAR, IDAA) : STRICTEMENT leur propre stock
+  // Pour un entrepôt spécifique sélectionné : son stock propre
   return Number(byStore[activeStore]) || 0;
 }
 
@@ -95,6 +99,14 @@ export function computeStockItems(
       return false;
     }
 
+    if (activeStore === 'CHRIFA') {
+      if (sId === 'CHRIFA') return true;
+      const s = stores.find(x => x.id === sId);
+      if (s && s.type === 'WAREHOUSE') return true; // Les entrepôts représentent le stock de Chrifa
+      return false;
+    }
+
+    // Autres magasins (DERB_OMAR, IDAA, etc.) ou entrepôt individuel : strictement leur propre stock
     return sId === activeStore;
   };
 
@@ -474,9 +486,9 @@ export default function StockApp() {
   
   useEffect(() => {
     if (warehouses.length > 0 && (!inventoryWarehouseId || !warehouses.some(w => w.id === inventoryWarehouseId))) {
-      setInventoryWarehouseId(warehouses[0].id);
+      setInventoryWarehouseId(warehouses[0]?.id || '');
     } else if (warehouses.length === 0 && stores.length > 0 && (!inventoryWarehouseId || !stores.some(s => s.id === inventoryWarehouseId))) {
-      setInventoryWarehouseId(stores[0].id);
+      setInventoryWarehouseId(stores[0]?.id || 'CHRIFA');
     }
   }, [warehouses, stores, inventoryWarehouseId]);
 
@@ -511,18 +523,42 @@ export default function StockApp() {
     [articles, movements, categories, effectiveSaleStoreId, userRole, stores]
   );
 
-  const isIncludedInAllMain = (id: string | undefined) => {
-    if (!id || id === 'ENTREPOT' || id === 'CHRIFA') return true;
+  const isChrifaOrWarehouse = (id: string | undefined) => {
+    if (!id || id === 'CHRIFA' || id === 'ENTREPOT') return true;
     const store = stores.find(s => s.id === id);
-    return store ? (store.isMain || store.type === 'WAREHOUSE') : false;
+    return store ? (store.id === 'CHRIFA' || store.type === 'WAREHOUSE') : false;
   };
 
   // Filtrer les données selon le magasin actif pour les vues (sauf Admin "ALL")
-  const filteredSales = useMemo(() => sales.filter(s => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(s.storeId)) || s.storeId === activeStore || (!s.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [sales, activeStore, stores]);
-  const filteredClients = useMemo(() => clients.filter(c => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(c.storeId)) || c.storeId === activeStore || (!c.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [clients, activeStore, stores]);
-  const filteredOrders = useMemo(() => orders.filter(o => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(o.storeId)) || o.storeId === activeStore || (!o.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [orders, activeStore, stores]);
-  const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(i.storeId)) || i.storeId === activeStore || (!i.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [invoices, activeStore, stores]);
-  const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(m.storeId) || isIncludedInAllMain(m.toStoreId))) || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [movements, activeStore, stores]);
+  const filteredSales = useMemo(() => sales.filter(s => {
+    if (activeStore === 'ALL') return true;
+    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(s.storeId);
+    return s.storeId === activeStore;
+  }), [sales, activeStore, stores]);
+
+  const filteredClients = useMemo(() => clients.filter(c => {
+    if (activeStore === 'ALL') return true;
+    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(c.storeId);
+    return c.storeId === activeStore;
+  }), [clients, activeStore, stores]);
+
+  const filteredOrders = useMemo(() => orders.filter(o => {
+    if (activeStore === 'ALL') return true;
+    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(o.storeId);
+    return o.storeId === activeStore;
+  }), [orders, activeStore, stores]);
+
+  const filteredInvoices = useMemo(() => invoices.filter(i => {
+    if (activeStore === 'ALL') return true;
+    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(i.storeId);
+    return i.storeId === activeStore;
+  }), [invoices, activeStore, stores]);
+
+  const filteredMovements = useMemo(() => movements.filter(m => {
+    if (activeStore === 'ALL') return true;
+    if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(m.storeId) || isChrifaOrWarehouse(m.toStoreId);
+    return m.storeId === activeStore || m.toStoreId === activeStore;
+  }), [movements, activeStore, stores]);
   const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(t.fromStore) || isIncludedInAllMain(t.toStore))) || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore, stores]);
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
@@ -1184,7 +1220,7 @@ export default function StockApp() {
 
   const currentStore = (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') ? stores.find(s => s.id === activeStore) : null;
   const isWarehouse = currentStore?.type === 'WAREHOUSE';
-  const isChrifa = userRole === 'COMMERCIAL' && (userStoreId === 'CHRIFA' || stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')));
+  const isChrifaOrAdmin = userRole === 'ADMIN' || userStoreId === 'CHRIFA' || stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA'));
 
   const navItems = useMemo(() => {
     // Règle pour les entrepôts :
@@ -1197,10 +1233,10 @@ export default function StockApp() {
     return navItemsRaw.filter(item => {
       if (item.adminOnly && userRole !== 'ADMIN') return false;
       if (item.commercialOnly && userRole === 'ADMIN') return false;
-      if (item.adminOrMainOnly && userRole !== 'ADMIN' && !isChrifa) return false;
+      if (item.adminOrMainOnly && !isChrifaOrAdmin) return false;
       return true;
     });
-  }, [navItemsRaw, userRole, isWarehouse, isChrifa]);
+  }, [navItemsRaw, userRole, isWarehouse, isChrifaOrAdmin]);
 
   // Si on est sur une vue cachée par le changement de magasin (ex: WAREHOUSE), on switch
   useEffect(() => {
@@ -1580,6 +1616,7 @@ export default function StockApp() {
             )}
             {activeView === 'stock' && (
               <StockFiches
+                stores={stores}
                 stockItems={stockItems}
                 movements={movements}
                 categories={categories}
@@ -1642,7 +1679,7 @@ export default function StockApp() {
                 adminUid={adminUid}
               />
             )}
-            {activeView === 'warehouses' && (
+            {activeView === 'warehouses' && isChrifaOrAdmin && (
               <StockWarehouses
                 stores={stores}
                 stockItems={stockItems}

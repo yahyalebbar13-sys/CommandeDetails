@@ -36,7 +36,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
   const [validateModal, setValidateModal] = useState<{ open: boolean; order?: TransferOrder }>({ open: false });
 
   // Create Form State
-  const [fromStore, setFromStore] = useState<string>(activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores[0]?.id || '') : activeStore);
+  const [fromStore, setFromStore] = useState<string>(activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores?.[0]?.id || '') : activeStore);
   const [toStore, setToStore] = useState<string>('');
   const [selectedItems, setSelectedItems] = useState<TransferOrderItem[]>([]);
   const [articleSearch, setArticleSearch] = useState('');

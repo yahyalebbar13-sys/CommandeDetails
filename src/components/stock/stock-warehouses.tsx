@@ -37,23 +37,19 @@ export default function StockWarehouses({
     return stores.filter(s => s.type === 'WAREHOUSE');
   }, [stores]);
 
+  const canManage = userRole === 'ADMIN' || userStoreId === 'CHRIFA';
+
   // Modal création / édition entrepôt
   const [modalOpen, setModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [warehouseId, setWarehouseId] = useState('');
   const [warehouseName, setWarehouseName] = useState('');
-  const [accessEmail, setAccessEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [originalEmail, setOriginalEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const openCreateModal = () => {
     setIsEditing(false);
     setWarehouseId('');
     setWarehouseName('');
-    setAccessEmail('');
-    setPassword('');
-    setOriginalEmail(null);
     setModalOpen(true);
   };
 
@@ -61,16 +57,13 @@ export default function StockWarehouses({
     setIsEditing(true);
     setWarehouseId(w.id);
     setWarehouseName(w.name);
-    setAccessEmail(w.accessEmail || '');
-    setPassword('');
-    setOriginalEmail(w.accessEmail || null);
     setModalOpen(true);
   };
 
   const handleSaveWarehouse = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!firestore || !adminUid) {
-      toast({ title: 'Erreur', description: 'Session admin non connectée', variant: 'destructive' });
+      toast({ title: 'Erreur', description: 'Session non connectée', variant: 'destructive' });
       return;
     }
     if (!warehouseName.trim()) {
@@ -79,66 +72,19 @@ export default function StockWarehouses({
     }
 
     const safeId = (warehouseId || warehouseName).trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-    const newEmail = accessEmail.trim().toLowerCase() || null;
-    const oldEmail = originalEmail ? originalEmail.trim().toLowerCase() : null;
 
     setLoading(true);
     try {
-      if (newEmail) {
-        if (password) {
-          const res = await fetch('/api/admin/manage-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'CREATE',
-              email: newEmail,
-              password: password
-            })
-          });
-
-          if (!res.ok) {
-            const text = await res.text();
-            let data: any = null;
-            try { data = JSON.parse(text); } catch (_) {}
-
-            if (data && data.error && data.error.includes('already exists')) {
-              await fetch('/api/admin/manage-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'UPDATE_PASSWORD',
-                  email: newEmail,
-                  password: password
-                })
-              });
-            }
-          }
-        }
-
-        if (oldEmail && oldEmail !== newEmail) {
-          await deleteDoc(doc(firestore, 'storeAccess', oldEmail)).catch(() => {});
-        }
-
-        await setDoc(doc(firestore, 'storeAccess', newEmail), {
-          storeId: safeId,
-          role: 'COMMERCIAL',
-          adminUid: adminUid
-        }, { merge: true });
-      } else if (oldEmail) {
-        await deleteDoc(doc(firestore, 'storeAccess', oldEmail)).catch(() => {});
-      }
-
       await setDoc(doc(firestore, 'users', adminUid, 'stores', safeId), {
         id: safeId,
         name: warehouseName.trim(),
         type: 'WAREHOUSE',
         isMain: false,
-        accessEmail: newEmail
       }, { merge: true });
 
       toast({
         title: isEditing ? 'Entrepôt mis à jour' : 'Entrepôt créé avec succès',
-        description: `L'entrepôt ${warehouseName} (${safeId}) est maintenant disponible.`
+        description: `L'entrepôt ${warehouseName} (${safeId}) est maintenant disponible pour le stock Chrifa.`
       });
 
       setModalOpen(false);
@@ -156,17 +102,6 @@ export default function StockWarehouses({
 
     try {
       await deleteDoc(doc(firestore, 'users', adminUid, 'stores', w.id));
-      if (w.accessEmail) {
-        await deleteDoc(doc(firestore, 'storeAccess', w.accessEmail.toLowerCase())).catch(() => {});
-        await fetch('/api/admin/manage-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'DELETE',
-            email: w.accessEmail.toLowerCase()
-          })
-        }).catch(() => {});
-      }
       toast({ title: 'Entrepôt supprimé', description: `L'entrepôt ${w.name} a été supprimé.` });
     } catch (err: any) {
       console.error('Erreur suppression entrepôt:', err);
@@ -251,7 +186,7 @@ export default function StockWarehouses({
             </div>
           )}
 
-          {userRole === 'ADMIN' && (
+          {canManage && (
             <Button
               onClick={openCreateModal}
               className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs tracking-wider px-5 py-3.5 rounded-2xl shadow-lg shadow-blue-500/20 flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
@@ -275,7 +210,7 @@ export default function StockWarehouses({
               Créez votre premier entrepôt de stockage pour y affecter vos arrivages et gérer vos inventaires.
             </p>
           </div>
-          {userRole === 'ADMIN' && (
+          {canManage && (
             <Button
               onClick={openCreateModal}
               className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs tracking-wider px-6 py-3 rounded-2xl shadow-md inline-flex items-center gap-2"
@@ -305,7 +240,7 @@ export default function StockWarehouses({
                       <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-700">
                         Entrepôt
                       </span>
-                      {userRole === 'ADMIN' && (
+                      {canManage && (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => openEditModal(w)}
@@ -333,11 +268,9 @@ export default function StockWarehouses({
                     <p className="text-[10px] text-stone-400 font-bold font-mono uppercase">
                       CODE: {w.id}
                     </p>
-                    {w.accessEmail && (
-                      <span className="text-[9px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium truncate max-w-[180px]">
-                        {w.accessEmail}
-                      </span>
-                    )}
+                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
+                      Stock CHRIFA
+                    </span>
                   </div>
                 </div>
 
@@ -456,32 +389,10 @@ export default function StockWarehouses({
             </div>
 
             <div className="pt-2 border-t border-stone-100">
-              <Label className="text-xs font-black uppercase tracking-wider text-stone-500">Email d'accès (Optionnel)</Label>
-              <Input
-                type="email"
-                placeholder="magasinier@lebtex.ma"
-                value={accessEmail}
-                onChange={(e) => setAccessEmail(e.target.value)}
-                className="mt-1.5 h-11 rounded-xl border-stone-200"
-              />
-              <p className="text-[10px] text-stone-400 mt-1">Permet au responsable d'entrepôt de se connecter et d'accéder à son stock.</p>
-            </div>
-
-            {accessEmail && (
-              <div>
-                <Label className="text-xs font-black uppercase tracking-wider text-stone-500">
-                  {isEditing ? "Nouveau mot de passe (laisser vide pour ne pas changer)" : "Mot de passe *"}
-                </Label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required={!isEditing}
-                  className="mt-1.5 h-11 rounded-xl border-stone-200"
-                />
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-900 font-medium">
+                <span className="font-bold">ℹ️ Entrepôt rattaché à CHRIFA :</span> Aucun identifiant ni mot de passe n'est requis. L'entrepôt est directement accessible et géré depuis l'espace Chrifa ou l'administrateur.
               </div>
-            )}
+            </div>
 
             <DialogFooter className="pt-4 flex items-center justify-end gap-2">
               <Button

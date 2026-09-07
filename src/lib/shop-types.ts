@@ -27,6 +27,39 @@ export interface ProductVariant {
   stock: number;
   price?: number; // Override price for this variant
   stockArticleId?: string;
+
+  // ── Specific details for this variant ──
+  shortDescription?: string;
+  shortDescriptionAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  
+  // ── Technical characteristics overrides ──
+  material?: string;
+  materialAr?: string;
+  typeProduit?: string;
+  specification?: string;
+  specificationAr?: string;
+  weight?: number;
+  width?: string;
+  packaging?: string;
+  packagingAr?: string;
+  matiereMailles?: string;
+  compositionRuban?: string;
+  couleur?: string;
+  largeurMaille?: string;
+  longueur?: string;
+  type?: string;
+  design?: string;
+  securite?: string;
+  resistance?: string;
+  compatibleAvec?: string;
+  conditionnementUnitaire?: string;
+  conditionnementGros?: string;
+  applications?: string;
+  avantages?: string;
+  conseilsEntretien?: string;
+  informationCommerciale?: string;
 }
 
 // Permet d'afficher un produit dans une autre catégorie avec un nom/description différent
