@@ -998,7 +998,7 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
         )}
       </div>
 
-      <LaunchOrderModal open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen} article={selectedArticle} allArticles={articles} />
+      <LaunchOrderModal open={isLaunchModalOpen} onOpenChange={setIsLaunchModalOpen} article={selectedArticle} />
 
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* MODAL — Proposition fournisseur                               */}

@@ -11,16 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { sendStatusNotification } from '@/lib/send-status-notification';
 import { ShoppingCart, Calendar, Factory, Banknote, Cuboid, Scale, Container, Loader2 } from 'lucide-react';
-import { findLastOrderPrice } from '@/lib/order-utils';
 
 interface LaunchOrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   article: any | null;
-  allArticles?: any[];
 }
 
-export default function LaunchOrderModal({ open, onOpenChange, article, allArticles = [] }: LaunchOrderModalProps) {
+export default function LaunchOrderModal({ open, onOpenChange, article }: LaunchOrderModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -38,23 +36,17 @@ export default function LaunchOrderModal({ open, onOpenChange, article, allArtic
 
   useEffect(() => {
     if (open && article) {
-      const lastOrder = (allArticles && allArticles.length > 0) ? findLastOrderPrice(article, allArticles) : null;
-      const effectivePrice = (article.purchasePricePerUnit && Number(article.purchasePricePerUnit) > 0)
-        ? Number(article.purchasePricePerUnit)
-        : (lastOrder?.price || 0);
-      const effectiveSupplier = article.supplierId || lastOrder?.supplierId || '';
-
       setFormData({
-        supplierId: effectiveSupplier,
+        supplierId: article.supplierId || '',
         orderDate: new Date().toISOString().split('T')[0],
         cubicMeasurement: article.cubicMeasurement || 0,
         netWeight: article.netWeight || 0,
         pcsPerCtn: article.pcsPerCtn || 0,
-        purchasePricePerUnit: effectivePrice,
+        purchasePricePerUnit: article.purchasePricePerUnit || 0,
         containerRef: '',
       });
     }
-  }, [open, article, allArticles]);
+  }, [open, article]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
