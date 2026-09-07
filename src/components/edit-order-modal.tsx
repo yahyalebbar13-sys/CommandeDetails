@@ -767,8 +767,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 </SelectContent>
               </Select>
             </div>
-                   {/* Taille - caché pour Fabric */}
-            {!isFabric && (
+            {/* Taille - caché pour Fabric et pour Zipper avec qualités */}
+            {!isFabric && (!isZipper || zipperQualities.length === 0) && (
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
                   <Maximize className="w-3 h-3" /> Taille / Dimension
@@ -846,71 +846,76 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                      <Settings2 className="w-3 h-3" /> Type Zipper
-                    </Label>
-                    <Select value={formData.zipperType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, zipperType: v }))}>
-                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                        <SelectValue placeholder="Type..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ZIPPER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                      <MousePointer2 className="w-3 h-3" /> Curseur
-                    </Label>
-                    <Input
-                      value={formData.slider || ''}
-                      onChange={e => setFormData((prev: any) => ({ ...prev, slider: e.target.value }))}
-                      className="h-11 border-stone-200 font-bold rounded-xl bg-white"
-                      placeholder="Ex: Auto-lock..."
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                      <Scissors className="w-3 h-3" /> Type Curseur
-                    </Label>
-                    <Select value={formData.sliderType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, sliderType: v }))}>
-                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
-                        <SelectValue placeholder="Type Curseur..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                {/* Fallback uniquement si aucune qualité n'est pré-définie */}
+                {zipperQualities.length === 0 && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                          <Settings2 className="w-3 h-3" /> Type Zipper
+                        </Label>
+                        <Select value={formData.zipperType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, zipperType: v }))}>
+                          <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                            <SelectValue placeholder="Type..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ZIPPER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                          <MousePointer2 className="w-3 h-3" /> Curseur
+                        </Label>
+                        <Input
+                          value={formData.slider || ''}
+                          onChange={e => setFormData((prev: any) => ({ ...prev, slider: e.target.value }))}
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          placeholder="Ex: Auto-lock..."
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                          <Scissors className="w-3 h-3" /> Type Curseur
+                        </Label>
+                        <Select value={formData.sliderType || ''} onValueChange={v => setFormData((prev: any) => ({ ...prev, sliderType: v }))}>
+                          <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                            <SelectValue placeholder="Type Curseur..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SLIDER_TYPES.map(t => <SelectItem key={t} value={t} className="font-bold uppercase">{t}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-                {/* Ruban g/m & Curseur g/pc */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Ruban (g/m)</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      placeholder="Ex: 20.5"
-                      className="h-11 border-stone-200 font-bold rounded-xl bg-white"
-                      value={formData.tapeWeightGsm || ''}
-                      onChange={e => setFormData((p: any) => ({ ...p, tapeWeightGsm: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids Curseur (g/pcs)</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      placeholder="Ex: 1.2"
-                      className="h-11 border-stone-200 font-bold rounded-xl bg-white"
-                      value={formData.sliderWeightG || ''}
-                      onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))}
-                    />
-                  </div>
-                </div>
+                    {/* Ruban g/m & Curseur g/pc */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Ruban (g/m)</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 20.5"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.tapeWeightGsm || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, tapeWeightGsm: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids Curseur (g/pcs)</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 1.2"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.sliderWeightG || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
