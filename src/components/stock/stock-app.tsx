@@ -115,7 +115,7 @@ export function computeStockItems(
     return qtyByStore;
   };
   const stockArticles = includeAll ? articles : articles.filter(a => {
-    return a.stockEntryDate || movements.some(m => m.articleId === a.id);
+    return movements.some(m => m.articleId === a.id) || (a.initialQtyByStore && Object.values(a.initialQtyByStore).some((v: any) => Number(v) > 0));
   });
 
   const results: StockItem[] = [];
@@ -570,18 +570,16 @@ export default function StockApp() {
       const validatedCount = factureArts.filter((a: any) =>
         movements.some(m => m.articleId === a.id && m.type === 'IN')
       ).length;
-      const hasInMovement = movements.some(m => m.factureId === f.id && m.type === 'IN');
-      const isValidated = (validatedCount > 0 && validatedCount === artCount) || (artCount > 0 && !!f.stockEntryDate) || hasInMovement;
+      const hasInMovement = movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN');
+      // Un arrivage est validé dans /stock UNIQUEMENT si des mouvements IN ont été créés depuis /stock
+      const isValidated = (validatedCount > 0 && validatedCount === artCount) || hasInMovement;
 
-      const entryDate = f.stockEntryDate ||
-        factureArts.find((a: any) => a.stockEntryDate)?.stockEntryDate ||
-        movements.find(m => m.factureId === f.id && m.type === 'IN')?.date ||
-        null;
+      const stockVueEntryDate = movements.find(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN')?.date || null;
 
       if (!isValidated) {
-        if (f.arrivalDate) pending++;
+        pending++;
       } else {
-        if (entryDate && entryDate >= oneMonthAgoStr) {
+        if (stockVueEntryDate && stockVueEntryDate >= oneMonthAgoStr) {
           entered1M++;
         } else {
           enteredOld++;
@@ -1689,17 +1687,18 @@ export default function StockApp() {
                   const validatedCount = factureArts.filter((a: any) =>
                     movements.some(m => m.articleId === a.id && m.type === 'IN')
                   ).length;
-                  const hasInMovement = movements.some(m => m.factureId === f.id && m.type === 'IN');
-                  const isValidated = (validatedCount > 0 && validatedCount === artCount) || (artCount > 0 && !!f.stockEntryDate) || hasInMovement;
+                  const hasInMovement = movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN');
+                  
+                  // VALIDATION STRICTE DANS /STOCK :
+                  // Un dossier est en stock UNIQUEMENT si validé depuis /stock (mouvements IN créés)
+                  const isValidated = (validatedCount > 0 && validatedCount === artCount) || hasInMovement;
                   const isPartial   = validatedCount > 0 && validatedCount < artCount;
-                  const canValidate = !!f.arrivalDate && !isValidated;
+                  // Tant qu'il n'est pas validé dans /stock, le bouton de validation reste actif
+                  const canValidate = !isValidated;
 
-                  const stockEntryDate = f.stockEntryDate ||
-                    factureArts.find((a: any) => a.stockEntryDate)?.stockEntryDate ||
-                    movements.find(m => m.factureId === f.id && m.type === 'IN')?.date ||
-                    null;
-
-                  const isEnteredLast1Month = stockEntryDate ? stockEntryDate >= oneMonthAgoStr : false;
+                  // Date d'entrée effective dans /stock
+                  const stockVueEntryDate = movements.find(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN')?.date || null;
+                  const isEnteredLast1Month = stockVueEntryDate ? stockVueEntryDate >= oneMonthAgoStr : false;
 
                   return {
                     f,
@@ -1709,7 +1708,7 @@ export default function StockApp() {
                     isValidated,
                     isPartial,
                     canValidate,
-                    stockEntryDate,
+                    stockEntryDate: stockVueEntryDate,
                     isEnteredLast1Month,
                   };
                 })
@@ -1924,9 +1923,9 @@ export default function StockApp() {
                                     <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
                                       <Anchor className="w-3.5 h-3.5 text-amber-600" /> Partiel ({validatedCount}/{artCount})
                                     </span>
-                                  ) : f.arrivalDate ? (
+                                  ) : (f.arrivalDate || f.stockEntryDate) ? (
                                     <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
-                                      <Anchor className="w-3.5 h-3.5 text-amber-600" /> Arrivé au port
+                                      <Anchor className="w-3.5 h-3.5 text-amber-600" /> Prêt pour Stock
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1.5 bg-stone-100 text-stone-600 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
@@ -1954,8 +1953,8 @@ export default function StockApp() {
                                 </div>
                                 <div className="bg-stone-50 rounded-xl p-2.5">
                                   <p className="text-[8px] font-black text-stone-400 uppercase">Entrée Stock</p>
-                                  <p className={`text-[10px] font-black mt-0.5 ${stockEntryDate ? 'text-emerald-700' : 'text-stone-400'}`}>
-                                    {stockEntryDate || 'En attente'}
+                                  <p className={`text-[10px] font-black mt-0.5 ${isValidated ? 'text-emerald-700' : 'text-amber-600 font-bold'}`}>
+                                    {isValidated ? (stockEntryDate || 'Validé') : (f.stockEntryDate ? `${f.stockEntryDate} (À valider)` : 'En attente')}
                                   </p>
                                 </div>
                                 <div className="bg-stone-50 rounded-xl p-2.5">
