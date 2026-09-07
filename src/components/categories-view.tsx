@@ -53,7 +53,7 @@ import { computeEffectiveStatus } from '@/lib/status-utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { doc, collection, getDocs } from 'firebase/firestore';
+import { doc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
@@ -441,10 +441,105 @@ export default function CategoriesView({
     return ZIPPER_CAT_KW.some(kw => catName.includes(kw)) && !catName.includes('puller') && !catName.includes('slider');
   }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
 
-  const handleUpdateCustoms = () => {
+  const [isSavingCustoms, setIsSavingCustoms] = useState(false);
+
+  const handleUpdateCustoms = async () => {
     if (!user || !firestore || !currentCategoryObj) return;
-    const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
-    updateDocumentNonBlocking(docRef, {
+
+    // Check if user has uncommitted pending size
+    let currentSizes = [...customsForm.availableSizes];
+    const pendingSize = newSizeInput.trim().toUpperCase();
+    if (pendingSize && !currentSizes.includes(pendingSize)) {
+      currentSizes.push(pendingSize);
+      setNewSizeInput('');
+    }
+
+    // Check if user has uncommitted pending fabric quality
+    let currentFabricQualities = [...customsForm.fabricQualities];
+    const fabGsm = newQualityForm.gsm ? Number(newQualityForm.gsm) : null;
+    const fabWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : null;
+    const fabRoll = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : null;
+    const fabBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : null;
+    if (fabGsm || fabWidth) {
+      const autoLabel = [
+        fabGsm ? `${fabGsm}gsm` : null,
+        fabWidth ? `${fabWidth}cm` : null,
+        fabRoll ? `${fabRoll}${newQualityForm.rollLengthUnit}/rlx` : null,
+        fabBag ? `${fabBag}rlx/sac` : null,
+      ].filter(Boolean).join(' · ');
+      const label = newQualityForm.label.trim() || autoLabel || 'Qualité';
+      currentFabricQualities.push({
+        label,
+        gsm: fabGsm ?? undefined,
+        fabricWidth: fabWidth ?? undefined,
+        rollLength: fabRoll ?? undefined,
+        rollLengthUnit: newQualityForm.rollLengthUnit,
+        packagingPerBag: fabBag ?? undefined,
+      });
+      setNewQualityForm({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
+    }
+
+    // Check if user has uncommitted pending zipper quality
+    let currentZipperQualities = [...customsForm.zipperQualities];
+    const zipLen = newZipperQualityForm.length.trim();
+    const zipType = newZipperQualityForm.zipperType.trim();
+    const zipSlider = newZipperQualityForm.slider.trim();
+    const zipSliderType = newZipperQualityForm.sliderType.trim();
+    const zipTapeGsm = newZipperQualityForm.tapeWeightGsm ? Number(newZipperQualityForm.tapeWeightGsm) : null;
+    const zipSliderG = newZipperQualityForm.sliderWeightG ? Number(newZipperQualityForm.sliderWeightG) : null;
+    if (zipLen || zipType || zipSlider || zipTapeGsm) {
+      const autoLabel = [
+        zipLen || null,
+        zipType || null,
+        zipSlider ? `Curseur: ${zipSlider}` : null,
+        zipSliderType ? `(${zipSliderType})` : null,
+        zipTapeGsm ? `${zipTapeGsm}g/m` : null,
+        zipSliderG ? `${zipSliderG}g/pc` : null,
+      ].filter(Boolean).join(' · ');
+      const label = newZipperQualityForm.label.trim() || autoLabel || 'Qualité Zipper';
+      currentZipperQualities.push({
+        label,
+        length: zipLen || undefined,
+        zipperType: zipType || undefined,
+        slider: zipSlider || undefined,
+        sliderType: zipSliderType || undefined,
+        tapeWeightGsm: zipTapeGsm ?? undefined,
+        sliderWeightG: zipSliderG ?? undefined,
+      });
+      setNewZipperQualityForm({
+        label: '',
+        length: '',
+        zipperType: 'C/E',
+        slider: '',
+        sliderType: 'A/L',
+        tapeWeightGsm: '',
+        sliderWeightG: '',
+      });
+    }
+
+    // Sanitize arrays to guarantee NO undefined fields inside array items for Firestore
+    const cleanFabricQualities = currentFabricQualities.map(q => {
+      const item: Record<string, any> = { label: q.label || 'Qualité' };
+      if (q.gsm != null && !isNaN(Number(q.gsm))) item.gsm = Number(q.gsm);
+      if (q.fabricWidth != null && !isNaN(Number(q.fabricWidth))) item.fabricWidth = Number(q.fabricWidth);
+      if (q.rollLength != null && !isNaN(Number(q.rollLength))) item.rollLength = Number(q.rollLength);
+      if (q.rollLengthUnit) item.rollLengthUnit = q.rollLengthUnit;
+      if (q.packagingPerBag != null && !isNaN(Number(q.packagingPerBag))) item.packagingPerBag = Number(q.packagingPerBag);
+      return item;
+    });
+
+    const cleanZipperQualities = currentZipperQualities.map(q => {
+      const item: Record<string, any> = { label: q.label || 'Qualité' };
+      if (q.length) item.length = q.length;
+      if (q.zipperType) item.zipperType = q.zipperType;
+      if (q.slider) item.slider = q.slider;
+      if (q.sliderType) item.sliderType = q.sliderType;
+      if (q.tapeWeightGsm != null && !isNaN(Number(q.tapeWeightGsm))) item.tapeWeightGsm = Number(q.tapeWeightGsm);
+      if (q.sliderWeightG != null && !isNaN(Number(q.sliderWeightG))) item.sliderWeightG = Number(q.sliderWeightG);
+      return item;
+    });
+
+    const payload: Record<string, any> = {
       hsCode: customsForm.hsCode || null,
       customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
       importDutyRate: customsForm.importDutyRate === '' ? null : Number(customsForm.importDutyRate),
@@ -452,14 +547,29 @@ export default function CategoriesView({
       ticRate: customsForm.ticRate === '' ? null : Number(customsForm.ticRate),
       tvaRate: customsForm.tvaRate === '' ? null : Number(customsForm.tvaRate),
       defaultPcsPerCtn: customsForm.defaultPcsPerCtn === '' ? null : Number(customsForm.defaultPcsPerCtn),
-      availableSizes: customsForm.availableSizes.length > 0 ? customsForm.availableSizes : null,
+      availableSizes: currentSizes.length > 0 ? currentSizes : null,
       availableGsm: customsForm.availableGsm.length > 0 ? customsForm.availableGsm : null,
       availableWidths: customsForm.availableWidths.length > 0 ? customsForm.availableWidths : null,
-      fabricQualities: customsForm.fabricQualities.length > 0 ? customsForm.fabricQualities : null,
-      zipperQualities: customsForm.zipperQualities.length > 0 ? customsForm.zipperQualities : null,
-    });
-    toast({ title: 'Données douanières mises à jour' });
-    setIsCustomsModalOpen(false);
+      fabricQualities: cleanFabricQualities.length > 0 ? cleanFabricQualities : null,
+      zipperQualities: cleanZipperQualities.length > 0 ? cleanZipperQualities : null,
+    };
+
+    setIsSavingCustoms(true);
+    try {
+      const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
+      await updateDoc(docRef, payload);
+      toast({ title: 'Configuration & données douanières mises à jour' });
+      setIsCustomsModalOpen(false);
+    } catch (err: any) {
+      console.error('Error updating customs & configuration:', err);
+      toast({
+        variant: 'destructive',
+        title: "Erreur lors de l'enregistrement",
+        description: err?.message || "Impossible de mettre à jour les données douanières",
+      });
+    } finally {
+      setIsSavingCustoms(false);
+    }
   };
 
   // ── Upload / supprimer la photo de la catégorie ──
@@ -2121,19 +2231,19 @@ export default function CategoriesView({
 
                       const label = newZipperQualityForm.label.trim() || autoLabel || 'Qualité Zipper';
 
+                      const newQuality: any = { label };
+                      if (length) newQuality.length = length;
+                      if (zipperType) newQuality.zipperType = zipperType;
+                      if (slider) newQuality.slider = slider;
+                      if (sliderType) newQuality.sliderType = sliderType;
+                      if (tapeWeightGsm != null && !isNaN(tapeWeightGsm)) newQuality.tapeWeightGsm = tapeWeightGsm;
+                      if (sliderWeightG != null && !isNaN(sliderWeightG)) newQuality.sliderWeightG = sliderWeightG;
+
                       setCustomsForm(p => ({
                         ...p,
                         zipperQualities: [
                           ...p.zipperQualities,
-                          {
-                            label,
-                            length: length || undefined,
-                            zipperType: zipperType || undefined,
-                            slider: slider || undefined,
-                            sliderType: sliderType || undefined,
-                            tapeWeightGsm,
-                            sliderWeightG,
-                          }
+                          newQuality
                         ]
                       }));
 
@@ -2154,8 +2264,12 @@ export default function CategoriesView({
             )}
 
             <DialogFooter className="p-6 bg-stone-50 gap-3">
-              <Button variant="ghost" onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
-              <Button onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">Enregistrer</Button>
+              <Button variant="ghost" disabled={isSavingCustoms} onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
+              <Button disabled={isSavingCustoms} onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">
+                {isSavingCustoms ? (
+                  <span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enregistrement...</span>
+                ) : 'Enregistrer'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
