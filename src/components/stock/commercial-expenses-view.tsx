@@ -5,16 +5,20 @@ import {
   Receipt, Fuel, Utensils, Car, ParkingCircle, Package, MoreHorizontal,
   Plus, Search, Filter, Calendar, Download, Trash2, CheckCircle2, 
   Clock, AlertCircle, Camera, Check, X, ShieldAlert, Sparkles, Building2, User,
-  ShoppingBag, ArrowDownRight, Tag
+  ShoppingBag, ArrowDownRight, Tag, Layers, Settings2, Palette, Maximize, Ruler, DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  SelectGroup, SelectLabel
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
+import { findLastOrderPrice } from '@/lib/order-utils';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -23,9 +27,27 @@ interface CommercialExpensesViewProps {
   userRole: 'ADMIN' | 'COMMERCIAL';
   currentUserName?: string;
   currentUserId?: string;
+  generalCategories?: any[];
+  categories?: any[];
+  articles?: any[];
   onAddExpense: (expense: Omit<CommercialExpense, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateExpenseStatus?: (id: string, status: 'PENDING' | 'APPROVED' | 'REIMBURSED') => Promise<void>;
   onDeleteExpense?: (id: string) => Promise<void>;
+}
+
+const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
+const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
+const ZIPPER_TYPES = ["O/E", "C/E"];
+const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
+
+function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-2 -mb-1">
+      <div className="p-1.5 bg-stone-100 rounded-lg text-stone-500">{icon}</div>
+      <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em]">{label}</span>
+      <div className="flex-1 h-px bg-stone-100" />
+    </div>
+  );
 }
 
 const CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: any; color: string; bg: string }> = {
@@ -47,6 +69,9 @@ export default function CommercialExpensesView({
   userRole,
   currentUserName,
   currentUserId,
+  generalCategories = [],
+  categories = [],
+  articles = [],
   onAddExpense,
   onUpdateExpenseStatus,
   onDeleteExpense,
@@ -70,7 +95,21 @@ export default function CommercialExpensesView({
   const [newReceiptUrl, setNewReceiptUrl] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // Champs spécifiques Achat Marchandise
+  // Champs spécifiques Achat Marchandise (exactement comme nvx ptds dans lebtex/gestion)
+  const [selectedGenCatId, setSelectedGenCatId] = useState<string>('');
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string>('');
+  const [selectedColor, setSelectedColor] = useState<string>('white');
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedSpecs, setSelectedSpecs] = useState<string>('');
+  const [selectedZipperType, setSelectedZipperType] = useState<string>('');
+  const [selectedSlider, setSelectedSlider] = useState<string>('');
+  const [selectedSliderType, setSelectedSliderType] = useState<string>('');
+  const [selectedGsm, setSelectedGsm] = useState<string>('');
+  const [selectedFabricWidth, setSelectedFabricWidth] = useState<string>('');
+  const [selectedRollLength, setSelectedRollLength] = useState<string>('');
+  const [selectedRollLengthUnit, setSelectedRollLengthUnit] = useState<'m' | 'yds'>('m');
+  const [selectedPackagingPerBag, setSelectedPackagingPerBag] = useState<string>('');
+  const [isManualArticle, setIsManualArticle] = useState(false);
   const [newArticleName, setNewArticleName] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newUnitPrice, setNewUnitPrice] = useState('');
@@ -84,6 +123,186 @@ export default function CommercialExpensesView({
     expenses.forEach(e => { if (e.date) s.add(e.date.substring(0, 7)); });
     return Array.from(s).sort().reverse();
   }, [expenses]);
+
+  // Filtrage sous-catégories par Pôle (Catégorie Générale)
+  const filteredSubCategories = useMemo(() => {
+    if (!selectedGenCatId) return [];
+    const filtered = (categories || []).filter((sc: any) => sc.generalCategoryId === selectedGenCatId);
+
+    const getGroupIndex = (name: string) => {
+      const n = (name || '').toLowerCase().trim();
+      const fabricKw   = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
+      const sliderKw   = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
+      const zipperKw   = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
+      const buttonKw   = ["covered mould button", "snap button", "button"];
+      if (fabricKw.some(k => n.includes(k)))  return 1;
+      if (sliderKw.some(k => n.includes(k)))  return 2;
+      if (zipperKw.some(k => n.includes(k)))  return 3;
+      if (buttonKw.some(k => n.includes(k)))  return 4;
+      return 5;
+    };
+
+    return filtered.sort((a: any, b: any) => {
+      const diff = getGroupIndex(a.name) - getGroupIndex(b.name);
+      return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '');
+    });
+  }, [selectedGenCatId, categories]);
+
+  const isZipper = useMemo(() => {
+    if (selectedGenCatId) {
+      const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (lower.includes('zipper') && !lower.includes('slider') && !lower.includes('puller')) return true;
+      }
+    }
+    const upper = (selectedCategoryName || '').toUpperCase();
+    return upper.includes('ZIPPER') && !upper.includes('SLIDER') && !upper.includes('PULLER');
+  }, [selectedGenCatId, generalCategories, selectedCategoryName]);
+
+  const isFabric = useMemo(() => {
+    const POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
+    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing', 'eva film', 't/c twill', 'oxford', 'twill'];
+    if (selectedGenCatId) {
+      const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
+      if (genCat) {
+        const lower = (genCat.name || '').toLowerCase();
+        if (POLE_KW.some(kw => lower.includes(kw))) return true;
+      }
+    }
+    if (selectedCategoryName) {
+      const lower = selectedCategoryName.toLowerCase();
+      if (CAT_KW.some(kw => lower.includes(kw))) return true;
+    }
+    return false;
+  }, [selectedGenCatId, generalCategories, selectedCategoryName]);
+
+  const selectedSubCat = useMemo(() => {
+    return (categories || []).find((sc: any) => sc.name === selectedCategoryName);
+  }, [categories, selectedCategoryName]);
+
+  const fabricQualities = useMemo(() => {
+    return Array.isArray(selectedSubCat?.fabricQualities) ? selectedSubCat.fabricQualities : [];
+  }, [selectedSubCat]);
+
+  const zipperQualities = useMemo(() => {
+    return Array.isArray(selectedSubCat?.zipperQualities) ? selectedSubCat.zipperQualities : [];
+  }, [selectedSubCat]);
+
+  const availableSizes = useMemo(() => {
+    return Array.isArray(selectedSubCat?.availableSizes) && selectedSubCat.availableSizes.length > 0 ? selectedSubCat.availableSizes : [];
+  }, [selectedSubCat]);
+
+  // Fournisseurs connus issus des commandes passées
+  const knownSuppliers = useMemo(() => {
+    const set = new Set<string>();
+    (articles || []).forEach((a: any) => { if (a.supplierId) set.add(a.supplierId); });
+    return Array.from(set).sort();
+  }, [articles]);
+
+  // Détection du dernier prix d'achat enregistré dans le système
+  const lastOrderInfo = useMemo(() => {
+    if (!selectedCategoryName) return null;
+    return findLastOrderPrice(
+      {
+        categoryId: selectedCategoryName,
+        name: selectedCategoryName,
+        size: selectedSize,
+        color: selectedColor,
+        specs: selectedSpecs,
+        zipperType: selectedZipperType,
+        slider: selectedSlider,
+        sliderType: selectedSliderType,
+        gsm: selectedGsm,
+        fabricWidth: selectedFabricWidth,
+      },
+      articles || []
+    );
+  }, [selectedCategoryName, selectedSize, selectedColor, selectedSpecs, selectedZipperType, selectedSlider, selectedSliderType, selectedGsm, selectedFabricWidth, articles]);
+
+  // Nom complet reconstitué de l'article pour le stock et l'affichage
+  const computedArticleName = useMemo(() => {
+    if (isManualArticle) return newArticleName.trim();
+    if (!selectedCategoryName) return '';
+    const parts: string[] = [selectedCategoryName];
+    if (isFabric) {
+      if (selectedGsm) parts.push(`${selectedGsm}g`);
+      if (selectedFabricWidth) parts.push(`${selectedFabricWidth}cm`);
+    } else if (isZipper) {
+      if (selectedSize) parts.push(selectedSize);
+      if (selectedZipperType) parts.push(selectedZipperType);
+      if (selectedSlider) parts.push(`Curseur ${selectedSlider}`);
+    } else {
+      if (selectedSize) parts.push(selectedSize);
+      if (selectedSpecs) parts.push(selectedSpecs);
+    }
+    if (selectedColor && selectedColor !== 'various') parts.push(selectedColor.toUpperCase());
+    return parts.join(' · ');
+  }, [isManualArticle, newArticleName, selectedCategoryName, isFabric, isZipper, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedSpecs, selectedColor]);
+
+  // Handler de sélection d'une sous-catégorie
+  const handleSelectSubCategory = (catName: string) => {
+    setSelectedCategoryName(catName);
+    
+    // Unité par défaut
+    const upper = catName.toUpperCase();
+    const isFab = upper.includes('FABRIC') || upper.includes('TISSU') || upper.includes('POPELINE') || upper.includes('INTERLINING');
+    if (isFab) {
+      setNewUnitOfMeasure('rolls');
+    } else {
+      setNewUnitOfMeasure('pièces');
+    }
+
+    // Dernier prix commandé si disponible
+    const last = findLastOrderPrice({ categoryId: catName, name: catName }, articles || []);
+    if (last?.price) {
+      setNewUnitPrice(String(last.price));
+      if (newQuantity && Number(newQuantity) > 0) {
+        setNewAmount((Number(newQuantity) * last.price).toFixed(2));
+      }
+    }
+    if (last?.supplierId && !newSupplierName) {
+      setNewSupplierName(last.supplierId);
+    }
+  };
+
+  // Helper GroupedCategorySelect identique à AddOrderModal
+  const GroupedCategorySelect = () => {
+    const LABEL_MAP: Record<string, string> = {
+      'Fabric': 'Fabric', 'Slider et puller': 'Slider / Puller',
+      'Zipper': 'Zipper', 'Bouton': 'Bouton', 'Reste': 'Reste'
+    };
+    const groups: Record<string, any[]> = {};
+    (filteredSubCategories || []).forEach((sc: any) => {
+      const n = (sc.name || '').toLowerCase().trim();
+      const fabricKw = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
+      const sliderKw = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
+      const zipperKw = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
+      const buttonKw = ["covered mould button", "snap button", "button"];
+      let label = 'Reste';
+      if (fabricKw.some(k => n.includes(k)))  label = 'Fabric';
+      else if (sliderKw.some(k => n.includes(k))) label = 'Slider et puller';
+      else if (zipperKw.some(k => n.includes(k))) label = 'Zipper';
+      else if (buttonKw.some(k => n.includes(k))) label = 'Bouton';
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(sc);
+    });
+    return (
+      <>
+        {Object.entries(LABEL_MAP).map(([key, display]) => {
+          if (!groups[key]?.length) return null;
+          return (
+            <SelectGroup key={key}>
+              <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1.5">{display}</SelectLabel>
+              {groups[key].map((sc: any) => (
+                <SelectItem key={sc.id || sc.name} value={sc.name} className="font-bold pl-6 text-[11px]">{sc.name}</SelectItem>
+              ))}
+            </SelectGroup>
+          );
+        })}
+      </>
+    );
+  };
 
   // Filtrage
   const filteredExpenses = useMemo(() => {
@@ -163,8 +382,12 @@ export default function CommercialExpensesView({
     }
 
     const isMarchandise = newCategory === 'ACHAT_MARCHANDISE';
-    if (isMarchandise && !newArticleName.trim()) {
-      toast({ variant: 'destructive', title: 'Désignation requise', description: 'Veuillez indiquer le nom de la marchandise achetée.' });
+    const finalArticleName = isManualArticle 
+      ? newArticleName.trim()
+      : (computedArticleName || selectedCategoryName || newArticleName.trim());
+
+    if (isMarchandise && !finalArticleName) {
+      toast({ variant: 'destructive', title: 'Produit requis', description: 'Veuillez sélectionner le pôle et type de produit ou indiquer la marchandise.' });
       return;
     }
 
@@ -174,7 +397,7 @@ export default function CommercialExpensesView({
     }
 
     const desc = isMarchandise
-      ? `Achat marché : ${newArticleName.trim()}${newQuantity ? ` (${newQuantity} ${newUnitOfMeasure})` : ''}${newSupplierName.trim() ? ` chez ${newSupplierName.trim()}` : ''}${newDescription.trim() ? ` — ${newDescription.trim()}` : ''}`
+      ? `Achat marché : ${finalArticleName}${newQuantity ? ` (${newQuantity} ${newUnitOfMeasure})` : ''}${newSupplierName.trim() ? ` chez ${newSupplierName.trim()}` : ''}${newDescription.trim() ? ` — ${newDescription.trim()}` : ''}`
       : newDescription.trim();
 
     setSaving(true);
@@ -190,7 +413,18 @@ export default function CommercialExpensesView({
         ...(newReceiptUrl.trim() ? { receiptUrl: newReceiptUrl.trim() } : {}),
         status: userRole === 'ADMIN' ? 'APPROVED' : 'PENDING',
         ...(isMarchandise ? {
-          articleName: newArticleName.trim() || undefined,
+          articleName: finalArticleName,
+          generalCategoryId: selectedGenCatId || undefined,
+          categoryId: selectedCategoryName || undefined,
+          color: selectedColor || undefined,
+          size: selectedSize || undefined,
+          specs: selectedSpecs || undefined,
+          zipperType: selectedZipperType || undefined,
+          slider: selectedSlider || undefined,
+          sliderType: selectedSliderType || undefined,
+          gsm: selectedGsm ? Number(selectedGsm) : undefined,
+          fabricWidth: selectedFabricWidth ? Number(selectedFabricWidth) : undefined,
+          rollLength: selectedRollLength ? Number(selectedRollLength) : undefined,
           quantity: newQuantity ? parseFloat(newQuantity) : undefined,
           unitPrice: newUnitPrice ? parseFloat(newUnitPrice) : (newQuantity ? amt / parseFloat(newQuantity) : undefined),
           unitOfMeasure: newUnitOfMeasure || 'pcs',
@@ -208,6 +442,18 @@ export default function CommercialExpensesView({
       setNewUnitPrice('');
       setNewSupplierName('');
       setNewAddToStock(true);
+      setSelectedGenCatId('');
+      setSelectedCategoryName('');
+      setSelectedColor('white');
+      setSelectedSize('');
+      setSelectedSpecs('');
+      setSelectedZipperType('');
+      setSelectedSlider('');
+      setSelectedSliderType('');
+      setSelectedGsm('');
+      setSelectedFabricWidth('');
+      setSelectedRollLength('');
+      setIsManualArticle(false);
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Action impossible.' });
     } finally {
@@ -596,7 +842,7 @@ export default function CommercialExpensesView({
 
       {/* ── Modal d'Ajout d'une Dépense ── */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-6 max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl rounded-3xl p-6 max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
               <Receipt className="w-5 h-5 text-amber-500" />
@@ -621,106 +867,425 @@ export default function CommercialExpensesView({
               </Select>
             </div>
 
-            {/* SECTION DÉDIÉE : ACHAT MARCHANDISE DU MARCHÉ */}
+            {/* SECTION DÉDIÉE : ACHAT MARCHANDISE DU MARCHÉ (EXACTEMENT COMME NVX PTDS DANS LEBTEX/GESTION) */}
             {newCategory === 'ACHAT_MARCHANDISE' && (
-              <div className="p-4 rounded-2xl bg-indigo-50/80 border-2 border-indigo-200 space-y-3">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-indigo-700" />
-                  <p className="text-xs font-black uppercase text-indigo-950 tracking-wider">
-                    Détail Marchandise Achetée au Marché
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-black uppercase text-indigo-900">
-                    Nom / Désignation de l'article *
-                  </Label>
-                  <Input
-                    placeholder="Ex: Fermetures 50cm, Fil 40/2 Blanc, Boutons..."
-                    value={newArticleName}
-                    onChange={e => {
-                      setNewArticleName(e.target.value);
-                      if (!newDescription.trim()) {
-                        setNewDescription(`Achat marché : ${e.target.value}`);
-                      }
-                    }}
-                    className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-indigo-900">Quantité</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      min="1"
-                      placeholder="Ex: 20"
-                      value={newQuantity}
-                      onChange={e => handleQtyChange(e.target.value)}
-                      className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-indigo-900">Unité</Label>
-                    <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure}>
-                      <SelectTrigger className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pcs">pcs (unités)</SelectItem>
-                        <SelectItem value="rouleaux">rouleaux</SelectItem>
-                        <SelectItem value="boîtes">boîtes</SelectItem>
-                        <SelectItem value="mètres">mètres</SelectItem>
-                        <SelectItem value="kg">kg</SelectItem>
-                        <SelectItem value="paquets">paquets</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-indigo-900">P.U Achat (DH)</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Ex: 12"
-                      value={newUnitPrice}
-                      onChange={e => handlePriceChange(e.target.value)}
-                      className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-black uppercase text-indigo-900">
-                    Fournisseur / Vendeur du marché (Optionnel)
-                  </Label>
-                  <Input
-                    placeholder="Ex: Grossiste Derb Omar, Marché local..."
-                    value={newSupplierName}
-                    onChange={e => setNewSupplierName(e.target.value)}
-                    className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
-                  />
-                </div>
-
-                {/* Case à cocher : Entrer directement en stock magasin */}
-                <div className="pt-1 flex items-start gap-2 bg-white/90 p-2.5 rounded-xl border border-indigo-200">
-                  <input
-                    type="checkbox"
-                    id="addToStock"
-                    checked={newAddToStock}
-                    onChange={e => setNewAddToStock(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded text-indigo-600 cursor-pointer"
-                  />
-                  <label htmlFor="addToStock" className="text-[11px] text-indigo-950 font-bold leading-tight cursor-pointer">
-                    <span className="font-black">Entrer automatiquement cette marchandise en stock</span>
-                    <span className="block text-[10px] text-indigo-700 font-normal mt-0.5">
-                      Crée un mouvement d'entrée physique (IN) dans le stock du magasin pour la vente immédiate.
+              <div className="p-4 rounded-2xl bg-indigo-50/70 border-2 border-indigo-200 space-y-4 animate-in fade-in">
+                {/* En-tête avec switch Catalogue vs Saisie libre */}
+                <div className="flex items-center justify-between gap-2 border-b border-indigo-200/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-indigo-700" />
+                    <span className="text-xs font-black uppercase text-indigo-950 tracking-wider">
+                      Sélection du Produit Achete au Marché
                     </span>
-                  </label>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white/80 p-1 rounded-xl border border-indigo-200 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setIsManualArticle(false)}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        !isManualArticle
+                          ? 'bg-indigo-600 text-white font-black shadow-sm'
+                          : 'text-indigo-700 hover:bg-indigo-50'
+                      }`}
+                    >
+                      Catalogue Lebtex
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsManualArticle(true)}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        isManualArticle
+                          ? 'bg-indigo-600 text-white font-black shadow-sm'
+                          : 'text-indigo-700 hover:bg-indigo-50'
+                      }`}
+                    >
+                      Hors Catalogue
+                    </button>
+                  </div>
+                </div>
+
+                {!isManualArticle ? (
+                  <>
+                    {/* ── 1. Identification (Pôle & Type Produit) ── */}
+                    <SectionLabel icon={<Layers className="w-3 h-3" />} label="1. Identification Catalogue" />
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Pôle (Catégorie Générale) */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest flex items-center gap-1">
+                          <Layers className="w-3 h-3" /> Pôle
+                        </Label>
+                        <Select 
+                          value={selectedGenCatId} 
+                          onValueChange={id => { 
+                            setSelectedGenCatId(id); 
+                            setSelectedCategoryName(''); 
+                          }}
+                        >
+                          <SelectTrigger className="h-10 font-bold rounded-xl border-stone-200 bg-white text-xs">
+                            <SelectValue placeholder="Choisir le pôle..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            {(() => {
+                              const sorted = [...(generalCategories || [])].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'fr'));
+                              const grouped: Record<string, any[]> = {};
+                              sorted.forEach((gc: any) => {
+                                const letter = (gc.name || '?')[0].toUpperCase();
+                                if (!grouped[letter]) grouped[letter] = [];
+                                grouped[letter].push(gc);
+                              });
+                              return Object.entries(grouped).map(([letter, items]) => (
+                                <SelectGroup key={letter}>
+                                  <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1">{letter}</SelectLabel>
+                                  {items.map((gc: any) => (
+                                    <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-xs">{gc.name}</SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Type Produit (Sous-catégorie) */}
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-500 uppercase tracking-widest flex items-center gap-1">
+                          <Package className="w-3 h-3" /> Type Produit
+                        </Label>
+                        <Select
+                          disabled={!selectedGenCatId}
+                          value={selectedCategoryName}
+                          onValueChange={handleSelectSubCategory}
+                        >
+                          <SelectTrigger className={`h-10 font-bold rounded-xl border text-xs ${!selectedGenCatId ? 'opacity-50' : 'border-stone-200 bg-white'}`}>
+                            <SelectValue placeholder={selectedGenCatId ? "Choisir le produit..." : "← Pôle d'abord"} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            <GroupedCategorySelect />
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* ── 2. Spécifications & Caractéristiques ── */}
+                    {selectedCategoryName && (
+                      <div className="space-y-3 pt-1">
+                        <SectionLabel icon={<Settings2 className="w-3 h-3" />} label="2. Spécifications du Produit" />
+
+                        {isFabric ? (
+                          /* CAS FABRIC */
+                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-indigo-200">
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Qualité Fabric */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+                                  <Maximize className="w-3 h-3 text-indigo-600" /> Qualité Tissu
+                                </Label>
+                                {fabricQualities.length > 0 ? (
+                                  <Select onValueChange={v => {
+                                    const q = fabricQualities[Number(v)];
+                                    if (q) {
+                                      setSelectedGsm(q.gsm ? String(q.gsm) : '');
+                                      setSelectedFabricWidth(q.fabricWidth ? String(q.fabricWidth) : '');
+                                      setSelectedRollLength(q.rollLength ? String(q.rollLength) : '');
+                                      setSelectedRollLengthUnit(q.rollLengthUnit || 'm');
+                                      setSelectedPackagingPerBag(q.packagingPerBag ? String(q.packagingPerBag) : '');
+                                    }
+                                  }}>
+                                    <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs text-indigo-900">
+                                      <SelectValue placeholder="Choisir une qualité..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {fabricQualities.map((q: any, i: number) => (
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                      type="number"
+                                      placeholder="GSM (ex: 120)"
+                                      value={selectedGsm}
+                                      onChange={e => setSelectedGsm(e.target.value)}
+                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                    />
+                                    <Input
+                                      type="number"
+                                      placeholder="Larg cm (ex: 150)"
+                                      value={selectedFabricWidth}
+                                      onChange={e => setSelectedFabricWidth(e.target.value)}
+                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Couleur Fabric */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+                                  <Palette className="w-3 h-3 text-indigo-600" /> Couleur
+                                </Label>
+                                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-60">
+                                    {COLORS.map(c => (
+                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ) : isZipper ? (
+                          /* CAS ZIPPER */
+                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-indigo-200">
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Qualité / Taille Zipper */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+                                  <Ruler className="w-3 h-3 text-indigo-600" /> Longueur / Taille
+                                </Label>
+                                {zipperQualities.length > 0 ? (
+                                  <Select onValueChange={v => {
+                                    const q = zipperQualities[Number(v)];
+                                    if (q) {
+                                      setSelectedSize(q.length || '');
+                                      setSelectedZipperType(q.zipperType || '');
+                                      setSelectedSlider(q.slider || '');
+                                      setSelectedSliderType(q.sliderType || '');
+                                    }
+                                  }}>
+                                    <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs text-indigo-900">
+                                      <SelectValue placeholder="Choisir une qualité..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {zipperQualities.map((q: any, i: number) => (
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    placeholder="Ex: 20cm, 50cm, Long Chain..."
+                                    value={selectedSize}
+                                    onChange={e => setSelectedSize(e.target.value)}
+                                    className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                  />
+                                )}
+                              </div>
+
+                              {/* Couleur Zipper */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+                                  <Palette className="w-3 h-3 text-indigo-600" /> Couleur
+                                </Label>
+                                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-60">
+                                    {COLORS.map(c => (
+                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          /* CAS STANDARD / AUTRE */
+                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-indigo-200">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Taille / Dimension</Label>
+                                {availableSizes.length > 0 ? (
+                                  <Select value={selectedSize} onValueChange={setSelectedSize}>
+                                    <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
+                                      <SelectValue placeholder="Choisir..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableSizes.map((s: string) => (
+                                        <SelectItem key={s} value={s} className="font-bold text-xs">{s}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    placeholder="Ex: 14L, 18L, 20mm..."
+                                    value={selectedSize}
+                                    onChange={e => setSelectedSize(e.target.value)}
+                                    className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                  />
+                                )}
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Couleur</Label>
+                                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-60">
+                                    {COLORS.map(c => (
+                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Badge de synthèse du produit */}
+                        {computedArticleName && (
+                          <div className="p-2.5 rounded-xl bg-indigo-100/90 border border-indigo-300 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-black uppercase text-indigo-600 tracking-wider">Désignation Générée</p>
+                                <p className="text-xs font-black text-indigo-950">{computedArticleName}</p>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-white text-indigo-700 border border-indigo-200">
+                              Catalogue
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* ── Mode Saisie Libre Hors Catalogue ── */
+                  <div className="space-y-1 bg-white/80 p-3.5 rounded-2xl border border-indigo-200">
+                    <Label className="text-[10px] font-black uppercase text-indigo-900">
+                      Désignation libre de la marchandise *
+                    </Label>
+                    <Input
+                      placeholder="Ex: Tissu doublure sergé spécial, fil à coudre écru..."
+                      value={newArticleName}
+                      onChange={e => setNewArticleName(e.target.value)}
+                      className="rounded-xl h-10 text-xs font-bold bg-white border-indigo-200"
+                    />
+                  </div>
+                )}
+
+                {/* ── 3. Quantité & Prix d'Achat Constaté ── */}
+                <div className="space-y-2 pt-1">
+                  <SectionLabel icon={<DollarSign className="w-3 h-3" />} label="3. Quantité & Prix Achat Constaté" />
+
+                  <div className="grid grid-cols-3 gap-2 bg-white/90 p-3 rounded-2xl border border-indigo-200">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-indigo-900">Quantité *</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0.1"
+                        placeholder="Ex: 25"
+                        value={newQuantity}
+                        onChange={e => handleQtyChange(e.target.value)}
+                        className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-indigo-900">Unité</Label>
+                      <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure}>
+                        <SelectTrigger className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {UNITS.map(u => (
+                            <SelectItem key={u} value={u} className="text-xs font-bold">{u}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-indigo-900">P.U Achat (MAD) *</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="Ex: 15.50"
+                        value={newUnitPrice}
+                        onChange={e => handlePriceChange(e.target.value)}
+                        className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Suggestion dernier prix d'achat */}
+                  {lastOrderInfo?.price && (
+                    <div className="flex items-center justify-between text-[10px] font-bold px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900">
+                      <span>💡 Dernier prix constaté dans les commandes : <strong>{lastOrderInfo.price} MAD/{lastOrderInfo.unitOfMeasure || 'unité'}</strong></span>
+                      <button
+                        type="button"
+                        onClick={() => handlePriceChange(String(lastOrderInfo.price))}
+                        className="text-[9px] font-black uppercase underline hover:text-amber-950 ml-2"
+                      >
+                        Appliquer ce prix
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Total calculé en direct */}
+                  {newQuantity && newUnitPrice && (
+                    <div className="p-3 bg-stone-900 rounded-2xl text-white flex justify-between items-center shadow-sm">
+                      <div className="text-[10px] uppercase font-bold text-stone-300">
+                        Total calculé : <span className="text-amber-400 font-black">{newQuantity} {newUnitOfMeasure} × {newUnitPrice} MAD</span>
+                      </div>
+                      <div className="text-base font-black text-amber-400">
+                        {fmt$(Number(newAmount) || 0)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── 4. Fournisseur & Entrée Stock ── */}
+                <div className="space-y-2 pt-1">
+                  <SectionLabel icon={<Building2 className="w-3 h-3" />} label="4. Vendeur Marché & Entrée Stock" />
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-indigo-900">
+                      Grossiste / Vendeur du marché (Optionnel)
+                    </Label>
+                    <Input
+                      list="known-suppliers-list"
+                      placeholder="Ex: Grossiste Derb Omar, Tissus Maroc..."
+                      value={newSupplierName}
+                      onChange={e => setNewSupplierName(e.target.value)}
+                      className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200"
+                    />
+                    <datalist id="known-suppliers-list">
+                      {knownSuppliers.map(s => <option key={s} value={s} />)}
+                    </datalist>
+                  </div>
+
+                  {/* Case à cocher : Entrée automatique en stock magasin */}
+                  <div className="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-indigo-200 shadow-sm">
+                    <input
+                      type="checkbox"
+                      id="addToStock"
+                      checked={newAddToStock}
+                      onChange={e => setNewAddToStock(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded text-indigo-600 cursor-pointer"
+                    />
+                    <label htmlFor="addToStock" className="text-[11px] text-indigo-950 font-bold leading-tight cursor-pointer">
+                      <span className="font-black flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Faire entrer automatiquement cette marchandise en stock magasin
+                      </span>
+                      <span className="block text-[10px] text-indigo-700 font-normal mt-0.5">
+                        Crée l'article et le mouvement IN dans le stock magasin pour la vente immédiate en caisse.
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}

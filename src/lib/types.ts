@@ -470,12 +470,24 @@ export interface CommercialExpense {
   
   // Champs spécifiques Achat Marchandise du Marché :
   articleName?: string;             // Désignation de l'article / marchandise achetée
+  generalCategoryId?: string;       // Pôle / Catégorie Générale
+  categoryId?: string;              // Type Produit / Sous-Catégorie
+  color?: string;                   // Couleur
+  size?: string;                    // Taille
+  specs?: string;                   // Spécifications
+  zipperType?: string;              // Type zipper (O/E, C/E)
+  slider?: string;                  // Curseur (A/L, P/L...)
+  sliderType?: string;              // Type curseur
+  gsm?: number | string;            // GSM
+  fabricWidth?: number | string;    // Largeur fabric (cm)
+  rollLength?: number | string;     // Longueur rouleau
   quantity?: number;                // Quantité achetée
   unitPrice?: number;               // Prix unitaire d'achat constaté
   unitOfMeasure?: string;           // Unité (pcs, rouleaux, mètres, kg...)
   supplierName?: string;            // Fournisseur / vendeur du marché
   addToStock?: boolean;             // Si true, entré automatiquement en stock magasin
   stockMovementId?: string;         // Référence du mouvement d'entrée en stock
+  articleId?: string;               // Référence article créé dans users/{uid}/articles
   
   createdAt?: any;
 }

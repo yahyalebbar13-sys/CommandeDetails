@@ -980,15 +980,48 @@ export default function StockApp() {
     const effectiveUid = adminUid || user.uid;
 
     let movementId: string | undefined = undefined;
+    let createdArticleId: string | undefined = undefined;
 
     // Si c'est un achat marchandise du marché et que la case "Ajouter au stock" est cochée
     if (exp.category === 'ACHAT_MARCHANDISE' && exp.addToStock && exp.articleName && exp.quantity && exp.quantity > 0) {
       const targetStore = exp.storeId || effectiveSaleStoreId || 'CHRIFA';
       const unitPrice = exp.unitPrice || (exp.quantity > 0 ? exp.amount / exp.quantity : 0);
+
+      // 1. Créer l'article dans la collection articles pour qu'il soit reconnu dans tout le système (fiches de stock, caisse, etc.)
+      const artId = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
+      createdArticleId = artId;
+      const articlePayload = {
+        id: artId,
+        categoryId: exp.categoryId || exp.articleName,
+        generalCategoryId: exp.generalCategoryId || null,
+        name: exp.articleName.trim(),
+        color: exp.color || null,
+        size: exp.size || null,
+        specs: exp.specs || null,
+        zipperType: exp.zipperType || null,
+        slider: exp.slider || null,
+        sliderType: exp.sliderType || null,
+        gsm: exp.gsm ? Number(exp.gsm) : null,
+        fabricWidth: exp.fabricWidth ? Number(exp.fabricWidth) : null,
+        rollLength: exp.rollLength ? Number(exp.rollLength) : null,
+        unitOfMeasure: exp.unitOfMeasure || 'pcs',
+        purchasePricePerUnit: unitPrice,
+        stockEntryDate: exp.date || new Date().toISOString().split('T')[0],
+        supplierId: exp.supplierName || 'Marché local',
+        initialQtyByStore: { [targetStore]: Number(exp.quantity) },
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(firestore, 'users', effectiveUid, 'articles', artId), cleanUndefined(articlePayload));
+
+      // 2. Créer le mouvement de stock d'entrée IN
       const movPayload = {
+        articleId: artId,
         type: 'IN' as const,
         reason: 'ACHAT_LOCAL',
         productName: exp.articleName.trim(),
+        categoryId: exp.categoryId || null,
+        color: exp.color || null,
+        size: exp.size || null,
         quantity: Number(exp.quantity),
         unitOfMeasure: exp.unitOfMeasure || 'pcs',
         purchasePricePerUnit: unitPrice,
@@ -1008,6 +1041,7 @@ export default function StockApp() {
     const payload = {
       ...exp,
       ...(movementId ? { stockMovementId: movementId } : {}),
+      ...(createdArticleId ? { articleId: createdArticleId } : {}),
     };
 
     await addDoc(collection(firestore, 'users', effectiveUid, 'commercialExpenses'), {
@@ -1018,7 +1052,7 @@ export default function StockApp() {
     if (movementId) {
       toast({
         title: '📦 Marchandise entrée en stock !',
-        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock et dépense enregistrée.`,
+        description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock magasin et dépense enregistrée.`,
       });
     } else {
       toast({
@@ -1473,6 +1507,9 @@ export default function StockApp() {
                 userRole={userRole}
                 currentUserName={user?.displayName || user?.email?.split('@')[0] || 'Commercial'}
                 currentUserId={user?.uid}
+                generalCategories={generalCategories}
+                categories={categories}
+                articles={articles}
                 onAddExpense={handleAddExpense}
                 onUpdateExpenseStatus={handleUpdateExpenseStatus}
                 onDeleteExpense={handleDeleteExpense}
