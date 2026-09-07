@@ -364,8 +364,42 @@ export type ClientPayment = {
   scannedImageUrl?: string; // URL ou base64 du scan
   cashingCompany?: CashingCompany; // Société choisie pour l'encaissement (LEBTEX ou ROBE IN BOX)
   depositBank?: string; // 'Attijariwafa Bank'
+  remittanceId?: string; // ID du bordereau de remise s'il a été remis en banque
+  remittanceRef?: string; // Référence du bordereau (ex: BRC-LEBTEX-20260907-001)
+  remittedAt?: string; // Date de remise
   createdAt?: any;
 };
+
+// ── Remise de Chèques & Effets en Banque ──────────────────────────────────────
+export type RemittanceStatus = 'REMIS' | 'ENCAISSE' | 'PARTIEL' | 'REJETE';
+
+export interface CheckRemittanceItem {
+  paymentId: string;
+  checkNumber?: string;
+  clientName: string;
+  clientId?: string;
+  bankName?: string;
+  dueDate?: string;
+  amount: number;
+  method?: string;
+  invoiceNumber?: string;
+}
+
+export interface CheckRemittance {
+  id: string;
+  reference: string;
+  company: CashingCompany;
+  bankName: string;
+  remittedAt: string;
+  checkCount: number;
+  totalAmount: number;
+  paymentIds: string[];
+  items: CheckRemittanceItem[];
+  status: RemittanceStatus;
+  notes?: string;
+  createdBy?: string;
+  createdAt?: any;
+}
 
 // ── Journal d'Audit ──────────────────────────────────────────────────────────
 export type AuditAction = 

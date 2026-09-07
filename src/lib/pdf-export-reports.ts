@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import type { CheckRemittance } from '@/lib/types';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -409,4 +410,236 @@ export function exportTransferOrderPDF(order: any, stores: any[]) {
     footer: 'LEBTEX SARL AU — Visa Expéditeur : [                    ]    Visa Chauffeur / Transporteur : [                    ]    Visa Réceptionnaire : [                    ]',
   });
 }
+
+/**
+ * Convertit un montant numérique en dirhams toutes lettres en français
+ */
+function numberToWordsFR(n: number): string {
+  const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+  const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
+
+  const convertLessThanOneThousand = (num: number): string => {
+    if (num === 0) return '';
+    if (num < 20) return units[num];
+    const t = Math.floor(num / 10);
+    const u = num % 10;
+    if (t === 7 || t === 9) {
+      const base = t === 7 ? 'soixante' : 'quatre-vingt';
+      return `${base}-${units[10 + u]}`;
+    }
+    if (t === 8 && u === 0) return 'quatre-vingts';
+    if (u === 1 && t < 8) return `${tens[t]}-et-un`;
+    return u === 0 ? tens[t] : `${tens[t]}-${units[u]}`;
+  };
+
+  const convertGroup = (num: number): string => {
+    let result = '';
+    const hundreds = Math.floor(num / 100);
+    const rest = num % 100;
+    if (hundreds > 0) {
+      if (hundreds === 1) result += 'cent ';
+      else result += `${units[hundreds]} cent${rest === 0 ? 's ' : ' '}`;
+    }
+    if (rest > 0) result += convertLessThanOneThousand(rest);
+    return result.trim();
+  };
+
+  const intPart = Math.floor(n);
+  const decPart = Math.round((n - intPart) * 100);
+
+  if (intPart === 0) return 'ZÉRO DIRHAM';
+
+  let res = '';
+  const millions = Math.floor(intPart / 1000000);
+  const thousands = Math.floor((intPart % 1000000) / 1000);
+  const unitsPart = intPart % 1000;
+
+  if (millions > 0) {
+    res += millions === 1 ? 'un million ' : `${convertGroup(millions)} millions `;
+  }
+  if (thousands > 0) {
+    res += thousands === 1 ? 'mille ' : `${convertGroup(thousands)} mille `;
+  }
+  if (unitsPart > 0) {
+    res += convertGroup(unitsPart);
+  }
+
+  res = res.trim() + ' dirhams';
+  if (decPart > 0) {
+    res += ` et ${convertLessThanOneThousand(decPart)} centimes`;
+  }
+  return res.toUpperCase();
+}
+
+/**
+ * Génère le Bordereau de Remise de Chèques & Effets en Banque Attijariwafa Bank
+ */
+export function exportCheckRemittancePDF(remittance: CheckRemittance) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // 1. Bandeau supérieur Attijariwafa Bank (Ambre / Or banques marocaines)
+  doc.setFillColor(217, 119, 6); // amber-600
+  doc.rect(0, 0, pageWidth, 28, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ATTIJARIWAFA BANK', 14, 12);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('BORDEREAU DE REMISE DE CHÈQUES & EFFETS DE COMMERCE', 14, 18);
+  doc.text("Encaissement / Compensation Interbancaire", 14, 23);
+
+  // Encart droit (Réf + Date)
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`BORDEREAU N° : ${remittance.reference}`, pageWidth - 14, 12, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  const dateFormatted = remittance.remittedAt 
+    ? new Date(remittance.remittedAt).toLocaleDateString('fr-MA')
+    : new Date().toLocaleDateString('fr-MA');
+  doc.text(`Date de remise : ${dateFormatted}`, pageWidth - 14, 18, { align: 'right' });
+  doc.text('Agence : Attijariwafa Bank Casablanca', pageWidth - 14, 23, { align: 'right' });
+
+  // 2. Encart Déposant / Titulaire du compte
+  doc.setFillColor(245, 245, 244); // stone-100
+  doc.setDrawColor(214, 211, 209); // stone-300
+  doc.roundedRect(14, 33, pageWidth - 28, 22, 2, 2, 'FD');
+
+  const compTitle = remittance.company === 'LEBTEX' ? 'LEBTEX SARL AU' : 'ROBE IN BOX SARL';
+
+  doc.setTextColor(28, 25, 23);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TITULAIRE DU COMPTE (REMETTANT) :', 18, 40);
+  doc.setFontSize(11);
+  doc.setTextColor(217, 119, 6); // amber-600
+  doc.text(compTitle, 18, 46);
+  doc.setFontSize(7);
+  doc.setTextColor(120, 113, 108);
+  doc.text('Société commerciale de confection & mercerie — Casablanca, Maroc', 18, 51);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(28, 25, 23);
+  doc.text('BANQUE DOMICILIATAIRE :', pageWidth / 2 + 10, 40);
+  doc.setFontSize(10);
+  doc.setTextColor(28, 25, 23);
+  doc.text('ATTIJARIWAFA BANK', pageWidth / 2 + 10, 46);
+  doc.setFontSize(7);
+  doc.setTextColor(120, 113, 108);
+  doc.text(`Compte ${remittance.company} · Crédit en compte`, pageWidth / 2 + 10, 51);
+
+  // 3. Tableau des chèques
+  const startY = 60;
+  autoTable(doc, {
+    startY,
+    head: [['N°', 'N° Valeur (Chèque / LCN)', 'Tireur (Client)', 'Banque Tirée', 'Échéance', 'Montant MAD']],
+    body: (remittance.items || []).map((item, idx) => [
+      String(idx + 1),
+      item.checkNumber || '—',
+      item.clientName || '—',
+      item.bankName || 'Attijariwafa Bank',
+      item.dueDate || 'À vue',
+      `${fmt(item.amount)} MAD`,
+    ]),
+    headStyles: {
+      fillColor: [28, 25, 23], // stone-900
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+      cellPadding: 3.5,
+    },
+    bodyStyles: {
+      fontSize: 8,
+      cellPadding: 3,
+      textColor: [28, 25, 23],
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 249],
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 38, fontStyle: 'bold' },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 35 },
+      4: { cellWidth: 25, halign: 'center' },
+      5: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
+    },
+    margin: { left: 14, right: 14 },
+    foot: [[
+      { content: `TOTAL GÉNÉRAL (${remittance.checkCount} valeurs remises) :`, colSpan: 5, styles: { halign: 'right', fontStyle: 'bold', fontSize: 8.5 } },
+      { content: `${fmt(remittance.totalAmount)} MAD`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 9.5, textColor: [217, 119, 6] } }
+    ]],
+    footStyles: {
+      fillColor: [245, 245, 244],
+      textColor: [28, 25, 23],
+      cellPadding: 3.5,
+    },
+  });
+
+  const finalY = (doc as any).lastAutoTable?.finalY || 120;
+
+  // 4. Montant en toutes lettres
+  let wordsY = finalY + 8;
+  if (wordsY + 55 > pageHeight) {
+    doc.addPage();
+    wordsY = 20;
+  }
+
+  doc.setFillColor(254, 243, 199); // amber-100
+  doc.setDrawColor(251, 191, 36); // amber-400
+  doc.roundedRect(14, wordsY, pageWidth - 28, 14, 2, 2, 'FD');
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(146, 64, 14); // amber-800
+  doc.text('MONTANT TOTAL DU BORDEREAU EN TOUTES LETTRES :', 18, wordsY + 5);
+  doc.setFontSize(8);
+  doc.setTextColor(120, 53, 15); // amber-900
+  const wordsText = numberToWordsFR(remittance.totalAmount);
+  doc.text(wordsText, 18, wordsY + 10);
+
+  // 5. Cadres de signature (Remettant & Visa Banque)
+  const signY = wordsY + 19;
+  const boxWidth = (pageWidth - 28 - 8) / 2;
+  const boxHeight = 36;
+
+  // Cadre Émetteur
+  doc.setDrawColor(214, 211, 209);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(14, signY, boxWidth, boxHeight, 2, 2, 'FD');
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(28, 25, 23);
+  doc.text("Cachet & Signature de l'Émetteur (Déposant) :", 18, signY + 6);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(120, 113, 108);
+  doc.text(`Pour le compte de ${compTitle}`, 18, signY + 11);
+
+  // Cadre Visa Banque
+  doc.roundedRect(14 + boxWidth + 8, signY, boxWidth, boxHeight, 2, 2, 'FD');
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(28, 25, 23);
+  doc.text("Accusé de Réception & Visa Guichetier :", 14 + boxWidth + 12, signY + 6);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(120, 113, 108);
+  doc.text("Attijariwafa Bank (Date, Cachet & Visa)", 14 + boxWidth + 12, signY + 11);
+
+  // Pied de page
+  doc.setFontSize(7);
+  doc.setTextColor(168, 162, 158);
+  doc.text(`Bordereau officiel de remise bancaire Attijariwafa Bank · Système LEBTEX ERP · Réf : ${remittance.reference}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
+
+  // Sauvegarder
+  const cleanRef = (remittance.reference || 'REMISE').replace(/[^a-zA-Z0-9-_]/g, '_');
+  doc.save(`Bordereau_Remise_${remittance.company}_${cleanRef}.pdf`);
+}
+
 

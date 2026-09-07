@@ -12,8 +12,10 @@ import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTi
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
-  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany, CommercialExpense
+  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany, CommercialExpense,
+  CheckRemittance, RemittanceStatus, CheckRemittanceItem
 } from '@/lib/types';
+import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
 import StockAlerts      from './stock-alerts';
@@ -399,6 +401,7 @@ export default function StockApp() {
   const transfersRef     = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'transferOrders'),    [firestore, adminUid, user]);
   const storesRef        = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'stores'),            [firestore, adminUid, user]);
   const expensesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'commercialExpenses'),[firestore, adminUid, user]);
+  const remittancesRef   = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'checkRemittances'),    [firestore, adminUid, user]);
 
   const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
   const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
@@ -413,6 +416,7 @@ export default function StockApp() {
   const { data: rawTransfers,   isLoading: loadingTrans } = useCollection(transfersRef);
   const { data: rawStores,      isLoading: loadingStores } = useCollection(storesRef);
   const { data: rawExpenses } = useCollection(expensesRef);
+  const { data: rawRemittances } = useCollection(remittancesRef);
 
   const articles        = rawArticles    || [];
   const categories      = rawCategories  || [];
@@ -427,6 +431,7 @@ export default function StockApp() {
   const transferOrders  = (rawTransfers  || []) as TransferOrder[];
   const stores          = rawStores      || [];
   const expenses        = (rawExpenses    || []) as CommercialExpense[];
+  const remittances     = (rawRemittances || []) as CheckRemittance[];
 
   // Initialisation du magasin pour le commercial
   useEffect(() => {
@@ -856,6 +861,119 @@ export default function StockApp() {
     });
   }, [user, firestore, adminUid, toast]);
 
+  const handleCreateCheckRemittance = useCallback(async (
+    company: CashingCompany,
+    selectedPaymentIds: string[],
+    notes?: string
+  ) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+
+    const targetPayments = payments.filter(p => selectedPaymentIds.includes(p.id));
+    if (targetPayments.length === 0) {
+      toast({ title: 'Erreur', description: 'Aucun chèque sélectionné pour la remise.', variant: 'destructive' });
+      return;
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayCompact = todayStr.replace(/-/g, '');
+    const prefix = company === 'LEBTEX' ? 'LEB' : 'ROB';
+    const countToday = (remittances || []).filter(r => r.reference?.includes(todayCompact)).length + 1;
+    const refSeq = String(countToday).padStart(3, '0');
+    const reference = `BRC-${prefix}-${todayCompact}-${refSeq}`;
+
+    const totalAmount = targetPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const items: CheckRemittanceItem[] = targetPayments.map(p => {
+      const client = clients.find(c => c.id === p.clientId);
+      const inv = invoices.find(i => i.id === p.invoiceId);
+      return {
+        paymentId: p.id,
+        checkNumber: p.checkNumber || '—',
+        clientName: client?.name || 'Client',
+        clientId: p.clientId,
+        bankName: p.bankName || 'Attijariwafa Bank',
+        dueDate: p.dueDate,
+        amount: Number(p.amount) || 0,
+        method: p.method,
+        invoiceNumber: inv?.invoiceNumber,
+      };
+    });
+
+    const remittanceData: Omit<CheckRemittance, 'id'> = {
+      reference,
+      company,
+      bankName: 'Attijariwafa Bank',
+      remittedAt: todayStr,
+      checkCount: targetPayments.length,
+      totalAmount,
+      paymentIds: selectedPaymentIds,
+      items,
+      status: 'REMIS',
+      notes: notes || '',
+      createdBy: user.email || 'Admin',
+      createdAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(collection(firestore, 'users', effectiveUid, 'checkRemittances'), remittanceData);
+    const createdRemittance: CheckRemittance = {
+      id: docRef.id,
+      ...remittanceData,
+    };
+
+    for (const p of targetPayments) {
+      await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', p.id), {
+        remittanceId: docRef.id,
+        remittanceRef: reference,
+        remittedAt: todayStr,
+        cashingCompany: company,
+        depositBank: 'Attijariwafa Bank',
+      });
+    }
+
+    // Export & download PDF immediately
+    exportCheckRemittancePDF(createdRemittance);
+
+    toast({
+      title: '🏦 Bordereau de Remise Émis !',
+      description: `Bordereau ${reference} (${targetPayments.length} chèques · ${totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD) enregistré. PDF téléchargé !`,
+    });
+
+    return createdRemittance;
+  }, [user, firestore, adminUid, payments, clients, invoices, remittances, toast]);
+
+  const handleUpdateRemittanceStatus = useCallback(async (
+    remittanceId: string,
+    status: RemittanceStatus
+  ) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'checkRemittances', remittanceId), {
+      status,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (status === 'ENCAISSE') {
+      const rem = remittances.find(r => r.id === remittanceId);
+      if (rem && rem.paymentIds) {
+        for (const pid of rem.paymentIds) {
+          await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', pid), {
+            status: 'CLEARED',
+          });
+        }
+      }
+      toast({
+        title: '✅ Remise Encaissée',
+        description: `Tous les chèques du bordereau ont été marqués comme ENCAISSÉS.`,
+      });
+    } else {
+      toast({
+        title: 'Statut mis à jour',
+        description: `Bordereau mis à jour (${status}).`,
+      });
+    }
+  }, [user, firestore, adminUid, remittances, toast]);
+
   // Gestion des Frais et Dépenses des Commerciaux
   const handleAddExpense = useCallback(async (exp: Omit<CommercialExpense, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
@@ -895,6 +1013,33 @@ export default function StockApp() {
       return diffDays <= 7;
     }).sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
   }, [payments]);
+
+  // Effets déjà assignés à LEBTEX ou ROBE IN BOX prêts pour remise en banque
+  const pendingLebtexRemisePayments = useMemo(() => {
+    return payments.filter(p => 
+      p.cashingCompany === 'LEBTEX' && 
+      (p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') && 
+      p.status !== 'CLEARED' && p.status !== 'REJECTED' && 
+      !p.remittanceId
+    );
+  }, [payments]);
+
+  const pendingLebtexTotal = useMemo(() => 
+    pendingLebtexRemisePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  , [pendingLebtexRemisePayments]);
+
+  const pendingRobeRemisePayments = useMemo(() => {
+    return payments.filter(p => 
+      p.cashingCompany === 'ROBE IN BOX' && 
+      (p.method === 'CHEQUE' || p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') && 
+      p.status !== 'CLEARED' && p.status !== 'REJECTED' && 
+      !p.remittanceId
+    );
+  }, [payments]);
+
+  const pendingRobeTotal = useMemo(() => 
+    pendingRobeRemisePayments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  , [pendingRobeRemisePayments]);
 
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
   const navItemsRaw = useMemo(() => [
@@ -1349,8 +1494,11 @@ export default function StockApp() {
                 payments={payments} 
                 clients={clients} 
                 invoices={invoices} 
+                remittances={remittances}
                 onUpdatePaymentStatus={handleUpdatePaymentStatus}
                 onAssignPaymentCompany={handleAssignPaymentCompany}
+                onCreateRemittance={handleCreateCheckRemittance}
+                onUpdateRemittanceStatus={handleUpdateRemittanceStatus}
               />
             )}
             {activeView === 'reconciliation' && (
@@ -1585,6 +1733,52 @@ export default function StockApp() {
               })
             )}
           </div>
+
+          {/* Section Émission rapide de Bordereau de Remise PDF */}
+          {(pendingLebtexRemisePayments.length > 0 || pendingRobeRemisePayments.length > 0) && (
+            <div className="mt-4 pt-4 border-t border-stone-200 space-y-2 bg-stone-50/80 -mx-6 -mb-6 p-5 rounded-b-3xl">
+              <p className="text-[10px] font-black uppercase text-stone-500 tracking-wider flex items-center gap-1.5">
+                <Landmark className="w-3.5 h-3.5 text-stone-700" />
+                <span>Émettre en banque Attijariwafa (Bordereau PDF + Historique) :</span>
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {pendingLebtexRemisePayments.length > 0 && (
+                  <Button
+                    onClick={() => {
+                      handleCreateCheckRemittance('LEBTEX', pendingLebtexRemisePayments.map(p => p.id));
+                      setArbitrageModalOpen(false);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase rounded-xl h-10 px-3 flex items-center justify-between shadow-sm"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4" />
+                      Remise LEBTEX ({pendingLebtexRemisePayments.length})
+                    </span>
+                    <span className="font-mono text-[11px] opacity-90">
+                      {pendingLebtexTotal.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
+                    </span>
+                  </Button>
+                )}
+                {pendingRobeRemisePayments.length > 0 && (
+                  <Button
+                    onClick={() => {
+                      handleCreateCheckRemittance('ROBE IN BOX', pendingRobeRemisePayments.map(p => p.id));
+                      setArbitrageModalOpen(false);
+                    }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase rounded-xl h-10 px-3 flex items-center justify-between shadow-sm"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4" />
+                      Remise ROBE IN BOX ({pendingRobeRemisePayments.length})
+                    </span>
+                    <span className="font-mono text-[11px] opacity-90">
+                      {pendingRobeTotal.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD
+                    </span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
