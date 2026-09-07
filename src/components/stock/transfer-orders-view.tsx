@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Truck, Plus, CheckCircle2, Clock, XCircle, Search, Save, X } from 'lucide-react';
+import { Truck, Plus, CheckCircle2, Clock, XCircle, Search, Save, X, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useFirestore, useUser } from '@/firebase';
 import { collection, doc, addDoc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement } from '@/lib/types';
+import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement, Store } from '@/lib/types';
+import { exportTransferOrderPDF } from '@/lib/pdf-export-reports';
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
@@ -256,16 +257,28 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                   )}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  {order.status === 'PENDING' && (userRole === 'ADMIN' || activeStore === order.toStore || activeStore === 'ALL_MAIN') && (
-                    <Button size="sm" onClick={() => {
-                      const init: Record<string, number> = {};
-                      order.items.forEach(i => init[i.articleId] = i.sentQty);
-                      setReceivedItems(init);
-                      setValidateModal({ open: true, order });
-                    }} className="bg-blue-600 hover:bg-blue-700 text-[10px] uppercase font-black tracking-widest">
-                      Réceptionner
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => exportTransferOrderPDF(order, stores)}
+                      className="h-8 px-3 rounded-xl border-stone-200 text-stone-700 hover:text-blue-600 hover:border-blue-200 text-[10px] uppercase font-black tracking-wider gap-1.5 shadow-sm"
+                      title="Imprimer / Télécharger le Bon de Transfert"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Bon PDF</span>
                     </Button>
-                  )}
+                    {order.status === 'PENDING' && (userRole === 'ADMIN' || activeStore === order.toStore || activeStore === 'ALL_MAIN') && (
+                      <Button size="sm" onClick={() => {
+                        const init: Record<string, number> = {};
+                        order.items.forEach(i => init[i.articleId] = i.sentQty);
+                        setReceivedItems(init);
+                        setValidateModal({ open: true, order });
+                      }} className="bg-blue-600 hover:bg-blue-700 text-[10px] uppercase font-black tracking-widest h-8 px-3 rounded-xl">
+                        Réceptionner
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -406,11 +419,22 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
               </tbody>
             </table>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setValidateModal({ open: false })} className="rounded-xl text-[10px] uppercase font-black">Annuler</Button>
-            <Button onClick={handleValidateTransfer} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] uppercase font-black tracking-widest px-8">
-              Valider la Réception
+          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => validateModal.order && exportTransferOrderPDF(validateModal.order, stores)}
+              className="rounded-xl text-[10px] uppercase font-black tracking-wider gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Imprimer Bon</span>
             </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => setValidateModal({ open: false })} className="rounded-xl text-[10px] uppercase font-black">Annuler</Button>
+              <Button onClick={handleValidateTransfer} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] uppercase font-black tracking-widest px-8">
+                Valider la Réception
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -290,3 +290,123 @@ export function exportStockPDF(stockItems: any[]) {
     footer: 'LEBTEX SARL AU — Rapport généré automatiquement',
   });
 }
+
+/**
+ * Bilan Hebdomadaire des Ventes du Vendredi (Prix, MT, N° Bon, Mode de Règlement, À Crédit)
+ */
+export function exportFridaySalesPDF(invoices: any[], payments: any[] = [], periodLabel?: string) {
+  const totalTTC = invoices.reduce((s, i) => s + (i.totalAfterDiscount || 0), 0);
+  const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const totalCredit = invoices.reduce((s, i) => s + (i.remainingBalance || 0), 0);
+
+  // Indexation des règlements par invoiceId
+  const paymentsByInvoice = new Map<string, any[]>();
+  payments.forEach(p => {
+    if (p.invoiceId) {
+      if (!paymentsByInvoice.has(p.invoiceId)) paymentsByInvoice.set(p.invoiceId, []);
+      paymentsByInvoice.get(p.invoiceId)!.push(p);
+    }
+  });
+
+  exportReportPDF({
+    title: 'Bilan Hebdomadaire des Ventes & Règlements (Point du Vendredi)',
+    subtitle: periodLabel || `${invoices.length} bon(s) de commande — Semaine du ${new Date().toLocaleDateString('fr-FR')}`,
+    landscape: true,
+    columns: [
+      { header: 'Date', dataKey: 'date', width: 20 },
+      { header: 'N° Bon / Facture', dataKey: 'num', width: 25 },
+      { header: 'Client', dataKey: 'client', width: 35 },
+      { header: 'Articles & Prix Unit.', dataKey: 'articles' },
+      { header: 'Montant (MT)', dataKey: 'total', width: 24 },
+      { header: 'Payé', dataKey: 'paid', width: 24 },
+      { header: 'Mode Règlement', dataKey: 'method', width: 32 },
+      { header: 'Solde À Crédit', dataKey: 'credit', width: 24 },
+      { header: 'Statut', dataKey: 'status', width: 24 },
+    ],
+    data: invoices.map(inv => {
+      const invPays = paymentsByInvoice.get(inv.id) || [];
+      let paymentMethods = invPays.map(p => {
+        if (p.method === 'CHEQUE') return `Chq ${p.checkNumber || ''} (${fmt(p.amount)})`;
+        if (p.method === 'EFFET' || p.method === 'LC' || p.method === 'LCN') return `LC (${fmt(p.amount)})`;
+        if (p.method === 'CASH') return `Espèces (${fmt(p.amount)})`;
+        if (p.method === 'VIREMENT') return `Virement (${fmt(p.amount)})`;
+        return `${p.method} (${fmt(p.amount)})`;
+      }).join(', ');
+
+      if (!paymentMethods) {
+        if (inv.paidAmount > 0) paymentMethods = inv.paymentMethod || 'Espèces / Réglé';
+        else paymentMethods = 'À Crédit (0 DH versé)';
+      }
+
+      const articlesStr = (inv.items || []).map((it: any) => 
+        `${it.productName}${it.color ? ` (${it.color})` : ''} : ${it.qty} x ${fmt(it.unitPrice)}`
+      ).join(' | ');
+
+      let statusStr = 'À Crédit';
+      if (inv.status === 'PAID') statusStr = '✅ Réglé';
+      else if (inv.status === 'PENDING') statusStr = '⏳ Chèque en attente';
+      else if (inv.status === 'PARTIAL') statusStr = '⚠️ Partiel';
+      else if (inv.remainingBalance > 0) statusStr = '🔴 À Crédit';
+
+      return {
+        date: inv.date || '',
+        num: inv.invoiceNumber || '—',
+        client: inv.clientName || 'Anonyme',
+        articles: articlesStr || '—',
+        total: `${fmt(inv.totalAfterDiscount || 0)} MAD`,
+        paid: `${fmt(inv.paidAmount || 0)} MAD`,
+        method: paymentMethods,
+        credit: inv.remainingBalance > 0 ? `${fmt(inv.remainingBalance)} MAD` : '0,00 MAD',
+        status: statusStr,
+      };
+    }),
+    summaryRows: [
+      { label: `Total Chiffre d'Affaires Hebdo (${invoices.length} bons)`, value: `${fmt(totalTTC)} MAD` },
+      { label: 'Total Encaissé', value: `${fmt(totalPaid)} MAD` },
+      { label: 'Total Restant À Crédit (Créances clients)', value: `${fmt(totalCredit)} MAD` },
+    ],
+    footer: 'LEBTEX SARL AU — Bilan Commercial Hebdomadaire des Ventes & Créances',
+  });
+}
+
+/**
+ * Export du Bon de Transfert inter-magasins / entrepôts
+ */
+export function exportTransferOrderPDF(order: any, stores: any[]) {
+  const getStoreName = (id: string) => stores.find(s => s.id === id)?.name || id;
+  const fromName = getStoreName(order.fromStore);
+  const toName = getStoreName(order.toStore);
+  const totalSentQty = (order.items || []).reduce((s: number, i: any) => s + (i.sentQty || 0), 0);
+  const totalReceivedQty = (order.items || []).reduce((s: number, i: any) => s + (i.receivedQty || 0), 0);
+
+  exportReportPDF({
+    title: `Bon de Transfert Inter-Magasins N° BT-${(order.id || '').slice(0, 8).toUpperCase()}`,
+    subtitle: `Trajet : ${fromName} ➔ ${toName} | Date : ${order.date ? new Date(order.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}`,
+    columns: [
+      { header: 'N°', dataKey: 'num', width: 12 },
+      { header: 'Désignation Produit', dataKey: 'productName' },
+      { header: 'Couleur', dataKey: 'color', width: 25 },
+      { header: 'Taille', dataKey: 'size', width: 20 },
+      { header: 'Unité', dataKey: 'unit', width: 20 },
+      { header: 'Qté Expédiée', dataKey: 'sentQty', width: 25 },
+      { header: 'Qté Reçue (Pointage)', dataKey: 'receivedQty', width: 32 },
+    ],
+    data: (order.items || []).map((item: any, idx: number) => ({
+      num: String(idx + 1),
+      productName: item.productName || '—',
+      color: item.color || '—',
+      size: item.size || '—',
+      unit: item.unitOfMeasure || 'pcs',
+      sentQty: String(item.sentQty || 0),
+      receivedQty: item.receivedQty != null ? String(item.receivedQty) : '[      ]',
+    })),
+    summaryRows: [
+      { label: 'Nombre de références transférées', value: `${(order.items || []).length} réf.` },
+      { label: 'Total unités expédiées', value: `${totalSentQty} pcs` },
+      ...(order.status === 'VALIDATED' ? [{ label: 'Total unités reçues et validées', value: `${totalReceivedQty} pcs` }] : []),
+      { label: 'Statut du transfert', value: order.status === 'VALIDATED' ? '✅ VALIDÉ & EN STOCK' : '⏳ EN TRANSIT' },
+    ],
+    footer: 'LEBTEX SARL AU — Visa Expéditeur : [                    ]    Visa Chauffeur / Transporteur : [                    ]    Visa Réceptionnaire : [                    ]',
+  });
+}
+

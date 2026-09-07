@@ -291,7 +291,11 @@ export default function StockSaleFlow({
       const storesWithStock = Object.entries(item.qtyByStore).filter(([_, q]) => (q as number) > 0);
       if (storesWithStock.length === 1) defStore = storesWithStock[0][0];
     }
-    setAddModal({ open: true, item, qty: 1, unitPrice: item.sellingPrice || 0, sourceStore: defStore });
+    // Trouver si une autre couleur/variante de ce même produit est déjà dans le panier avec un prix
+    const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
+    const initialPrice = existingSameProd?.unitPrice ?? (item.sellingPrice || 0);
+
+    setAddModal({ open: true, item, qty: 1, unitPrice: initialPrice, sourceStore: defStore });
   };
 
   const addToCart = () => {
@@ -301,21 +305,33 @@ export default function StockSaleFlow({
       : addModal.item.currentQty;
 
     setCart(prev => {
-      // Pour une même variante, si le store source est différent, on crée une nouvelle ligne (ou on les sépare)
       const ex = prev.find(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === addModal.sourceStore);
       if (ex) {
         return prev.map(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === addModal.sourceStore
           ? { ...l, qty: Math.min(l.qty + addModal.qty, itemStockLimit), unitPrice: addModal.unitPrice }
-          : l
+          : (l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l)
         );
       }
-      return [...prev, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: addModal.sourceStore }];
+      // Ajouter la nouvelle variante et harmoniser les variantes existantes du même produit avec ce prix
+      const newCart = prev.map(l => l.item.productName === addModal.item!.productName ? { ...l, unitPrice: addModal.unitPrice } : l);
+      return [...newCart, { item: addModal.item!, qty: addModal.qty, unitPrice: addModal.unitPrice, sourceStore: addModal.sourceStore }];
     });
     setAddModal({ open: false, qty: 1, unitPrice: 0 });
   };
 
   const updateCart = (articleId: string, key: 'qty' | 'unitPrice', val: number) => {
-    setCart(prev => prev.map(l => l.item.articleId === articleId ? { ...l, [key]: val } : l));
+    setCart(prev => {
+      const target = prev.find(l => l.item.articleId === articleId);
+      if (key === 'unitPrice' && target) {
+        // Appliquer automatiquement ce prix unitaire à toutes les couleurs/variantes du même produit
+        return prev.map(l => 
+          (l.item.productName === target.item.productName || l.item.articleId === articleId)
+            ? { ...l, unitPrice: val }
+            : l
+        );
+      }
+      return prev.map(l => l.item.articleId === articleId ? { ...l, [key]: val } : l);
+    });
   };
 
   const removeFromCart = (articleId: string) => {
@@ -334,9 +350,10 @@ export default function StockSaleFlow({
     }
 
     const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
-    const price = customPrice !== undefined ? customPrice : (item.sellingPrice || 0);
-    // Remove the price <= 0 restriction so we can add 0-price items and set them later, or use the custom price
-    // if (price <= 0) return;
+    const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
+    const price = customPrice !== undefined 
+      ? customPrice 
+      : (existingSameProd?.unitPrice ?? (item.sellingPrice || 0));
 
     const maxQty = sourceStore && item.qtyByStore
       ? (item.qtyByStore as any)[sourceStore] || item.currentQty
@@ -347,11 +364,12 @@ export default function StockSaleFlow({
       if (ex) {
         return prev.map(l =>
           l.item.articleId === item.articleId && l.sourceStore === sourceStore
-            ? { ...l, qty: Math.min(l.qty + 1, maxQty) }
-            : l
+            ? { ...l, qty: Math.min(l.qty + 1, maxQty), unitPrice: price }
+            : (l.item.productName === item.productName ? { ...l, unitPrice: price } : l)
         );
       }
-      return [...prev, { item, qty: 1, unitPrice: price, sourceStore }];
+      const harmonized = prev.map(l => l.item.productName === item.productName ? { ...l, unitPrice: price } : l);
+      return [...harmonized, { item, qty: 1, unitPrice: price, sourceStore }];
     });
   };
 
@@ -362,15 +380,20 @@ export default function StockSaleFlow({
       return;
     }
     const sourceStore = storesWithStock.length === 1 ? storesWithStock[0][0] : undefined;
-    const price = customPrice !== undefined ? customPrice : (item.sellingPrice || 0);
+    const existingSameProd = cart.find(l => l.item.productName === item.productName && l.unitPrice > 0);
+    const price = customPrice !== undefined 
+      ? customPrice 
+      : (existingSameProd?.unitPrice ?? (item.sellingPrice || 0));
+
     const maxQty = sourceStore && item.qtyByStore ? (item.qtyByStore as any)[sourceStore] || item.currentQty : item.currentQty;
     const validQty = Math.max(0, Math.min(qty, maxQty));
 
     setCart(prev => {
       const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
       if (validQty === 0) return prev.filter(l => l.item.articleId !== item.articleId);
-      if (ex) return prev.map(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore ? { ...l, qty: validQty, unitPrice: price } : l);
-      return [...prev, { item, qty: validQty, unitPrice: price, sourceStore }];
+      if (ex) return prev.map(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore ? { ...l, qty: validQty, unitPrice: price } : (l.item.productName === item.productName ? { ...l, unitPrice: price } : l));
+      const harmonized = prev.map(l => l.item.productName === item.productName ? { ...l, unitPrice: price } : l);
+      return [...harmonized, { item, qty: validQty, unitPrice: price, sourceStore }];
     });
   };
 
@@ -1069,6 +1092,11 @@ export default function StockSaleFlow({
                         <span className="text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">T. {item.size}</span>
                       )}
                       <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
+                      {cart.filter(l => l.item.productName === item.productName).length > 1 && (
+                        <span className="text-[9px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Prix unifié pour toutes les couleurs">
+                          🔗 Prix partagé ({cart.filter(l => l.item.productName === item.productName).length} couleurs)
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1384,22 +1412,24 @@ export default function StockSaleFlow({
                                 className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200"
                               />
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-[9px] font-black uppercase text-stone-500">Société Attijari</Label>
-                              <Select
-                                value={line.cashingCompany || 'PENDING'}
-                                onValueChange={v => updateCheckoutPaymentLine(line.id, 'cashingCompany', v === 'PENDING' ? undefined : v as CashingCompany)}
-                              >
-                                <SelectTrigger className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
-                                  <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
-                                  <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+                            {userRole === 'ADMIN' && (
+                              <div className="space-y-1">
+                                <Label className="text-[9px] font-black uppercase text-stone-500">Société Attijari</Label>
+                                <Select
+                                  value={line.cashingCompany || 'PENDING'}
+                                  onValueChange={v => updateCheckoutPaymentLine(line.id, 'cashingCompany', v === 'PENDING' ? undefined : v as CashingCompany)}
+                                >
+                                  <SelectTrigger className="h-9 bg-white text-xs font-bold rounded-lg border-stone-200">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
+                                    <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
+                                    <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                           </div>
 
                           {/* Scan / Photo obligatoire du Chèque / LC */}

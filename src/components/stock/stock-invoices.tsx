@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera } from 'lucide-react';
+import { Search, Eye, Printer, CreditCard, X, Download, Mail, Send, Plus, Trash2, CheckCircle2, Camera, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Invoice, InvoiceStatus, Client, ClientPayment, PaymentMethod } from '@/lib/types';
 import { exportToFile, formatInvoicesForExport } from '@/lib/export-utils';
-import { exportInvoicesPDF } from '@/lib/pdf-export-reports';
+import { exportInvoicesPDF, exportFridaySalesPDF } from '@/lib/pdf-export-reports';
 import { cleanUndefined } from '@/lib/utils';
 
 interface PaymentLineState {
@@ -85,6 +85,26 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     inv.invoiceNumber || `FAC-${String(invoices.findIndex(i => i.id === inv.id) + 1).padStart(4, '0')}`;
 
   const invPayments = (invId: string) => payments.filter(p => p.invoiceId === invId);
+
+  // Export Bilan Vendredi des Ventes (Semaine en cours ou filtrée)
+  const handleExportFridaySales = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = (day + 6) % 7; // jours depuis lundi
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    const mondayStr = monday.toISOString().split('T')[0];
+
+    const weekInvoices = invoices.filter(i => i.date && i.date >= mondayStr);
+    const dataToExport = weekInvoices.length > 0 ? weekInvoices : filtered;
+
+    exportFridaySalesPDF(
+      dataToExport,
+      payments,
+      `Semaine du ${monday.toLocaleDateString('fr-FR')} au ${now.toLocaleDateString('fr-FR')} (${dataToExport.length} bons)`
+    );
+  };
 
   const handleSendReminder = async (inv: Invoice) => {
     const client = clients.find(c => c.id === inv.clientId);
@@ -349,20 +369,30 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             {months.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button
-          variant="outline"
-          onClick={() => exportToFile(formatInvoicesForExport(filtered), { filename: `factures-${new Date().toISOString().split('T')[0]}`, sheetName: 'Factures' })}
-          className="font-black uppercase text-xs h-10 rounded-xl gap-1.5 ml-auto"
-        >
-          <Download className="w-3.5 h-3.5" /> Excel
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => exportInvoicesPDF(filtered)}
-          className="font-black uppercase text-xs h-10 rounded-xl gap-1.5"
-        >
-          <Download className="w-3.5 h-3.5" /> PDF
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            variant="outline"
+            onClick={handleExportFridaySales}
+            className="bg-amber-500/15 hover:bg-amber-500/25 border-amber-300 text-amber-900 font-black uppercase text-xs h-10 rounded-xl gap-1.5 shadow-sm"
+            title="Exporter le Bilan des Ventes du Vendredi (Prix, MT, N° Bon, Mode de paiement et Crédits)"
+          >
+            <Calendar className="w-3.5 h-3.5 text-amber-600" /> Bilan Ventes Vendredi
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportToFile(formatInvoicesForExport(filtered), { filename: `factures-${new Date().toISOString().split('T')[0]}`, sheetName: 'Factures' })}
+            className="font-black uppercase text-xs h-10 rounded-xl gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" /> Excel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportInvoicesPDF(filtered)}
+            className="font-black uppercase text-xs h-10 rounded-xl gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" /> PDF
+          </Button>
+        </div>
       </div>
 
       {/* Liste */}

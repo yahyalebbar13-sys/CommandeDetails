@@ -418,3 +418,21 @@ export type BankReconciliation = {
   unmatchedCount: number;
   createdAt?: any;
 };
+
+// ── Frais & Dépenses Commerciaux ─────────────────────────────────────────────
+export type ExpenseCategory = 'CARBURANT' | 'TRANSPORT' | 'REPAS' | 'PEAGE_PARKING' | 'FOURNITURES' | 'AUTRE';
+
+export interface CommercialExpense {
+  id: string;
+  date: string;                     // Date de la dépense (YYYY-MM-DD)
+  amount: number;                   // Montant en MAD
+  category: ExpenseCategory;        // Type de frais
+  description: string;              // Motif ou détail
+  commercialName?: string;          // Nom ou prénom du commercial
+  commercialId?: string;            // UID du commercial
+  storeId?: string;                 // Magasin rattaché
+  receiptUrl?: string;              // Photo / scan du ticket ou justificatif
+  status?: 'PENDING' | 'APPROVED' | 'REIMBURSED';
+  createdAt?: any;
+}
+

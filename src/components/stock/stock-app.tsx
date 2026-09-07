@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
-  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard
+  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -12,7 +12,7 @@ import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTi
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
-  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany
+  Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany, CommercialExpense
 } from '@/lib/types';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
@@ -41,9 +41,10 @@ import BankReconciliationView from './bank-reconciliation-view';
 import BlindInventory from './blind-inventory';
 import AuditLogView from './audit-log-view';
 import ChequesImpayesView from './cheques-impayes-view';
+import CommercialExpensesView from './commercial-expenses-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'blind-inventory' | 'audit';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'blind-inventory' | 'audit';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
@@ -397,6 +398,7 @@ export default function StockApp() {
   const facturesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'factures'),          [firestore, adminUid, user]);
   const transfersRef     = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'transferOrders'),    [firestore, adminUid, user]);
   const storesRef        = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'stores'),            [firestore, adminUid, user]);
+  const expensesRef      = useMemoFirebase(() => (!firestore || !adminUid || !user) ? null : collection(firestore, 'users', adminUid, 'commercialExpenses'),[firestore, adminUid, user]);
 
   const { data: rawArticles,    isLoading: loadingArt  } = useCollection(articlesRef);
   const { data: rawCategories,  isLoading: loadingCat  } = useCollection(categoriesRef);
@@ -410,6 +412,7 @@ export default function StockApp() {
   const { data: rawFactures } = useCollection(facturesRef);
   const { data: rawTransfers,   isLoading: loadingTrans } = useCollection(transfersRef);
   const { data: rawStores,      isLoading: loadingStores } = useCollection(storesRef);
+  const { data: rawExpenses } = useCollection(expensesRef);
 
   const articles        = rawArticles    || [];
   const categories      = rawCategories  || [];
@@ -423,6 +426,7 @@ export default function StockApp() {
   const factures        = rawFactures    || [];
   const transferOrders  = (rawTransfers  || []) as TransferOrder[];
   const stores          = rawStores      || [];
+  const expenses        = (rawExpenses    || []) as CommercialExpense[];
 
   // Initialisation du magasin pour le commercial
   useEffect(() => {
@@ -852,6 +856,30 @@ export default function StockApp() {
     });
   }, [user, firestore, adminUid, toast]);
 
+  // Gestion des Frais et Dépenses des Commerciaux
+  const handleAddExpense = useCallback(async (exp: Omit<CommercialExpense, 'id' | 'createdAt'>) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await addDoc(collection(firestore, 'users', effectiveUid, 'commercialExpenses'), {
+      ...exp,
+      createdAt: serverTimestamp(),
+    });
+  }, [user, firestore, adminUid]);
+
+  const handleUpdateExpenseStatus = useCallback(async (id: string, status: 'PENDING' | 'APPROVED' | 'REIMBURSED') => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await updateDoc(doc(firestore, 'users', effectiveUid, 'commercialExpenses', id), { status });
+    toast({ title: 'Statut de la dépense mis à jour' });
+  }, [user, firestore, adminUid, toast]);
+
+  const handleDeleteExpense = useCallback(async (id: string) => {
+    if (!user || !firestore) return;
+    const effectiveUid = adminUid || user.uid;
+    await deleteDoc(doc(firestore, 'users', effectiveUid, 'commercialExpenses', id));
+    toast({ title: 'Dépense supprimée' });
+  }, [user, firestore, adminUid, toast]);
+
   // Chèques et LCN à échéance <= 7 jours sans société affectée (Attijariwafa Bank)
   const urgent7DaysEffects = useMemo(() => {
     const today = new Date();
@@ -876,9 +904,9 @@ export default function StockApp() {
 
     { id: 'sale',      label: 'Caisse',         category: 'commerce', icon: ShoppingCart,   color: 'violet', pointOfSaleOnly: true },
     { id: 'clients',   label: 'Clients',       category: 'commerce', icon: Users,           pointOfSaleOnly: true },
-    { id: 'orders',    label: 'Commandes',     category: 'commerce', icon: ClipboardList,   pointOfSaleOnly: true },
     { id: 'invoices',  label: 'Bons de Commande', category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
     { id: 'cheques-impayes', label: 'Chèques / Impayés', category: 'commerce', icon: CreditCard, badge: rejectedChequesCount > 0 ? rejectedChequesCount : undefined, color: 'rose', pointOfSaleOnly: true },
+    { id: 'expenses',  label: 'Frais & Dépenses', category: 'commerce', icon: Receipt,        color: 'amber', pointOfSaleOnly: true },
 
     { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
     { id: 'warehouses', label: 'Entrepôts',    category: 'logistique', icon: Warehouse,       adminOrMainOnly: true, color: 'blue' },
@@ -1163,8 +1191,8 @@ export default function StockApp() {
           </div>
         ) : (
           <div className="animate-in fade-in duration-300">
-            {/* Bannière Alerte J-7 Attijariwafa Bank */}
-            {urgent7DaysEffects.length > 0 && activeView !== 'treasury' && (
+            {/* Bannière Alerte J-7 Attijariwafa Bank (Admin uniquement) */}
+            {userRole === 'ADMIN' && urgent7DaysEffects.length > 0 && activeView !== 'treasury' && (
               <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-xl shadow-amber-600/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
@@ -1240,6 +1268,7 @@ export default function StockApp() {
                 orders={orders}
                 invoices={invoices}
                 payments={payments}
+                userRole={userRole}
                 onCreateClient={async (c) => { await handleCreateClient(c); }}
                 onUpdateClient={handleUpdateClient}
                 onRecordPayment={handleRecordPayment}
@@ -1247,13 +1276,17 @@ export default function StockApp() {
                 onNavigate={setActiveView}
               />
             )}
-            {activeView === 'orders' && (
-              <StockOrders
-                orders={filteredOrders}
-                clients={filteredClients}
-                onUpdateStatus={handleUpdateOrderStatus}
-                onConvertToInvoice={handleConvertToInvoice}
-                onNavigate={setActiveView}
+            {activeView === 'expenses' && (
+              <CommercialExpensesView
+                expenses={expenses}
+                stores={stores}
+                activeStore={activeStore}
+                userRole={userRole}
+                currentUserName={user?.displayName || user?.email?.split('@')[0] || 'Commercial'}
+                currentUserId={user?.uid}
+                onAddExpense={handleAddExpense}
+                onUpdateExpenseStatus={handleUpdateExpenseStatus}
+                onDeleteExpense={handleDeleteExpense}
               />
             )}
             {activeView === 'invoices' && (

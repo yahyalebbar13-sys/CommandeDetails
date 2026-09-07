@@ -15,6 +15,7 @@ interface StockClientsProps {
   orders: SaleOrder[];
   invoices: Invoice[];
   payments: ClientPayment[];
+  userRole?: 'ADMIN' | 'COMMERCIAL';
   onCreateClient: (c: Omit<Client, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateClient: (id: string, c: Partial<Client>) => Promise<void>;
   onRecordPayment?: (payment: Omit<ClientPayment, 'id' | 'createdAt'>) => Promise<void>;
@@ -44,7 +45,7 @@ interface PaymentLineState {
   scannedImageUrl: string;
 }
 
-export default function StockClients({ clients, orders, invoices, payments, onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
+export default function StockClients({ clients, orders, invoices, payments, userRole = 'ADMIN', onCreateClient, onUpdateClient, onRecordPayment, onRecordMultiplePayments, onNavigate }: StockClientsProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [unpaidOnlyFilter, setUnpaidOnlyFilter] = useState(false);
@@ -948,24 +949,26 @@ export default function StockClients({ clients, orders, invoices, payments, onCr
                             className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
-                            Société Attijari
-                          </Label>
-                          <Select
-                            value={(line as any).cashingCompany || 'PENDING'}
-                            onValueChange={v => updatePaymentLine(line.id, { cashingCompany: v === 'PENDING' ? undefined : v } as any)}
-                          >
-                            <SelectTrigger className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
-                              <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
-                              <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {userRole === 'ADMIN' && (
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                              Société Attijari
+                            </Label>
+                            <Select
+                              value={(line as any).cashingCompany || 'PENDING'}
+                              onValueChange={v => updatePaymentLine(line.id, { cashingCompany: v === 'PENDING' ? undefined : v } as any)}
+                            >
+                              <SelectTrigger className="h-9 rounded-xl border-stone-200 bg-white text-xs font-bold">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PENDING">⏳ Arbitrer à J-7</SelectItem>
+                                <SelectItem value="LEBTEX">🏢 LEBTEX</SelectItem>
+                                <SelectItem value="ROBE IN BOX">👗 ROBE IN BOX</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
 
                       {/* Photo / Scan OBLIGATOIRE pour chèque et LC */}
