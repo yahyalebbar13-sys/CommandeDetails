@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
   ChevronLeft, AlertTriangle, CheckCircle2, BarChart3, DollarSign,
-  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse
+  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse, Search, Filter
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -20,6 +20,14 @@ const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','
 const LINE_COLORS: Record<string, string> = {
   'Fabric':'#8B5CF6','Slider et puller':'#3B82F6','Zipper':'#F59E0B','Bouton':'#10B981','Reste':'#6B7280',
 };
+
+const GROUPS_ORDER = [
+  { title: 'Fabric',           keywords: ['fabric','non woven','t/c fabric','popeline','leather','felt fabric','polyester fabric','taffeta fabric','woven interlining'] },
+  { title: 'Slider et puller', keywords: ['puller','slider for nylon zipper','slider for plastic zipper','slider for metal zipper'] },
+  { title: 'Zipper',           keywords: ['zipper','plastic zipper','nylon zipper','metal zipper','zipper long chain','nylon zipper long chain'] },
+  { title: 'Bouton',           keywords: ['covered mould button','snap button','button'] },
+  { title: 'Reste',            keywords: ['ruban','tape','rope','thread','elastic thread','tack pin','hook and loop','divers','opp bag'], isFallback: true },
+];
 
 function fmt(n: number) { return Math.round(n).toLocaleString('fr-MA'); }
 function fmtDec(n: number, d = 2) {
@@ -699,13 +707,75 @@ export default function StockFiches({
   }, [stockItems]);
 
   const genCatsWithStock = useMemo(() => {
+    if (isInventoryView || inventoryMode) {
+      return generalCategories;
+    }
     const gcIds = new Set<string>();
     stockItems.forEach(item => {
       const subCat = categories.find(c => c.name === item.categoryId || c.id === item.categoryId);
       if (subCat?.generalCategoryId) gcIds.add(subCat.generalCategoryId);
     });
     return generalCategories.filter(gc => gcIds.has(gc.id));
-  }, [generalCategories, stockItems, categories]);
+  }, [generalCategories, stockItems, categories, isInventoryView, inventoryMode]);
+
+  const [selectedLineFilter, setSelectedLineFilter] = useState<string>('ALL');
+  const [searchGenCat, setSearchGenCat] = useState<string>('');
+
+  const organizedLines = useMemo(() => {
+    const result = GROUPS_ORDER.map(g => ({
+      title: g.title,
+      color: LINE_COLORS[g.title] || '#6B7280',
+      keywords: g.keywords,
+      isFallback: (g as any).isFallback,
+      items: [] as any[]
+    }));
+    const customGroupsMap = new Map<string, any>();
+    const lowerSearch = searchGenCat.toLowerCase().trim();
+
+    genCatsWithStock.forEach(gc => {
+      if (lowerSearch && !gc.name.toLowerCase().includes(lowerSearch)) return;
+
+      const catName = (gc.name || '').toLowerCase().trim();
+      const explicitLine = (gc as any).line;
+      let matched = false;
+
+      if (explicitLine) {
+        const group = result.find(g => g.title === explicitLine);
+        if (group) { 
+          group.items.push(gc); 
+          matched = true; 
+        } else {
+          if (!customGroupsMap.has(explicitLine)) {
+            customGroupsMap.set(explicitLine, { 
+              title: explicitLine, 
+              color: LINE_COLORS[explicitLine] || '#6B7280', 
+              keywords: [], 
+              items: [] 
+            });
+          }
+          customGroupsMap.get(explicitLine).items.push(gc);
+          matched = true;
+        }
+      }
+
+      if (!matched) {
+        for (const group of result) {
+          if (group.keywords.includes(catName)) {
+            group.items.push(gc);
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) {
+        const fallback = result.find(g => g.isFallback);
+        if (fallback) fallback.items.push(gc);
+      }
+    });
+
+    const allGroups = [...result, ...Array.from(customGroupsMap.values())];
+    return allGroups.filter(g => g.items.length > 0);
+  }, [genCatsWithStock, searchGenCat]);
 
   const totalRefs  = stockItems.length;
   const totalStock = stockItems.reduce((s, i) => s + i.currentQty, 0);
@@ -873,7 +943,16 @@ export default function StockFiches({
     );
   }
 
-  // ── Niveau 1 : familles ───────────────────────────────────────────────────
+  // ── Niveau 1 : Lignes et Pôles ───────────────────────────────────────────
+  const displayedLines = useMemo(() => {
+    if (selectedLineFilter === 'ALL') return organizedLines;
+    return organizedLines.filter(g => g.title === selectedLineFilter);
+  }, [organizedLines, selectedLineFilter]);
+
+  const allAvailableLineNames = useMemo(() => {
+    return Array.from(new Set(organizedLines.map(g => g.title)));
+  }, [organizedLines]);
+
   return (
     <div className="space-y-6">
       {warehouseSelectorElement}
@@ -892,66 +971,184 @@ export default function StockFiches({
           )}
         </div>
       )}
-      {genCatsWithStock.length === 0 ? (
+
+      {/* ── Toolbar : Recherche & Filtre par Ligne (Fabric, Zipper, Slider, Bouton, Reste...) ── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-100 shadow-sm">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+          <Input
+            placeholder="Rechercher un pôle..."
+            value={searchGenCat}
+            onChange={e => setSearchGenCat(e.target.value)}
+            className="pl-9 h-9 text-[11px] font-bold border-stone-200 bg-stone-50/50 rounded-xl focus:ring-stone-900 transition-all"
+          />
+        </div>
+
+        {/* Boutons de filtrage par Ligne */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          <button
+            onClick={() => setSelectedLineFilter('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+              selectedLineFilter === 'ALL'
+                ? 'bg-stone-900 text-white shadow-sm'
+                : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+            }`}
+          >
+            Toutes les lignes ({organizedLines.reduce((s, g) => s + g.items.length, 0)})
+          </button>
+          {allAvailableLineNames.map(lineName => {
+            const lineColor = LINE_COLORS[lineName] || '#6B7280';
+            const isSelected = selectedLineFilter === lineName;
+            const lineCount = organizedLines.find(g => g.title === lineName)?.items.length || 0;
+            return (
+              <button
+                key={lineName}
+                onClick={() => setSelectedLineFilter(lineName)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                  isSelected
+                    ? 'text-white shadow-sm'
+                    : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
+                }`}
+                style={{
+                  backgroundColor: isSelected ? lineColor : undefined,
+                }}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isSelected ? '#FFFFFF' : lineColor }} />
+                {lineName} ({lineCount})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {organizedLines.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 text-center space-y-4">
           <div className="w-20 h-20 rounded-3xl bg-emerald-50 flex items-center justify-center">
             <Boxes className="w-10 h-10 text-emerald-200" />
           </div>
           <div>
-            <p className="text-stone-500 font-black uppercase text-[11px] tracking-widest">Aucun article validé en stock</p>
+            <p className="text-stone-500 font-black uppercase text-[11px] tracking-widest">Aucun pôle configuré ou en stock</p>
             <p className="text-stone-300 text-[9px] font-bold mt-2">
-              Onglet <strong className="text-stone-500">Arrivages</strong> → <strong className="text-stone-500">"Valider l'Entrée en Stock + Coût de Revient"</strong>
+              Les pôles et lignes sont synchronisés avec la gestion des groupes.
             </p>
           </div>
         </div>
+      ) : displayedLines.length === 0 ? (
+        <div className="py-16 text-center text-stone-400 font-black uppercase text-[10px] tracking-widest bg-white rounded-2xl border border-stone-100">
+          Aucun pôle trouvé pour cette recherche ou cette ligne
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {genCatsWithStock.map((gc, idx) => {
-            const lineColor = LINE_COLORS[(gc as any).line] || UI_COLORS[idx % UI_COLORS.length];
-            const gcSubs    = categories.filter(c => c.generalCategoryId === gc.id);
-            const gcItems   = stockItems.filter(i => gcSubs.some(s => s.name === i.categoryId || s.id === i.categoryId));
-            const gcQty     = gcItems.reduce((s, i) => s + i.currentQty, 0);
-            const gcVal     = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
-            const gcAlerts  = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
-            const subCount  = gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0).length;
+        <div className="space-y-10">
+          {displayedLines.map((group, groupIdx) => {
+            const lineColor = group.color || LINE_COLORS[group.title] || '#6B7280';
+
+            // Statistiques de la ligne
+            let groupQty = 0;
+            let groupVal = 0;
+            let groupAlerts = 0;
+            let groupRefs = 0;
+
+            const groupCardsData = group.items.map(gc => {
+              const gcSubs = categories.filter(c => c.generalCategoryId === gc.id);
+              const gcItems = stockItems.filter(i => gcSubs.some(s => s.name === i.categoryId || s.id === i.categoryId));
+              const gcQty = gcItems.reduce((s, i) => s + i.currentQty, 0);
+              const gcVal = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
+              const gcAlertCount = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
+              const subCount = gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0).length;
+
+              groupQty += gcQty;
+              groupVal += gcVal;
+              groupAlerts += gcAlertCount;
+              groupRefs += gcItems.length;
+
+              return { gc, gcSubs, gcItems, gcQty, gcVal, gcAlertCount, subCount };
+            });
+
             return (
-              <Card key={gc.id} onClick={() => setSelGenCat(gc.id)}
-                className="group cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 rounded-[1.2rem] overflow-hidden active:scale-95">
-                <div className="h-1 w-full" style={{ backgroundColor: lineColor }} />
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="p-2 rounded-lg" style={{ backgroundColor: `${lineColor}15`, color: lineColor }}>
-                      <Layers className="w-3.5 h-3.5" />
-                    </div>
-                    {gcAlerts > 0 && (
-                      <span className="text-[7px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
-                        <AlertTriangle className="w-2.5 h-2.5" /> {gcAlerts}
+              <div key={group.title || groupIdx} className="space-y-4">
+                {/* Entête de Ligne (Identique à la page GRP dans Gestion) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-stone-200/80">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: lineColor }} />
+                    <h3 className="text-lg font-black text-stone-900 uppercase tracking-tighter flex items-center gap-2">
+                      {group.title}
+                    </h3>
+                    <span className="text-[9px] font-black text-stone-500 bg-stone-100 px-2.5 py-0.5 rounded-full uppercase">
+                      {group.items.length} pôle{group.items.length > 1 ? 's' : ''} · {groupRefs} ref.
+                    </span>
+                    {groupAlerts > 0 && (
+                      <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1">
+                        <AlertTriangle className="w-2.5 h-2.5" /> {groupAlerts} alerte{groupAlerts > 1 ? 's' : ''}
                       </span>
                     )}
                   </div>
-                  <div>
-                    <h3 className="text-[12px] font-black text-stone-800 uppercase tracking-tighter line-clamp-2 min-h-[2rem]">{gc.name}</h3>
-                    <p className="text-[8px] text-stone-400 font-bold mt-0.5">{subCount} famille{subCount !== 1 ? 's' : ''} · {gcItems.length} ref.</p>
-                  </div>
-                  <div className="space-y-1 pt-2 border-t border-stone-50">
-                    <div className="flex justify-between text-[8px]">
-                      <span className="text-stone-400 font-black uppercase">Stock</span>
-                      <span className="font-black text-stone-800">{fmt(gcQty)}</span>
+
+                  <div className="flex items-center gap-4 text-xs font-black">
+                    <div className="text-stone-500">
+                      Stock : <span className="text-stone-900 font-black">{fmt(groupQty)} pcs</span>
                     </div>
-                    {userRole === 'ADMIN' && (
-                      <div className="flex justify-between text-[8px]">
-                        <span className="text-stone-400 font-black uppercase">Valeur MAD</span>
-                        <span className="font-black" style={{ color: lineColor }}>{gcVal > 0 ? `${fmt(gcVal)} MAD` : '—'}</span>
+                    {userRole === 'ADMIN' && groupVal > 0 && (
+                      <div className="text-stone-500">
+                        Valeur : <span className="font-black" style={{ color: lineColor }}>{fmt(groupVal)} MAD</span>
                       </div>
                     )}
                   </div>
-                  <div className="flex justify-end">
-                    <div className="p-1.5 bg-stone-50 rounded-lg group-hover:bg-stone-900 transition-colors">
-                      <ArrowRight className="w-3 h-3 text-stone-400 group-hover:text-white transition-colors" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+
+                {/* Grille des pôles de la ligne */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {groupCardsData.map(({ gc, gcItems, gcQty, gcVal, gcAlertCount, subCount }) => {
+                    return (
+                      <Card
+                        key={gc.id}
+                        onClick={() => setSelGenCat(gc.id)}
+                        className="group cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 rounded-[1.2rem] overflow-hidden active:scale-95 bg-white"
+                      >
+                        <div className="h-1.5 w-full" style={{ backgroundColor: lineColor }} />
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="p-2 rounded-lg" style={{ backgroundColor: `${lineColor}15`, color: lineColor }}>
+                              <Layers className="w-3.5 h-3.5" />
+                            </div>
+                            {gcAlertCount > 0 && (
+                              <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" /> {gcAlertCount}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-[12px] font-black text-stone-800 uppercase tracking-tighter line-clamp-2 min-h-[2rem]">
+                              {gc.name}
+                            </h3>
+                            <p className="text-[8px] text-stone-400 font-bold mt-0.5">
+                              {subCount} famille{subCount !== 1 ? 's' : ''} · {gcItems.length} ref.
+                            </p>
+                          </div>
+                          <div className="space-y-1 pt-2 border-t border-stone-50">
+                            <div className="flex justify-between text-[9px]">
+                              <span className="text-stone-400 font-black uppercase">Stock</span>
+                              <span className="font-black text-stone-800">{fmt(gcQty)}</span>
+                            </div>
+                            {userRole === 'ADMIN' && (
+                              <div className="flex justify-between text-[9px]">
+                                <span className="text-stone-400 font-black uppercase">Valeur MAD</span>
+                                <span className="font-black" style={{ color: lineColor }}>
+                                  {gcVal > 0 ? `${fmt(gcVal)} MAD` : '—'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex justify-end">
+                            <div className="p-1.5 bg-stone-50 rounded-lg group-hover:bg-stone-900 transition-colors">
+                              <ArrowRight className="w-3 h-3 text-stone-400 group-hover:text-white transition-colors" />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>

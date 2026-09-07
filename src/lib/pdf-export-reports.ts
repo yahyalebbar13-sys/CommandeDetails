@@ -124,10 +124,15 @@ export function exportReportPDF(options: PDFReportOptions) {
 /**
  * Export des mouvements de stock en PDF
  */
-export function exportMovementsPDF(movements: any[]) {
+export function exportMovementsPDF(movements: any[], customTitle?: string, customSubtitle?: string) {
+  const totalIN = movements.filter(m => m.type === 'IN').reduce((s, m) => s + (m.quantity || 0), 0);
+  const totalOUT = movements.filter(m => m.type === 'OUT').reduce((s, m) => s + (m.quantity || 0), 0);
+  const net = totalIN - totalOUT;
+
   exportReportPDF({
-    title: 'Rapport des Mouvements de Stock',
-    subtitle: `${movements.length} mouvements`,
+    title: customTitle || 'Rapport des Mouvements de Stock',
+    subtitle: customSubtitle || `${movements.length} mouvement${movements.length > 1 ? 's' : ''} enregistré${movements.length > 1 ? 's' : ''}`,
+    landscape: true,
     columns: [
       { header: 'Date', dataKey: 'date', width: 22 },
       { header: 'Type', dataKey: 'type', width: 18 },
@@ -135,7 +140,8 @@ export function exportMovementsPDF(movements: any[]) {
       { header: 'Produit', dataKey: 'productName' },
       { header: 'Couleur', dataKey: 'color', width: 20 },
       { header: 'Qté', dataKey: 'quantity', width: 15 },
-      { header: 'Magasin', dataKey: 'storeId', width: 22 },
+      { header: 'Magasin / Dépôt', dataKey: 'storeId', width: 25 },
+      { header: 'Notes / Réf', dataKey: 'notes' },
     ],
     data: movements.map(m => ({
       date: m.date || '',
@@ -145,8 +151,65 @@ export function exportMovementsPDF(movements: any[]) {
       color: m.color || '',
       quantity: m.quantity || 0,
       storeId: m.storeId || '',
+      notes: m.notes || '',
     })),
-    footer: 'LEBTEX SARL AU — Rapport généré automatiquement',
+    summaryRows: [
+      { label: 'Total Entrées', value: `+${totalIN.toLocaleString('fr-MA')} pcs` },
+      { label: 'Total Sorties', value: `-${totalOUT.toLocaleString('fr-MA')} pcs` },
+      { label: 'Flux Net Global', value: `${net >= 0 ? '+' : ''}${net.toLocaleString('fr-MA')} pcs` },
+    ],
+    footer: 'LEBTEX SARL AU — Traçabilité des Mouvements & Bilan Hebdomadaire',
+  });
+}
+
+/**
+ * Export Portefeuille Chèques, Traites & Impayés en PDF
+ */
+export function exportChequesPDF(payments: any[], stats?: any) {
+  const impayes = payments.filter(p => p.status === 'REJECTED');
+  const pending = payments.filter(p => !p.status || p.status === 'PENDING');
+  const cleared = payments.filter(p => p.status === 'CLEARED');
+
+  const impayesSum = impayes.reduce((s, p) => s + (p.amount || 0), 0);
+  const pendingSum = pending.reduce((s, p) => s + (p.amount || 0), 0);
+  const clearedSum = cleared.reduce((s, p) => s + (p.amount || 0), 0);
+
+  exportReportPDF({
+    title: 'Portefeuille Chèques & Effets / Impayés',
+    subtitle: `${payments.length} titre(s) — Bilan de trésorerie au ${new Date().toLocaleDateString('fr-FR')}`,
+    landscape: true,
+    columns: [
+      { header: 'Type', dataKey: 'type', width: 22 },
+      { header: 'N° Titre / Effet', dataKey: 'ref', width: 28 },
+      { header: 'Client / Émetteur', dataKey: 'client' },
+      { header: 'Banque', dataKey: 'bank', width: 25 },
+      { header: 'Échéance', dataKey: 'dueDate', width: 22 },
+      { header: 'Montant', dataKey: 'amount', width: 26 },
+      { header: 'Statut', dataKey: 'status', width: 26 },
+    ],
+    data: payments.map(p => {
+      let statusLabel = 'En portefeuille';
+      if (p.status === 'REJECTED') statusLabel = '⚠️ IMPAYÉ / REJETÉ';
+      else if (p.status === 'CLEARED') statusLabel = '✅ Encaissé';
+      else if (p.dueDate && new Date(p.dueDate) < new Date()) statusLabel = '⏳ Échéance dépassée';
+
+      return {
+        type: p.method === 'TRAITE' ? 'LCN / Traite' : 'Chèque',
+        ref: p.reference || p.checkNumber || '—',
+        client: p.clientName || '—',
+        bank: p.bankName || '—',
+        dueDate: p.dueDate || '—',
+        amount: `${(p.amount || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+        status: statusLabel,
+      };
+    }),
+    summaryRows: [
+      { label: `⚠️ Impayés Rejetés (${impayes.length} chèque${impayes.length > 1 ? 's' : ''})`, value: `${impayesSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+      { label: `⏳ En Portefeuille (${pending.length} titre${pending.length > 1 ? 's' : ''})`, value: `${pendingSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+      { label: `✅ Encaissés (${cleared.length} titre${cleared.length > 1 ? 's' : ''})`, value: `${clearedSum.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+      { label: 'Total Global Portefeuille', value: `${(impayesSum + pendingSum + clearedSum).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` },
+    ],
+    footer: 'LEBTEX SARL AU — Bilan Portefeuille Commercial & Recouvrement',
   });
 }
 

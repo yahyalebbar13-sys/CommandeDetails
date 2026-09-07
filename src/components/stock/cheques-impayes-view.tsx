@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { ClientPayment, Client, Invoice, StoreLocation, Store } from '@/lib/types';
+import { exportChequesPDF } from '@/lib/pdf-export-reports';
 
 interface ChequesImpayesViewProps {
   payments: ClientPayment[];
@@ -334,7 +335,16 @@ export default function ChequesImpayesView({
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={() => exportChequesPDF(filteredPayments, stats)}
+              variant="outline"
+              className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/30 font-black text-xs uppercase px-4 h-11 rounded-2xl gap-2 shadow-sm"
+              title="Exporter le portefeuille chèques et impayés en PDF"
+            >
+              <Download className="w-4 h-4" />
+              <span>Exporter PDF</span>
+            </Button>
             <Button
               onClick={handlePrint}
               variant="outline"
@@ -347,7 +357,7 @@ export default function ChequesImpayesView({
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
+      {/* ── KPI Cards : Nombre en GRAND en premier, puis le Montant ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Carte Impayés (Prioritaire) */}
         <div 
@@ -358,19 +368,20 @@ export default function ChequesImpayesView({
               : 'bg-white border-stone-100 hover:border-rose-200 hover:shadow-lg'
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" /> Impayés Déclarés
             </span>
-            <span className="text-xs font-black text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-full">
-              {stats.totalImpayesCount}
-            </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-rose-600 tracking-tight">
-            {fmt$(stats.totalImpayesAmount)}
+          <p className="text-2xl sm:text-3xl font-black text-rose-600 tracking-tight flex items-baseline gap-1.5">
+            <span>{stats.totalImpayesCount}</span>
+            <span className="text-xs font-black uppercase text-rose-700">chèque{stats.totalImpayesCount > 1 ? 's' : ''}</span>
           </p>
-          <p className="text-[10px] text-stone-400 font-bold mt-1">
-            Chèques rejetés sans provision
+          <p className="text-xs font-black text-stone-700 mt-1">
+            Total : <span className="text-rose-600 font-black">{fmt$(stats.totalImpayesAmount)}</span>
+          </p>
+          <p className="text-[9px] text-stone-400 font-bold mt-1">
+            Rejets bancaires à recouvrer
           </p>
         </div>
 
@@ -383,19 +394,20 @@ export default function ChequesImpayesView({
               : 'bg-white border-stone-100 hover:border-amber-200 hover:shadow-lg'
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <Clock className="w-3 h-3" /> En Portefeuille
             </span>
-            <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-              {stats.totalPendingCount}
-            </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
-            {fmt$(stats.totalPendingAmount)}
+          <p className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight flex items-baseline gap-1.5">
+            <span>{stats.totalPendingCount}</span>
+            <span className="text-xs font-black uppercase text-stone-500">chèque{stats.totalPendingCount > 1 ? 's' : ''} / LC</span>
           </p>
-          <p className="text-[10px] text-stone-400 font-bold mt-1">
-            En attente d'échéance / encaissement
+          <p className="text-xs font-black text-stone-700 mt-1">
+            Total : <span className="text-stone-900 font-black">{fmt$(stats.totalPendingAmount)}</span>
+          </p>
+          <p className="text-[9px] text-stone-400 font-bold mt-1">
+            En attente d'échéance
           </p>
         </div>
 
@@ -408,19 +420,20 @@ export default function ChequesImpayesView({
               : 'bg-white border-stone-100 hover:border-orange-200 hover:shadow-lg'
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-black uppercase tracking-widest text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> Échéance Dépassée
             </span>
-            <span className={`text-xs font-black px-2 py-0.5 rounded-full ${stats.totalOverdueCount > 0 ? 'bg-orange-500 text-white animate-pulse' : 'bg-stone-100 text-stone-600'}`}>
-              {stats.totalOverdueCount}
-            </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-orange-600 tracking-tight">
-            {fmt$(stats.totalOverdueAmount)}
+          <p className="text-2xl sm:text-3xl font-black text-orange-600 tracking-tight flex items-baseline gap-1.5">
+            <span>{stats.totalOverdueCount}</span>
+            <span className="text-xs font-black uppercase text-orange-700">chèque{stats.totalOverdueCount > 1 ? 's' : ''} échu{stats.totalOverdueCount > 1 ? 's' : ''}</span>
           </p>
-          <p className="text-[10px] text-stone-400 font-bold mt-1">
-            Date passée mais pas encore encaissés
+          <p className="text-xs font-black text-stone-700 mt-1">
+            Total : <span className="text-orange-600 font-black">{fmt$(stats.totalOverdueAmount)}</span>
+          </p>
+          <p className="text-[9px] text-stone-400 font-bold mt-1">
+            Non encaissés à ce jour
           </p>
         </div>
 
@@ -433,18 +446,19 @@ export default function ChequesImpayesView({
               : 'bg-white border-stone-100 hover:border-emerald-200 hover:shadow-lg'
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Encaissés avec Succès
-            </span>
-            <span className="text-xs font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-              {stats.totalClearedCount}
+              <CheckCircle2 className="w-3 h-3" /> Encaissés
             </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
-            {fmt$(stats.totalClearedAmount)}
+          <p className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight flex items-baseline gap-1.5">
+            <span>{stats.totalClearedCount}</span>
+            <span className="text-xs font-black uppercase text-emerald-700">encaissé{stats.totalClearedCount > 1 ? 's' : ''}</span>
           </p>
-          <p className="text-[10px] text-stone-400 font-bold mt-1">
+          <p className="text-xs font-black text-stone-700 mt-1">
+            Total : <span className="text-emerald-600 font-black">{fmt$(stats.totalClearedAmount)}</span>
+          </p>
+          <p className="text-[9px] text-stone-400 font-bold mt-1">
             Fonds reçus en banque
           </p>
         </div>

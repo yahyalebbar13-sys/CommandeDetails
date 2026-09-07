@@ -102,6 +102,26 @@ export default function StockMovements({ movements, stockItems, categories, arti
   const totalIN  = filtered.filter(m => m.type === 'IN').reduce((s, m) => s + m.quantity, 0);
   const totalOUT = filtered.filter(m => m.type === 'OUT').reduce((s, m) => s + m.quantity, 0);
 
+  // Export Bilan Hebdomadaire Vendredi
+  const handleExportFridayWeeklyPDF = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = (day + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    const mondayStr = monday.toISOString().split('T')[0];
+
+    const weekMovements = movements.filter(m => m.date && m.date >= mondayStr);
+    const dataToExport = weekMovements.length > 0 ? weekMovements : movements;
+
+    exportMovementsPDF(
+      dataToExport,
+      `Bilan Hebdomadaire des Mouvements (Semaine du ${monday.toLocaleDateString('fr-FR')})`,
+      `${dataToExport.length} mouvements enregistrés — Point Hebdomadaire Vendredi`
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
 
@@ -114,24 +134,32 @@ export default function StockMovements({ movements, stockItems, categories, arti
             <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Journal des <span className="text-emerald-400">Mouvements</span></h1>
             <p className="text-stone-400 text-xs font-bold mt-2">{movements.length} mouvement{movements.length > 1 ? 's' : ''} enregistré{movements.length > 1 ? 's' : ''}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportFridayWeeklyPDF}
+              className="bg-amber-500/20 hover:bg-amber-500/30 border-amber-400/40 text-amber-300 font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl gap-2 shrink-0 shadow-sm"
+              title="Exporter tous les mouvements de la semaine pour la mise au point du Vendredi avec la direction"
+            >
+              <Calendar className="w-4 h-4 text-amber-400" /> Bilan Vendredi (Semaine)
+            </Button>
             <Button
               variant="outline"
               onClick={() => exportToFile(formatMovementsForExport(filtered), { filename: `mouvements-stock-${new Date().toISOString().split('T')[0]}`, sheetName: 'Mouvements' })}
-              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl gap-2 shrink-0"
+              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl gap-2 shrink-0"
             >
               <Download className="w-4 h-4" /> Excel
             </Button>
             <Button
               variant="outline"
               onClick={() => exportMovementsPDF(filtered)}
-              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl gap-2 shrink-0"
+              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl gap-2 shrink-0"
             >
               <Download className="w-4 h-4" /> PDF
             </Button>
             <Button
               onClick={() => setModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-2xl shadow-lg shadow-emerald-500/30 gap-2 shrink-0"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-2xl shadow-lg shadow-emerald-500/30 gap-2 shrink-0"
             >
               <Plus className="w-4 h-4" /> Enregistrer un mouvement
             </Button>
