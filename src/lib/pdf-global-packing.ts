@@ -54,10 +54,29 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
     const tableBody: any[] = [];
     
     catArticles.forEach(art => {
+      const hasQualityB = art.qualityBreakdown && art.qualityBreakdown.length > 0;
       const hasColorB = art.colorBreakdown && art.colorBreakdown.length > 0;
       const hasSizeB = art.sizeBreakdown && art.sizeBreakdown.length > 0;
 
-      if (hasColorB) {
+      if (hasQualityB) {
+        art.qualityBreakdown.forEach((qb: any) => {
+          const specsDetail = [
+            qb.gsm ? `${qb.gsm}gsm` : null,
+            qb.fabricWidth ? `${qb.fabricWidth}cm` : null,
+            qb.rollLength ? `${qb.rollLength}${qb.rollLengthUnit || 'm'}` : null,
+            qb.packagingPerBag ? `${qb.packagingPerBag}rlx/sac` : null,
+            qb.zipperType ? `Zip: ${qb.zipperType}` : null,
+            qb.slider ? `Curseur: ${qb.slider}` : null,
+            qb.pcsPerBag ? `${qb.pcsPerBag}p/bag` : null,
+            qb.bagsPerCarton ? `${qb.bagsPerCarton}b/ctn` : null,
+          ].filter(Boolean).join(' · ');
+          tableBody.push([
+            art.color || '-',
+            `${(qb.quality || '-').toUpperCase()}${specsDetail ? ' (' + specsDetail + ')' : ''}`,
+            `${qb.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
+          ]);
+        });
+      } else if (hasColorB) {
         art.colorBreakdown.forEach((cb: any) => {
           tableBody.push([
             cb.colorCode || art.color || '-',
@@ -74,9 +93,20 @@ export async function exportGlobalPackingPDF(articles: any[], generalCategories:
           ]);
         });
       } else {
+        const specsDetail = [
+          art.zipperType ? `Zip: ${art.zipperType}` : null,
+          art.slider ? `Curseur: ${art.slider}` : null,
+          art.pcsPerBag ? `${art.pcsPerBag}p/bag` : null,
+          art.bagsPerCarton ? `${art.bagsPerCarton}b/ctn` : null,
+          art.gsm ? `${art.gsm}gsm` : null,
+          art.fabricWidth ? `${art.fabricWidth}cm` : null,
+          art.packagingPerBag ? `${art.packagingPerBag}rlx/sac` : null,
+        ].filter(Boolean).join(' · ');
+        const sizeOrSpecs = [art.size && art.size !== 'various' ? art.size : null, specsDetail || null].filter(Boolean).join(' — ') || art.size || '-';
+
         tableBody.push([
           art.color || '-',
-          art.size || '-',
+          sizeOrSpecs,
           `${art.quantity || 0} ${art.unitOfMeasure || 'pcs'}`
         ]);
       }

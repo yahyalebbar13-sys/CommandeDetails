@@ -126,9 +126,22 @@ export async function exportPropositionFournisseurPDF(
 
   // Table rows — quantities only, NO priority/status
   const tableRows = articles.map((o, idx) => {
-    const specs = isZipperCat(o.categoryId)
-      ? [o.zipperType, o.slider, o.sliderType].filter(Boolean).join(' / ')
-      : (o.specs || '');
+    const specParts: string[] = [];
+    if (Array.isArray(o.qualityBreakdown) && o.qualityBreakdown.length > 0) {
+      specParts.push(`Multi-Qualités (${o.qualityBreakdown.length})`);
+    }
+    if (isZipperCat(o.categoryId)) {
+      const z = [o.zipperType, o.slider, o.sliderType].filter(Boolean).join(' / ');
+      if (z) specParts.push(z);
+      if (o.pcsPerBag && o.bagsPerCarton) specParts.push(`${o.pcsPerBag}p/bag · ${o.bagsPerCarton}b/ctn`);
+      else if (o.pcsPerBag) specParts.push(`${o.pcsPerBag}p/bag`);
+    } else {
+      if (o.gsm) specParts.push(`${o.gsm}gsm`);
+      if (o.fabricWidth) specParts.push(`${o.fabricWidth}cm`);
+      if (o.packagingPerBag) specParts.push(`${o.packagingPerBag}rlx/sac`);
+      if (o.specs) specParts.push(o.specs);
+    }
+    const specs = specParts.join(' · ');
     return [
       String(idx + 1),
       (o.name || o.categoryId || '—').toUpperCase(),
@@ -332,9 +345,22 @@ export async function exportPriceProposalPDF(
 
   // Table rows with blank price columns
   const tableRows = articles.map((o, idx) => {
-    const specs = isZipperCat(o.categoryId)
-      ? [o.zipperType, o.slider, o.sliderType].filter(Boolean).join(' / ')
-      : (o.specs || '');
+    const specParts: string[] = [];
+    if (Array.isArray(o.qualityBreakdown) && o.qualityBreakdown.length > 0) {
+      specParts.push(`Multi-Qualités (${o.qualityBreakdown.length})`);
+    }
+    if (isZipperCat(o.categoryId)) {
+      const z = [o.zipperType, o.slider, o.sliderType].filter(Boolean).join(' / ');
+      if (z) specParts.push(z);
+      if (o.pcsPerBag && o.bagsPerCarton) specParts.push(`${o.pcsPerBag}p/bag · ${o.bagsPerCarton}b/ctn`);
+      else if (o.pcsPerBag) specParts.push(`${o.pcsPerBag}p/bag`);
+    } else {
+      if (o.gsm) specParts.push(`${o.gsm}gsm`);
+      if (o.fabricWidth) specParts.push(`${o.fabricWidth}cm`);
+      if (o.packagingPerBag) specParts.push(`${o.packagingPerBag}rlx/sac`);
+      if (o.specs) specParts.push(o.specs);
+    }
+    const specs = specParts.join(' · ');
     return [
       String(idx + 1),
       (o.name || o.categoryId || '—').toUpperCase(),
