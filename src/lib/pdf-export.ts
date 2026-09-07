@@ -3379,6 +3379,7 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
   for (const art of articles) {
     const artName  = (art.name || art.categoryId || '—').toUpperCase();
     const artColor = art.color && art.color.trim() !== '' ? art.color.trim().toUpperCase() : '';
+    const qb = Array.isArray(art.qualityBreakdown) ? art.qualityBreakdown : [];
     const cb = Array.isArray(art.colorBreakdown)  ? art.colorBreakdown  : [];
     const sb = Array.isArray(art.sizeBreakdown)   ? art.sizeBreakdown   : [];
     const db = Array.isArray(art.designBreakdown) ? art.designBreakdown : [];
@@ -3387,7 +3388,26 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
     let breakLabel = 'Couleur';
 
     // Si l'article a des breakdowns structurés, on les utilise
-    if (cb.length > 0) {
+    if (qb.length > 0) {
+      breakLabel = 'Qualité';
+      rows = qb.map((r: any) => {
+        const specsDetail = [
+          r.gsm ? `${r.gsm}gsm` : null,
+          r.fabricWidth ? `${r.fabricWidth}cm` : null,
+          r.rollLength ? `${r.rollLength}${r.rollLengthUnit || 'm'}` : null,
+          r.packagingPerBag ? `${r.packagingPerBag}rlx/sac` : null,
+          r.zipperType ? `Zip: ${r.zipperType}` : null,
+          r.slider ? `Curseur: ${r.slider}` : null,
+          r.pcsPerBag ? `${r.pcsPerBag}p/bag` : null,
+          r.bagsPerCarton ? `${r.bagsPerCarton}b/ctn` : null,
+        ].filter(Boolean).join(' · ');
+        return {
+          label: (r.quality || '?').toUpperCase() + (specsDetail ? `\n${specsDetail}` : ''),
+          qty: Number(r.quantity) || 0,
+          color: VIOLET,
+        };
+      });
+    } else if (cb.length > 0) {
       breakLabel = 'Couleur';
       rows = cb.map((r: any) => ({ label: (r.colorCode || r.color || '?').toUpperCase(), qty: Number(r.rolls) || Number(r.quantity) || 0, color: VIOLET }));
     } else if (sb.length > 0) {
@@ -3414,13 +3434,30 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
 
     // Clé de groupe : nom + couleur si couleur présente (et pas de colorBreakdown), sinon nom seul
     // Cela crée un tableau séparé par couleur, chaque tableau montrant les tailles
-    const key = (cb.length === 0 && artColor) ? `${artName}||${artColor}` : artName;
+    const key = (qb.length === 0 && cb.length === 0 && artColor) ? `${artName}||${artColor}` : artName;
 
     const artQty = rows.reduce((s, r) => s + r.qty, 0);
 
     if (!groupMap.has(key)) {
         const cat = (subCategories || []).find((c: any) => c.name === art.categoryId);
         const defaultPcs = cat?.defaultPcsPerCtn || 0;
+        const computedPcsPerCtn = Number(art.pcsPerCtn) > 0 
+          ? Number(art.pcsPerCtn) 
+          : (art.pcsPerBag && art.bagsPerCarton ? Number(art.pcsPerBag) * Number(art.bagsPerCarton) : Number(defaultPcs));
+
+        const specsList: string[] = [];
+        if (art.zipperType) {
+          specsList.push(`${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})`);
+          if (art.pcsPerBag && art.bagsPerCarton) specsList.push(`${art.pcsPerBag} p/bag · ${art.bagsPerCarton} b/ctn`);
+          else if (art.pcsPerBag) specsList.push(`${art.pcsPerBag} p/bag`);
+        }
+        if (art.gsm || art.fabricWidth) {
+          if (art.gsm) specsList.push(`${art.gsm}gsm`);
+          if (art.fabricWidth) specsList.push(`${art.fabricWidth}cm`);
+          if (art.packagingPerBag) specsList.push(`${art.packagingPerBag} rlx/sac`);
+        }
+        if (art.specs) specsList.push(art.specs);
+
         groupMap.set(key, {
           name: artName,
           displayName: artColor ? `${artName}  —  ${artColor}` : artName,
@@ -3428,10 +3465,10 @@ export async function exportPackingDetailsPDF(facture: any, articles: any[], sub
           unit: (art.unitOfMeasure || 'pcs').toUpperCase(),
           size: art.size || '—',
           supplierId: (art.supplierId || '—').toUpperCase(),
-          specs: art.specs || (art.zipperType ? `${art.zipperType} / ${art.slider || '—'} (${art.sliderType || '—'})` : ''),
+          specs: specsList.join(' · '),
           cbmTotal: Number(art.cubicMeasurement || 0),
           nwTotal: Number(art.netWeight || 0),
-          pcsPerCtn: Number(art.pcsPerCtn) > 0 ? Number(art.pcsPerCtn) : Number(defaultPcs),
+          pcsPerCtn: computedPcsPerCtn,
         rows: [...rows],
         breakLabel,
         totalQty: artQty,
