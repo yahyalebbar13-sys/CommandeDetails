@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
-  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse
+  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -40,9 +40,10 @@ import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
 import BlindInventory from './blind-inventory';
 import AuditLogView from './audit-log-view';
+import ChequesImpayesView from './cheques-impayes-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'blind-inventory' | 'audit';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'blind-inventory' | 'audit';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
@@ -522,6 +523,29 @@ export default function StockApp() {
   const filteredInvoices = useMemo(() => invoices.filter(i => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && isIncludedInAllMain(i.storeId)) || i.storeId === activeStore || (!i.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [invoices, activeStore, stores]);
   const filteredMovements = useMemo(() => movements.filter(m => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(m.storeId) || isIncludedInAllMain(m.toStoreId))) || m.storeId === activeStore || m.toStoreId === activeStore || (!m.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'))), [movements, activeStore, stores]);
   const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(t.fromStore) || isIncludedInAllMain(t.toStore))) || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore, stores]);
+  const filteredPayments = useMemo(() => {
+    return payments.filter(p => {
+      if (activeStore === 'ALL') return true;
+      if (p.storeId) {
+        if (activeStore === 'ALL_MAIN') return isIncludedInAllMain(p.storeId);
+        return p.storeId === activeStore || (!p.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'));
+      }
+      const c = clients.find(cl => cl.id === p.clientId);
+      if (c?.storeId) {
+        if (activeStore === 'ALL_MAIN') return isIncludedInAllMain(c.storeId);
+        return c.storeId === activeStore || (!c.storeId && (activeStore === 'CHRIFA' || activeStore === 'ENTREPOT'));
+      }
+      return activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA' || activeStore === 'ENTREPOT';
+    });
+  }, [payments, clients, activeStore, stores]);
+
+  const rejectedChequesCount = useMemo(() => {
+    return filteredPayments.filter(p => {
+      const m = p.method as string;
+      const isPaper = m === 'CHEQUE' || m === 'EFFET' || m === 'LC' || m === 'LCN' || m === 'CHECK';
+      return isPaper && p.status === 'REJECTED';
+    }).length;
+  }, [filteredPayments]);
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
@@ -759,11 +783,13 @@ export default function StockApp() {
   const handleUpdatePaymentStatus = useCallback(async (paymentId: string, status: 'PENDING' | 'CLEARED' | 'REJECTED') => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
+    const payment = payments.find((p: any) => p.id === paymentId);
+    const prevStatus = payment?.status || 'PENDING';
+
     await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', paymentId), { status });
 
     // When rejecting a payment, re-open the balance on the associated invoice
-    if (status === 'REJECTED') {
-      const payment = payments.find((p: any) => p.id === paymentId);
+    if (status === 'REJECTED' && prevStatus !== 'REJECTED') {
       if (payment?.invoiceId) {
         const invoice = invoices.find((inv: any) => inv.id === payment.invoiceId);
         if (invoice) {
@@ -777,9 +803,40 @@ export default function StockApp() {
           });
         }
       }
+    } else if (prevStatus === 'REJECTED' && (status === 'CLEARED' || status === 'PENDING')) {
+      // Re-applying the payment if it was previously marked as rejected
+      if (payment?.invoiceId) {
+        const invoice = invoices.find((inv: any) => inv.id === payment.invoiceId);
+        if (invoice) {
+          const newRemaining = Math.max(0, (invoice.remainingBalance || 0) - payment.amount);
+          const newPaid = Math.min(invoice.totalAfterDiscount, (invoice.paidAmount || 0) + payment.amount);
+          const newStatus = newRemaining <= 0 ? 'PAID' : 'PARTIAL';
+          await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
+            remainingBalance: newRemaining,
+            paidAmount: newPaid,
+            status: newStatus,
+          });
+        }
+      }
     }
 
-    toast({ title: '✅ Statut mis à jour', description: `Effet marqué comme ${status}` });
+    if (status === 'REJECTED') {
+      toast({
+        title: '🚨 Impayé Enregistré',
+        description: `Le chèque/effet a été marqué comme IMPAYÉ. Le solde du client a été réouvert.`,
+        variant: 'destructive',
+      });
+    } else if (status === 'CLEARED') {
+      toast({
+        title: '✅ Encaissement Validé',
+        description: `Le chèque/effet a été marqué comme ENCAISSÉ avec succès en banque.`,
+      });
+    } else {
+      toast({
+        title: '⏳ Statut Mis à Jour',
+        description: `Le chèque/effet est à nouveau en attente dans le portefeuille.`,
+      });
+    }
   }, [user, firestore, adminUid, toast, payments, invoices]);
 
   const handleAssignPaymentCompany = useCallback(async (paymentId: string, company: CashingCompany) => {
@@ -821,6 +878,7 @@ export default function StockApp() {
     { id: 'clients',   label: 'Clients',       category: 'commerce', icon: Users,           pointOfSaleOnly: true },
     { id: 'orders',    label: 'Commandes',     category: 'commerce', icon: ClipboardList,   pointOfSaleOnly: true },
     { id: 'invoices',  label: 'Bons de Commande', category: 'commerce', icon: FileText,        badge: openInvoices, pointOfSaleOnly: true },
+    { id: 'cheques-impayes', label: 'Chèques / Impayés', category: 'commerce', icon: CreditCard, badge: rejectedChequesCount > 0 ? rejectedChequesCount : undefined, color: 'rose', pointOfSaleOnly: true },
 
     { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
     { id: 'warehouses', label: 'Entrepôts',    category: 'logistique', icon: Warehouse,       adminOrMainOnly: true, color: 'blue' },
@@ -833,7 +891,7 @@ export default function StockApp() {
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
     
     { id: 'stores',     label: 'Paramètres',    category: 'settings', icon: Settings, adminOnly: true }
-  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length]);
+  ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length, rejectedChequesCount]);
 
   const currentStore = (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') ? stores.find(s => s.id === activeStore) : null;
   const isWarehouse = currentStore?.type === 'WAREHOUSE' || activeStore === 'ENTREPOT';
@@ -1033,6 +1091,9 @@ export default function StockApp() {
                       }`}>
                       <cat.icon className="w-4 h-4" />
                       {cat.label}
+                      {cat.id === 'commerce' && rejectedChequesCount > 0 && (
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping absolute top-1.5 right-1.5" />
+                      )}
                       {cat.id === 'finance' && urgent7DaysEffects.length > 0 && (
                         <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-1.5 right-1.5" />
                       )}
@@ -1068,6 +1129,7 @@ export default function StockApp() {
                 className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all ${
                   activeView === id
                     ? color === 'violet' ? 'bg-violet-600 text-white shadow-sm' 
+                      : color === 'rose' ? 'bg-rose-600 text-white shadow-sm'
                       : color === 'amber' ? 'bg-amber-500 text-white shadow-sm'
                       : color === 'emerald' ? 'bg-emerald-600 text-white shadow-sm'
                       : color === 'blue' ? 'bg-blue-600 text-white shadow-sm'
@@ -1078,7 +1140,7 @@ export default function StockApp() {
                 {label}
                 {badge != null && badge > 0 && (
                   <span className={`w-4 h-4 ml-1 rounded-full text-white text-[7.5px] font-black flex items-center justify-center ${
-                    id === 'alerts' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                    id === 'alerts' || id === 'cheques-impayes' ? 'bg-red-500 animate-pulse' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
                   }`}>{badge > 99 ? '99+' : badge}</span>
                 )}
               </button>
@@ -1202,6 +1264,20 @@ export default function StockApp() {
                 onRecordPayment={handleRecordPayment}
                 onRecordMultiplePayments={handleRecordMultiplePayments}
                 onUpdateStatus={handleUpdateInvoiceStatus}
+                onNavigate={setActiveView}
+              />
+            )}
+            {activeView === 'cheques-impayes' && (
+              <ChequesImpayesView
+                payments={filteredPayments}
+                allPayments={payments}
+                clients={clients}
+                invoices={invoices}
+                stores={stores}
+                activeStore={activeStore}
+                userRole={userRole}
+                userStoreId={userStoreId}
+                onUpdatePaymentStatus={handleUpdatePaymentStatus}
                 onNavigate={setActiveView}
               />
             )}
