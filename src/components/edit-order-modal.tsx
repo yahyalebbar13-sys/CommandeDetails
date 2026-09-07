@@ -133,6 +133,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         ...(q.sliderType ? { sliderType: q.sliderType } : {}),
         ...(q.tapeWeightGsm ? { tapeWeightGsm: q.tapeWeightGsm } : {}),
         ...(q.sliderWeightG ? { sliderWeightG: q.sliderWeightG } : {}),
+        ...(q.pcsPerBag ? { pcsPerBag: q.pcsPerBag } : {}),
+        ...(q.bagsPerCarton ? { bagsPerCarton: q.bagsPerCarton } : {}),
       } : p);
     } else if (rows && rows.length > 1) {
       setQualityBreakdown(rows);
@@ -154,6 +156,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         sliderType: article.sliderType || '',
         tapeWeightGsm: article.tapeWeightGsm ?? '',
         sliderWeightG: article.sliderWeightG ?? '',
+        pcsPerBag: article.pcsPerBag ?? '',
+        bagsPerCarton: article.bagsPerCarton ?? '',
         priority: article.priority || 'todo',
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
@@ -335,7 +339,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     if (!formData?.categoryId) return [];
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
     const raw = Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
-    return raw.filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))));
+    return raw.filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))));
   }, [formData?.categoryId, subCategories]);
 
   const lastOrderInfo = useMemo(() => {
@@ -355,6 +359,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         fabricWidth: formData?.fabricWidth,
         tapeWeightGsm: formData?.tapeWeightGsm,
         sliderWeightG: formData?.sliderWeightG,
+        pcsPerBag: formData?.pcsPerBag,
+        bagsPerCarton: formData?.bagsPerCarton,
       },
       allArticles || []
     );
@@ -373,6 +379,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     formData?.fabricWidth,
     formData?.tapeWeightGsm,
     formData?.sliderWeightG,
+    formData?.pcsPerBag,
+    formData?.bagsPerCarton,
     allArticles
   ]);
 
@@ -414,6 +422,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       packagingPerBag: isFabric && rawFormData.packagingPerBag ? Number(rawFormData.packagingPerBag) : null,
       tapeWeightGsm: isZipper && rawFormData.tapeWeightGsm ? Number(rawFormData.tapeWeightGsm) : null,
       sliderWeightG: isZipper && rawFormData.sliderWeightG ? Number(rawFormData.sliderWeightG) : null,
+      pcsPerBag: isZipper && rawFormData.pcsPerBag ? Number(rawFormData.pcsPerBag) : null,
+      bagsPerCarton: isZipper && rawFormData.bagsPerCarton ? Number(rawFormData.bagsPerCarton) : null,
     };
     
     let isSplit = false;
@@ -871,6 +881,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                           sliderType: q.sliderType || p.sliderType,
                           tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
                           sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                          pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                          bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
                         }));
                       }
                     }}>
@@ -887,7 +899,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 ) : null}
 
                 {/* Show current values as badges */}
-                {!qualityBreakdown && (formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
+                {!qualityBreakdown && (formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG || formData.pcsPerBag || formData.bagsPerCarton) && (
                   <div className="flex flex-wrap gap-1.5">
                     {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Taille: {formData.size}</span>}
                     {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
@@ -895,6 +907,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                     {formData.sliderType && <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-black">Type: {formData.sliderType}</span>}
                     {formData.tapeWeightGsm && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-black">Ruban: {formData.tapeWeightGsm} g/m</span>}
                     {formData.sliderWeightG && <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-700 text-[10px] font-black">Curseur: {formData.sliderWeightG} g/pc</span>}
+                    {formData.pcsPerBag && <span className="px-2 py-1 rounded-lg bg-teal-100 text-teal-700 text-[10px] font-black">{formData.pcsPerBag} pcs/bag</span>}
+                    {formData.bagsPerCarton && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black">{formData.bagsPerCarton} bags/ctn</span>}
                   </div>
                 )}
 
@@ -963,6 +977,32 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                           className="h-11 border-stone-200 font-bold rounded-xl bg-white"
                           value={formData.sliderWeightG || ''}
                           onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Pcs/bag & Bags/carton */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pcs par Bag</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 50"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.pcsPerBag || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, pcsPerBag: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Bags par Carton</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 10"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.bagsPerCarton || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, bagsPerCarton: e.target.value }))}
                         />
                       </div>
                     </div>

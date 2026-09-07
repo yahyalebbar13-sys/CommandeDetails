@@ -50,6 +50,8 @@ export function findLastOrderPrice(
   const targetWidth = Number(target.fabricWidth) || null;
   const targetTapeWeight = Number(target.tapeWeightGsm) || null;
   const targetSliderWeight = Number(target.sliderWeightG) || null;
+  const targetPcsPerBag = Number(target.pcsPerBag) || null;
+  const targetBagsPerCarton = Number(target.bagsPerCarton) || null;
 
   if (!targetCat && !targetName) return null;
 
@@ -142,6 +144,17 @@ export function findLastOrderPrice(
     if (targetTapeWeight && cTapeWeight) {
       if (targetTapeWeight === cTapeWeight) score += 20;
       else score -= 10;
+    }
+
+    // Zipper packaging matching
+    const cPcsPerBag = Number(c.pcsPerBag) || null;
+    if (targetPcsPerBag && cPcsPerBag) {
+      if (targetPcsPerBag === cPcsPerBag) score += 15;
+    }
+
+    const cBagsPerCarton = Number(c.bagsPerCarton) || null;
+    if (targetBagsPerCarton && cBagsPerCarton) {
+      if (targetBagsPerCarton === cBagsPerCarton) score += 15;
     }
 
     // Specs matching

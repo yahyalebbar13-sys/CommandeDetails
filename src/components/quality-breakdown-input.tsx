@@ -66,6 +66,8 @@ function parsePastedQualities(raw: string, availableQualities?: any[]): QualityB
       ...(matched?.sliderType ? { sliderType: matched.sliderType } : {}),
       ...(matched?.tapeWeightGsm ? { tapeWeightGsm: matched.tapeWeightGsm } : {}),
       ...(matched?.sliderWeightG ? { sliderWeightG: matched.sliderWeightG } : {}),
+      ...(matched?.pcsPerBag ? { pcsPerBag: matched.pcsPerBag } : {}),
+      ...(matched?.bagsPerCarton ? { bagsPerCarton: matched.bagsPerCarton } : {}),
     };
 
     rows.push(row);
@@ -100,12 +102,12 @@ export default function QualityBreakdownInput({
 
   const total = rows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
 
-  const notifyParent = useCallback((newRows: QualityBreakdownRow[], isEnabled: boolean) => {
-    if (!isEnabled || newRows.length === 0) {
+  const notifyParent = useCallback((updatedRows: QualityBreakdownRow[], isEnabled: boolean) => {
+    if (!isEnabled || updatedRows.length === 0) {
       onChange(null, 0);
     } else {
-      const t = newRows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
-      onChange(newRows, t);
+      const sum = updatedRows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
+      onChange(updatedRows, sum);
     }
   }, [onChange]);
 
@@ -113,8 +115,7 @@ export default function QualityBreakdownInput({
     setEnabled(checked);
     if (!checked) {
       setRows([]);
-      setPasteText('');
-      setShowPasteArea(false);
+      setRawInputs({});
       onChange(null, 0);
     } else if (rows.length === 0) {
       // Initialize with 1 first row
@@ -133,6 +134,8 @@ export default function QualityBreakdownInput({
         ...(initialQuality.sliderType ? { sliderType: initialQuality.sliderType } : {}),
         ...(initialQuality.tapeWeightGsm ? { tapeWeightGsm: initialQuality.tapeWeightGsm } : {}),
         ...(initialQuality.sliderWeightG ? { sliderWeightG: initialQuality.sliderWeightG } : {}),
+        ...(initialQuality.pcsPerBag ? { pcsPerBag: initialQuality.pcsPerBag } : {}),
+        ...(initialQuality.bagsPerCarton ? { bagsPerCarton: initialQuality.bagsPerCarton } : {}),
       } : { quality: '', quantity: 0, priceOverride: '' };
 
       const next = [initialRow];
@@ -176,6 +179,8 @@ export default function QualityBreakdownInput({
         sliderType: qObj.sliderType || undefined,
         tapeWeightGsm: qObj.tapeWeightGsm || undefined,
         sliderWeightG: qObj.sliderWeightG || undefined,
+        pcsPerBag: qObj.pcsPerBag || undefined,
+        bagsPerCarton: qObj.bagsPerCarton || undefined,
       };
     });
     setRows(next);
@@ -234,6 +239,8 @@ export default function QualityBreakdownInput({
       ...(nextUnused.sliderType ? { sliderType: nextUnused.sliderType } : {}),
       ...(nextUnused.tapeWeightGsm ? { tapeWeightGsm: nextUnused.tapeWeightGsm } : {}),
       ...(nextUnused.sliderWeightG ? { sliderWeightG: nextUnused.sliderWeightG } : {}),
+      ...(nextUnused.pcsPerBag ? { pcsPerBag: nextUnused.pcsPerBag } : {}),
+      ...(nextUnused.bagsPerCarton ? { bagsPerCarton: nextUnused.bagsPerCarton } : {}),
     } : { quality: '', quantity: 0, priceOverride: '' };
 
     const next = [...rows, newRow];
@@ -392,6 +399,10 @@ export default function QualityBreakdownInput({
                           {row.size && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{row.size}</span>}
                           {row.zipperType && <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{row.zipperType}</span>}
                           {row.slider && <span className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-700 text-[8px] font-black">{row.slider} {row.sliderType ? `(${row.sliderType})` : ''}</span>}
+                          {row.tapeWeightGsm && <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{row.tapeWeightGsm}g/m</span>}
+                          {row.sliderWeightG && <span className="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{row.sliderWeightG}g/pc</span>}
+                          {row.pcsPerBag && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{row.pcsPerBag} pcs/bag</span>}
+                          {row.bagsPerCarton && <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{row.bagsPerCarton} bags/ctn</span>}
                         </div>
                       </div>
 

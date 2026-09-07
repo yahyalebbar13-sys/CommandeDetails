@@ -355,6 +355,8 @@ export default function CategoriesView({
       sliderType?: string;
       tapeWeightGsm?: number;
       sliderWeightG?: number;
+      pcsPerBag?: number;
+      bagsPerCarton?: number;
     }[],
   });
   const [newSizeInput, setNewSizeInput] = useState('');
@@ -369,6 +371,8 @@ export default function CategoriesView({
     sliderType: 'A/L',
     tapeWeightGsm: '',
     sliderWeightG: '',
+    pcsPerBag: '',
+    bagsPerCarton: '',
   });
 
   useEffect(() => {
@@ -386,7 +390,7 @@ export default function CategoriesView({
         availableWidths: Array.isArray(currentCategoryObj.availableWidths) ? currentCategoryObj.availableWidths : [],
         fabricQualities: Array.isArray(currentCategoryObj.fabricQualities) ? currentCategoryObj.fabricQualities : [],
         zipperQualities: (Array.isArray(currentCategoryObj.zipperQualities) ? currentCategoryObj.zipperQualities : [])
-          .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))),
+          .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))),
       });
       setNewSizeInput('');
       setNewGsmInput('');
@@ -400,6 +404,8 @@ export default function CategoriesView({
         sliderType: 'A/L',
         tapeWeightGsm: '',
         sliderWeightG: '',
+        pcsPerBag: '',
+        bagsPerCarton: '',
       });
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
@@ -490,7 +496,9 @@ export default function CategoriesView({
     const zipSliderType = newZipperQualityForm.sliderType.trim();
     const zipTapeGsm = newZipperQualityForm.tapeWeightGsm ? Number(newZipperQualityForm.tapeWeightGsm) : null;
     const zipSliderG = newZipperQualityForm.sliderWeightG ? Number(newZipperQualityForm.sliderWeightG) : null;
-    const hasZipInput = Boolean(newZipperQualityForm.label.trim() || zipLen || zipSlider || zipTapeGsm || zipSliderG);
+    const zipPcsPerBag = newZipperQualityForm.pcsPerBag ? Number(newZipperQualityForm.pcsPerBag) : null;
+    const zipBagsPerCtn = newZipperQualityForm.bagsPerCarton ? Number(newZipperQualityForm.bagsPerCarton) : null;
+    const hasZipInput = Boolean(newZipperQualityForm.label.trim() || zipLen || zipSlider || zipTapeGsm || zipSliderG || zipPcsPerBag || zipBagsPerCtn);
     if (hasZipInput) {
       const autoLabel = [
         zipLen || null,
@@ -499,6 +507,8 @@ export default function CategoriesView({
         zipSliderType ? `(${zipSliderType})` : null,
         zipTapeGsm ? `${zipTapeGsm}g/m` : null,
         zipSliderG ? `${zipSliderG}g/pc` : null,
+        zipPcsPerBag ? `${zipPcsPerBag}pcs/bag` : null,
+        zipBagsPerCtn ? `${zipBagsPerCtn}bags/ctn` : null,
       ].filter(Boolean).join(' · ');
       const label = newZipperQualityForm.label.trim() || autoLabel || 'Qualité Zipper';
       currentZipperQualities.push({
@@ -509,6 +519,8 @@ export default function CategoriesView({
         sliderType: zipSliderType || undefined,
         tapeWeightGsm: zipTapeGsm ?? undefined,
         sliderWeightG: zipSliderG ?? undefined,
+        pcsPerBag: zipPcsPerBag ?? undefined,
+        bagsPerCarton: zipBagsPerCtn ?? undefined,
       });
       setNewZipperQualityForm({
         label: '',
@@ -518,6 +530,8 @@ export default function CategoriesView({
         sliderType: 'A/L',
         tapeWeightGsm: '',
         sliderWeightG: '',
+        pcsPerBag: '',
+        bagsPerCarton: '',
       });
     }
 
@@ -533,7 +547,7 @@ export default function CategoriesView({
     });
 
     const cleanZipperQualities = currentZipperQualities
-      .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
+      .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
       .map(q => {
         const item: Record<string, any> = { label: q.label || 'Qualité' };
         if (q.length) item.length = q.length;
@@ -542,6 +556,8 @@ export default function CategoriesView({
         if (q.sliderType) item.sliderType = q.sliderType;
         if (q.tapeWeightGsm != null && !isNaN(Number(q.tapeWeightGsm))) item.tapeWeightGsm = Number(q.tapeWeightGsm);
         if (q.sliderWeightG != null && !isNaN(Number(q.sliderWeightG))) item.sliderWeightG = Number(q.sliderWeightG);
+        if (q.pcsPerBag != null && !isNaN(Number(q.pcsPerBag))) item.pcsPerBag = Number(q.pcsPerBag);
+        if (q.bagsPerCarton != null && !isNaN(Number(q.bagsPerCarton))) item.bagsPerCarton = Number(q.bagsPerCarton);
         return item;
       });
 
@@ -1697,7 +1713,7 @@ export default function CategoriesView({
         {/* ── Type de Produit — Zipper only ── */}
         {isZipperCat && (() => {
           const qualities = (Array.isArray(currentCategoryObj?.zipperQualities) ? currentCategoryObj.zipperQualities : [])
-            .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')));
+            .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')));
 
           // Also compute order stats per zipper quality
           const qualityStats = qualities.map(q => {
@@ -1763,6 +1779,8 @@ export default function CategoriesView({
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Type Curseur</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Ruban (g/m)</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Curseur (g/pc)</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Pcs/bag</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Bags/ctn</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
@@ -1803,6 +1821,16 @@ export default function CategoriesView({
                             ) : <span className="text-stone-200 text-[9px]">—</span>}
                           </TableCell>
                           <TableCell className="text-center">
+                            {pt.pcsPerBag ? (
+                              <span className="text-[10px] font-black text-teal-700">{pt.pcsPerBag} pcs/bag</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.bagsPerCarton ? (
+                              <span className="text-[10px] font-black text-indigo-700">{pt.bagsPerCarton} bags/ctn</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
                             <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
                           </TableCell>
                           <TableCell className="text-center">
@@ -1815,7 +1843,7 @@ export default function CategoriesView({
                       ))}
                       {qualities.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                          <TableCell colSpan={12} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
                             Aucune qualité définie — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
@@ -2032,6 +2060,10 @@ export default function CategoriesView({
                             {row.size && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{row.size}</span>}
                             {row.zipperType && <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{row.zipperType}</span>}
                             {row.slider && <span className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-700 text-[8px] font-black">{row.slider} {row.sliderType ? `(${row.sliderType})` : ''}</span>}
+                            {row.tapeWeightGsm && <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{row.tapeWeightGsm}g/m</span>}
+                            {row.sliderWeightG && <span className="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{row.sliderWeightG}g/pc</span>}
+                            {row.pcsPerBag && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{row.pcsPerBag} pcs/bag</span>}
+                            {row.bagsPerCarton && <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{row.bagsPerCarton} bags/ctn</span>}
                           </div>
                         </div>
                         <div className="text-[11px] font-black text-stone-900 text-right">
@@ -2248,6 +2280,8 @@ export default function CategoriesView({
                           {q.sliderType && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[8px] font-black">{q.sliderType}</span>}
                           {q.tapeWeightGsm && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{q.tapeWeightGsm} g/m</span>}
                           {q.sliderWeightG && <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{q.sliderWeightG} g/pc</span>}
+                          {q.pcsPerBag && <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{q.pcsPerBag} pcs/bag</span>}
+                          {q.bagsPerCarton && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{q.bagsPerCarton} bags/ctn</span>}
                         </div>
                         <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
                           onClick={() => setCustomsForm(p => ({ ...p, zipperQualities: p.zipperQualities.filter((_, i) => i !== idx) }))}>×</button>
@@ -2264,7 +2298,7 @@ export default function CategoriesView({
                   <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">+ Nouvelle Qualité Zipper</p>
                   <Input placeholder="Label (auto si vide)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
                     value={newZipperQualityForm.label} onChange={e => setNewZipperQualityForm(p => ({ ...p, label: e.target.value }))} />
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div>
                       <Input 
                         list="zipper-sizes-datalist"
@@ -2299,6 +2333,10 @@ export default function CategoriesView({
                       value={newZipperQualityForm.tapeWeightGsm} onChange={e => setNewZipperQualityForm(p => ({ ...p, tapeWeightGsm: e.target.value }))} />
                     <Input type="number" step="any" placeholder="Poids curseur g/pcs" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
                       value={newZipperQualityForm.sliderWeightG} onChange={e => setNewZipperQualityForm(p => ({ ...p, sliderWeightG: e.target.value }))} />
+                    <Input type="number" step="any" placeholder="Pcs / bag" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
+                      value={newZipperQualityForm.pcsPerBag} onChange={e => setNewZipperQualityForm(p => ({ ...p, pcsPerBag: e.target.value }))} />
+                    <Input type="number" step="any" placeholder="Bags / ctn" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
+                      value={newZipperQualityForm.bagsPerCarton} onChange={e => setNewZipperQualityForm(p => ({ ...p, bagsPerCarton: e.target.value }))} />
                   </div>
                   <Button type="button" variant="outline" size="sm"
                     className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
@@ -2309,8 +2347,10 @@ export default function CategoriesView({
                       const sliderType = newZipperQualityForm.sliderType.trim();
                       const tapeWeightGsm = newZipperQualityForm.tapeWeightGsm ? Number(newZipperQualityForm.tapeWeightGsm) : undefined;
                       const sliderWeightG = newZipperQualityForm.sliderWeightG ? Number(newZipperQualityForm.sliderWeightG) : undefined;
+                      const pcsPerBag = newZipperQualityForm.pcsPerBag ? Number(newZipperQualityForm.pcsPerBag) : undefined;
+                      const bagsPerCarton = newZipperQualityForm.bagsPerCarton ? Number(newZipperQualityForm.bagsPerCarton) : undefined;
 
-                      if (!length && !slider && !tapeWeightGsm && !sliderWeightG && !newZipperQualityForm.label.trim()) return;
+                      if (!length && !slider && !tapeWeightGsm && !sliderWeightG && !pcsPerBag && !bagsPerCarton && !newZipperQualityForm.label.trim()) return;
 
                       const autoLabel = [
                         length || null,
@@ -2319,6 +2359,8 @@ export default function CategoriesView({
                         sliderType ? `(${sliderType})` : null,
                         tapeWeightGsm ? `${tapeWeightGsm}g/m` : null,
                         sliderWeightG ? `${sliderWeightG}g/pc` : null,
+                        pcsPerBag ? `${pcsPerBag}pcs/bag` : null,
+                        bagsPerCarton ? `${bagsPerCarton}bags/ctn` : null,
                       ].filter(Boolean).join(' · ');
 
                       const label = newZipperQualityForm.label.trim() || autoLabel || 'Qualité Zipper';
@@ -2330,6 +2372,8 @@ export default function CategoriesView({
                       if (sliderType) newQuality.sliderType = sliderType;
                       if (tapeWeightGsm != null && !isNaN(tapeWeightGsm)) newQuality.tapeWeightGsm = tapeWeightGsm;
                       if (sliderWeightG != null && !isNaN(sliderWeightG)) newQuality.sliderWeightG = sliderWeightG;
+                      if (pcsPerBag != null && !isNaN(pcsPerBag)) newQuality.pcsPerBag = pcsPerBag;
+                      if (bagsPerCarton != null && !isNaN(bagsPerCarton)) newQuality.bagsPerCarton = bagsPerCarton;
 
                       setCustomsForm(p => ({
                         ...p,
@@ -2347,6 +2391,8 @@ export default function CategoriesView({
                         sliderType: 'A/L',
                         tapeWeightGsm: '',
                         sliderWeightG: '',
+                        pcsPerBag: '',
+                        bagsPerCarton: '',
                       });
                     }}>
                     <Plus className="w-3 h-3 mr-1" /> Ajouter Qualité Zipper

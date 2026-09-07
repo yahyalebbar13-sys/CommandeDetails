@@ -40,6 +40,8 @@ export type Category = {
     sliderType?: string;       // Type du curseur (ex: "A/L", "P/L", "N/L", "SEMI A/L")
     tapeWeightGsm?: number;    // Grammage du ruban/m (ex: 20.5 g/m, 13 g/m)
     sliderWeightG?: number;    // Poids du curseur/pcs (ex: 1 g/pc, 2.5 g/pc)
+    pcsPerBag?: number;        // Nombre de pcs/bag
+    bagsPerCarton?: number;    // Nombre de bags/ctn
   }[];
 };
 
@@ -60,6 +62,8 @@ export interface QualityBreakdownRow {
   sliderType?: string;
   tapeWeightGsm?: number;
   sliderWeightG?: number;
+  pcsPerBag?: number;
+  bagsPerCarton?: number;
 }
 
 export type Order = {
@@ -100,6 +104,8 @@ export type Order = {
   // Zipper-specific fields
   tapeWeightGsm?: number;     // Grammage du ruban/m
   sliderWeightG?: number;     // Poids du curseur/pcs
+  pcsPerBag?: number;         // Nombre de pcs/bag
+  bagsPerCarton?: number;     // Nombre de bags/ctn
 };
 
 export type Facture = {

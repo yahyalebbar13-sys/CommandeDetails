@@ -65,6 +65,8 @@ const EMPTY_FORM = {
   // Zipper fields
   tapeWeightGsm: '' as string | number,
   sliderWeightG: '' as string | number,
+  pcsPerBag: '' as string | number,
+  bagsPerCarton: '' as string | number,
 };
 
 export function AddOrderForm({ 
@@ -192,6 +194,8 @@ export function AddOrderForm({
         ...(q.sliderType ? { sliderType: q.sliderType } : {}),
         ...(q.tapeWeightGsm ? { tapeWeightGsm: q.tapeWeightGsm } : {}),
         ...(q.sliderWeightG ? { sliderWeightG: q.sliderWeightG } : {}),
+        ...(q.pcsPerBag ? { pcsPerBag: q.pcsPerBag } : {}),
+        ...(q.bagsPerCarton ? { bagsPerCarton: q.bagsPerCarton } : {}),
       }));
     } else if (rows && rows.length > 1) {
       setQualityBreakdown(rows);
@@ -294,7 +298,7 @@ export function AddOrderForm({
     if (!formData.categoryId) return [];
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
     const raw = Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
-    return raw.filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))));
+    return raw.filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))));
   }, [formData.categoryId, subCategories]);
 
   // Validation
@@ -358,6 +362,8 @@ export function AddOrderForm({
       // Zipper fields — convert to numbers, null if empty
       tapeWeightGsm: formData.tapeWeightGsm ? Number(formData.tapeWeightGsm) : null,
       sliderWeightG: formData.sliderWeightG ? Number(formData.sliderWeightG) : null,
+      pcsPerBag: formData.pcsPerBag ? Number(formData.pcsPerBag) : null,
+      bagsPerCarton: formData.bagsPerCarton ? Number(formData.bagsPerCarton) : null,
     };
 
     if (isInventoryMode) {
@@ -389,6 +395,8 @@ export function AddOrderForm({
           ...(firstRow.sliderType ? { sliderType: firstRow.sliderType } : {}),
           ...(firstRow.tapeWeightGsm ? { tapeWeightGsm: firstRow.tapeWeightGsm } : {}),
           ...(firstRow.sliderWeightG ? { sliderWeightG: firstRow.sliderWeightG } : {}),
+          ...(firstRow.pcsPerBag ? { pcsPerBag: firstRow.pcsPerBag } : {}),
+          ...(firstRow.bagsPerCarton ? { bagsPerCarton: firstRow.bagsPerCarton } : {}),
         } : {};
 
         setDocumentNonBlocking(
@@ -765,6 +773,8 @@ export function AddOrderForm({
                           sliderType: q.sliderType || p.sliderType,
                           tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
                           sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                          pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                          bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
                         }));
                       }
                     }}>
@@ -813,7 +823,7 @@ export function AddOrderForm({
                     {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
                   </span>
                 </div>
-              ) : (formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG) && (
+              ) : (formData.size || formData.zipperType || formData.slider || formData.tapeWeightGsm || formData.sliderWeightG || formData.pcsPerBag || formData.bagsPerCarton) && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {formData.size && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Taille: {formData.size}</span>}
                   {formData.zipperType && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black">{formData.zipperType}</span>}
@@ -821,6 +831,8 @@ export function AddOrderForm({
                   {formData.sliderType && <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-black">Type: {formData.sliderType}</span>}
                   {formData.tapeWeightGsm && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-black">Ruban: {formData.tapeWeightGsm} g/m</span>}
                   {formData.sliderWeightG && <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-700 text-[10px] font-black">Curseur: {formData.sliderWeightG} g/pc</span>}
+                  {formData.pcsPerBag && <span className="px-2 py-1 rounded-lg bg-teal-100 text-teal-700 text-[10px] font-black">{formData.pcsPerBag} pcs/bag</span>}
+                  {formData.bagsPerCarton && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black">{formData.bagsPerCarton} bags/ctn</span>}
                 </div>
               )}
 
@@ -865,6 +877,18 @@ export function AddOrderForm({
                       <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids Curseur (g/pcs)</Label>
                       <Input type="number" step="any" placeholder="Ex: 1.2" className="h-11 border-stone-200 font-bold rounded-xl"
                         value={formData.sliderWeightG || ''} onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pcs par Bag</Label>
+                      <Input type="number" step="any" placeholder="Ex: 50" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.pcsPerBag || ''} onChange={e => setFormData((p: any) => ({ ...p, pcsPerBag: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Bags par Carton</Label>
+                      <Input type="number" step="any" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.bagsPerCarton || ''} onChange={e => setFormData((p: any) => ({ ...p, bagsPerCarton: e.target.value }))} />
                     </div>
                   </div>
                 </div>
