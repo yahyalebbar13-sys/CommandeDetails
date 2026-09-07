@@ -72,7 +72,7 @@ const EMPTY_FORM = {
 export function AddOrderForm({ 
   onClose,
   isInventoryMode = false,
-  activeStore = 'ENTREPOT',
+  activeStore = 'CHRIFA',
   adminUid = null,
   onSuccess
 }: { 
@@ -382,7 +382,7 @@ export function AddOrderForm({
       groups.forEach((rows, price) => {
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || 0), 0);
-        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         const firstRow = rows[0];
         const rowSpecs = rows.length === 1 ? {
           ...(firstRow.gsm ? { gsm: firstRow.gsm } : {}),
@@ -428,7 +428,7 @@ export function AddOrderForm({
       groups.forEach((rows, price) => {
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
-        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
           { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload },
@@ -447,7 +447,7 @@ export function AddOrderForm({
       groups.forEach((rows, price) => {
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
-        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
           { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
@@ -466,7 +466,7 @@ export function AddOrderForm({
       groups.forEach((rows, price) => {
         const groupQty = rows.reduce((sum, r) => sum + (Number((r as any).quantity) || Number((r as any).rolls) || 0), 0);
         const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
-        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: groupQty } } : {};
+        const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
           { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
@@ -475,7 +475,7 @@ export function AddOrderForm({
       });
     } else {
       const id = doc(collection(firestore, 'users', effectiveUid, 'articles')).id;
-      const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'ENTREPOT']: Number(formData.quantity) || 0 } } : {};
+      const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: Number(formData.quantity) || 0 } } : {};
       setDocumentNonBlocking(
         doc(firestore, 'users', effectiveUid, 'articles', id),
         { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },

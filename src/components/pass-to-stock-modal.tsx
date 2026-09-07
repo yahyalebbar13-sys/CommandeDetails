@@ -28,7 +28,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
   const warehouseOptions = React.useMemo(() => {
     const list = (stores || []).filter((s: any) => s.type === 'WAREHOUSE');
     if (list.length > 0) return list;
-    return [{ id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE' }];
+    return (stores || []);
   }, [stores]);
 
   const [formData, setFormData] = useState({
@@ -52,7 +52,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
       });
       
       if (associatedArticles && associatedArticles.length > 0) {
-        const defaultWh = warehouseOptions[0]?.id || 'ENTREPOT';
+        const defaultWh = warehouseOptions[0]?.id || '';
         const initialSelections: Record<string, string> = {};
         associatedArticles.forEach(a => {
           initialSelections[a.id] = defaultWh;
@@ -203,7 +203,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
           unitOfMeasure:    article.unitOfMeasure || 'unité',
           type:             'IN',
           reason:           'ARRIVAGE',
-          storeId:          storeSelections[article.id] || 'ENTREPOT',
+          storeId:          storeSelections[article.id] || warehouseOptions[0]?.id || '',
           quantity:         Number(article.quantity) || 0,
           date:             formData.stockEntryDate,
           factureId:        facture.id,
@@ -349,7 +349,7 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
                         </div>
                       </div>
                       <select
-                        value={storeSelections[article.id] || warehouseOptions[0]?.id || 'ENTREPOT'}
+                        value={storeSelections[article.id] || warehouseOptions[0]?.id || ''}
                         onChange={(e) => setStoreSelections(prev => ({ ...prev, [article.id]: e.target.value }))}
                         className="h-8 rounded-lg border-stone-200 text-xs font-bold bg-white"
                       >

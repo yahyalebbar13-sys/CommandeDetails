@@ -445,29 +445,26 @@ export default function StockApp() {
   useEffect(() => {
     if (!firestore || !adminUid || loadingStores || userRole !== 'ADMIN') return;
     const runMigration = async () => {
-      const migrated = localStorage.getItem('stores_migrated_v5');
+      const migrated = localStorage.getItem('stores_migrated_v6');
       if (migrated) return;
       
       const defaults = [
         { id: 'CHRIFA', name: 'CHRIFA', type: 'STORE', isMain: true, accessEmail: 'chrifa@lebtex.ma' },
         { id: 'DERB_OMAR', name: 'Derb omar', type: 'STORE', isMain: false, accessEmail: 'derbomar@lebtex.ma' },
         { id: 'IDAA', name: 'IDAA', type: 'STORE', isMain: false, accessEmail: 'idaa@lebtex.ma' },
-        { id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE', isMain: false },
       ];
 
-      // Delete existing stores not in defaults
-      for (const s of stores) {
-        if (!defaults.find(d => d.id === s.id)) {
-          await deleteDoc(doc(firestore, 'users', adminUid, 'stores', s.id));
-        }
-      }
+      // Supprimer l'ancien entrepôt par défaut
+      try {
+        await deleteDoc(doc(firestore, 'users', adminUid, 'stores', 'ENTREPOT'));
+      } catch (_) {}
 
       // Add/update defaults
       for (const s of defaults) {
         await setDoc(doc(firestore, 'users', adminUid, 'stores', s.id), s, { merge: true });
       }
       
-      localStorage.setItem('stores_migrated_v5', 'true');
+      localStorage.setItem('stores_migrated_v6', 'true');
     };
     runMigration();
   }, [userRole, firestore, adminUid, loadingStores, stores]);
@@ -480,10 +477,10 @@ export default function StockApp() {
   }), [allMovements]);
 
   const warehouses = useMemo(() => stores.filter(s => s.type === 'WAREHOUSE'), [stores]);
-  const [inventoryWarehouseId, setInventoryWarehouseId] = useState<string>('ENTREPOT');
+  const [inventoryWarehouseId, setInventoryWarehouseId] = useState<string>('');
   
   useEffect(() => {
-    if (warehouses.length > 0 && !warehouses.some(w => w.id === inventoryWarehouseId)) {
+    if (warehouses.length > 0 && (!inventoryWarehouseId || !warehouses.some(w => w.id === inventoryWarehouseId))) {
       setInventoryWarehouseId(warehouses[0].id);
     }
   }, [warehouses, inventoryWarehouseId]);
@@ -984,9 +981,9 @@ export default function StockApp() {
 
     // Si c'est un achat marchandise du marché et que la case "Ajouter au stock" est cochée
     if (exp.category === 'ACHAT_MARCHANDISE' && exp.addToStock && exp.articleName && exp.quantity && exp.quantity > 0) {
-      const targetStore = exp.storeId || 'ENTREPOT'; // Entrepôt choisi par l'utilisateur
+      const targetStore = exp.storeId || (stores.find(s => s.type === 'WAREHOUSE')?.id || stores[0]?.id || 'CHRIFA');
       const targetStoreObj = stores.find(s => s.id === targetStore);
-      const targetStoreName = targetStoreObj?.name || (targetStore === 'ENTREPOT' ? 'Entrepôt Principal' : targetStore);
+      const targetStoreName = targetStoreObj?.name || targetStore;
       const unitPrice = exp.unitPrice || (exp.quantity > 0 ? exp.amount / exp.quantity : 0);
 
       // 1. Créer l'article dans la collection articles pour qu'il soit reconnu dans tout le système (fiches de stock, caisse, etc.)
@@ -1042,7 +1039,7 @@ export default function StockApp() {
 
     const payload = {
       ...exp,
-      storeId: exp.storeId || (exp.category === 'ACHAT_MARCHANDISE' ? 'ENTREPOT' : 'CHRIFA'),
+      storeId: exp.storeId || (stores.find(s => s.type === 'WAREHOUSE')?.id || stores[0]?.id || 'CHRIFA'),
       ...(movementId ? { stockMovementId: movementId } : {}),
       ...(createdArticleId ? { articleId: createdArticleId } : {}),
     };
@@ -1053,9 +1050,9 @@ export default function StockApp() {
     });
 
     if (movementId) {
-      const targetStore = exp.storeId || 'ENTREPOT';
+      const targetStore = exp.storeId || (stores.find(s => s.type === 'WAREHOUSE')?.id || stores[0]?.id || 'CHRIFA');
       const targetStoreObj = stores.find(s => s.id === targetStore);
-      const targetStoreName = targetStoreObj?.name || (targetStore === 'ENTREPOT' ? 'Entrepôt Principal' : targetStore);
+      const targetStoreName = targetStoreObj?.name || targetStore;
       toast({
         title: `📦 Marchandise entrée à ${targetStoreName} !`,
         description: `${exp.quantity} ${exp.unitOfMeasure || 'pcs'} de "${exp.articleName}" ajoutés au stock (${targetStoreName}) et dépense enregistrée.`,
@@ -1151,7 +1148,7 @@ export default function StockApp() {
   ], [pendingArrivals, openInvoices, alertCount, urgent7DaysEffects.length, rejectedChequesCount]);
 
   const currentStore = (activeStore !== 'ALL' && activeStore !== 'ALL_MAIN') ? stores.find(s => s.id === activeStore) : null;
-  const isWarehouse = currentStore?.type === 'WAREHOUSE' || activeStore === 'ENTREPOT';
+  const isWarehouse = currentStore?.type === 'WAREHOUSE';
   const isChrifa = userRole === 'COMMERCIAL' && (userStoreId === 'CHRIFA' || stores.some(s => s.id === userStoreId && (s.isMain || s.id === 'CHRIFA')));
 
   const navItems = useMemo(() => {

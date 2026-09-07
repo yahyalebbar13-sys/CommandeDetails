@@ -118,18 +118,15 @@ export default function CommercialExpensesView({
 
   // Options d'entrepôts pour l'achat de marchandise
   const warehouseOptions = useMemo(() => {
-    const list = (stores || []).filter((s: any) =>
+    return (stores || []).filter((s: any) =>
       s.type === 'WAREHOUSE' ||
-      s.id === 'ENTREPOT' ||
       s.name?.toLowerCase().includes('entrep') ||
       s.name?.toLowerCase().includes('dépôt') ||
       s.name?.toLowerCase().includes('depot')
     );
-    if (list.length > 0) return list;
-    return [{ id: 'ENTREPOT', name: 'Entrepôt Principal', type: 'WAREHOUSE' }];
   }, [stores]);
 
-  const [newWarehouseId, setNewWarehouseId] = useState<string>('ENTREPOT');
+  const [newWarehouseId, setNewWarehouseId] = useState<string>('');
 
   useEffect(() => {
     if (warehouseOptions.length > 0 && (!newWarehouseId || !warehouseOptions.some(w => w.id === newWarehouseId))) {
@@ -462,7 +459,7 @@ export default function CommercialExpensesView({
       setNewUnitPrice('');
       setNewSupplierName('');
       setNewAddToStock(true);
-      setNewWarehouseId(warehouseOptions[0]?.id || 'ENTREPOT');
+      setNewWarehouseId(warehouseOptions[0]?.id || '');
       setSelectedGenCatId('');
       setSelectedCategoryName('');
       setSelectedColor('white');
@@ -1307,18 +1304,24 @@ export default function CommercialExpensesView({
                       </span>
                     </div>
 
-                    <Select value={newWarehouseId} onValueChange={setNewWarehouseId}>
-                      <SelectTrigger className="rounded-xl h-10 text-xs font-black bg-white border-amber-300 shadow-sm">
-                        <SelectValue placeholder="Choisir l'entrepôt" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {warehouseOptions.map(wh => (
-                          <SelectItem key={wh.id} value={wh.id} className="text-xs font-bold">
-                            🏭 {wh.name} {wh.id === 'ENTREPOT' ? '(Principal)' : `(${wh.id})`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {warehouseOptions.length === 0 ? (
+                      <div className="p-3 bg-white rounded-xl border border-amber-300 text-amber-900 text-xs font-medium">
+                        ⚠️ Aucun entrepôt configuré dans le système. Vous pouvez créer vos entrepôts personnalisés dans l'onglet <strong>Paramètres</strong> / <strong>Entrepôts</strong>.
+                      </div>
+                    ) : (
+                      <Select value={newWarehouseId} onValueChange={setNewWarehouseId}>
+                        <SelectTrigger className="rounded-xl h-10 text-xs font-black bg-white border-amber-300 shadow-sm">
+                          <SelectValue placeholder="Choisir l'entrepôt" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {warehouseOptions.map(wh => (
+                            <SelectItem key={wh.id} value={wh.id} className="text-xs font-bold">
+                              🏭 {wh.name} ({wh.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {/* Case à cocher : Entrée automatique en stock entrepôt */}
