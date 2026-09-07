@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
-  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt
+  Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
+  Calendar, Clock, Filter
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -29,12 +30,9 @@ import StockFiches      from './stock-fiches';
 import AuthView         from '@/components/auth-view';
 import { cleanUndefined } from '@/lib/utils';
 import { Button }       from '@/components/ui/button';
+import { Input }        from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import ArrivalsView     from './arrivals-view';
-import SaleOrdersView   from './sale-orders-view';
-import InvoiceView      from './invoice-view';
-import SalesPos         from './sales-pos';
 import TransferOrdersView from './transfer-orders-view';
 import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
@@ -555,7 +553,49 @@ export default function StockApp() {
 
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
-  const pendingArrivals = factures.filter((f: any) => f.arrivalDate && !f.stockEntryDate).length;
+
+  // Filtres & statistiques des arrivages (limité à 1 mois pour les dossiers entrés en stock)
+  const [arrivalFilter, setArrivalFilter] = useState<'RECENT' | 'PENDING' | 'ENTERED_1M' | 'ALL'>('RECENT');
+  const [arrivalSearch, setArrivalSearch] = useState<string>('');
+
+  const arrivalsStats = useMemo(() => {
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoStr = oneMonthAgo.toISOString().split('T')[0];
+
+    let pending = 0;
+    let entered1M = 0;
+    let enteredOld = 0;
+
+    factures.forEach((f: any) => {
+      const factureArts = articles.filter((a: any) => a.factureId === f.id);
+      const artCount = factureArts.length;
+      const validatedCount = factureArts.filter((a: any) =>
+        movements.some(m => m.articleId === a.id && m.type === 'IN')
+      ).length;
+      const hasInMovement = movements.some(m => m.factureId === f.id && m.type === 'IN');
+      const isValidated = (validatedCount > 0 && validatedCount === artCount) || (artCount > 0 && !!f.stockEntryDate) || hasInMovement;
+
+      const entryDate = f.stockEntryDate ||
+        factureArts.find((a: any) => a.stockEntryDate)?.stockEntryDate ||
+        movements.find(m => m.factureId === f.id && m.type === 'IN')?.date ||
+        null;
+
+      if (!isValidated) {
+        if (f.arrivalDate) pending++;
+      } else {
+        if (entryDate && entryDate >= oneMonthAgoStr) {
+          entered1M++;
+        } else {
+          enteredOld++;
+        }
+      }
+    });
+
+    return { pending, entered1M, enteredOld, totalRecent: pending + entered1M };
+  }, [factures, articles, movements]);
+
+  const pendingArrivals = arrivalsStats.pending;
 
   // Pass-to-stock modal (depuis onglet Arrivages)
   const [passToStockId, setPassToStockId] = useState<string | null>(null);
@@ -1623,102 +1663,337 @@ export default function StockApp() {
             {activeView === 'stores' && userRole === 'ADMIN' && (
               <StoresView stores={stores} adminUid={adminUid} />
             )}
-            {activeView === 'arrivals' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                {/* Header */}
-                <div className="bg-stone-900 rounded-3xl p-8 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-                  <div className="relative z-10">
-                    <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique Import</p>
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Arrivages <span className="text-amber-500">StockVue</span></h2>
-                    <p className="text-stone-400 text-sm mt-2">{factures.length} dossier(s) · {pendingArrivals} en attente d'entrée en stock</p>
-                  </div>
-                </div>
-                {/* Liste arrivages */}
-                {factures.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-16 text-center border border-stone-100">
-                    <Anchor className="w-12 h-12 text-stone-200 mx-auto mb-4" />
-                    <p className="text-stone-300 font-black uppercase text-[10px] tracking-widest">Aucun arrivage dans StockVue</p>
-                    <p className="text-stone-200 text-[9px] font-bold mt-1">Déclarez un dossier dans StockVue → Arrivages</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {[...factures].filter(f => !f.arrivalDate || f.arrivalDate >= RESET_DATE).sort((a: any, b: any) => (b.arrivalDate || '').localeCompare(a.arrivalDate || '')).map((f: any) => {
-                      const factureArts = articles.filter((a: any) => a.factureId === f.id);
-                      const artCount = factureArts.length;
-                      // Un arrivage est "en stock" UNIQUEMENT si des mouvements IN ont été créés (validation manuelle)
-                      const validatedCount = factureArts.filter((a: any) =>
-                        movements.some(m => m.articleId === a.id && m.type === 'IN')
-                      ).length;
-                      const isValidated = validatedCount > 0 && validatedCount === artCount;
-                      const isPartial   = validatedCount > 0 && validatedCount < artCount;
-                      const canValidate = !!f.arrivalDate && !isValidated;
-                      return (
-                        <div key={f.id} className={`bg-white rounded-2xl border-2 p-6 flex flex-col gap-4 transition-all ${
-                          isValidated ? 'border-emerald-200' : isPartial ? 'border-amber-300' : f.arrivalDate ? 'border-amber-100' : 'border-stone-100'
-                        }`}>
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || '—'}</p>
-                              <h3 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
-                            </div>
-                            {isValidated ? (
-                              <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
-                                <CheckCircle2 className="w-3 h-3" /> En stock
-                              </span>
-                            ) : isPartial ? (
-                              <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
-                                <Anchor className="w-3 h-3" /> Partiel ({validatedCount}/{artCount})
-                              </span>
-                            ) : f.arrivalDate ? (
-                              <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
-                                <Anchor className="w-3 h-3" /> Arrivé
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 bg-stone-100 text-stone-500 text-[8px] font-black uppercase px-2.5 py-1 rounded-full">
-                                En transit
-                              </span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-center">
-                            <div className="bg-stone-50 rounded-xl p-2">
-                              <p className="text-[8px] font-black text-stone-400 uppercase">Arrivée</p>
-                              <p className="text-[10px] font-black text-stone-700">{f.arrivalDate || '—'}</p>
-                            </div>
-                            <div className="bg-stone-50 rounded-xl p-2">
-                              <p className="text-[8px] font-black text-stone-400 uppercase">Articles</p>
-                              <p className="text-[10px] font-black text-stone-700">{artCount}</p>
-                            </div>
-                            <div className="bg-stone-50 rounded-xl p-2">
-                              <p className="text-[8px] font-black text-stone-400 uppercase">Validés</p>
-                              <p className={`text-[10px] font-black ${isValidated ? 'text-emerald-600' : isPartial ? 'text-amber-600' : 'text-stone-300'}`}>
-                                {validatedCount}/{artCount}
-                              </p>
-                            </div>
-                          </div>
-                          {canValidate && (
-                            <button
-                              onClick={() => setPassToStockId(f.id)}
-                              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-500/20 hover:scale-[1.02] active:scale-95"
-                            >
-                              <Archive className="w-3.5 h-3.5" />
-                              Valider l'Entrée en Stock + Coût de Revient
-                            </button>
-                          )}
-                          {isValidated && (
-                            <div className="flex items-center gap-2 justify-center text-emerald-600 text-[9px] font-black uppercase">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Entrée validée — {artCount} article(s) en stock
-                            </div>
-                          )}
+            {activeView === 'arrivals' && (() => {
+              const oneMonthAgo = new Date();
+              oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+              const oneMonthAgoStr = oneMonthAgo.toISOString().split('T')[0];
+
+              const formatDaysAgo = (dateStr: string | null) => {
+                if (!dateStr) return '';
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  const now = new Date();
+                  now.setHours(0, 0, 0, 0);
+                  d.setHours(0, 0, 0, 0);
+                  const diffDays = Math.round((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+                  if (diffDays <= 0) return "Aujourd'hui";
+                  if (diffDays === 1) return "Hier";
+                  return `Il y a ${diffDays} j`;
+                }
+                return '';
+              };
+
+              const arrivalCardsData = factures
+                .map((f: any) => {
+                  const factureArts = articles.filter((a: any) => a.factureId === f.id);
+                  const artCount = factureArts.length;
+                  const validatedCount = factureArts.filter((a: any) =>
+                    movements.some(m => m.articleId === a.id && m.type === 'IN')
+                  ).length;
+                  const hasInMovement = movements.some(m => m.factureId === f.id && m.type === 'IN');
+                  const isValidated = (validatedCount > 0 && validatedCount === artCount) || (artCount > 0 && !!f.stockEntryDate) || hasInMovement;
+                  const isPartial   = validatedCount > 0 && validatedCount < artCount;
+                  const canValidate = !!f.arrivalDate && !isValidated;
+
+                  const stockEntryDate = f.stockEntryDate ||
+                    factureArts.find((a: any) => a.stockEntryDate)?.stockEntryDate ||
+                    movements.find(m => m.factureId === f.id && m.type === 'IN')?.date ||
+                    null;
+
+                  const isEnteredLast1Month = stockEntryDate ? stockEntryDate >= oneMonthAgoStr : false;
+
+                  return {
+                    f,
+                    factureArts,
+                    artCount,
+                    validatedCount,
+                    isValidated,
+                    isPartial,
+                    canValidate,
+                    stockEntryDate,
+                    isEnteredLast1Month,
+                  };
+                })
+                .filter((item) => {
+                  const { f, isValidated, isEnteredLast1Month } = item;
+
+                  // Filtre par recherche
+                  if (arrivalSearch.trim()) {
+                    const q = arrivalSearch.toLowerCase().trim();
+                    const matchId = (f.id || '').toLowerCase().includes(q);
+                    const matchSupplier = (f.supplier || f.supplierId || '').toLowerCase().includes(q);
+                    if (!matchId && !matchSupplier) return false;
+                  }
+
+                  // Filtre par onglet
+                  if (arrivalFilter === 'PENDING') {
+                    return !isValidated;
+                  }
+                  if (arrivalFilter === 'ENTERED_1M') {
+                    return isValidated && isEnteredLast1Month;
+                  }
+                  if (arrivalFilter === 'RECENT') {
+                    // Par défaut : Afficher dossiers en attente ET dossiers entrés en stock depuis ≤ 1 mois
+                    return !isValidated || isEnteredLast1Month;
+                  }
+                  // 'ALL'
+                  return true;
+                })
+                .sort((a, b) => {
+                  if (a.canValidate && !b.canValidate) return -1;
+                  if (!a.canValidate && b.canValidate) return 1;
+                  const dateA = a.stockEntryDate || a.f.arrivalDate || '';
+                  const dateB = b.stockEntryDate || b.f.arrivalDate || '';
+                  return dateB.localeCompare(dateA);
+                });
+
+              return (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                  {/* Header avec KPI */}
+                  <div className="bg-stone-900 rounded-3xl p-8 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                      <div>
+                        <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique Import</p>
+                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Arrivages <span className="text-amber-500">StockVue</span></h2>
+                        <p className="text-stone-400 text-xs mt-2">
+                          Affichage limité aux entrées en stock de <span className="text-amber-400 font-bold">moins d'un mois</span> &amp; dossiers en attente.
+                        </p>
+                      </div>
+
+                      {/* KPI Badges */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-2.5">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-amber-400">En attente d'entrée</p>
+                          <p className="text-2xl font-black text-white mt-0.5">{arrivalsStats.pending}</p>
                         </div>
-                      );
-                    })}
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-2.5">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Entrés en stock (≤ 1 mois)</p>
+                          <p className="text-2xl font-black text-emerald-400 mt-0.5">{arrivalsStats.entered1M}</p>
+                        </div>
+                        {arrivalsStats.enteredOld > 0 && (
+                          <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5">
+                            <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Archivés (&gt; 1 mois)</p>
+                            <p className="text-2xl font-black text-stone-300 mt-0.5">{arrivalsStats.enteredOld}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
 
+                  {/* Barre d'outils : Onglets + Recherche */}
+                  <div className="bg-white rounded-2xl border border-stone-200 p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                    {/* Tabs */}
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                      <button
+                        onClick={() => setArrivalFilter('RECENT')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'RECENT'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        Récents (≤ 1 mois)
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'RECENT' ? 'bg-amber-600 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {arrivalsStats.totalRecent}
+                        </span>
+                      </button>
 
-              </div>
-            )}
+                      <button
+                        onClick={() => setArrivalFilter('PENDING')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'PENDING'
+                            ? 'bg-stone-900 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        <Anchor className="w-3.5 h-3.5" />
+                        En attente
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'PENDING' ? 'bg-stone-700 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {arrivalsStats.pending}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => setArrivalFilter('ENTERED_1M')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'ENTERED_1M'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Entrés en stock (≤ 1 mois)
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'ENTERED_1M' ? 'bg-emerald-700 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {arrivalsStats.entered1M}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => setArrivalFilter('ALL')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'ALL'
+                            ? 'bg-stone-800 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        Historique complet
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'ALL' ? 'bg-stone-700 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {factures.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Barre de recherche */}
+                    <div className="relative w-full md:w-72">
+                      <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Input
+                        type="text"
+                        placeholder="Rechercher dossier, fournisseur..."
+                        value={arrivalSearch}
+                        onChange={e => setArrivalSearch(e.target.value)}
+                        className="pl-9 h-10 bg-stone-50 border-stone-200 rounded-xl text-xs font-semibold focus:bg-white"
+                      />
+                      {arrivalSearch && (
+                        <button
+                          onClick={() => setArrivalSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xs font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Liste arrivages */}
+                  {arrivalCardsData.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-16 text-center border border-stone-100 shadow-sm">
+                      <Anchor className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                      <p className="text-stone-600 font-black uppercase text-xs tracking-widest">
+                        {arrivalSearch ? "Aucun dossier trouvé pour cette recherche" : "Aucun arrivage dans cette sélection"}
+                      </p>
+                      <p className="text-stone-400 text-[11px] font-medium mt-1">
+                        {arrivalFilter === 'RECENT'
+                          ? "Aucun arrivage en attente ou entré en stock au cours du dernier mois."
+                          : arrivalFilter === 'PENDING'
+                          ? "Tous les arrivages actuels ont déjà été validés et entrés en stock."
+                          : arrivalFilter === 'ENTERED_1M'
+                          ? "Aucune entrée en stock n'a été effectuée depuis moins d'1 mois."
+                          : "Aucun dossier import enregistré dans StockVue."}
+                      </p>
+                      {(arrivalFilter !== 'RECENT' || arrivalSearch) && (
+                        <button
+                          onClick={() => { setArrivalFilter('RECENT'); setArrivalSearch(''); }}
+                          className="mt-4 px-4 py-2 bg-stone-900 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-stone-800 transition-all"
+                        >
+                          Réinitialiser les filtres
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {arrivalCardsData.map((item) => {
+                        const { f, artCount, validatedCount, isValidated, isPartial, canValidate, stockEntryDate, isEnteredLast1Month } = item;
+                        return (
+                          <div
+                            key={f.id}
+                            className={`bg-white rounded-2xl border-2 p-6 flex flex-col justify-between gap-4 transition-all shadow-sm hover:shadow-md ${
+                              isValidated ? 'border-emerald-200' : isPartial ? 'border-amber-300' : f.arrivalDate ? 'border-amber-200' : 'border-stone-200'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{f.supplierId || f.supplier || '—'}</p>
+                                  <h3 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  {isValidated ? (
+                                    <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> En stock
+                                    </span>
+                                  ) : isPartial ? (
+                                    <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                      <Anchor className="w-3.5 h-3.5 text-amber-600" /> Partiel ({validatedCount}/{artCount})
+                                    </span>
+                                  ) : f.arrivalDate ? (
+                                    <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                      <Anchor className="w-3.5 h-3.5 text-amber-600" /> Arrivé au port
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 bg-stone-100 text-stone-600 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                      En transit
+                                    </span>
+                                  )}
+                                  {isValidated && isEnteredLast1Month && (
+                                    <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                      <Clock className="w-2.5 h-2.5 text-emerald-600" />
+                                      ≤ 1 mois {stockEntryDate ? `(${formatDaysAgo(stockEntryDate)})` : ''}
+                                    </span>
+                                  )}
+                                  {isValidated && !isEnteredLast1Month && (
+                                    <span className="text-[8px] font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
+                                      &gt; 1 mois
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2 text-center mt-4">
+                                <div className="bg-stone-50 rounded-xl p-2.5">
+                                  <p className="text-[8px] font-black text-stone-400 uppercase">Arrivée</p>
+                                  <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.arrivalDate || '—'}</p>
+                                </div>
+                                <div className="bg-stone-50 rounded-xl p-2.5">
+                                  <p className="text-[8px] font-black text-stone-400 uppercase">Entrée Stock</p>
+                                  <p className={`text-[10px] font-black mt-0.5 ${stockEntryDate ? 'text-emerald-700' : 'text-stone-400'}`}>
+                                    {stockEntryDate || 'En attente'}
+                                  </p>
+                                </div>
+                                <div className="bg-stone-50 rounded-xl p-2.5">
+                                  <p className="text-[8px] font-black text-stone-400 uppercase">Articles</p>
+                                  <p className={`text-[10px] font-black mt-0.5 ${isValidated ? 'text-emerald-600' : isPartial ? 'text-amber-600' : 'text-stone-700'}`}>
+                                    {artCount} {validatedCount > 0 && `(${validatedCount} validés)`}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2">
+                              {canValidate && (
+                                <button
+                                  onClick={() => setPassToStockId(f.id)}
+                                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.01] active:scale-95"
+                                >
+                                  <Archive className="w-3.5 h-3.5" />
+                                  Valider l'Entrée en Stock + Coût de Revient
+                                </button>
+                              )}
+                              {isValidated && (
+                                <div className="flex items-center gap-2 justify-center bg-emerald-50 border border-emerald-100 rounded-xl py-2 px-3 text-emerald-700 text-[9px] font-black uppercase">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Entrée validée {stockEntryDate ? `le ${stockEntryDate}` : ''} — {artCount} article(s) en stock
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </main>
