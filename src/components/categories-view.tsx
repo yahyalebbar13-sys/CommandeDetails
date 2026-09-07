@@ -383,7 +383,8 @@ export default function CategoriesView({
         availableGsm: Array.isArray(currentCategoryObj.availableGsm) ? currentCategoryObj.availableGsm : [],
         availableWidths: Array.isArray(currentCategoryObj.availableWidths) ? currentCategoryObj.availableWidths : [],
         fabricQualities: Array.isArray(currentCategoryObj.fabricQualities) ? currentCategoryObj.fabricQualities : [],
-        zipperQualities: Array.isArray(currentCategoryObj.zipperQualities) ? currentCategoryObj.zipperQualities : [],
+        zipperQualities: (Array.isArray(currentCategoryObj.zipperQualities) ? currentCategoryObj.zipperQualities : [])
+          .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))),
       });
       setNewSizeInput('');
       setNewGsmInput('');
@@ -487,7 +488,8 @@ export default function CategoriesView({
     const zipSliderType = newZipperQualityForm.sliderType.trim();
     const zipTapeGsm = newZipperQualityForm.tapeWeightGsm ? Number(newZipperQualityForm.tapeWeightGsm) : null;
     const zipSliderG = newZipperQualityForm.sliderWeightG ? Number(newZipperQualityForm.sliderWeightG) : null;
-    if (zipLen || zipType || zipSlider || zipTapeGsm) {
+    const hasZipInput = Boolean(newZipperQualityForm.label.trim() || zipLen || zipSlider || zipTapeGsm || zipSliderG);
+    if (hasZipInput) {
       const autoLabel = [
         zipLen || null,
         zipType || null,
@@ -528,16 +530,18 @@ export default function CategoriesView({
       return item;
     });
 
-    const cleanZipperQualities = currentZipperQualities.map(q => {
-      const item: Record<string, any> = { label: q.label || 'Qualité' };
-      if (q.length) item.length = q.length;
-      if (q.zipperType) item.zipperType = q.zipperType;
-      if (q.slider) item.slider = q.slider;
-      if (q.sliderType) item.sliderType = q.sliderType;
-      if (q.tapeWeightGsm != null && !isNaN(Number(q.tapeWeightGsm))) item.tapeWeightGsm = Number(q.tapeWeightGsm);
-      if (q.sliderWeightG != null && !isNaN(Number(q.sliderWeightG))) item.sliderWeightG = Number(q.sliderWeightG);
-      return item;
-    });
+    const cleanZipperQualities = currentZipperQualities
+      .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
+      .map(q => {
+        const item: Record<string, any> = { label: q.label || 'Qualité' };
+        if (q.length) item.length = q.length;
+        if (q.zipperType) item.zipperType = q.zipperType;
+        if (q.slider) item.slider = q.slider;
+        if (q.sliderType) item.sliderType = q.sliderType;
+        if (q.tapeWeightGsm != null && !isNaN(Number(q.tapeWeightGsm))) item.tapeWeightGsm = Number(q.tapeWeightGsm);
+        if (q.sliderWeightG != null && !isNaN(Number(q.sliderWeightG))) item.sliderWeightG = Number(q.sliderWeightG);
+        return item;
+      });
 
     const payload: Record<string, any> = {
       hsCode: customsForm.hsCode || null,
@@ -1666,7 +1670,8 @@ export default function CategoriesView({
 
         {/* ── Type de Produit — Zipper only ── */}
         {isZipperCat && (() => {
-          const qualities = Array.isArray(currentCategoryObj?.zipperQualities) ? currentCategoryObj.zipperQualities : [];
+          const qualities = (Array.isArray(currentCategoryObj?.zipperQualities) ? currentCategoryObj.zipperQualities : [])
+            .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')));
 
           // Also compute order stats per zipper quality
           const qualityStats = qualities.map(q => {
@@ -2218,7 +2223,7 @@ export default function CategoriesView({
                       const tapeWeightGsm = newZipperQualityForm.tapeWeightGsm ? Number(newZipperQualityForm.tapeWeightGsm) : undefined;
                       const sliderWeightG = newZipperQualityForm.sliderWeightG ? Number(newZipperQualityForm.sliderWeightG) : undefined;
 
-                      if (!length && !zipperType && !slider && !tapeWeightGsm) return;
+                      if (!length && !slider && !tapeWeightGsm && !sliderWeightG && !newZipperQualityForm.label.trim()) return;
 
                       const autoLabel = [
                         length || null,

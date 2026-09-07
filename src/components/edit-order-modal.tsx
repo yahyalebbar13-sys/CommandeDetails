@@ -305,7 +305,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const zipperQualities = useMemo(() => {
     if (!formData?.categoryId) return [];
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-    return Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
+    const raw = Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
+    return raw.filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))));
   }, [formData?.categoryId, subCategories]);
 
   const lastOrderInfo = useMemo(() => {
