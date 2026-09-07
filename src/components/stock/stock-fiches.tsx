@@ -777,6 +777,15 @@ export default function StockFiches({
     return allGroups.filter(g => g.items.length > 0);
   }, [genCatsWithStock, searchGenCat]);
 
+  const displayedLines = useMemo(() => {
+    if (selectedLineFilter === 'ALL') return organizedLines;
+    return organizedLines.filter(g => g.title === selectedLineFilter);
+  }, [organizedLines, selectedLineFilter]);
+
+  const allAvailableLineNames = useMemo(() => {
+    return Array.from(new Set(organizedLines.map(g => g.title)));
+  }, [organizedLines]);
+
   const totalRefs  = stockItems.length;
   const totalStock = stockItems.reduce((s, i) => s + i.currentQty, 0);
   const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
@@ -944,15 +953,6 @@ export default function StockFiches({
   }
 
   // ── Niveau 1 : Lignes et Pôles ───────────────────────────────────────────
-  const displayedLines = useMemo(() => {
-    if (selectedLineFilter === 'ALL') return organizedLines;
-    return organizedLines.filter(g => g.title === selectedLineFilter);
-  }, [organizedLines, selectedLineFilter]);
-
-  const allAvailableLineNames = useMemo(() => {
-    return Array.from(new Set(organizedLines.map(g => g.title)));
-  }, [organizedLines]);
-
   return (
     <div className="space-y-6">
       {warehouseSelectorElement}
