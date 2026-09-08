@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +19,7 @@ import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import SmartSearch from "@/components/shop/SmartSearch";
+import { MEGA_MENU_CURATED_DATA } from "@/lib/shop-mega-menu-data";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -53,7 +54,7 @@ const PROMO_TEXT_AR =
 export default function ShopHeader() {
   const { itemCount, openCart } = useShopCart();
   const { t, language, setLanguage } = useLanguage();
-  const { categories: allContextCategories } = useShopProducts();
+  const { categories: allContextCategories, products: allProducts } = useShopProducts();
   const SHOP_CATEGORIES = allContextCategories.filter(c => !c.parentSlug);
   const pathname = usePathname();
 
@@ -68,6 +69,103 @@ export default function ShopHeader() {
   const searchRef = useRef<HTMLInputElement>(null);
   const categoriesRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [hoveredCatSlug, setHoveredCatSlug] = useState<string>('');
+  const [menuStyle, setMenuStyle] = useState<{ left: number; notchLeft: number }>({ left: -220, notchLeft: 260 });
+
+  const activeCategory = (hoveredCatSlug ? SHOP_CATEGORIES.find(c => c.slug === hoveredCatSlug) : null) || SHOP_CATEGORIES[0] || null;
+
+  const activeCategoryItems = useMemo(() => {
+    if (!activeCategory) return [];
+
+    const subcats = allContextCategories.filter((c) => c.parentSlug === activeCategory.slug);
+    const prods = (allProducts || []).filter(
+      (p) =>
+        p.categorySlug === activeCategory.slug ||
+        p.additionalCategorySlugs?.includes(activeCategory.slug) ||
+        p.categoryAliases?.some((a) => a.slug === activeCategory.slug) ||
+        subcats.some((s) => s.slug === p.categorySlug)
+    );
+    const curated = MEGA_MENU_CURATED_DATA[activeCategory.slug] || [];
+
+    const items: Array<{
+      id: string;
+      name: string;
+      href: string;
+      image?: string;
+      isHot?: boolean;
+      icon?: string;
+    }> = [];
+
+    // Real products
+    prods.forEach((p) => {
+      items.push({
+        id: `prod-${p.id}`,
+        name: language === 'ar' ? (p.nameAr || p.name) : p.name,
+        href: `/shop/produit/${p.id}`,
+        image: p.images?.[0] || activeCategory.image,
+        isHot: Boolean(p.isFeatured || p.isPromo),
+      });
+    });
+
+    // Subcategories
+    subcats.forEach((s) => {
+      items.push({
+        id: `sub-${s.id}`,
+        name: language === 'ar' ? (s.nameAr || s.name) : s.name,
+        href: `/shop/categorie/${s.slug}`,
+        image: s.image || activeCategory.image,
+        isHot: Boolean(s.priority && s.priority >= 80),
+        icon: s.icon,
+      });
+    });
+
+    // Curated items to complete grid up to 10 items
+    if (items.length < 10 && curated.length > 0) {
+      const existingNames = new Set(items.map((i) => i.name.toLowerCase()));
+      curated.forEach((c) => {
+        const displayName = language === 'ar' ? c.nameAr : c.name;
+        if (!existingNames.has(displayName.toLowerCase()) && items.length < 10) {
+          items.push({
+            id: `cur-${c.id}`,
+            name: displayName,
+            href: c.href || `/shop/boutique?q=${encodeURIComponent(c.name)}`,
+            image: c.image || activeCategory.image,
+            isHot: c.isHot,
+          });
+          existingNames.add(displayName.toLowerCase());
+        }
+      });
+    }
+
+    return items;
+  }, [activeCategory, allContextCategories, allProducts, language]);
+
+  // Dynamic position updater for Mega Menu & Notch
+  useEffect(() => {
+    if (!isCategoriesOpen || !dropdownRef.current) return;
+    const updatePosition = () => {
+      if (!dropdownRef.current) return;
+      const btnRect = dropdownRef.current.getBoundingClientRect();
+      const btnCenter = btnRect.left + btnRect.width / 2;
+      const menuWidth = Math.min(940, window.innerWidth - 32);
+
+      let idealOffset = language === 'ar' ? menuWidth - 220 : 220;
+      let targetScreenLeft = btnCenter - idealOffset;
+
+      if (targetScreenLeft < 16) targetScreenLeft = 16;
+      if (targetScreenLeft + menuWidth > window.innerWidth - 16) {
+        targetScreenLeft = window.innerWidth - 16 - menuWidth;
+      }
+
+      const relativeLeft = targetScreenLeft - btnRect.left;
+      const notchOffset = btnCenter - targetScreenLeft;
+      setMenuStyle({ left: relativeLeft, notchLeft: notchOffset });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
+  }, [isCategoriesOpen, language]);
 
   // ── Scroll detection ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -251,15 +349,18 @@ export default function ShopHeader() {
               {NAV_LINKS.map((link) =>
                 link.hasDropdown ? (
                   <div key={link.labelKey} ref={dropdownRef} className="relative h-full flex items-center">
+                    {/* ── Temu-style Categories Pill Button ── */}
                     <button
+                      type="button"
                       onClick={() => setIsCategoriesOpen((v) => !v)}
-                      className={`flex items-center gap-1.5 h-full text-sm font-semibold transition-all duration-200 border-b-2 cursor-pointer ${
-                        isActive(link.href)
-                          ? "border-[#C8102E] text-[#C8102E]"
-                          : "border-transparent text-gray-700 hover:text-[#C8102E]"
+                      className={`px-4 py-1.5 sm:py-2 rounded-full font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-1.5 cursor-pointer select-none border ${
+                        isCategoriesOpen
+                          ? "bg-neutral-200 text-neutral-950 border-neutral-300 shadow-inner"
+                          : "bg-neutral-100 hover:bg-neutral-200 text-neutral-800 hover:text-neutral-950 border-neutral-200/70"
                       }`}
+                      aria-expanded={isCategoriesOpen}
                     >
-                      {t(link.labelKey)}
+                      <span>{t(link.labelKey)}</span>
                       <ChevronDown
                         className={`w-3.5 h-3.5 transition-transform duration-200 ${
                           isCategoriesOpen ? "rotate-180" : ""
@@ -267,58 +368,159 @@ export default function ShopHeader() {
                       />
                     </button>
 
-                    {/* ── Categories Mega Dropdown ────────────────────── */}
+                    {/* ── Temu-style 2-Column Mega Menu Dropdown ────────────────────── */}
                     {isCategoriesOpen && (
                       <div
                         onMouseLeave={() => setIsCategoriesOpen(false)}
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-0 w-[520px] bg-white rounded-b-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-t-0 border-gray-100 p-4 grid grid-cols-3 gap-1.5 z-50"
+                        style={{
+                          left: `${menuStyle.left}px`,
+                          width: "min(940px, calc(100vw - 32px))",
+                        }}
+                        className="absolute top-[calc(100%+6px)] bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2),0_10px_25px_-5px_rgba(0,0,0,0.08)] border border-neutral-200/90 z-50 overflow-hidden animate-in fade-in-0 duration-150"
                       >
-                        {/* Header */}
-                        <div className="col-span-3 pb-2 mb-1 border-b border-gray-100">
-                          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                            {t('nav_categories')}
-                          </p>
-                        </div>
-                        {SHOP_CATEGORIES.map((cat) => (
-                          <Link
-                            key={cat.id}
-                            href={`/shop/categorie/${cat.slug}`}
-                            onClick={() => setIsCategoriesOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors group"
-                          >
-                            <div className="flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
-                              {cat.image ? (
-                                <div className="relative w-full h-full">
-                                  <Image
-                                    src={cat.image as string}
-                                    alt={cat.name}
-                                    fill
-                                    sizes="32px"
-                                    className="object-cover"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ color: cat.color || '#C8102E' }}>
-                                  {cat.name.charAt(0).toUpperCase()}
+                        {/* Triangular Notch indicator pointing directly to the button */}
+                        <div
+                          className="absolute -top-1.5 w-3.5 h-3.5 bg-white border-t border-l border-neutral-200/90 rotate-45 z-30 pointer-events-none -translate-x-1/2"
+                          style={{ left: `${menuStyle.notchLeft}px` }}
+                        />
+
+                        {/* 2-Column Grid */}
+                        <div className="grid grid-cols-12 h-[480px]">
+                          {/* ── Left Column: Categories List (Temu-style) ── */}
+                          <div className="col-span-4 bg-neutral-50/75 border-r border-neutral-200/70 py-3 overflow-y-auto shop-scrollbar">
+                            <div className="px-4 pb-2 mb-1 border-b border-neutral-200/60 flex items-center justify-between">
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                                {t('nav_categories')}
+                              </p>
+                              <span className="text-[11px] text-neutral-400 font-semibold">
+                                {SHOP_CATEGORIES.length}
+                              </span>
+                            </div>
+
+                            <div className="space-y-0.5 px-2">
+                              {SHOP_CATEGORIES.map((cat) => {
+                                const isSelected = (activeCategory?.slug === cat.slug);
+                                return (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    onMouseEnter={() => setHoveredCatSlug(cat.slug)}
+                                    onClick={() => {
+                                      setIsCategoriesOpen(false);
+                                      window.location.href = `/shop/categorie/${cat.slug}`;
+                                    }}
+                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-left font-medium text-xs sm:text-sm transition-all duration-150 cursor-pointer ${
+                                      isSelected
+                                        ? "bg-white text-neutral-950 font-bold shadow-xs border-l-4 border-[#C8102E] rtl:border-l-0 rtl:border-r-4"
+                                        : "text-neutral-700 hover:text-neutral-950 hover:bg-neutral-100/80 border-l-4 border-transparent rtl:border-l-0 rtl:border-r-4"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate pr-2">
+                                      <span className="text-base flex-shrink-0">{cat.icon || '🧵'}</span>
+                                      <span className="truncate">
+                                        {language === 'ar' ? (cat.nameAr || cat.name) : cat.name}
+                                      </span>
+                                    </div>
+                                    <ChevronRight
+                                      className={`w-4 h-4 flex-shrink-0 transition-transform ${
+                                        isSelected ? "text-[#C8102E] translate-x-0.5" : "text-neutral-400"
+                                      } rtl:rotate-180`}
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* ── Right Column: Active Category Showcase (Temu-style) ── */}
+                          <div className="col-span-8 bg-white p-6 overflow-y-auto shop-scrollbar flex flex-col justify-between">
+                            <div>
+                              {/* Top Header Link: "Tout [Nom Catégorie] >" */}
+                              {activeCategory && (
+                                <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100">
+                                  <Link
+                                    href={`/shop/categorie/${activeCategory.slug}`}
+                                    onClick={() => setIsCategoriesOpen(false)}
+                                    className="inline-flex items-center gap-1.5 text-base font-bold text-neutral-900 hover:text-[#C8102E] transition-colors group cursor-pointer"
+                                  >
+                                    <span>
+                                      {language === 'ar'
+                                        ? `جميع ${activeCategory.nameAr || activeCategory.name}`
+                                        : `Tout ${activeCategory.name}`}
+                                    </span>
+                                    <ChevronRight className="w-4 h-4 text-neutral-500 group-hover:text-[#C8102E] group-hover:translate-x-1 transition-all rtl:rotate-180" />
+                                  </Link>
+
+                                  <Link
+                                    href="/shop/categories"
+                                    onClick={() => setIsCategoriesOpen(false)}
+                                    className="text-xs font-semibold text-neutral-500 hover:text-[#C8102E] transition-colors flex items-center gap-1"
+                                  >
+                                    {language === 'ar' ? 'عرض كل الكتالوج' : 'Voir tout le catalogue'}
+                                    <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                                  </Link>
                                 </div>
                               )}
+
+                              {/* Circular Items Grid (5 columns per row, Temu style) */}
+                              <div className="grid grid-cols-4 sm:grid-cols-5 gap-x-3 gap-y-5">
+                                {activeCategoryItems.map((item) => (
+                                  <Link
+                                    key={item.id}
+                                    href={item.href}
+                                    onClick={() => setIsCategoriesOpen(false)}
+                                    className="group flex flex-col items-center cursor-pointer text-center"
+                                  >
+                                    {/* Circle Container */}
+                                    <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200 group-hover:border-[#C8102E] relative flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-2xs group-hover:shadow-md">
+                                      {item.image ? (
+                                        <Image
+                                          src={item.image}
+                                          alt={item.name}
+                                          fill
+                                          sizes="88px"
+                                          className="object-cover group-hover:scale-110 transition-transform duration-300"
+                                        />
+                                      ) : (
+                                        <span className="text-2xl">{item.icon || activeCategory?.icon || '🧵'}</span>
+                                      )}
+
+                                      {/* Orange HOT Badge */}
+                                      {item.isHot && (
+                                        <span className="absolute top-0.5 right-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs uppercase tracking-tight z-10 ring-1 ring-white">
+                                          HOT
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Centered 2-line Label */}
+                                    <span className="mt-2 text-xs font-semibold text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 max-w-[95px] leading-tight transition-colors">
+                                      {item.name}
+                                    </span>
+                                  </Link>
+                                ))}
+                              </div>
                             </div>
-                            <span className="text-sm font-medium text-gray-700 group-hover:text-[#C8102E] transition-colors leading-tight">
-                              {cat.name}
-                            </span>
-                          </Link>
-                        ))}
-                        {/* View all */}
-                        <div className="col-span-3 pt-2 mt-1 border-t border-gray-100">
-                          <Link
-                            href="/shop/categories"
-                            onClick={() => setIsCategoriesOpen(false)}
-                            className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-                            style={{ backgroundColor: "#C8102E" }}
-                          >
-                            {t('all_products')}
-                            <ChevronRight className="w-4 h-4" />
-                          </Link>
+
+                            {/* Bottom Footer Bar */}
+                            {activeCategory && (
+                              <div className="pt-4 mt-4 border-t border-neutral-100 flex items-center justify-between">
+                                <span className="text-xs text-neutral-500 font-medium">
+                                  {language === 'ar'
+                                    ? '🚚 توصيل سريع لجميع أنحاء المغرب'
+                                    : '🚚 Expédition rapide partout au Maroc'}
+                                </span>
+                                <Link
+                                  href={`/shop/categorie/${activeCategory.slug}`}
+                                  onClick={() => setIsCategoriesOpen(false)}
+                                  className="text-xs font-bold text-[#C8102E] hover:underline flex items-center gap-1"
+                                >
+                                  {language === 'ar' ? 'استكشاف المزيد' : 'Découvrir la sélection'}
+                                  <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                                </Link>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -470,7 +672,7 @@ export default function ShopHeader() {
                         className="flex items-center gap-3 px-7 py-2.5 text-sm text-gray-700 hover:text-[#C8102E] hover:bg-white transition-colors"
                       >
                         <span>{cat.icon}</span>
-                        <span>{cat.name}</span>
+                        <span>{language === 'ar' ? (cat.nameAr || cat.name) : cat.name}</span>
                       </Link>
                     ))}
                     <Link
