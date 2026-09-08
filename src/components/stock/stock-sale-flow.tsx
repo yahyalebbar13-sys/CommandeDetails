@@ -493,6 +493,7 @@ export default function StockSaleFlow({
             productName: sub.productName,
             color: sub.color || '',
             size: sub.size || '',
+            quality: sub.quality || l.item.quality || undefined,
             categoryId: sub.categoryId || '',
             unitOfMeasure: sub.unitOfMeasure || '',
             qty: take,
@@ -509,6 +510,11 @@ export default function StockSaleFlow({
             productName: sub.productName,
             color: sub.color || null,
             size: sub.size || null,
+            quality: sub.quality || l.item.quality || null,
+            gsm: sub.gsm || null,
+            fabricWidth: sub.fabricWidth || null,
+            rollLength: sub.rollLength || null,
+            rollLengthUnit: sub.rollLengthUnit || null,
             unitOfMeasure: sub.unitOfMeasure || '',
             type: 'OUT',
             reason: 'VENTE',
@@ -529,6 +535,7 @@ export default function StockSaleFlow({
             productName: lastSub.productName,
             color: lastSub.color || '',
             size: lastSub.size || '',
+            quality: lastSub.quality || l.item.quality || undefined,
             categoryId: lastSub.categoryId || '',
             unitOfMeasure: lastSub.unitOfMeasure || '',
             qty: remainingQty,
@@ -544,6 +551,11 @@ export default function StockSaleFlow({
             productName: lastSub.productName,
             color: lastSub.color || null,
             size: lastSub.size || null,
+            quality: lastSub.quality || l.item.quality || null,
+            gsm: lastSub.gsm || null,
+            fabricWidth: lastSub.fabricWidth || null,
+            rollLength: lastSub.rollLength || null,
+            rollLengthUnit: lastSub.rollLengthUnit || null,
             unitOfMeasure: lastSub.unitOfMeasure || '',
             type: 'OUT',
             reason: 'VENTE',
@@ -947,8 +959,11 @@ export default function StockSaleFlow({
                       return (
                         <button type="button" key={group.name}
                           onClick={() => {
-                            const sizes = Array.from(new Set(group.variants.map(v => v.size).filter(Boolean))) as string[];
-                            setActiveSize(sizes.length > 0 ? sizes[0] : null);
+                            const hasQ = group.variants.some(v => Boolean(v.quality));
+                            const options = hasQ
+                              ? (Array.from(new Set(group.variants.map(v => v.quality).filter(Boolean))) as string[])
+                              : (Array.from(new Set(group.variants.map(v => v.size).filter(Boolean))) as string[]);
+                            setActiveSize(options.length > 0 ? options[0] : null);
                             setActiveVariant(null);
                             setVariantModal({ open: true, productName: group.name, variants: group.variants, categoryId: group.categoryId });
                           }}
@@ -1082,6 +1097,11 @@ export default function StockSaleFlow({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-black text-stone-900 uppercase tracking-tight truncate">{item.productName}</p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {item.quality && (
+                        <span className="text-[10px] font-black bg-violet-50 text-violet-700 px-2 py-1 rounded-lg border border-violet-200">
+                          {item.quality}
+                        </span>
+                      )}
                       {item.color && (
                         <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">
                           <div className="w-3 h-3 rounded-full shrink-0 border border-stone-200" style={{ backgroundColor: getColorCSS(item.color) }} />
