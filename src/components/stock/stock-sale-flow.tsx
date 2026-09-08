@@ -490,7 +490,8 @@ export default function StockSaleFlow({
 
           items.push({
             articleId: sub.articleId,
-            productName: sub.productName,
+            productName: sub.nameFR || sub.productName,
+            nameFR: sub.nameFR,
             color: sub.color || '',
             size: sub.size || '',
             quality: sub.quality || l.item.quality || undefined,
@@ -507,7 +508,8 @@ export default function StockSaleFlow({
           movements.push({
             articleId: sub.articleId,
             categoryId: sub.categoryId || '',
-            productName: sub.productName,
+            productName: sub.nameFR || sub.productName,
+            nameFR: sub.nameFR,
             color: sub.color || null,
             size: sub.size || null,
             quality: sub.quality || l.item.quality || null,
@@ -532,7 +534,8 @@ export default function StockSaleFlow({
           const lastSub = subItems[subItems.length - 1];
           items.push({
             articleId: lastSub.articleId,
-            productName: lastSub.productName,
+            productName: lastSub.nameFR || lastSub.productName,
+            nameFR: lastSub.nameFR,
             color: lastSub.color || '',
             size: lastSub.size || '',
             quality: lastSub.quality || l.item.quality || undefined,
@@ -548,7 +551,8 @@ export default function StockSaleFlow({
           movements.push({
             articleId: lastSub.articleId,
             categoryId: lastSub.categoryId || '',
-            productName: lastSub.productName,
+            productName: lastSub.nameFR || lastSub.productName,
+            nameFR: lastSub.nameFR,
             color: lastSub.color || null,
             size: lastSub.size || null,
             quality: lastSub.quality || l.item.quality || null,

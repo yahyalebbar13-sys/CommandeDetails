@@ -346,9 +346,10 @@ export default function CategoriesView({
     availableSizes: [] as string[],
     availableGsm: [] as number[],
     availableWidths: [] as number[],
-    fabricQualities: [] as { label: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[],
+    fabricQualities: [] as { label: string; nameFR?: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[],
     zipperQualities: [] as {
       label: string;
+      nameFR?: string;
       length?: string;
       zipperType?: string;
       slider?: string;
@@ -362,9 +363,10 @@ export default function CategoriesView({
   const [newSizeInput, setNewSizeInput] = useState('');
   const [newGsmInput, setNewGsmInput] = useState('');
   const [newWidthInput, setNewWidthInput] = useState('');
-  const [newQualityForm, setNewQualityForm] = useState({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
+  const [newQualityForm, setNewQualityForm] = useState({ label: '', nameFR: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
   const [newZipperQualityForm, setNewZipperQualityForm] = useState({
     label: '',
+    nameFR: '',
     length: '',
     zipperType: 'C/E',
     slider: '',
@@ -390,14 +392,15 @@ export default function CategoriesView({
         availableWidths: Array.isArray(currentCategoryObj.availableWidths) ? currentCategoryObj.availableWidths : [],
         fabricQualities: Array.isArray(currentCategoryObj.fabricQualities) ? currentCategoryObj.fabricQualities : [],
         zipperQualities: (Array.isArray(currentCategoryObj.zipperQualities) ? currentCategoryObj.zipperQualities : [])
-          .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))),
+          .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))),
       });
       setNewSizeInput('');
       setNewGsmInput('');
       setNewWidthInput('');
-      setNewQualityForm({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
+      setNewQualityForm({ label: '', nameFR: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
       setNewZipperQualityForm({
         label: '',
+        nameFR: '',
         length: '',
         zipperType: 'C/E',
         slider: '',
@@ -538,6 +541,7 @@ export default function CategoriesView({
     // Sanitize arrays to guarantee NO undefined fields inside array items for Firestore
     const cleanFabricQualities = currentFabricQualities.map(q => {
       const item: Record<string, any> = { label: q.label || 'Qualité' };
+      if (q.nameFR?.trim()) item.nameFR = q.nameFR.trim();
       if (q.gsm != null && !isNaN(Number(q.gsm))) item.gsm = Number(q.gsm);
       if (q.fabricWidth != null && !isNaN(Number(q.fabricWidth))) item.fabricWidth = Number(q.fabricWidth);
       if (q.rollLength != null && !isNaN(Number(q.rollLength))) item.rollLength = Number(q.rollLength);
@@ -547,9 +551,10 @@ export default function CategoriesView({
     });
 
     const cleanZipperQualities = currentZipperQualities
-      .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
+      .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
       .map(q => {
         const item: Record<string, any> = { label: q.label || 'Qualité' };
+        if (q.nameFR?.trim()) item.nameFR = q.nameFR.trim();
         if (q.length) item.length = q.length;
         if (q.zipperType) item.zipperType = q.zipperType;
         if (q.slider) item.slider = q.slider;
@@ -2203,16 +2208,33 @@ export default function CategoriesView({
                 {customsForm.fabricQualities.length > 0 && (
                   <div className="space-y-2">
                     {customsForm.fabricQualities.map((q, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-violet-100">
-                        <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
-                        <div className="flex gap-1">
-                          {q.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{q.gsm}gsm</span>}
-                          {q.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{q.fabricWidth}cm</span>}
-                          {q.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{q.rollLength}{q.rollLengthUnit || 'm'}</span>}
-                          {q.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{q.packagingPerBag}rlx/sac</span>}
+                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl bg-white border border-violet-100 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
+                          <div className="flex gap-1 flex-wrap">
+                            {q.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{q.gsm}gsm</span>}
+                            {q.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{q.fabricWidth}cm</span>}
+                            {q.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{q.rollLength}{q.rollLengthUnit || 'm'}</span>}
+                            {q.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{q.packagingPerBag}rlx/sac</span>}
+                          </div>
+                          <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
+                            onClick={() => setCustomsForm(p => ({ ...p, fabricQualities: p.fabricQualities.filter((_, i) => i !== idx) }))}>×</button>
                         </div>
-                        <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
-                          onClick={() => setCustomsForm(p => ({ ...p, fabricQualities: p.fabricQualities.filter((_, i) => i !== idx) }))}>×</button>
+                        <div className="flex items-center gap-2 pt-1 border-t border-violet-50">
+                          <span className="text-[8px] font-black uppercase text-violet-600 shrink-0">Nom Vente (FR) :</span>
+                          <Input
+                            placeholder="Ex: Doublure 70D/190T (nom magasin/vente)"
+                            value={q.nameFR || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setCustomsForm(p => ({
+                                ...p,
+                                fabricQualities: p.fabricQualities.map((item, i) => i === idx ? { ...item, nameFR: val } : item)
+                              }));
+                            }}
+                            className="h-7 text-[10px] font-bold border-violet-200 rounded-lg flex-1 bg-violet-50/30"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2224,8 +2246,12 @@ export default function CategoriesView({
                 {/* Add new quality form */}
                 <div className="space-y-2 p-3 rounded-xl bg-violet-100/30 border border-violet-200">
                   <p className="text-[8px] font-black text-violet-500 uppercase tracking-widest">+ Nouvelle Qualité</p>
-                  <Input placeholder="Label (auto si vide)" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
-                    value={newQualityForm.label} onChange={e => setNewQualityForm(p => ({ ...p, label: e.target.value }))} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Label technique (auto si vide)" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                      value={newQualityForm.label} onChange={e => setNewQualityForm(p => ({ ...p, label: e.target.value }))} />
+                    <Input placeholder="Nom FR / Vente (ex: Doublure 70D)" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg bg-white"
+                      value={newQualityForm.nameFR} onChange={e => setNewQualityForm(p => ({ ...p, nameFR: e.target.value }))} />
+                  </div>
                   <div className="grid grid-cols-5 gap-2">
                     <Input type="number" placeholder="GSM" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
                       value={newQualityForm.gsm} onChange={e => setNewQualityForm(p => ({ ...p, gsm: e.target.value }))} />
@@ -2248,11 +2274,12 @@ export default function CategoriesView({
                       const fabricWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : null;
                       const rollLength = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : null;
                       const packagingPerBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : null;
+                      const nameFR = newQualityForm.nameFR.trim() || undefined;
                       const autoLabel = [gsm ? `${gsm}gsm` : null, fabricWidth ? `${fabricWidth}cm` : null, rollLength ? `${rollLength}${newQualityForm.rollLengthUnit}/rlx` : null, packagingPerBag ? `${packagingPerBag}rlx/sac` : null].filter(Boolean).join(' · ');
-                      const label = newQualityForm.label.trim() || autoLabel || 'Qualité';
-                      if (!gsm && !fabricWidth) return; // At least GSM or width required
-                      setCustomsForm(p => ({ ...p, fabricQualities: [...p.fabricQualities, { label, gsm, fabricWidth, rollLength, rollLengthUnit: newQualityForm.rollLengthUnit, packagingPerBag }] }));
-                      setNewQualityForm({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
+                      const label = newQualityForm.label.trim() || autoLabel || nameFR || 'Qualité';
+                      if (!gsm && !fabricWidth && !nameFR) return; // At least GSM, width, or nameFR required
+                      setCustomsForm(p => ({ ...p, fabricQualities: [...p.fabricQualities, { label, nameFR, gsm, fabricWidth, rollLength, rollLengthUnit: newQualityForm.rollLengthUnit, packagingPerBag }] }));
+                      setNewQualityForm({ label: '', nameFR: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
                     }}>
                     <Plus className="w-3 h-3 mr-1" /> Ajouter Qualité
                   </Button>
@@ -2271,20 +2298,37 @@ export default function CategoriesView({
                 {customsForm.zipperQualities.length > 0 && (
                   <div className="space-y-2">
                     {customsForm.zipperQualities.map((q, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-amber-100">
-                        <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
-                        <div className="flex flex-wrap gap-1">
-                          {q.length && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">Taille: {q.length}</span>}
-                          {q.zipperType && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{q.zipperType}</span>}
-                          {q.slider && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">Curseur: {q.slider}</span>}
-                          {q.sliderType && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[8px] font-black">{q.sliderType}</span>}
-                          {q.tapeWeightGsm && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{q.tapeWeightGsm} g/m</span>}
-                          {q.sliderWeightG && <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{q.sliderWeightG} g/pc</span>}
-                          {q.pcsPerBag && <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{q.pcsPerBag} pcs/bag</span>}
-                          {q.bagsPerCarton && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{q.bagsPerCarton} bags/ctn</span>}
+                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl bg-white border border-amber-100 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
+                          <div className="flex flex-wrap gap-1">
+                            {q.length && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">Taille: {q.length}</span>}
+                            {q.zipperType && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{q.zipperType}</span>}
+                            {q.slider && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">Curseur: {q.slider}</span>}
+                            {q.sliderType && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[8px] font-black">{q.sliderType}</span>}
+                            {q.tapeWeightGsm && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{q.tapeWeightGsm} g/m</span>}
+                            {q.sliderWeightG && <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{q.sliderWeightG} g/pc</span>}
+                            {q.pcsPerBag && <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{q.pcsPerBag} pcs/bag</span>}
+                            {q.bagsPerCarton && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{q.bagsPerCarton} bags/ctn</span>}
+                          </div>
+                          <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
+                            onClick={() => setCustomsForm(p => ({ ...p, zipperQualities: p.zipperQualities.filter((_, i) => i !== idx) }))}>×</button>
                         </div>
-                        <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
-                          onClick={() => setCustomsForm(p => ({ ...p, zipperQualities: p.zipperQualities.filter((_, i) => i !== idx) }))}>×</button>
+                        <div className="flex items-center gap-2 pt-1 border-t border-amber-50">
+                          <span className="text-[8px] font-black uppercase text-amber-700 shrink-0">Nom Vente (FR) :</span>
+                          <Input
+                            placeholder="Ex: Fermeture Nylon O/E Demi-tour (nom magasin/vente)"
+                            value={q.nameFR || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setCustomsForm(p => ({
+                                ...p,
+                                zipperQualities: p.zipperQualities.map((item, i) => i === idx ? { ...item, nameFR: val } : item)
+                              }));
+                            }}
+                            className="h-7 text-[10px] font-bold border-amber-200 rounded-lg flex-1 bg-amber-50/30"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2296,8 +2340,12 @@ export default function CategoriesView({
                 {/* Add new zipper quality form */}
                 <div className="space-y-2 p-3 rounded-xl bg-amber-100/30 border border-amber-200">
                   <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest">+ Nouvelle Qualité Zipper</p>
-                  <Input placeholder="Label (auto si vide)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
-                    value={newZipperQualityForm.label} onChange={e => setNewZipperQualityForm(p => ({ ...p, label: e.target.value }))} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Label technique (auto si vide)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
+                      value={newZipperQualityForm.label} onChange={e => setNewZipperQualityForm(p => ({ ...p, label: e.target.value }))} />
+                    <Input placeholder="Nom FR / Vente (ex: Fermeture Nylon O/E Demi-tour)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg bg-white"
+                      value={newZipperQualityForm.nameFR} onChange={e => setNewZipperQualityForm(p => ({ ...p, nameFR: e.target.value }))} />
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div>
                       <Input 
@@ -2349,8 +2397,9 @@ export default function CategoriesView({
                       const sliderWeightG = newZipperQualityForm.sliderWeightG ? Number(newZipperQualityForm.sliderWeightG) : undefined;
                       const pcsPerBag = newZipperQualityForm.pcsPerBag ? Number(newZipperQualityForm.pcsPerBag) : undefined;
                       const bagsPerCarton = newZipperQualityForm.bagsPerCarton ? Number(newZipperQualityForm.bagsPerCarton) : undefined;
+                      const nameFR = newZipperQualityForm.nameFR.trim() || undefined;
 
-                      if (!length && !slider && !tapeWeightGsm && !sliderWeightG && !pcsPerBag && !bagsPerCarton && !newZipperQualityForm.label.trim()) return;
+                      if (!length && !slider && !tapeWeightGsm && !sliderWeightG && !pcsPerBag && !bagsPerCarton && !newZipperQualityForm.label.trim() && !nameFR) return;
 
                       const autoLabel = [
                         length || null,
@@ -2363,9 +2412,10 @@ export default function CategoriesView({
                         bagsPerCarton ? `${bagsPerCarton}bags/ctn` : null,
                       ].filter(Boolean).join(' · ');
 
-                      const label = newZipperQualityForm.label.trim() || autoLabel || 'Qualité Zipper';
+                      const label = newZipperQualityForm.label.trim() || autoLabel || nameFR || 'Qualité Zipper';
 
                       const newQuality: any = { label };
+                      if (nameFR) newQuality.nameFR = nameFR;
                       if (length) newQuality.length = length;
                       if (zipperType) newQuality.zipperType = zipperType;
                       if (slider) newQuality.slider = slider;
@@ -2385,6 +2435,7 @@ export default function CategoriesView({
 
                       setNewZipperQualityForm({
                         label: '',
+                        nameFR: '',
                         length: '',
                         zipperType: 'C/E',
                         slider: '',

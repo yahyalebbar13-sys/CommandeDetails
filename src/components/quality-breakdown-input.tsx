@@ -54,6 +54,7 @@ function parsePastedQualities(raw: string, availableQualities?: any[]): QualityB
 
     const row: QualityBreakdownRow = {
       quality: matched?.label || qualityLabel,
+      ...(matched?.nameFR ? { nameFR: matched.nameFR } : {}),
       quantity,
       priceOverride: priceOverride || '',
       ...(matched?.gsm ? { gsm: matched.gsm } : {}),
@@ -227,6 +228,7 @@ export default function QualityBreakdownInput({
 
     const newRow: QualityBreakdownRow = nextUnused ? {
       quality: nextUnused.label,
+      ...(nextUnused.nameFR ? { nameFR: nextUnused.nameFR } : {}),
       quantity: 0,
       priceOverride: '',
       ...(nextUnused.gsm ? { gsm: nextUnused.gsm } : {}),

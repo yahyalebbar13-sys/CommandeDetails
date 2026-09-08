@@ -343,6 +343,7 @@ export function AddOrderForm({
       purchasePricePerUnit: finalPrice,
       lastOrderPrice: lastOrderInfo?.price || null,
       name: formData.categoryId,
+      nameFR: formData.nameFR?.trim() || null,
       generalCategoryId: selectedGenCatId,
       status: isInventoryMode ? 'SHIPPED' : 'TO_ORDER',
       isFullContainer,
@@ -385,6 +386,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         const firstRow = rows[0];
         const rowSpecs = rows.length === 1 ? {
+          ...(firstRow.nameFR ? { nameFR: firstRow.nameFR } : {}),
           ...(firstRow.gsm ? { gsm: firstRow.gsm } : {}),
           ...(firstRow.fabricWidth ? { fabricWidth: firstRow.fabricWidth } : {}),
           ...(firstRow.rollLength ? { rollLength: firstRow.rollLength, rollLengthUnit: firstRow.rollLengthUnit || 'm' } : {}),
@@ -660,6 +662,7 @@ export function AddOrderForm({
                         rollLength: q.rollLength || '',
                         rollLengthUnit: q.rollLengthUnit || 'm',
                         packagingPerBag: q.packagingPerBag || '',
+                        nameFR: q.nameFR || p.nameFR,
                       }));
                     }}>
                       <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
@@ -775,6 +778,7 @@ export function AddOrderForm({
                           sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
                           pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
                           bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                          nameFR: q.nameFR || p.nameFR,
                         }));
                       }
                     }}>

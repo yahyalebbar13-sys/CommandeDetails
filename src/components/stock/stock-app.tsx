@@ -133,11 +133,31 @@ export function computeStockItems(
   const results: StockItem[] = [];
 
   for (const a of stockArticles) {
-    // Nom du produit
+    // ── Lookup catégorie et nom du produit ─────────────────────────────────────
+    const cat = categories.find(c => c.id === a.categoryId || c.name === a.categoryId);
+    const baseCategoryName = (cat?.name || a.categoryId || a.name || '').trim();
+
+    // Matcher la qualité dans la catégorie si configurée
+    const matchedZipperQ = cat?.zipperQualities?.find((q: any) =>
+      (a.quality && q.label?.toLowerCase() === a.quality.toLowerCase()) ||
+      (q.zipperType === a.zipperType && q.slider === a.slider)
+    );
+    const matchedFabricQ = cat?.fabricQualities?.find((q: any) =>
+      a.quality && q.label?.toLowerCase() === a.quality.toLowerCase()
+    );
+    const qualityNameFR = matchedZipperQ?.nameFR || matchedFabricQ?.nameFR;
+    const itemFR = a.nameFR || qualityNameFR;
+
+    // Nom complet du produit (ne pas tronquer la catégorie/produit)
     const parts: string[] = [];
-    if (a.zipperType) parts.push(a.zipperType);
-    if (a.slider)     parts.push(a.slider);
-    const productName = parts.length > 0 ? parts.join(' ') : (a.name || a.specs || a.categoryId || 'Produit');
+    if (a.zipperType && !baseCategoryName.toLowerCase().includes(a.zipperType.toLowerCase())) {
+      parts.push(a.zipperType);
+    }
+    if (a.slider && !baseCategoryName.toLowerCase().includes(a.slider.toLowerCase())) {
+      parts.push(a.slider);
+    }
+    const fullEnglishName = parts.length > 0 ? `${baseCategoryName} ${parts.join(' ')}`.trim() : (baseCategoryName || a.name || a.specs || 'Produit');
+    const productName = itemFR || fullEnglishName;
 
     const hasTTCCost = Number(a.purchasePriceMAD) > 0;
     const price      = Number(a.purchasePriceMAD) || Number(a.purchasePricePerUnit) || 0;
@@ -155,6 +175,12 @@ export function computeStockItems(
       for (const row of qualityBreakdown) {
         const qualityLabel = (row.quality || '').trim();
         if (!qualityLabel) continue;
+
+        const matchedRowQ = cat?.fabricQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
+          || cat?.zipperQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase());
+        
+        const rowNameFR = row.nameFR || matchedRowQ?.nameFR || itemFR;
+        const rowProductName = rowNameFR || (qualityLabel ? `${baseCategoryName} ${qualityLabel}`.trim() : productName);
 
         const rowPrice = (row.priceOverride !== '' && row.priceOverride !== undefined && Number(row.priceOverride) > 0)
           ? Number(row.priceOverride)
@@ -203,7 +229,8 @@ export function computeStockItems(
         results.push({
           articleId:           `${a.id}__quality__${qualityLabel}`,
           categoryId:          a.categoryId,
-          productName,
+          productName:         rowProductName,
+          nameFR:              rowNameFR,
           color:               a.color !== 'various' ? a.color : (row.color || undefined),
           size:                row.size || (a.size !== 'various' ? a.size : undefined),
           quality:             qualityLabel,
@@ -279,6 +306,7 @@ export function computeStockItems(
           articleId:           `${a.id}__color__${colorLabel}`, // ID virtuel unique
           categoryId:          a.categoryId,
           productName,
+          nameFR:              itemFR,
           color:               colorLabel,
           size:                a.size !== 'various' ? a.size : undefined,
           quality:             a.quality,
@@ -350,6 +378,7 @@ export function computeStockItems(
           articleId:           `${a.id}__size__${sizeLabel}`,
           categoryId:          a.categoryId,
           productName,
+          nameFR:              itemFR,
           color:               a.color !== 'various' ? a.color : undefined,
           size:                sizeLabel,
           quality:             a.quality,
@@ -409,6 +438,7 @@ export function computeStockItems(
       articleId:           a.id,
       categoryId:          a.categoryId,
       productName,
+      nameFR:              itemFR,
       color:               a.color !== 'various' ? a.color : undefined,
       size:                a.size  !== 'various' ? a.size  : undefined,
       quality:             a.quality,

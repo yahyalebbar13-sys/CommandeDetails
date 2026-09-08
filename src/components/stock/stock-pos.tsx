@@ -53,6 +53,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
       const q = search.toLowerCase();
       r = r.filter(i =>
         i.productName.toLowerCase().includes(q) ||
+        (i.nameFR && i.nameFR.toLowerCase().includes(q)) ||
         i.color?.toLowerCase().includes(q) ||
         i.size?.toLowerCase().includes(q) ||
         i.categoryId?.toLowerCase().includes(q)
@@ -100,7 +101,8 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
       const today = new Date().toISOString().split('T')[0];
       const items: SaleItem[] = cart.map(c => ({
         articleId:    c.stockItem.articleId,
-        productName:  c.stockItem.productName,
+        productName:  c.stockItem.nameFR || c.stockItem.productName,
+        nameFR:       c.stockItem.nameFR,
         color:        c.stockItem.color,
         size:         c.stockItem.size,
         quality:      c.stockItem.quality,
@@ -255,8 +257,13 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
 
                   <div className="px-3 pb-3 flex-1">
                     <p className="text-[10px] font-black text-stone-800 uppercase leading-tight mb-1 line-clamp-2">
-                      {item.productName}
+                      {item.nameFR || item.productName}
                     </p>
+                    {item.nameFR && item.nameFR.toLowerCase() !== item.productName.toLowerCase() && (
+                      <p className="text-[8px] font-bold text-stone-400 uppercase truncate mb-1">
+                        {item.productName}
+                      </p>
+                    )}
                     {(item.quality || item.size || item.gsm) && (
                       <div className="flex flex-wrap gap-1 mb-2">
                         {item.quality && (
@@ -338,7 +345,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
             ) : cart.map(({ stockItem: item, qty }) => (
               <div key={item.articleId} className="flex items-center gap-3 p-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-stone-800 uppercase truncate">{item.productName}</p>
+                  <p className="text-[10px] font-black text-stone-800 uppercase truncate">{item.nameFR || item.productName}</p>
                   {(item.quality || item.color || item.size) && (
                     <p className="text-[8px] font-bold text-stone-400">{[item.quality, item.color, item.size].filter(Boolean).join(' · ')}</p>
                   )}

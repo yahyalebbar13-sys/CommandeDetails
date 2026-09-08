@@ -30,10 +30,11 @@ export type Category = {
   // Fabric config
   availableGsm?: number[];     // GSM pré-définis (ex: [30, 40, 225])
   availableWidths?: number[];  // Largeurs pré-définies en cm (ex: [100, 150, 160])
-  fabricQualities?: { label: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
+  fabricQualities?: { label: string; nameFR?: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   // Zipper config
   zipperQualities?: {
     label: string;
+    nameFR?: string;           // Nom commercial / français pour la vente
     length?: string;           // longueur (ex: "20cm", "15cm", "100m")
     zipperType?: 'C/E' | 'O/E' | string; // Type fermeture: C/E ou O/E
     slider?: string;           // Curseur (ex: "Standard", "HT", "O SLIDER")
@@ -47,6 +48,7 @@ export type Category = {
 
 export interface QualityBreakdownRow {
   quality: string;             // Label de la qualité
+  nameFR?: string;             // Nom commercial / FR de vente
   quantity: number;            // Quantité (rouleaux, pièces, etc.)
   priceOverride?: string | number; // Prix d'achat optionnel
   // Attributs Fabric
@@ -71,6 +73,7 @@ export type Order = {
   generalCategoryId?: string;
   categoryId: string;
   name: string;
+  nameFR?: string;
   specs?: string;
   color?: string;
   size?: string;
@@ -146,6 +149,7 @@ export type StockMovement = {
   articleId: string;
   categoryId: string;
   productName: string;
+  nameFR?: string;
   color?: string;
   size?: string;
   quality?: string;
@@ -173,6 +177,7 @@ export type StockItem = {
   articleId: string;
   categoryId: string;
   productName: string;
+  nameFR?: string;
   color?: string;
   size?: string;
   quality?: string;
@@ -214,6 +219,7 @@ export type StockItem = {
 export type SaleItem = {
   articleId: string;
   productName: string;
+  nameFR?: string;
   color?: string;
   size?: string;
   quality?: string;
@@ -250,6 +256,7 @@ export type TransferOrderItem = {
   articleId: string;
   categoryId: string;
   productName: string;
+  nameFR?: string;
   color?: string;
   size?: string;
   quality?: string;
@@ -298,6 +305,7 @@ export type Client = {
 export type OrderItem = {
   articleId: string;
   productName: string;
+  nameFR?: string;
   color?: string;
   size?: string;
   quality?: string;

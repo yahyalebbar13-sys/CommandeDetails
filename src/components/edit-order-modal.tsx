@@ -883,6 +883,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                           sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
                           pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
                           bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                          nameFR: q.nameFR || p.nameFR,
                         }));
                       }
                     }}>
@@ -1037,7 +1038,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                       <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">Qualité</Label>
                       <Select onValueChange={v => {
                         const q = fabricQualities[Number(v)];
-                        if (q) setFormData((p: any) => ({ ...p, size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit || 'm', packagingPerBag: q.packagingPerBag || '' }));
+                        if (q) setFormData((p: any) => ({ ...p, size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit || 'm', packagingPerBag: q.packagingPerBag || '', nameFR: q.nameFR || p.nameFR }));
                       }}>
                         <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
                           <SelectValue placeholder="Choisir une qualité..." />

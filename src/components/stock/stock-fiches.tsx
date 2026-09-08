@@ -222,7 +222,10 @@ function ProductFiche({
         <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{article.categoryId}</p>
-            <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.productName}</h3>
+            <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.nameFR || article.productName}</h3>
+            {article.nameFR && article.nameFR.toLowerCase() !== article.productName.toLowerCase() && (
+              <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{article.productName}</p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-4 justify-end">
             <div className="text-center">
@@ -497,7 +500,7 @@ function ProductsTable({
   const groupedVariants = useMemo(() => {
     const grouped = new Map<string, any[]>();
     items.forEach(i => {
-      const pid = (i.productName || '').trim().toLowerCase();
+      const pid = (i.nameFR || i.productName || '').trim().toLowerCase();
       if (!grouped.has(pid)) grouped.set(pid, []);
       grouped.get(pid)!.push(i);
     });
@@ -638,7 +641,14 @@ function ProductsTable({
                       )}
                     </div>
                     
-                    <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">{a.productName}</h3>
+                    <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">
+                      {a.nameFR || a.productName}
+                    </h3>
+                    {a.nameFR && a.nameFR.toLowerCase() !== a.productName.toLowerCase() && (
+                      <p className="text-[9px] font-bold text-stone-400 uppercase truncate mt-0.5">
+                        {a.productName}
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
                       {(() => {
                         const distinctQualities = Array.from(new Set(variants.map((v: any) => v.quality).filter(Boolean)));

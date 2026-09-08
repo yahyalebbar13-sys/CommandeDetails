@@ -188,10 +188,16 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
         });
 
         // Créer un mouvement IN dans stockMovements automatiquement
+        const baseName = (article.nameFR || article.name || article.categoryId || '').trim();
         const parts: string[] = [];
-        if (article.zipperType) parts.push(article.zipperType);
-        if (article.slider)     parts.push(article.slider);
-        const productName = parts.length > 0 ? parts.join(' ') : (article.name || article.specs || article.categoryId || 'Produit');
+        if (article.zipperType && !baseName.toLowerCase().includes(article.zipperType.toLowerCase())) {
+          parts.push(article.zipperType);
+        }
+        if (article.slider && !baseName.toLowerCase().includes(article.slider.toLowerCase())) {
+          parts.push(article.slider);
+        }
+        const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
+        const defaultProductName = article.nameFR || fullEnglishName;
 
         const coutRevient = computeCoutRevientMad(article);
         const targetStore = storeSelections[article.id] || warehouseOptions[0]?.id || '';
@@ -201,10 +207,12 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
           article.qualityBreakdown.forEach((row: any) => {
             const rowQty = Number(row.quantity) || 0;
             if (rowQty <= 0) return;
+            const rowProductName = row.nameFR || (row.quality ? `${baseName} ${row.quality}`.trim() : defaultProductName);
             addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
               articleId:        article.id,
               categoryId:       article.categoryId,
-              productName,
+              productName:      rowProductName,
+              nameFR:           row.nameFR || article.nameFR || null,
               color:            article.color || row.color || null,
               size:             row.size || article.size || null,
               quality:          row.quality || null,
@@ -233,7 +241,8 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
           addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
             articleId:        article.id,
             categoryId:       article.categoryId,
-            productName,
+            productName:      defaultProductName,
+            nameFR:           article.nameFR || null,
             color:            article.color || null,
             size:             article.size  || null,
             quality:          article.quality || null,
@@ -379,10 +388,16 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
               </h4>
               <div className="space-y-3">
                 {associatedArticles.map((article: any) => {
+                  const baseName = (article.nameFR || article.name || article.categoryId || '').trim();
                   const parts: string[] = [];
-                  if (article.zipperType) parts.push(article.zipperType);
-                  if (article.slider)     parts.push(article.slider);
-                  const productName = parts.length > 0 ? parts.join(' ') : (article.name || article.specs || article.categoryId || 'Produit');
+                  if (article.zipperType && !baseName.toLowerCase().includes(article.zipperType.toLowerCase())) {
+                    parts.push(article.zipperType);
+                  }
+                  if (article.slider && !baseName.toLowerCase().includes(article.slider.toLowerCase())) {
+                    parts.push(article.slider);
+                  }
+                  const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
+                  const productName = article.nameFR || fullEnglishName;
                   
                   return (
                     <div key={article.id} className="flex items-center justify-between p-3 rounded-xl border border-stone-100 bg-stone-50">
