@@ -521,7 +521,9 @@ function CategorySection({
           <div className="relative h-full flex items-center px-8 sm:px-12">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-3xl">{category.icon || '🧵'}</span>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center border" style={{ color: accentColor, borderColor: `${accentColor}40`, background: `${accentColor}12` }}>
+                  <Layers className="w-4 h-4" />
+                </div>
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-1 rounded-full border"
                   style={{ color: accentColor, borderColor: `${accentColor}40`, background: `${accentColor}08` }}>
                   Section {String(index + 1).padStart(2, '0')}

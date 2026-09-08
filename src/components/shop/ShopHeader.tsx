@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import {
   ShoppingCart,
   Search,
-  Menu,
   X,
   ChevronDown,
   ChevronRight,
@@ -15,6 +14,13 @@ import {
   Truck,
   Home,
   LayoutGrid,
+  ShoppingBag,
+  Plus,
+  Building2,
+  PhoneCall,
+  Percent,
+  Globe,
+  Layers,
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
@@ -59,11 +65,10 @@ export default function ShopHeader() {
   const pathname = usePathname();
 
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const [isMobileCategoriesOpen, setIsMobileCategoriesOpen] = useState(false);
   const [isMobileCatExplorerOpen, setIsMobileCatExplorerOpen] = useState(false);
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [mobileSelectedCatSlug, setMobileSelectedCatSlug] = useState<string>('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -211,13 +216,13 @@ export default function ShopHeader() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ── Close mobile menus on route change ───────────────────────────────────
+  // ── Close menus on route change ──────────────────────────────────────────
   useEffect(() => {
-    setIsMobileMenuOpen(false);
     setIsSearchOpen(false);
     setIsCategoriesOpen(false);
     setIsMoreOpen(false);
     setIsMobileCatExplorerOpen(false);
+    setIsPlusMenuOpen(false);
   }, [pathname]);
 
   // ── Focus search input when opened ───────────────────────────────────────
@@ -241,9 +246,9 @@ export default function ShopHeader() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ── Lock body scroll on mobile menu or category explorer ─────────────────
+  // ── Lock body scroll on mobile category explorer or plus menu ─────────────
   useEffect(() => {
-    if (isMobileMenuOpen || isMobileCatExplorerOpen) {
+    if (isMobileCatExplorerOpen || isPlusMenuOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -251,7 +256,7 @@ export default function ShopHeader() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMobileMenuOpen, isMobileCatExplorerOpen]);
+  }, [isMobileCatExplorerOpen, isPlusMenuOpen]);
 
   const handleSearchSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -347,10 +352,10 @@ export default function ShopHeader() {
                 <span>WhatsApp</span>
               </a>
 
-              {/* Cart Button */}
+              {/* Cart Button (Desktop only, mobile has it in bottom navigation bar) */}
               <button
                 onClick={openCart}
-                className="relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group cursor-pointer"
+                className="hidden lg:flex relative p-2.5 rounded-xl text-gray-700 hover:text-[#C8102E] hover:bg-red-50 transition-all group cursor-pointer"
                 aria-label={`Panier — ${itemCount} article${itemCount !== 1 ? "s" : ""}`}
               >
                 <ShoppingCart className="w-6 h-6 transition-transform group-hover:scale-110" />
@@ -363,25 +368,11 @@ export default function ShopHeader() {
                   </span>
                 )}
               </button>
-
-              {/* Mobile hamburger */}
-              <button
-                onClick={() => setIsMobileMenuOpen((v) => !v)}
-                className="lg:hidden p-2.5 rounded-xl text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-                aria-label="Menu"
-                aria-expanded={isMobileMenuOpen}
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
-              </button>
             </div>
           </div>
         </div>
 
-        {/* ── Mobile Horizontal Swipeable Category Tabs (Temu-style: "Tout" + Categories) ── */}
+        {/* ── Mobile Horizontal Swipeable Category Tabs (Temu-style: "Tout" + Categories, NO emojis) ── */}
         <div className="lg:hidden border-t border-neutral-100 bg-white shadow-2xs">
           <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto no-scrollbar scroll-smooth">
             {/* "Tout" Pill */}
@@ -396,20 +387,19 @@ export default function ShopHeader() {
               {language === 'ar' ? 'الكل' : 'Tout'}
             </Link>
 
-            {/* Real Parent Categories */}
+            {/* Real Parent Categories (clean text, no emojis) */}
             {SHOP_CATEGORIES.map((cat) => {
               const isCatActive = pathname === `/shop/categorie/${cat.slug}`;
               return (
                 <Link
                   key={cat.id}
                   href={`/shop/categorie/${cat.slug}`}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
                     isCatActive
                       ? "bg-[#C8102E] text-white font-bold shadow-xs"
                       : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
                   }`}
                 >
-                  <span className="text-xs">{cat.icon || '🧵'}</span>
                   <span>{language === 'ar' ? (cat.nameAr || cat.name) : cat.name}</span>
                 </Link>
               );
@@ -493,8 +483,7 @@ export default function ShopHeader() {
                                         : "text-neutral-700 hover:text-neutral-950 hover:bg-neutral-100/80 border-l-4 border-transparent rtl:border-l-0 rtl:border-r-4"
                                     }`}
                                   >
-                                    <div className="flex items-center gap-2 truncate pr-2">
-                                      <span className="text-base flex-shrink-0">{cat.icon || '🧵'}</span>
+                                    <div className="truncate pr-2">
                                       <span className="truncate">
                                         {language === 'ar' ? (cat.nameAr || cat.name) : cat.name}
                                       </span>
@@ -561,7 +550,7 @@ export default function ShopHeader() {
                                             className="object-cover group-hover:scale-110 transition-transform duration-300"
                                           />
                                         ) : (
-                                          <span className="text-2xl">{item.icon || activeCategory?.icon || '🧵'}</span>
+                                          <Layers className="w-7 h-7 text-neutral-400" />
                                         )}
 
                                         {/* Orange HOT Badge */}
@@ -581,8 +570,8 @@ export default function ShopHeader() {
                                 </div>
                               ) : activeCategory ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center bg-neutral-50/60 rounded-2xl border border-dashed border-neutral-200 p-6 my-4">
-                                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-3xl mb-3 shadow-xs border border-neutral-100">
-                                    {activeCategory.icon || '🧵'}
+                                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-neutral-400 mb-3 shadow-xs border border-neutral-100">
+                                    <Layers className="w-8 h-8 text-neutral-400" />
                                   </div>
                                   <h4 className="text-base font-bold text-neutral-900 mb-1">
                                     {language === 'ar' ? (activeCategory.nameAr || activeCategory.name) : activeCategory.name}
@@ -698,182 +687,7 @@ export default function ShopHeader() {
         </div>
       </header>
 
-      {/* ── Mobile Menu Overlay ──────────────────────────────────────────────── */}
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-        </div>
-      )}
 
-      {/* ── Mobile Menu Drawer ───────────────────────────────────────────────── */}
-      <div
-        className={`fixed top-0 right-0 bottom-0 z-50 w-80 max-w-[90vw] bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden ${
-          isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        {/* Mobile header */}
-        <div
-          className="flex items-center justify-between px-5 py-4 border-b border-gray-100"
-          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
-        >
-          <Link
-            href="/shop"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="flex items-center"
-          >
-            <img
-              src="/logo.png"
-              alt="LEBTEX"
-              className="h-12 w-auto"
-              style={{ maxWidth: '180px' }}
-            />
-          </Link>
-          <button
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Mobile search */}
-        <div className="px-5 py-4 border-b border-gray-100">
-          <SmartSearch variant="mobile" onNavigate={() => setIsMobileMenuOpen(false)} />
-        </div>
-
-        {/* Mobile nav links */}
-        <nav className="flex-1 overflow-y-auto py-3">
-          {NAV_LINKS.map((link) =>
-            link.hasDropdown ? (
-              <div key={link.labelKey}>
-                <button
-                  onClick={() =>
-                    setIsMobileCategoriesOpen((v) => !v)
-                  }
-                  className="flex items-center justify-between w-full px-5 py-3.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
-                >
-                  <span>{t(link.labelKey)}</span>
-                  <ChevronDown
-                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                      isMobileCategoriesOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-                {isMobileCategoriesOpen && (
-                  <div className="bg-gray-50 border-y border-gray-100 py-1">
-                    {SHOP_CATEGORIES.map((cat) => (
-                      <Link
-                        key={cat.id}
-                        href={`/shop/categorie/${cat.slug}`}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center gap-3 px-7 py-2.5 text-sm text-gray-700 hover:text-[#C8102E] hover:bg-white transition-colors"
-                      >
-                        <span>{cat.icon}</span>
-                        <span>{language === 'ar' ? (cat.nameAr || cat.name) : cat.name}</span>
-                      </Link>
-                    ))}
-                    <Link
-                      href="/shop/categories"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center gap-2 mx-5 mt-2 mb-1 py-2 px-3 rounded-lg text-sm font-semibold text-[#C8102E] bg-red-50 hover:bg-red-100 transition-colors"
-                    >
-                      <Truck className="w-4 h-4" />
-                      {t('all_products')}
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : link.isMoreDropdown ? (
-              <div key={link.labelKey}>
-                <button
-                  onClick={() => setIsMoreOpen((v) => !v)}
-                  className="flex items-center justify-between w-full px-5 py-3.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
-                >
-                  <span>{t(link.labelKey)}</span>
-                  <ChevronDown
-                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                      isMoreOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-                {isMoreOpen && (
-                  <div className="bg-gray-50 border-y border-gray-100 py-1">
-                    {MORE_LINKS.map((ml) => (
-                      <Link
-                        key={ml.labelKey}
-                        href={ml.href}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center gap-3 px-7 py-2.5 text-sm text-gray-700 hover:text-[#C8102E] hover:bg-white transition-colors"
-                      >
-                        <span>{t(ml.labelKey)}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Link
-                key={link.labelKey}
-                href={link.href}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center justify-between px-5 py-3.5 text-sm font-semibold transition-colors ${
-                  isActive(link.href)
-                    ? "text-[#C8102E] bg-red-50"
-                    : "text-gray-800 hover:bg-gray-50"
-                }`}
-              >
-                {t(link.labelKey)}
-                {isActive(link.href) && (
-                  <ChevronRight className="w-4 h-4 text-[#C8102E]" />
-                )}
-              </Link>
-            )
-          )}
-        </nav>
-
-        {/* Mobile footer CTA */}
-        <div className="p-5 border-t border-gray-100 space-y-2.5">
-          <a
-            href="https://wa.me/212760998347"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-600 transition-colors"
-          >
-            <Phone className="w-4 h-4" />
-            {t('whatsapp_cta')}
-          </a>
-          <button
-            onClick={() => {
-              setIsMobileMenuOpen(false);
-              openCart();
-            }}
-            className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-white text-sm font-semibold transition-colors hover:opacity-90"
-            style={{ backgroundColor: "#C8102E" }}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            {t('cart_title')}
-            {itemCount > 0 && (
-              <span className="bg-white text-[#C8102E] text-xs font-bold px-1.5 py-0.5 rounded-full">
-                {itemCount}
-              </span>
-            )}
-          </button>
-          {/* Language toggle for mobile */}
-          <button
-            onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-            className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <span className="text-base">{language === 'fr' ? '🇸🇦' : '🇫🇷'}</span>
-            {language === 'fr' ? 'عربي / Passer en arabe' : 'Français / الفرنسية'}
-          </button>
-          <p className="text-center text-xs text-gray-400">
-            🇲🇦 {t('trust_delivery')}
-          </p>
-        </div>
-      </div>
 
       {/* ── Search Modal Overlay (Mobile/Tablet/Quick Search) ─────────────── */}
       {isSearchOpen && (
@@ -897,29 +711,29 @@ export default function ShopHeader() {
         </div>
       )}
 
-      {/* ── Temu-style Mobile Fixed Bottom Navigation Bar ──────────────────── */}
+      {/* ── Temu-style Mobile Fixed Bottom Navigation Bar (Accueil, Catégories, Boutique, Suivi, Panier, +) ── */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-5 h-14 items-center">
+        <div className="grid grid-cols-6 h-14 items-center">
           {/* 1. Accueil */}
           <Link
             href="/shop"
             className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
-              pathname === "/shop" && !isMobileCatExplorerOpen && !isSearchOpen
+              pathname === "/shop" && !isMobileCatExplorerOpen && !isPlusMenuOpen
                 ? "text-[#C8102E] font-bold"
                 : "text-neutral-500 hover:text-neutral-900"
             }`}
           >
             <Home className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-tight font-medium">
+            <span className="text-[9.5px] leading-tight font-medium truncate px-0.5">
               {language === 'ar' ? 'الرئيسية' : 'Accueil'}
             </span>
           </Link>
 
-          {/* 2. Catégories (Temu-style category drawer trigger) */}
+          {/* 2. Catégories */}
           <button
             type="button"
             onClick={() => {
-              setIsMobileMenuOpen(false);
+              setIsPlusMenuOpen(false);
               setIsSearchOpen(false);
               setIsMobileCatExplorerOpen(true);
             }}
@@ -930,35 +744,55 @@ export default function ShopHeader() {
             }`}
           >
             <LayoutGrid className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-tight font-medium">
+            <span className="text-[9.5px] leading-tight font-medium truncate px-0.5">
               {language === 'ar' ? 'الفئات' : 'Catégories'}
             </span>
           </button>
 
-          {/* 3. Recherche */}
-          <button
-            type="button"
+          {/* 3. Boutique */}
+          <Link
+            href="/shop/boutique"
             onClick={() => {
               setIsMobileCatExplorerOpen(false);
-              setIsSearchOpen(true);
+              setIsPlusMenuOpen(false);
             }}
             className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
-              isSearchOpen
+              pathname === "/shop/boutique"
                 ? "text-[#C8102E] font-bold"
                 : "text-neutral-500 hover:text-neutral-900"
             }`}
           >
-            <Search className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-tight font-medium">
-              {language === 'ar' ? 'بحث' : 'Recherche'}
+            <ShoppingBag className="w-5 h-5 mb-0.5" />
+            <span className="text-[9.5px] leading-tight font-medium truncate px-0.5">
+              {language === 'ar' ? 'المتجر' : 'Boutique'}
             </span>
-          </button>
+          </Link>
 
-          {/* 4. Panier */}
+          {/* 4. Suivi de commande */}
+          <Link
+            href="/shop/suivi"
+            onClick={() => {
+              setIsMobileCatExplorerOpen(false);
+              setIsPlusMenuOpen(false);
+            }}
+            className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
+              pathname === "/shop/suivi"
+                ? "text-[#C8102E] font-bold"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <Truck className="w-5 h-5 mb-0.5" />
+            <span className="text-[9.5px] leading-tight font-medium truncate px-0.5">
+              {language === 'ar' ? 'التتبع' : 'Suivi'}
+            </span>
+          </Link>
+
+          {/* 5. Panier */}
           <button
             type="button"
             onClick={() => {
               setIsMobileCatExplorerOpen(false);
+              setIsPlusMenuOpen(false);
               openCart();
             }}
             className="relative flex flex-col items-center justify-center h-full text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
@@ -967,34 +801,188 @@ export default function ShopHeader() {
               <ShoppingCart className="w-5 h-5 mb-0.5" />
               {itemCount > 0 && (
                 <span
-                  className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] flex items-center justify-center rounded-full text-white text-[9px] font-black px-1"
+                  className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-white text-[9px] font-black px-0.5"
                   style={{ backgroundColor: "#C8102E" }}
                 >
                   {itemCount > 99 ? "99+" : itemCount}
                 </span>
               )}
             </div>
-            <span className="text-[10px] leading-tight font-medium">
+            <span className="text-[9.5px] leading-tight font-medium truncate px-0.5">
               {language === 'ar' ? 'السلة' : 'Panier'}
             </span>
           </button>
 
-          {/* 5. WhatsApp */}
-          <a
-            href="https://wa.me/212760998347"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center h-full text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+          {/* 6. Plus (+) Menu */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileCatExplorerOpen(false);
+              setIsPlusMenuOpen(v => !v);
+            }}
+            className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
+              isPlusMenuOpen
+                ? "text-[#C8102E] font-bold"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
           >
-            <Phone className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] leading-tight font-medium">
-              {language === 'ar' ? 'واتساب' : 'WhatsApp'}
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform ${
+              isPlusMenuOpen ? "bg-red-50 text-[#C8102E] rotate-45" : ""
+            }`}>
+              <Plus className="w-5 h-5" />
+            </div>
+            <span className="text-[9.5px] leading-tight font-medium truncate px-0.5">
+              {language === 'ar' ? 'المزيد' : 'Plus'}
             </span>
-          </a>
+          </button>
         </div>
       </div>
 
-      {/* ── Temu-style Mobile 2-Column Category Explorer Drawer ────────────── */}
+      {/* ── Mobile "+" Menu Bottom Sheet (À propos magasin, Contact, Promotion, Service import) ── */}
+      {isPlusMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end animate-in fade-in-0 duration-200">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-xs"
+            onClick={() => setIsPlusMenuOpen(false)}
+          />
+
+          {/* Sheet Container */}
+          <div
+            className="relative bg-white rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.18)] border-t border-neutral-200 p-5 z-10 animate-in slide-in-from-bottom duration-200"
+            style={{ paddingBottom: "max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem))" }}
+          >
+            {/* Handle / Drag notch */}
+            <div className="w-10 h-1 rounded-full bg-neutral-200 mx-auto mb-3" />
+
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-neutral-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-red-50 text-[#C8102E] flex items-center justify-center font-black text-sm">
+                  +
+                </div>
+                <h3 className="text-sm font-bold text-neutral-900">
+                  {language === 'ar' ? 'خدمات ومعلومات LEBTEX' : 'Services & Infos LEBTEX'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPlusMenuOpen(false)}
+                className="p-1.5 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
+                aria-label="Fermer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 4 Cards Grid (À propos magasin, Contact, Promotion, Service import) */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* 1. Promotions */}
+              <Link
+                href="/shop/promotions"
+                onClick={() => setIsPlusMenuOpen(false)}
+                className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 hover:bg-amber-100/60 transition-all flex flex-col justify-between group cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                    <Percent className="w-4 h-4" />
+                  </div>
+                  <span className="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight">
+                    HOT
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 group-hover:text-[#C8102E] transition-colors">
+                    {language === 'ar' ? 'العروض والتخفيضات' : 'Promotions'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">
+                    {language === 'ar' ? 'تخفيضات وصفقات حصرية' : 'Offres & remises exclusives'}
+                  </p>
+                </div>
+              </Link>
+
+              {/* 2. À propos magasin */}
+              <Link
+                href="/shop/a-propos"
+                onClick={() => setIsPlusMenuOpen(false)}
+                className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-200/70 hover:bg-rose-100/50 transition-all flex flex-col justify-between group cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-9 h-9 rounded-xl bg-[#C8102E] text-white flex items-center justify-center shadow-xs">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 group-hover:text-[#C8102E] transition-colors">
+                    {language === 'ar' ? 'عن المتجر' : 'À propos magasin'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">
+                    {language === 'ar' ? 'تاريخنا ومحلاتنا بالدار البيضاء' : 'Notre mercerie & boutiques'}
+                  </p>
+                </div>
+              </Link>
+
+              {/* 3. Service import */}
+              <Link
+                href="/catalogue/service-import"
+                onClick={() => setIsPlusMenuOpen(false)}
+                className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-200/70 hover:bg-indigo-100/50 transition-all flex flex-col justify-between group cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                    PRO
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 group-hover:text-[#C8102E] transition-colors">
+                    {language === 'ar' ? 'خدمة الاستيراد' : 'Service Import'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">
+                    {language === 'ar' ? 'طلبيات الجملة والاستيراد' : 'Commandes industrielles sur mesure'}
+                  </p>
+                </div>
+              </Link>
+
+              {/* 4. Contact */}
+              <Link
+                href="/shop/contact"
+                onClick={() => setIsPlusMenuOpen(false)}
+                className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200/70 hover:bg-blue-100/50 transition-all flex flex-col justify-between group cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                    <PhoneCall className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 group-hover:text-[#C8102E] transition-colors">
+                    {language === 'ar' ? 'اتصل بنا' : 'Contact'}
+                  </h4>
+                  <p className="text-[10px] text-neutral-500 mt-0.5 leading-tight">
+                    {language === 'ar' ? 'خدمة الزبائن والدعم' : 'Assistance & service client'}
+                  </p>
+                </div>
+              </Link>
+            </div>
+
+            {/* Direct WhatsApp CTA Button inside the Plus menu */}
+            <a
+              href="https://wa.me/212760998347"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-colors shadow-xs"
+            >
+              <Phone className="w-4 h-4" />
+              <span>{language === 'ar' ? 'تواصل عبر واتساب (+212 760 998 347)' : 'Discuter sur WhatsApp (+212 760 998 347)'}</span>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* ── Temu-style Mobile 2-Column Category Explorer Drawer (NO emojis) ── */}
       {isMobileCatExplorerOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex flex-col bg-white animate-in fade-in-0 duration-200">
           {/* Top Header */}
@@ -1035,7 +1023,7 @@ export default function ShopHeader() {
 
           {/* 2-Column Body */}
           <div className="flex-1 flex overflow-hidden">
-            {/* Left Column: Vertical Category List (Temu style) */}
+            {/* Left Column: Vertical Category List (Temu style, clean text, NO emojis) */}
             <div className="w-24 sm:w-28 bg-neutral-100/80 border-r border-neutral-200/80 overflow-y-auto shop-scrollbar flex flex-col">
               {SHOP_CATEGORIES.map((cat) => {
                 const isSelected = (mobileActiveCat?.slug === cat.slug);
@@ -1044,14 +1032,13 @@ export default function ShopHeader() {
                     key={cat.id}
                     type="button"
                     onClick={() => setMobileSelectedCatSlug(cat.slug)}
-                    className={`flex flex-col items-center justify-center py-3.5 px-2 text-center transition-all border-l-4 rtl:border-l-0 rtl:border-r-4 cursor-pointer relative ${
+                    className={`flex items-center justify-center py-3.5 px-2 text-center transition-all border-l-4 rtl:border-l-0 rtl:border-r-4 cursor-pointer relative min-h-[50px] ${
                       isSelected
                         ? "bg-white text-[#C8102E] font-bold border-[#C8102E] shadow-2xs"
                         : "text-neutral-600 hover:text-neutral-900 border-transparent hover:bg-neutral-200/50"
                     }`}
                   >
-                    <span className="text-xl mb-1">{cat.icon || '🧵'}</span>
-                    <span className="text-[11px] leading-snug line-clamp-2">
+                    <span className="text-[11.5px] leading-snug line-clamp-2 px-1">
                       {language === 'ar' ? (cat.nameAr || cat.name) : cat.name}
                     </span>
                   </button>
@@ -1108,7 +1095,7 @@ export default function ShopHeader() {
                                 className="object-cover group-hover:scale-110 transition-transform duration-300"
                               />
                             ) : (
-                              <span className="text-xl">{item.icon || mobileActiveCat.icon || '🧵'}</span>
+                              <Layers className="w-6 h-6 text-neutral-400" />
                             )}
 
                             {item.isHot && (
@@ -1127,8 +1114,8 @@ export default function ShopHeader() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-8 text-center bg-neutral-50 rounded-xl border border-dashed border-neutral-200 p-4">
-                      <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-2xl mb-2.5 shadow-xs border border-neutral-100">
-                        {mobileActiveCat.icon || '🧵'}
+                      <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-neutral-400 mb-2.5 shadow-xs border border-neutral-100">
+                        <Layers className="w-7 h-7 text-neutral-400" />
                       </div>
                       <h4 className="text-sm font-bold text-neutral-900 mb-1">
                         {language === 'ar' ? (mobileActiveCat.nameAr || mobileActiveCat.name) : mobileActiveCat.name}

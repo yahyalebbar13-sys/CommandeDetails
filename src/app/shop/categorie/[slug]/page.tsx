@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/language-context';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
-import { ShoppingBag, ArrowLeft, Package, Loader2, SlidersHorizontal, X } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Package, Loader2, SlidersHorizontal, X, Layers } from 'lucide-react';
 import ProductCard from '@/components/shop/ProductCard';
 
 
@@ -224,7 +224,6 @@ export default function CategoryPage({ params }: { params: any }) {
                         : 'bg-white border border-[#E8E4DF] text-[#6B6B6B] hover:border-[#C8102E]/30 hover:text-[#C8102E]'
                     }`}
                   >
-                    {cat.icon && <span className="text-sm">{cat.icon}</span>}
                     {language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}
                     {count > 0 && (
                       <span className={`text-[10px] font-bold ${activeSubCat === cat.slug ? 'text-white/70' : 'text-gray-400'}`}>
@@ -312,7 +311,7 @@ export default function CategoryPage({ params }: { params: any }) {
                       <img src={cat.image as string} alt={cat.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${catAccentColor}30 0%, ${catAccentColor}10 100%)` }}>
-                        <span className="text-4xl sm:text-6xl opacity-50">{cat.icon || '📁'}</span>
+                        <Layers className="w-10 h-10 opacity-30 text-[#1A1A1A]" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
@@ -428,7 +427,7 @@ export default function CategoryPage({ params }: { params: any }) {
                         className="w-full h-full flex items-center justify-center"
                         style={{ background: `linear-gradient(135deg, ${catColor}25 0%, ${catColor}08 100%)` }}
                       >
-                        <span className="text-3xl sm:text-4xl">{cat.icon || '🧵'}</span>
+                        <Layers className="w-8 h-8 opacity-30 text-[#1A1A1A]" />
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />

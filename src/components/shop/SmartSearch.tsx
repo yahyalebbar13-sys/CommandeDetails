@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, X, ArrowRight, Clock, TrendingUp } from 'lucide-react';
+import { Search, X, ArrowRight, Clock, TrendingUp, Layers } from 'lucide-react';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import { useLanguage } from '@/contexts/language-context';
 import type { ShopProduct, ShopCategory } from '@/lib/shop-types';
@@ -292,8 +292,8 @@ export default function SmartSearch({ variant = 'desktop', onNavigate, autoFocus
                         selectedIndex === i ? 'bg-gray-100' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: `${cat.color || '#C8102E'}15` }}>
-                        {cat.icon || '📁'}
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${cat.color || '#C8102E'}15` }}>
+                        <Layers className="w-4 h-4 text-[#C8102E]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#1A1A1A] truncate">{language === 'ar' && cat.nameAr ? cat.nameAr : cat.name}</p>

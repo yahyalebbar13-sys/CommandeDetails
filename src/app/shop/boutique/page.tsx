@@ -255,7 +255,6 @@ function BoutiqueContent() {
                     : 'bg-white border border-[#E8E4DF] text-[#6B6B6B] hover:border-[#C8102E]/30 hover:text-[#C8102E]'
                 }`}
               >
-                {cat.icon && <span className="text-sm">{cat.icon}</span>}
                 {cat.name}
               </button>
             ))}

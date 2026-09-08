@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useShopProducts } from '@/contexts/shop-products-context';
 import type { ShopCategory } from '@/lib/shop-types';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2, Layers } from 'lucide-react';
 
 export default function CategoriesPage() {
   const { categories: allCats, products, isLoading: loading } = useShopProducts();
@@ -77,7 +77,7 @@ export default function CategoriesPage() {
                       className="w-full h-full flex items-center justify-center"
                       style={{ background: `linear-gradient(135deg, ${accentColor}30 0%, ${accentColor}10 100%)` }}
                     >
-                      <span className="text-6xl opacity-50">{cat.icon || '🧵'}</span>
+                      <Layers className="w-12 h-12 opacity-30 text-[#1A1A1A]" />
                     </div>
                   )}
                   {/* Gradient overlay */}
