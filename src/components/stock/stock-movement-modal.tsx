@@ -323,11 +323,16 @@ export function ProductPicker({
                         {!swatch && <span className="text-[7px] text-stone-300 font-bold">—</span>}
                       </div>
 
-                      {/* Couleur + taille */}
-                      <div className="w-20 shrink-0">
+                      {/* Qualité + couleur + taille */}
+                      <div className="w-28 shrink-0">
+                        {si.quality && (
+                          <span className="inline-block text-[8px] font-black bg-violet-100 text-violet-700 px-1 py-0.2 rounded uppercase mb-0.5">
+                            {si.quality}
+                          </span>
+                        )}
                         {si.color && <p className="text-[9px] font-black text-stone-800 uppercase leading-none">{si.color}</p>}
                         {si.size  && <p className="text-[8px] font-bold text-stone-500 leading-none mt-0.5">N° {si.size}</p>}
-                        {!si.color && !si.size && <p className="text-[8px] text-stone-400 font-bold">Standard</p>}
+                        {!si.quality && !si.color && !si.size && <p className="text-[8px] text-stone-400 font-bold">Standard</p>}
                       </div>
 
                       {/* Barre stock proportionnelle */}
@@ -435,6 +440,11 @@ export default function StockMovementModal({
       productName,
       color:         selectedStock.color,     // ← couleur de la variante
       size:          selectedStock.size,      // ← taille de la variante
+      quality:       selectedStock.quality || undefined,
+      gsm:           selectedStock.gsm || undefined,
+      fabricWidth:   selectedStock.fabricWidth || undefined,
+      rollLength:    selectedStock.rollLength || undefined,
+      rollLengthUnit: selectedStock.rollLengthUnit || undefined,
       unitOfMeasure: selectedStock.unitOfMeasure || 'unité',
       type:          form.type,
       reason:        form.reason as StockMovementReason,

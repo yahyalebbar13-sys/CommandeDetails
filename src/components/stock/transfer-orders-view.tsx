@@ -60,6 +60,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       productName: item.productName,
       color: item.color,
       size: item.size,
+      quality: item.quality,
       unitOfMeasure: item.unitOfMeasure,
       sentQty: 1
     }]);
@@ -94,10 +95,12 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
           productName: item.productName,
           color: item.color,
           size: item.size,
+          quality: item.quality,
           unitOfMeasure: item.unitOfMeasure,
           type: 'OUT',
           reason: 'TRANSFERT',
           storeId: fromStore,
+          toStoreId: toStore,
           quantity: item.sentQty,
           date: now.split('T')[0],
           notes: `Bon de transfert ${docRef.id}`,
@@ -145,6 +148,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             productName: item.productName,
             color: item.color,
             size: item.size,
+            quality: item.quality,
             unitOfMeasure: item.unitOfMeasure,
             type: 'IN',
             reason: 'TRANSFERT',
@@ -166,6 +170,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
             productName: item.productName,
             color: item.color,
             size: item.size,
+            quality: item.quality,
             unitOfMeasure: item.unitOfMeasure,
             type: 'OUT',
             reason: 'ADJUSTMENT',
@@ -329,11 +334,11 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                 
                 {articleSearch && (
                   <div className="absolute top-full left-0 right-0 mt-2 max-h-48 overflow-y-auto bg-white border border-stone-200 rounded-xl shadow-xl z-50 p-2">
-                    {stockItems.filter(i => i.productName.toLowerCase().includes(articleSearch.toLowerCase()) || i.color?.toLowerCase().includes(articleSearch.toLowerCase())).slice(0, 10).map(item => (
+                    {stockItems.filter(i => i.productName.toLowerCase().includes(articleSearch.toLowerCase()) || i.color?.toLowerCase().includes(articleSearch.toLowerCase()) || i.quality?.toLowerCase().includes(articleSearch.toLowerCase())).slice(0, 10).map(item => (
                       <button key={item.articleId} onClick={() => addArticleToTransfer(item)} className="w-full text-left px-3 py-2 hover:bg-stone-50 rounded-lg flex items-center justify-between">
                         <div>
                           <p className="text-xs font-bold">{item.productName}</p>
-                          <p className="text-[10px] text-stone-400">{item.color} {item.size}</p>
+                          <p className="text-[10px] text-stone-400">{[item.quality, item.color, item.size].filter(Boolean).join(' · ')}</p>
                         </div>
                         <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md">Stock: {item.currentQty}</span>
                       </button>
@@ -355,7 +360,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
                   <tbody>
                     {selectedItems.map((item, idx) => (
                       <tr key={item.articleId} className="border-b border-stone-100 last:border-0">
-                        <td className="px-4 py-2 text-xs font-bold text-stone-700">{item.productName} {item.color ? ` - ${item.color}` : ''}</td>
+                        <td className="px-4 py-2 text-xs font-bold text-stone-700">{item.productName} {[item.quality ? `[${item.quality}]` : '', item.color, item.size].filter(Boolean).join(' · ')}</td>
                         <td className="px-4 py-2">
                           <Input type="number" min={1} value={item.sentQty} onChange={e => {
                             const val = parseFloat(e.target.value) || 0;

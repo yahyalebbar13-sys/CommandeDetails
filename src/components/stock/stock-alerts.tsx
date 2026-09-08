@@ -297,7 +297,16 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{item.productName}</p>
-            <p className="text-[9px] font-bold text-stone-400 mt-0.5">{item.categoryId}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+              <span className="text-[9px] font-bold text-stone-400">{item.categoryId}</span>
+              {item.quality && (
+                <span className="bg-violet-100 text-violet-700 font-black text-[8px] px-1.5 py-0.2 rounded uppercase">
+                  {item.quality}
+                </span>
+              )}
+              {item.color && <span className="text-[8px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">{item.color}</span>}
+              {item.size && <span className="text-[8px] font-bold bg-stone-100 text-stone-600 px-1 rounded uppercase">T. {item.size}</span>}
+            </div>
           </div>
           <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${isRupture ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
             {isRupture ? 'Rupture' : 'Bas'}

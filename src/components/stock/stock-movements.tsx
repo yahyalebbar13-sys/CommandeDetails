@@ -265,8 +265,13 @@ export default function StockMovements({ movements, stockItems, categories, arti
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-[11px] font-black text-stone-800 uppercase">{m.productName}</p>
-                        {(m.color || m.size) && (
-                          <p className="text-[9px] font-bold text-stone-400 mt-0.5">
+                        {(m.quality || m.color || m.size) && (
+                          <p className="text-[9px] font-bold text-stone-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            {m.quality && (
+                              <span className="bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">
+                                {m.quality}
+                              </span>
+                            )}
                             {[m.color, m.size].filter(Boolean).join(' · ')}
                           </p>
                         )}
