@@ -14,12 +14,12 @@ import {
   Phone,
   Truck,
   Home,
+  LayoutGrid,
 } from "lucide-react";
 import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import SmartSearch from "@/components/shop/SmartSearch";
-import { MEGA_MENU_CURATED_DATA } from "@/lib/shop-mega-menu-data";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -63,6 +63,8 @@ export default function ShopHeader() {
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isMobileCategoriesOpen, setIsMobileCategoriesOpen] = useState(false);
+  const [isMobileCatExplorerOpen, setIsMobileCatExplorerOpen] = useState(false);
+  const [mobileSelectedCatSlug, setMobileSelectedCatSlug] = useState<string>('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -74,6 +76,12 @@ export default function ShopHeader() {
 
   const activeCategory = (hoveredCatSlug ? SHOP_CATEGORIES.find(c => c.slug === hoveredCatSlug) : null) || SHOP_CATEGORIES[0] || null;
 
+  // Active category for mobile 2-column explorer drawer
+  const mobileActiveCat = useMemo(() => {
+    return (mobileSelectedCatSlug ? SHOP_CATEGORIES.find(c => c.slug === mobileSelectedCatSlug) : null) || SHOP_CATEGORIES[0] || null;
+  }, [mobileSelectedCatSlug, SHOP_CATEGORIES]);
+
+  // Strictly REAL subcategories & REAL products for Desktop Mega Menu (NO fake/dummy items)
   const activeCategoryItems = useMemo(() => {
     if (!activeCategory) return [];
 
@@ -85,7 +93,6 @@ export default function ShopHeader() {
         p.categoryAliases?.some((a) => a.slug === activeCategory.slug) ||
         subcats.some((s) => s.slug === p.categorySlug)
     );
-    const curated = MEGA_MENU_CURATED_DATA[activeCategory.slug] || [];
 
     const items: Array<{
       id: string;
@@ -96,7 +103,19 @@ export default function ShopHeader() {
       icon?: string;
     }> = [];
 
-    // Real products
+    // 1. Real subcategories first
+    subcats.forEach((s) => {
+      items.push({
+        id: `sub-${s.id || s.slug}`,
+        name: language === 'ar' ? (s.nameAr || s.name) : s.name,
+        href: `/shop/categorie/${s.slug}`,
+        image: s.image || activeCategory.image,
+        isHot: Boolean(s.priority && s.priority >= 80),
+        icon: s.icon,
+      });
+    });
+
+    // 2. Real products ONLY
     prods.forEach((p) => {
       items.push({
         id: `prod-${p.id}`,
@@ -107,38 +126,56 @@ export default function ShopHeader() {
       });
     });
 
-    // Subcategories
+    return items;
+  }, [activeCategory, allContextCategories, allProducts, language]);
+
+  // Strictly REAL subcategories & REAL products for Mobile Category Explorer (NO fake/dummy items)
+  const mobileCategoryItems = useMemo(() => {
+    if (!mobileActiveCat) return [];
+
+    const subcats = allContextCategories.filter((c) => c.parentSlug === mobileActiveCat.slug);
+    const prods = (allProducts || []).filter(
+      (p) =>
+        p.categorySlug === mobileActiveCat.slug ||
+        p.additionalCategorySlugs?.includes(mobileActiveCat.slug) ||
+        p.categoryAliases?.some((a) => a.slug === mobileActiveCat.slug) ||
+        subcats.some((s) => s.slug === p.categorySlug)
+    );
+
+    const items: Array<{
+      id: string;
+      name: string;
+      href: string;
+      image?: string;
+      isHot?: boolean;
+      icon?: string;
+    }> = [];
+
+    // 1. Real subcategories first
     subcats.forEach((s) => {
       items.push({
-        id: `sub-${s.id}`,
+        id: `mob-sub-${s.id || s.slug}`,
         name: language === 'ar' ? (s.nameAr || s.name) : s.name,
         href: `/shop/categorie/${s.slug}`,
-        image: s.image || activeCategory.image,
+        image: s.image || mobileActiveCat.image,
         isHot: Boolean(s.priority && s.priority >= 80),
         icon: s.icon,
       });
     });
 
-    // Curated items to complete grid up to 10 items
-    if (items.length < 10 && curated.length > 0) {
-      const existingNames = new Set(items.map((i) => i.name.toLowerCase()));
-      curated.forEach((c) => {
-        const displayName = language === 'ar' ? c.nameAr : c.name;
-        if (!existingNames.has(displayName.toLowerCase()) && items.length < 10) {
-          items.push({
-            id: `cur-${c.id}`,
-            name: displayName,
-            href: c.href || `/shop/boutique?q=${encodeURIComponent(c.name)}`,
-            image: c.image || activeCategory.image,
-            isHot: c.isHot,
-          });
-          existingNames.add(displayName.toLowerCase());
-        }
+    // 2. Real products ONLY
+    prods.forEach((p) => {
+      items.push({
+        id: `mob-prod-${p.id}`,
+        name: language === 'ar' ? (p.nameAr || p.name) : p.name,
+        href: `/shop/produit/${p.id}`,
+        image: p.images?.[0] || mobileActiveCat.image,
+        isHot: Boolean(p.isFeatured || p.isPromo),
       });
-    }
+    });
 
     return items;
-  }, [activeCategory, allContextCategories, allProducts, language]);
+  }, [mobileActiveCat, allContextCategories, allProducts, language]);
 
   // Dynamic position updater for Mega Menu & Notch
   useEffect(() => {
@@ -174,12 +211,13 @@ export default function ShopHeader() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ── Close mobile menu on route change ────────────────────────────────────
+  // ── Close mobile menus on route change ───────────────────────────────────
   useEffect(() => {
     setIsMobileMenuOpen(false);
     setIsSearchOpen(false);
     setIsCategoriesOpen(false);
     setIsMoreOpen(false);
+    setIsMobileCatExplorerOpen(false);
   }, [pathname]);
 
   // ── Focus search input when opened ───────────────────────────────────────
@@ -203,13 +241,17 @@ export default function ShopHeader() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ── Lock body scroll on mobile menu ──────────────────────────────────────
+  // ── Lock body scroll on mobile menu or category explorer ─────────────────
   useEffect(() => {
-    document.body.style.overflow = isMobileMenuOpen ? "hidden" : "";
+    if (isMobileMenuOpen || isMobileCatExplorerOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, isMobileCatExplorerOpen]);
 
   const handleSearchSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -338,7 +380,43 @@ export default function ShopHeader() {
             </div>
           </div>
         </div>
+
+        {/* ── Mobile Horizontal Swipeable Category Tabs (Temu-style: "Tout" + Categories) ── */}
+        <div className="lg:hidden border-t border-neutral-100 bg-white shadow-2xs">
+          <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto no-scrollbar scroll-smooth">
+            {/* "Tout" Pill */}
+            <Link
+              href="/shop"
+              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                pathname === "/shop"
+                  ? "bg-[#C8102E] text-white shadow-xs"
+                  : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+              }`}
+            >
+              {language === 'ar' ? 'الكل' : 'Tout'}
+            </Link>
+
+            {/* Real Parent Categories */}
+            {SHOP_CATEGORIES.map((cat) => {
+              const isCatActive = pathname === `/shop/categorie/${cat.slug}`;
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/shop/categorie/${cat.slug}`}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                    isCatActive
+                      ? "bg-[#C8102E] text-white font-bold shadow-xs"
+                      : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                  }`}
+                >
+                  <span className="text-xs">{cat.icon || '🧵'}</span>
+                  <span>{language === 'ar' ? (cat.nameAr || cat.name) : cat.name}</span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
+      </div>
 
         {/* ── Bottom Row: Navigation Bar (Desktop Only) ────────────────── */}
         <div className="hidden lg:block border-t border-gray-100 bg-white">
@@ -463,43 +541,65 @@ export default function ShopHeader() {
                               )}
 
                               {/* Circular Items Grid (5 columns per row, Temu style) */}
-                              <div className="grid grid-cols-4 sm:grid-cols-5 gap-x-3 gap-y-5">
-                                {activeCategoryItems.map((item) => (
+                              {activeCategoryItems.length > 0 ? (
+                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-x-3 gap-y-5">
+                                  {activeCategoryItems.map((item) => (
+                                    <Link
+                                      key={item.id}
+                                      href={item.href}
+                                      onClick={() => setIsCategoriesOpen(false)}
+                                      className="group flex flex-col items-center cursor-pointer text-center"
+                                    >
+                                      {/* Circle Container */}
+                                      <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200 group-hover:border-[#C8102E] relative flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-2xs group-hover:shadow-md">
+                                        {item.image ? (
+                                          <Image
+                                            src={item.image}
+                                            alt={item.name}
+                                            fill
+                                            sizes="88px"
+                                            className="object-cover group-hover:scale-110 transition-transform duration-300"
+                                          />
+                                        ) : (
+                                          <span className="text-2xl">{item.icon || activeCategory?.icon || '🧵'}</span>
+                                        )}
+
+                                        {/* Orange HOT Badge */}
+                                        {item.isHot && (
+                                          <span className="absolute top-0.5 right-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs uppercase tracking-tight z-10 ring-1 ring-white">
+                                            HOT
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Centered 2-line Label */}
+                                      <span className="mt-2 text-xs font-semibold text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 max-w-[95px] leading-tight transition-colors">
+                                        {item.name}
+                                      </span>
+                                    </Link>
+                                  ))}
+                                </div>
+                              ) : activeCategory ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-center bg-neutral-50/60 rounded-2xl border border-dashed border-neutral-200 p-6 my-4">
+                                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-3xl mb-3 shadow-xs border border-neutral-100">
+                                    {activeCategory.icon || '🧵'}
+                                  </div>
+                                  <h4 className="text-base font-bold text-neutral-900 mb-1">
+                                    {language === 'ar' ? (activeCategory.nameAr || activeCategory.name) : activeCategory.name}
+                                  </h4>
+                                  <p className="text-xs text-neutral-500 max-w-sm mb-4">
+                                    {language === 'ar' ? (activeCategory.descriptionAr || 'استكشف جميع منتجات هذا القسم') : (activeCategory.description || 'Découvrez tous les articles disponibles dans ce rayon')}
+                                  </p>
                                   <Link
-                                    key={item.id}
-                                    href={item.href}
+                                    href={`/shop/categorie/${activeCategory.slug}`}
                                     onClick={() => setIsCategoriesOpen(false)}
-                                    className="group flex flex-col items-center cursor-pointer text-center"
+                                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold text-white bg-[#C8102E] hover:bg-red-700 transition-colors shadow-xs"
                                   >
-                                    {/* Circle Container */}
-                                    <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200 group-hover:border-[#C8102E] relative flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-2xs group-hover:shadow-md">
-                                      {item.image ? (
-                                        <Image
-                                          src={item.image}
-                                          alt={item.name}
-                                          fill
-                                          sizes="88px"
-                                          className="object-cover group-hover:scale-110 transition-transform duration-300"
-                                        />
-                                      ) : (
-                                        <span className="text-2xl">{item.icon || activeCategory?.icon || '🧵'}</span>
-                                      )}
-
-                                      {/* Orange HOT Badge */}
-                                      {item.isHot && (
-                                        <span className="absolute top-0.5 right-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs uppercase tracking-tight z-10 ring-1 ring-white">
-                                          HOT
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Centered 2-line Label */}
-                                    <span className="mt-2 text-xs font-semibold text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 max-w-[95px] leading-tight transition-colors">
-                                      {item.name}
-                                    </span>
+                                    <span>{language === 'ar' ? 'عرض منتجات القسم' : 'Voir les articles'}</span>
+                                    <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />
                                   </Link>
-                                ))}
-                              </div>
+                                </div>
+                              ) : null}
                             </div>
 
                             {/* Bottom Footer Bar */}
@@ -775,9 +875,287 @@ export default function ShopHeader() {
         </div>
       </div>
 
+      {/* ── Search Modal Overlay (Mobile/Tablet/Quick Search) ─────────────── */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/50 backdrop-blur-xs p-4 animate-in fade-in-0 duration-150">
+          <div className="bg-white rounded-2xl p-4 shadow-2xl max-w-lg w-full mx-auto mt-12 border border-neutral-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-neutral-800">
+                {language === 'ar' ? 'البحث في المتجر' : 'Rechercher un produit'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(false)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
+                aria-label="Fermer la recherche"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <SmartSearch variant="mobile" onNavigate={() => setIsSearchOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Temu-style Mobile Fixed Bottom Navigation Bar ──────────────────── */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5 h-14 items-center">
+          {/* 1. Accueil */}
+          <Link
+            href="/shop"
+            className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
+              pathname === "/shop" && !isMobileCatExplorerOpen && !isSearchOpen
+                ? "text-[#C8102E] font-bold"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <Home className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight font-medium">
+              {language === 'ar' ? 'الرئيسية' : 'Accueil'}
+            </span>
+          </Link>
+
+          {/* 2. Catégories (Temu-style category drawer trigger) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setIsSearchOpen(false);
+              setIsMobileCatExplorerOpen(true);
+            }}
+            className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
+              isMobileCatExplorerOpen || pathname?.startsWith("/shop/categorie")
+                ? "text-[#C8102E] font-bold"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <LayoutGrid className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight font-medium">
+              {language === 'ar' ? 'الفئات' : 'Catégories'}
+            </span>
+          </button>
+
+          {/* 3. Recherche */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileCatExplorerOpen(false);
+              setIsSearchOpen(true);
+            }}
+            className={`flex flex-col items-center justify-center h-full transition-colors cursor-pointer ${
+              isSearchOpen
+                ? "text-[#C8102E] font-bold"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <Search className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight font-medium">
+              {language === 'ar' ? 'بحث' : 'Recherche'}
+            </span>
+          </button>
+
+          {/* 4. Panier */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileCatExplorerOpen(false);
+              openCart();
+            }}
+            className="relative flex flex-col items-center justify-center h-full text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
+          >
+            <div className="relative">
+              <ShoppingCart className="w-5 h-5 mb-0.5" />
+              {itemCount > 0 && (
+                <span
+                  className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] flex items-center justify-center rounded-full text-white text-[9px] font-black px-1"
+                  style={{ backgroundColor: "#C8102E" }}
+                >
+                  {itemCount > 99 ? "99+" : itemCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] leading-tight font-medium">
+              {language === 'ar' ? 'السلة' : 'Panier'}
+            </span>
+          </button>
+
+          {/* 5. WhatsApp */}
+          <a
+            href="https://wa.me/212760998347"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center justify-center h-full text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
+          >
+            <Phone className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px] leading-tight font-medium">
+              {language === 'ar' ? 'واتساب' : 'WhatsApp'}
+            </span>
+          </a>
+        </div>
+      </div>
+
+      {/* ── Temu-style Mobile 2-Column Category Explorer Drawer ────────────── */}
+      {isMobileCatExplorerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col bg-white animate-in fade-in-0 duration-200">
+          {/* Top Header */}
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 bg-white"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+          >
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5 text-[#C8102E]" />
+              <h2 className="text-base font-bold text-neutral-900">
+                {language === 'ar' ? 'جميع الفئات والأقسام' : 'Toutes les catégories'}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileCatExplorerOpen(false)}
+              className="p-1.5 rounded-full text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors cursor-pointer"
+              aria-label="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Quick Search Shortcut */}
+          <div className="px-3 py-2 bg-neutral-50 border-b border-neutral-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileCatExplorerOpen(false);
+                setIsSearchOpen(true);
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-400 text-left shadow-2xs cursor-pointer"
+            >
+              <Search className="w-4 h-4 text-neutral-400" />
+              <span>{language === 'ar' ? 'ابحث عن منتج أو مقاس...' : 'Rechercher un produit, une taille...'}</span>
+            </button>
+          </div>
+
+          {/* 2-Column Body */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Column: Vertical Category List (Temu style) */}
+            <div className="w-24 sm:w-28 bg-neutral-100/80 border-r border-neutral-200/80 overflow-y-auto shop-scrollbar flex flex-col">
+              {SHOP_CATEGORIES.map((cat) => {
+                const isSelected = (mobileActiveCat?.slug === cat.slug);
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setMobileSelectedCatSlug(cat.slug)}
+                    className={`flex flex-col items-center justify-center py-3.5 px-2 text-center transition-all border-l-4 rtl:border-l-0 rtl:border-r-4 cursor-pointer relative ${
+                      isSelected
+                        ? "bg-white text-[#C8102E] font-bold border-[#C8102E] shadow-2xs"
+                        : "text-neutral-600 hover:text-neutral-900 border-transparent hover:bg-neutral-200/50"
+                    }`}
+                  >
+                    <span className="text-xl mb-1">{cat.icon || '🧵'}</span>
+                    <span className="text-[11px] leading-snug line-clamp-2">
+                      {language === 'ar' ? (cat.nameAr || cat.name) : cat.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right Column: Subcategories & Real Products (Temu style) */}
+            <div className="flex-1 bg-white p-3.5 overflow-y-auto shop-scrollbar pb-24">
+              {mobileActiveCat && (
+                <>
+                  {/* Banner Header: "Tout [Nom Catégorie] >" */}
+                  <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-neutral-100">
+                    <Link
+                      href={`/shop/categorie/${mobileActiveCat.slug}`}
+                      onClick={() => setIsMobileCatExplorerOpen(false)}
+                      className="inline-flex items-center gap-1.5 text-sm font-bold text-neutral-900 hover:text-[#C8102E] transition-colors cursor-pointer"
+                    >
+                      <span>
+                        {language === 'ar'
+                          ? `جميع ${mobileActiveCat.nameAr || mobileActiveCat.name}`
+                          : `Tout ${mobileActiveCat.name}`}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-[#C8102E] rtl:rotate-180" />
+                    </Link>
+
+                    <Link
+                      href="/shop/categories"
+                      onClick={() => setIsMobileCatExplorerOpen(false)}
+                      className="text-[11px] font-semibold text-neutral-400 hover:text-[#C8102E] transition-colors"
+                    >
+                      {language === 'ar' ? 'الكل' : 'Tous'}
+                    </Link>
+                  </div>
+
+                  {/* Circular Items Grid */}
+                  {mobileCategoryItems.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-x-2 gap-y-4">
+                      {mobileCategoryItems.map((item) => (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          onClick={() => setIsMobileCatExplorerOpen(false)}
+                          className="group flex flex-col items-center text-center cursor-pointer"
+                        >
+                          {/* Circle */}
+                          <div className="w-16 h-16 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200/90 group-hover:border-[#C8102E] relative flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
+                            {item.image ? (
+                              <Image
+                                src={item.image}
+                                alt={item.name}
+                                fill
+                                sizes="64px"
+                                className="object-cover group-hover:scale-110 transition-transform duration-300"
+                              />
+                            ) : (
+                              <span className="text-xl">{item.icon || mobileActiveCat.icon || '🧵'}</span>
+                            )}
+
+                            {item.isHot && (
+                              <span className="absolute top-0 right-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[8px] font-black px-1 rounded-full shadow-2xs uppercase z-10 ring-1 ring-white">
+                                HOT
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Title */}
+                          <span className="mt-1.5 text-[11px] font-medium text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 leading-tight">
+                            {item.name}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-center bg-neutral-50 rounded-xl border border-dashed border-neutral-200 p-4">
+                      <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-2xl mb-2.5 shadow-xs border border-neutral-100">
+                        {mobileActiveCat.icon || '🧵'}
+                      </div>
+                      <h4 className="text-sm font-bold text-neutral-900 mb-1">
+                        {language === 'ar' ? (mobileActiveCat.nameAr || mobileActiveCat.name) : mobileActiveCat.name}
+                      </h4>
+                      <p className="text-[11px] text-neutral-500 mb-3 max-w-[200px]">
+                        {language === 'ar' ? (mobileActiveCat.descriptionAr || 'استكشف منتجات هذا القسم') : (mobileActiveCat.description || 'Découvrez tous les articles de ce rayon')}
+                      </p>
+                      <Link
+                        href={`/shop/categorie/${mobileActiveCat.slug}`}
+                        onClick={() => setIsMobileCatExplorerOpen(false)}
+                        className="px-3.5 py-1.5 rounded-full text-xs font-bold text-white bg-[#C8102E] hover:bg-red-700 transition-colors shadow-xs"
+                      >
+                        {language === 'ar' ? 'عرض القسم' : 'Visiter le rayon'}
+                      </Link>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Spacer (accounts for fixed header height) ────────────────────────── */}
-      {/* Promo bar ≈ 32px + nav bar ≈ 64/80px = 96/112px */}
-      <div className="h-[calc(32px+64px)] lg:h-[calc(32px+80px)]" />
+      {/* Mobile: Promo bar 32px + top bar 64px + categories 44px ≈ 140px */}
+      <div className="h-[140px] lg:h-[calc(32px+80px)]" />
     </>
   );
 }
+

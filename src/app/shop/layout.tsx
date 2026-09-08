@@ -94,7 +94,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             
             <ShopHeader />
             <CartDrawer />
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow pb-16 lg:pb-0">{children}</main>
             <ShopFooter />
           </div>
         </ShopCartProvider>
