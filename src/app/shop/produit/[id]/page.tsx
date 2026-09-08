@@ -343,7 +343,7 @@ function MultiVariantSelector({
   const activePrice = activeVariant?.price ?? basePrice;
   const singleTotalPrice = activePrice * singleQty;
 
-  const isSimpleSizeOnly = visibleVariants.length === 1 && (!visibleVariants[0]?.color || visibleVariants[0]?.color?.startsWith('Option')) && !visibleVariants[0]?.image;
+  const isSimpleSizeOnly = variantsForSize.length === 1 && (!variantsForSize[0]?.color || variantsForSize[0]?.color?.startsWith('Option')) && !variantsForSize[0]?.image;
 
   return (
     <div className="space-y-4 pt-1">
@@ -906,9 +906,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const hasVariants = product.variants && product.variants.length > 0;
   const currentPrice = selectedVariant?.price || product.price;
   const stock = selectedVariant?.stock ?? product.stockQty;
-  const inStock = hasVariants ? product.variants.some(v => v.stock > 0) : stock > 0;
+  const inStock = hasVariants ? (product.variants || []).some((v: ProductVariant) => v.stock > 0) : stock > 0;
 
-  const currentVariant = activeVariant || (activeSize ? product.variants?.find(v => (v.size || 'Standard') === activeSize) : null);
+  const currentVariant = activeVariant || (activeSize ? (product.variants || []).find((v: ProductVariant) => (v.size || 'Standard') === activeSize) : null);
 
   // ── Specific Characteristics Overrides ──
   const effectiveTypeProduit = currentVariant?.typeProduit || product.typeProduit;
@@ -952,7 +952,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     setSelectedVariant(v);
     setActiveSize(size);
     if (v?.image && product.images) {
-      const idx = product.images.findIndex(img => img === v.image);
+      const idx = product.images.findIndex((img: string) => img === v.image);
       if (idx !== -1) setMainImg(idx);
     }
   };
@@ -1068,7 +1068,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               {/* Thumbnails */}
               {product.images && product.images.length > 1 && (
                 <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-                  {product.images.map((img, i) => (
+                  {product.images.map((img: string, i: number) => (
                     <button
                       key={i}
                       onClick={() => setMainImg(i)}
