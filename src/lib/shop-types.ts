@@ -21,6 +21,8 @@ export interface ProductVariant {
   colorAr?: string;
   colorHex?: string;
   image?: string;
+  model?: string;
+  modelAr?: string;
   size?: string;
   sizeAr?: string;
   sku?: string;
@@ -166,6 +168,8 @@ export interface CartItem {
     color?: string;
     colorAr?: string;
     colorHex?: string;
+    model?: string;
+    modelAr?: string;
     size?: string;
     sizeAr?: string;
     variantId?: string;

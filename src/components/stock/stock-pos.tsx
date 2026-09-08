@@ -103,6 +103,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
         productName:  c.stockItem.productName,
         color:        c.stockItem.color,
         size:         c.stockItem.size,
+        quality:      c.stockItem.quality,
         categoryId:   c.stockItem.categoryId,
         unitOfMeasure: c.stockItem.unitOfMeasure,
         qty:          c.qty,
@@ -256,8 +257,24 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
                     <p className="text-[10px] font-black text-stone-800 uppercase leading-tight mb-1 line-clamp-2">
                       {item.productName}
                     </p>
-                    {item.size && (
-                      <span className="inline-block text-[8px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase mb-2">{item.size}</span>
+                    {(item.quality || item.size || item.gsm) && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {item.quality && (
+                          <span className="inline-block text-[8px] font-black bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded uppercase">
+                            {item.quality}
+                          </span>
+                        )}
+                        {item.size && (
+                          <span className="inline-block text-[8px] font-black bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded uppercase">
+                            {item.size}
+                          </span>
+                        )}
+                        {item.gsm && (
+                          <span className="inline-block text-[8px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded uppercase">
+                            {item.gsm}g {item.fabricWidth ? `${item.fabricWidth}cm` : ''}
+                          </span>
+                        )}
+                      </div>
                     )}
 
                     {/* Prix */}
@@ -322,8 +339,8 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
               <div key={item.articleId} className="flex items-center gap-3 p-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black text-stone-800 uppercase truncate">{item.productName}</p>
-                  {(item.color || item.size) && (
-                    <p className="text-[8px] font-bold text-stone-400">{[item.color, item.size].filter(Boolean).join(' · ')}</p>
+                  {(item.quality || item.color || item.size) && (
+                    <p className="text-[8px] font-bold text-stone-400">{[item.quality, item.color, item.size].filter(Boolean).join(' · ')}</p>
                   )}
                   <p className="text-[10px] font-black text-emerald-700 mt-0.5">
                     {fmt$(((item.sellingPrice || 0) * qty))}

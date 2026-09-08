@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package, ArrowLeft, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Heart, MessageCircle, Truck, RotateCcw, Shield, Star, ChevronRight, ChevronDown, Minus, Plus, Package, ArrowLeft, Sparkles, CheckCircle2, Layers, Ruler, Box, Wrench } from 'lucide-react';
 import { getProductById, getSimilarProducts } from '@/lib/shop-products-data';
 import { formatPrice, getDiscountPercent, buildWhatsAppLink } from '@/lib/shop-utils';
 import { useShopCartActions } from '@/contexts/shop-cart-context';
@@ -84,19 +84,57 @@ function MultiVariantSelector({
 
   const safeVariants = React.useMemo(() => variants.map((v, i) => ({ ...v, _safeId: v.id ? `${v.id}-${i}` : `v-${i}` })), [variants]);
 
-  // Size selection logic
-  const uniqueSizes = Array.from(new Set(safeVariants.map(v => v.size || 'Standard')));
+  // Model & Size selection logic
+  const uniqueModels = Array.from(new Set(safeVariants.map(v => v.model?.trim()).filter(Boolean) as string[]));
+  const hasModels = uniqueModels.length > 0;
+
+  const [selectedModel, setSelectedModel] = useState<string>('');
+
+  // Active variants for current model (or all if no model selected)
+  const activeVariantsForModel = selectedModel
+    ? safeVariants.filter(v => (v.model?.trim() || '') === selectedModel)
+    : safeVariants;
+
+  const uniqueSizes = Array.from(new Set(activeVariantsForModel.map(v => v.size?.trim() || 'Standard')));
   const hasSizes = uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
   
-  const [selectedSize, setSelectedSize] = useState<string>(hasSizes ? '' : (uniqueSizes[0] || 'Standard'));
-  const [step, setStep] = useState<'choose_size' | 'choose_colors' | 'completed_size'>(hasSizes ? 'choose_size' : 'choose_colors');
-  const [lastAddedInfo, setLastAddedInfo] = useState<{ size: string; count: number } | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [step, setStep] = useState<'choose_model' | 'choose_size' | 'choose_colors' | 'completed_size'>(
+    hasModels ? 'choose_model' : hasSizes ? 'choose_size' : 'choose_colors'
+  );
+  const [lastAddedInfo, setLastAddedInfo] = useState<{ model?: string; size: string; count: number } | null>(null);
 
-  const visibleVariants = selectedSize ? safeVariants.filter(v => (v.size || 'Standard') === selectedSize) : safeVariants;
+  const visibleVariants = activeVariantsForModel.filter(v => {
+    if (selectedSize) {
+      return (v.size?.trim() || 'Standard') === selectedSize;
+    }
+    return true;
+  });
+
+  const handleSelectModel = (mod: string) => {
+    setSelectedModel(mod);
+    const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
+    const modSizes = Array.from(new Set(modVars.map(v => v.size?.trim() || 'Standard')));
+    const modHasSizes = modSizes.length > 1 || (modSizes.length === 1 && modSizes[0] !== 'Standard');
+    const firstOfModel = modVars[0] || null;
+    if (firstOfModel) {
+      setFocusedVariantId(firstOfModel._safeId);
+    }
+    if (modHasSizes) {
+      setSelectedSize('');
+      onVariantSelect?.(firstOfModel, '');
+      setStep('choose_size');
+    } else {
+      const singleSz = modSizes[0] || 'Standard';
+      setSelectedSize(singleSz);
+      onVariantSelect?.(firstOfModel, singleSz);
+      setStep('choose_colors');
+    }
+  };
 
   const handleSelectSize = (sz: string) => {
     setSelectedSize(sz);
-    const firstOfSize = safeVariants.find(v => (v.size || 'Standard') === sz) || null;
+    const firstOfSize = activeVariantsForModel.find(v => (v.size?.trim() || 'Standard') === sz) || null;
     if (firstOfSize) {
       setFocusedVariantId(firstOfSize._safeId);
     }
@@ -136,7 +174,16 @@ function MultiVariantSelector({
           wholesalePrice,
           minOrderQty,
           quantity: qty,
-          variant: { color: v.color, colorAr: v.colorAr, colorHex: v.colorHex, size: v.size, sizeAr: v.sizeAr, variantId: v.id },
+          variant: { 
+            color: v.color, 
+            colorAr: v.colorAr, 
+            colorHex: v.colorHex, 
+            model: v.model,
+            modelAr: v.modelAr,
+            size: v.size, 
+            sizeAr: v.sizeAr, 
+            variantId: v.id 
+          },
           maxStock: v.stock,
         });
       }
@@ -146,6 +193,7 @@ function MultiVariantSelector({
     onAdd(items);
 
     const addedSizeName = selectedSize || 'Standard';
+    const addedModelName = selectedModel || undefined;
     const addedCount = currentSizeQty;
 
     // Clear qtys for this size
@@ -155,75 +203,196 @@ function MultiVariantSelector({
       return next;
     });
 
-    if (hasSizes) {
-      setLastAddedInfo({ size: addedSizeName, count: addedCount });
+    if (hasSizes || hasModels) {
+      setLastAddedInfo({ model: addedModelName, size: addedSizeName, count: addedCount });
       setStep('completed_size');
     }
   };
 
-  const handleStartAnotherSize = () => {
-    setSelectedSize('');
-    setFocusedVariantId('');
-    onVariantSelect?.(null, '');
-    setStep('choose_size');
+  const handleStartAnother = () => {
+    if (hasSizes) {
+      setSelectedSize('');
+      setFocusedVariantId('');
+      setStep('choose_size');
+    } else if (hasModels) {
+      setSelectedModel('');
+      setSelectedSize('');
+      setFocusedVariantId('');
+      setStep('choose_model');
+    } else {
+      setStep('choose_colors');
+    }
   };
 
   return (
     <div className="mb-5">
-      {/* ── Progress steps (only when product has multiple sizes) ── */}
-      {hasSizes && (
+      {/* ── Progress steps (only when product has models or sizes) ── */}
+      {(hasModels || hasSizes) && (
         <div className="flex items-center justify-between mb-5 bg-white border border-[#E8E4DF] rounded-2xl p-3 shadow-xs">
-          <button
-            onClick={() => setStep('choose_size')}
-            className={`flex items-center gap-2 text-xs font-bold transition-colors cursor-pointer ${
-              step === 'choose_size' ? 'text-[#C8102E]' : 'text-gray-500 hover:text-[#1A1A1A]'
-            }`}
-          >
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
-              step === 'choose_size' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'
-            }`}>1</span>
-            <span>{language === 'ar' ? '1. المقاس' : '1. Taille'}</span>
-          </button>
+          {hasModels && (
+            <>
+              <button
+                onClick={() => setStep('choose_model')}
+                className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold transition-colors cursor-pointer ${
+                  step === 'choose_model' ? 'text-[#C8102E]' : 'text-gray-500 hover:text-[#1A1A1A]'
+                }`}
+              >
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
+                  step === 'choose_model' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'
+                }`}>1</span>
+                <span>{language === 'ar' ? '1. الموديل' : '1. Modèle'}</span>
+              </button>
 
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+            </>
+          )}
+
+          {hasSizes && (
+            <>
+              <button
+                onClick={() => { if (!hasModels || selectedModel) setStep('choose_size'); }}
+                disabled={hasModels && !selectedModel}
+                className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold transition-colors ${
+                  step === 'choose_size'
+                    ? 'text-[#C8102E]'
+                    : (!hasModels || selectedModel)
+                      ? 'text-gray-500 hover:text-[#1A1A1A] cursor-pointer'
+                      : 'text-gray-300 cursor-not-allowed'
+                }`}
+              >
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
+                  step === 'choose_size' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'
+                }`}>{hasModels ? '2' : '1'}</span>
+                <span>{language === 'ar' ? (hasModels ? '2. المقاس' : '1. المقاس') : (hasModels ? '2. Taille' : '1. Taille')}</span>
+              </button>
+
+              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+            </>
+          )}
 
           <button
-            onClick={() => { if (selectedSize) setStep('choose_colors'); }}
-            disabled={!selectedSize}
-            className={`flex items-center gap-2 text-xs font-bold transition-colors ${
+            onClick={() => {
+              if ((!hasModels || selectedModel) && (!hasSizes || selectedSize)) {
+                setStep('choose_colors');
+              }
+            }}
+            disabled={(hasModels && !selectedModel) || (hasSizes && !selectedSize)}
+            className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold transition-colors ${
               step === 'choose_colors'
                 ? 'text-[#C8102E]'
-                : selectedSize
+                : ((!hasModels || selectedModel) && (!hasSizes || selectedSize))
                   ? 'text-gray-500 hover:text-[#1A1A1A] cursor-pointer'
                   : 'text-gray-300 cursor-not-allowed'
             }`}
           >
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
               step === 'choose_colors' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'
-            }`}>2</span>
-            <span>{language === 'ar' ? '2. الألوان والكمية' : '2. Couleurs & Qté'}</span>
+            }`}>{hasModels && hasSizes ? '3' : (hasModels || hasSizes) ? '2' : '1'}</span>
+            <span>{language === 'ar' ? 'الألوان والكمية' : 'Couleurs & Qté'}</span>
           </button>
 
           <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
 
-          <div className={`flex items-center gap-2 text-xs font-bold ${
+          <div className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold ${
             step === 'completed_size' ? 'text-emerald-600' : 'text-gray-400'
           }`}>
             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
               step === 'completed_size' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400'
-            }`}>3</span>
-            <span>{language === 'ar' ? '3. تأكيد' : '3. Validation'}</span>
+            }`}>{hasModels && hasSizes ? '4' : (hasModels || hasSizes) ? '3' : '2'}</span>
+            <span>{language === 'ar' ? 'تأكيد' : 'Validation'}</span>
           </div>
         </div>
       )}
 
-      {/* ── STEP 1 : Choose Size ── */}
-      {step === 'choose_size' && hasSizes && (
+      {/* ── STEP 1 (When models present) : Choose Model ── */}
+      {step === 'choose_model' && hasModels && (
         <div className="space-y-3.5 animate-in fade-in duration-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-black text-[#1A1A1A]">
-                {language === 'ar' ? 'الخطوة 1 : اختر مقاساً للمتابعة' : 'Étape 1 : Choisissez une taille'}
+                {language === 'ar' ? 'الخطوة 1 : اختر الموديل للمتابعة' : 'Étape 1 : Choisissez un modèle'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {language === 'ar' ? 'لكل موديل مواصفاته، مقاساته وألوانه الخاصة' : 'Chaque modèle possède ses spécifications, tailles et coloris'}
+              </p>
+            </div>
+            <span className="text-xs font-bold text-[#C8102E] bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
+              {uniqueModels.length} {language === 'ar' ? 'موديلات' : 'modèles'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {uniqueModels.map(mod => {
+              const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
+              const totalStock = modVars.reduce((s, v) => s + v.stock, 0);
+              const isOutOfStock = totalStock === 0;
+              const modSizes = Array.from(new Set(modVars.map(v => v.size?.trim() || 'Standard'))).filter(s => s !== 'Standard');
+
+              return (
+                <button
+                  key={mod}
+                  onClick={() => handleSelectModel(mod)}
+                  disabled={isOutOfStock}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
+                    isOutOfStock
+                      ? 'opacity-40 border-gray-200 bg-gray-50 cursor-not-allowed'
+                      : 'border-[#E8E4DF] bg-white hover:border-[#C8102E] hover:shadow-md hover:bg-red-50/10 active:scale-[0.99]'
+                  }`}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-base font-black text-[#1A1A1A] group-hover:text-[#C8102E] transition-colors">
+                      {mod}
+                    </span>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      {modSizes.length > 0 && (
+                        <>
+                          <span>{modSizes.length} taille{modSizes.length > 1 ? 's' : ''}</span>
+                          <span>·</span>
+                        </>
+                      )}
+                      <span>{modVars.length} option{modVars.length > 1 ? 's' : ''}</span>
+                      <span>·</span>
+                      <span className={`font-semibold ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
+                        {isOutOfStock ? (language === 'ar' ? 'نفد' : 'Rupture') : `${totalStock} ${language === 'ar' ? 'متوفر' : 'en stock'}`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#C8102E] group-hover:text-white text-gray-400 flex items-center justify-center transition-all flex-shrink-0">
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP : Choose Size ── */}
+      {step === 'choose_size' && hasSizes && (
+        <div className="space-y-3.5 animate-in fade-in duration-200">
+          {hasModels && selectedModel && (
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/80 border border-amber-200">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#D4A843]" />
+                <span className="text-xs text-amber-900 font-bold">
+                  {language === 'ar' ? 'الموديل المختار :' : 'Modèle sélectionné :'} <strong className="text-[#C8102E] font-black">{selectedModel}</strong>
+                </span>
+              </div>
+              <button
+                onClick={() => { setSelectedModel(''); setSelectedSize(''); setStep('choose_model'); }}
+                className="text-xs font-bold text-gray-600 hover:text-[#C8102E] underline cursor-pointer"
+              >
+                ← {language === 'ar' ? 'تغيير الموديل' : 'Changer de modèle'}
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-black text-[#1A1A1A]">
+                {hasModels 
+                  ? (language === 'ar' ? 'الخطوة 2 : اختر المقاس المناسب' : 'Étape 2 : Choisissez une taille')
+                  : (language === 'ar' ? 'الخطوة 1 : اختر مقاساً للمتابعة' : 'Étape 1 : Choisissez une taille')}
               </p>
               <p className="text-xs text-gray-500">
                 {language === 'ar' ? 'سيتم تحميل تفاصيل وألوان هذا المقاس' : 'Chaque taille possède ses propres couleurs, stocks et spécifications'}
@@ -236,7 +405,7 @@ function MultiVariantSelector({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {uniqueSizes.map(sz => {
-              const sizeVars = safeVariants.filter(v => (v.size || 'Standard') === sz);
+              const sizeVars = activeVariantsForModel.filter(v => (v.size?.trim() || 'Standard') === sz);
               const totalStock = sizeVars.reduce((s, v) => s + v.stock, 0);
               const isOutOfStock = totalStock === 0;
 
@@ -273,35 +442,48 @@ function MultiVariantSelector({
         </div>
       )}
 
-      {/* ── STEP 2 : Choose Colors & Quantity for this size ── */}
+      {/* ── STEP : Choose Colors & Quantity ── */}
       {step === 'choose_colors' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          {hasSizes && (
+          {(selectedModel || (hasSizes && selectedSize)) && (
             <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200">
               <div className="flex items-center gap-2.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#C8102E] animate-pulse" />
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900/70 block">
-                    {language === 'ar' ? 'المقاس قيد التحديد' : 'Taille en cours de commande'}
+                    {language === 'ar' ? 'قيد التحديد' : 'Option en cours de commande'}
                   </span>
                   <span className="text-base font-black text-[#C8102E]">
-                    {selectedSize}
+                    {selectedModel ? `[${selectedModel}] ` : ''}
+                    {selectedSize && selectedSize !== 'Standard' ? `${selectedSize}` : ''}
                   </span>
                 </div>
               </div>
-              <button
-                onClick={() => setStep('choose_size')}
-                className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-bold text-gray-700 hover:text-[#C8102E] hover:border-[#C8102E] transition-all cursor-pointer shadow-2xs"
-              >
-                ← {language === 'ar' ? 'تغيير المقاس' : 'Changer de taille'}
-              </button>
+              <div className="flex items-center gap-2">
+                {hasSizes && (
+                  <button
+                    onClick={() => setStep('choose_size')}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-bold text-gray-700 hover:text-[#C8102E] hover:border-[#C8102E] transition-all cursor-pointer shadow-2xs"
+                  >
+                    ← {language === 'ar' ? 'تغيير المقاس' : 'Changer de taille'}
+                  </button>
+                )}
+                {hasModels && (
+                  <button
+                    onClick={() => { setSelectedModel(''); setSelectedSize(''); setStep('choose_model'); }}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-bold text-gray-700 hover:text-[#C8102E] hover:border-[#C8102E] transition-all cursor-pointer shadow-2xs"
+                  >
+                    ← {language === 'ar' ? 'تغيير الموديل' : 'Changer de modèle'}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Color options for this size */}
+          {/* Color options for this model/size */}
           {(() => {
             const displayVariants = visibleVariants;
-            if (displayVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour cette taille.'}</p>;
+            if (displayVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour ce choix.'}</p>;
 
             const isSimpleSize = displayVariants.length === 1 && (!displayVariants[0]?.color || displayVariants[0]?.color?.startsWith('Option')) && !displayVariants[0]?.image;
 
@@ -439,18 +621,21 @@ function MultiVariantSelector({
             );
           })()}
 
-          {/* Current Size Summary */}
+          {/* Current Selection Summary */}
           {currentSizeQty > 0 && (
             <div className="mt-4 flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
               <p className="text-sm text-gray-700">
-                <span className="font-black text-[#1A1A1A]">{currentSizeQty}</span> {language === 'ar' ? 'قطعة مختارة لمقاس' : 'article(s) sélectionné(s) pour la taille'}{' '}
-                <span className="font-black text-[#C8102E]">{selectedSize}</span>
+                <span className="font-black text-[#1A1A1A]">{currentSizeQty}</span> {language === 'ar' ? 'قطعة مختارة لـ' : 'article(s) sélectionné(s) pour'}{' '}
+                <span className="font-black text-[#C8102E]">
+                  {selectedModel ? `[${selectedModel}] ` : ''}
+                  {selectedSize && selectedSize !== 'Standard' ? `${selectedSize}` : ''}
+                </span>
               </p>
               <p className="text-sm font-black text-[#C8102E]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</p>
             </div>
           )}
 
-          {/* Button : Add this size to cart */}
+          {/* Button : Add this size/model to cart */}
           <button
             onClick={handleAddCurrentSize}
             disabled={currentSizeQty === 0}
@@ -463,14 +648,14 @@ function MultiVariantSelector({
             <ShoppingCart className="w-5 h-5" />
             {currentSizeQty === 0
               ? (language === 'ar' ? 'اختر لوناً وكمية للمتابعة' : 'Sélectionnez au moins une couleur')
-              : hasSizes
-                ? (language === 'ar' ? `تأكيد مقاس (${selectedSize}) وإضافته للسلة — ${currentSizeQty} منتج` : `Valider la taille ${selectedSize} et ajouter au panier (${currentSizeQty})`)
+              : (hasSizes || hasModels)
+                ? (language === 'ar' ? `تأكيد وإضافة للسلة — ${currentSizeQty} منتج` : `Valider et ajouter au panier (${currentSizeQty})`)
                 : (language === 'ar' ? `إضافة للسلة — ${currentSizeQty} منتج` : `Ajouter au panier — ${currentSizeQty} article${currentSizeQty > 1 ? 's' : ''}`)}
           </button>
         </div>
       )}
 
-      {/* ── STEP 3 : Size Completed Confirmation & Next Size ── */}
+      {/* ── STEP : Completed Confirmation & Next Option ── */}
       {step === 'completed_size' && lastAddedInfo && (
         <div className="p-6 rounded-3xl bg-emerald-50/90 border-2 border-emerald-200 text-center space-y-4 animate-in zoom-in-95 duration-200 shadow-sm">
           <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-md">
@@ -478,22 +663,37 @@ function MultiVariantSelector({
           </div>
           <div>
             <h3 className="text-lg font-black text-emerald-950">
-              {language === 'ar' ? `✓ تم حفظ مقاس "${lastAddedInfo.size}" في السلة !` : `✓ Taille "${lastAddedInfo.size}" ajoutée au panier !`}
+              {language === 'ar'
+                ? `✓ تمت الإضافة للسلة بنجاح !`
+                : `✓ ${lastAddedInfo.model ? `Modèle "${lastAddedInfo.model}" ` : ''}${lastAddedInfo.size && lastAddedInfo.size !== 'Standard' ? `Taille "${lastAddedInfo.size}" ` : ''}ajouté(e) au panier !`}
             </h3>
             <p className="text-xs sm:text-sm text-emerald-800 mt-1">
               {language === 'ar'
-                ? `تمت إضافة ${lastAddedInfo.count} قطعة بنجاح. يمكنك الآن اختيار مقاس آخر لمتابعة الطلب.`
-                : `${lastAddedInfo.count} article(s) ont été validés. Vous pouvez maintenant passer à une autre taille.`}
+                ? `تمت إضافة ${lastAddedInfo.count} قطعة بنجاح. يمكنك الآن متابعة الطلب أو اختيار مقاس/موديل آخر.`
+                : `${lastAddedInfo.count} article(s) ont été validés. Vous pouvez maintenant choisir une autre option ou finaliser votre commande.`}
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
-              onClick={handleStartAnotherSize}
+              onClick={handleStartAnother}
               className="flex-1 py-3.5 px-4 rounded-xl font-black text-sm bg-white border-2 border-[#C8102E] text-[#C8102E] hover:bg-red-50 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-[0.99]"
             >
-              <span>👉</span> {language === 'ar' ? 'طلب مقاس آخر الآن' : 'Choisir une autre taille'}
+              <span>👉</span> {language === 'ar' ? 'طلب مقاس أو موديل آخر' : (hasSizes ? 'Choisir une autre taille' : 'Choisir un autre modèle')}
             </button>
+            {hasModels && hasSizes && (
+              <button
+                onClick={() => {
+                  setSelectedModel('');
+                  setSelectedSize('');
+                  setFocusedVariantId('');
+                  setStep('choose_model');
+                }}
+                className="py-3.5 px-4 rounded-xl font-bold text-sm bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              >
+                <span>🔄</span> {language === 'ar' ? 'تغيير الموديل' : 'Changer de modèle'}
+              </button>
+            )}
             <button
               onClick={() => openCart()}
               className="flex-1 py-3.5 px-4 rounded-xl font-black text-sm bg-[#C8102E] text-white hover:bg-[#a00d25] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[#C8102E]/20 active:scale-[0.99]"
@@ -616,10 +816,6 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     || (language === 'ar' ? product.shortDescriptionAr : product.shortDescription)
     || product.shortDescription;
 
-  const effectiveDescription = (language === 'ar' ? currentVariant?.descriptionAr : currentVariant?.description)
-    || currentVariant?.description
-    || (language === 'ar' ? product.descriptionAr : product.description)
-    || product.description;
 
   const effectiveTypeProduit = currentVariant?.typeProduit || product.typeProduit;
   const effectiveMaterial = currentVariant?.material || currentVariant?.matiereMailles || product.matiereMailles || product.material;
@@ -654,7 +850,16 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       wholesalePrice: product.wholesalePrice,
       minOrderQty: product.minOrderQty,
       quantity: qty,
-      variant: selectedVariant ? { color: selectedVariant.color, colorAr: selectedVariant.colorAr, size: selectedVariant.size, sizeAr: selectedVariant.sizeAr, variantId: selectedVariant.id } : undefined,
+      variant: selectedVariant ? { 
+        color: selectedVariant.color, 
+        colorAr: selectedVariant.colorAr, 
+        colorHex: selectedVariant.colorHex,
+        model: selectedVariant.model,
+        modelAr: selectedVariant.modelAr,
+        size: selectedVariant.size, 
+        sizeAr: selectedVariant.sizeAr, 
+        variantId: selectedVariant.id 
+      } : undefined,
       maxStock: stock,
     });
     setAdded(true);
@@ -728,8 +933,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <Sparkles className="w-3.5 h-3.5 text-[#D4A843] flex-shrink-0" />
                 <span>
                   {language === 'ar'
-                    ? `الخيار المحدد: ${currentVariant.size ? `مقاس ${currentVariant.size}` : ''} ${currentVariant.color || ''}`
-                    : `Option : ${currentVariant.size ? `Taille ${currentVariant.size}` : ''} ${currentVariant.color ? `— ${currentVariant.color}` : ''}`}
+                    ? `الخيار المحدد: ${currentVariant.model ? `موديل ${currentVariant.model} ` : ''}${currentVariant.size ? `مقاس ${currentVariant.size} ` : ''}${currentVariant.color || ''}`
+                    : `Option : ${currentVariant.model ? `Modèle ${currentVariant.model} ` : ''}${currentVariant.size ? `Taille ${currentVariant.size} ` : ''}${currentVariant.color ? `— ${currentVariant.color}` : ''}`}
                 </span>
                 {currentVariant.stock !== undefined && (
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${currentVariant.stock > 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -761,6 +966,159 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                     : (language === 'ar' ? `متوفر (${stock} قطعة)` : `En stock (${stock} disponibles)`)
                 : (language === 'ar' ? 'نفد المخزون' : 'Rupture de stock')}
             </div>
+
+            {/* ─── Fiche Technique & Informations Détaillées (Mise en évidence) ─── */}
+            {(effectiveTypeProduit || effectiveMaterial || product.compositionRuban || effectiveWidth || effectiveLength || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || effectiveCondUnitaire || effectiveCondGros || effectiveWeight || effectivePackaging) && (
+              <div className="mb-6 rounded-2xl bg-gradient-to-br from-amber-50/50 via-white to-amber-50/20 border-2 border-[#D4A843]/50 p-4 md:p-5 shadow-sm relative overflow-hidden transition-all duration-300">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#D4A843] via-[#C8102E] to-[#D4A843]" />
+                
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#D4A843]/15 text-[#D4A843] flex items-center justify-center font-black text-sm shadow-2xs">
+                      ⚙️
+                    </div>
+                    <div>
+                      <h3 className="text-xs md:text-sm font-black text-[#1A1A1A] tracking-wider uppercase flex items-center gap-2">
+                        <span>{language === 'ar' ? 'المعلومات التفصيلية والمواصفات' : 'Informations Détaillées & Spécifications'}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          {language === 'ar' ? 'مباشر' : 'Live'}
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        {language === 'ar' ? 'تتغير المواصفات فورياً بحسب الموديل والمقاس المختار' : 'Mis à jour en direct selon le modèle et la taille choisis'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(currentVariant?.model || currentVariant?.size) && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D4A843]/20 border border-[#D4A843]/40 text-[#1A1A1A] text-xs font-black shadow-2xs">
+                      <Sparkles className="w-3 h-3 text-[#D4A843]" />
+                      <span>
+                        {currentVariant.model ? `Modèle: ${currentVariant.model}` : ''}
+                        {currentVariant.model && currentVariant.size && currentVariant.size !== 'Standard' ? ' · ' : ''}
+                        {currentVariant.size && currentVariant.size !== 'Standard' ? `Taille: ${currentVariant.size}` : ''}
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Grid of technical specs */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  {effectiveTypeProduit && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'نوع المنتج' : 'Type de produit'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveTypeProduit}</span>
+                    </div>
+                  )}
+                  {effectiveMaterial && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'مادة' : 'Matière'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveMaterial}</span>
+                    </div>
+                  )}
+                  {effectiveWidth && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'العرض' : 'Largeur'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveWidth}</span>
+                    </div>
+                  )}
+                  {effectiveLength && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'الطول' : 'Longueur'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveLength}</span>
+                    </div>
+                  )}
+                  {effectiveWeight !== undefined && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'الوزن' : 'Poids'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveWeight} g</span>
+                    </div>
+                  )}
+                  {effectivePackaging && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'التعبئة والتغليف' : 'Conditionnement'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectivePackaging}</span>
+                    </div>
+                  )}
+                  {product.compositionRuban && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'تركيبة الشريط' : 'Composition ruban'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{product.compositionRuban}</span>
+                    </div>
+                  )}
+                  {product.type && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'النوع' : 'Type'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{product.type}</span>
+                    </div>
+                  )}
+                  {product.design && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'التصميم' : 'Design'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{product.design}</span>
+                    </div>
+                  )}
+                  {product.securite && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'الأمان' : 'Sécurité'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{product.securite}</span>
+                    </div>
+                  )}
+                  {product.resistance && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'المقاومة' : 'Résistance'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{product.resistance}</span>
+                    </div>
+                  )}
+                  {product.compatibleAvec && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'متوافق مع' : 'Compatible avec'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{product.compatibleAvec}</span>
+                    </div>
+                  )}
+                  {effectiveCondUnitaire && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'تعبئة وحدة' : 'Cond. unitaire'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveCondUnitaire}</span>
+                    </div>
+                  )}
+                  {effectiveCondGros && (
+                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-2xs transition-all hover:border-[#D4A843]">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        {language === 'ar' ? 'تعبئة جملة' : 'Cond. gros'}
+                      </span>
+                      <span className="font-bold text-[#1A1A1A] text-xs truncate block">{effectiveCondGros}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <hr className="border-[#E8E4DF] mb-5" />
 
@@ -816,147 +1174,39 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </div>
         </div>
 
-        <div className="mt-10 mb-12">
-          <div className="space-y-4">
-            {/* ── Caractéristiques Techniques (Hyper Pro) ── */}
-            {(effectiveTypeProduit || effectiveMaterial || product.compositionRuban || effectiveWidth || effectiveLength || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || effectiveCondUnitaire || effectiveCondGros || effectiveWeight || effectivePackaging) && (
-              <Accordion title={language === 'ar' ? 'معلومات تفصيلية' : 'Informations Détaillées'} icon={<Package className="w-5 h-5 text-[#10B981]" />} defaultOpen={true}>
-                <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {effectiveTypeProduit && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'نوع المنتج' : 'Type de produit'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveTypeProduit}</span>
-                    </div>
-                  )}
-                  {effectiveMaterial && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'مادة' : 'Matière'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveMaterial}</span>
-                    </div>
-                  )}
-                  {product.compositionRuban && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'تركيبة' : 'Composition'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.compositionRuban}</span>
-                    </div>
-                  )}
-                  {effectiveWidth && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'العرض' : 'Largeur'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveWidth}</span>
-                    </div>
-                  )}
-                  {effectiveLength && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الطول' : 'Longueur'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveLength}</span>
-                    </div>
-                  )}
-                  {effectiveWeight !== undefined && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الوزن' : 'Poids'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveWeight} g</span>
-                    </div>
-                  )}
-                  {effectivePackaging && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف' : 'Emballage'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectivePackaging}</span>
-                    </div>
-                  )}
-                  {product.type && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'النوع' : 'Type'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.type}</span>
-                    </div>
-                  )}
-                  {product.design && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التصميم' : 'Design'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.design}</span>
-                    </div>
-                  )}
-                  {product.securite && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الأمان' : 'Sécurité'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.securite}</span>
-                    </div>
-                  )}
-                  {product.resistance && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'المقاومة' : 'Résistance'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.resistance}</span>
-                    </div>
-                  )}
-                  {product.compatibleAvec && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'متوافق مع' : 'Compatible avec'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.compatibleAvec}</span>
-                    </div>
-                  )}
-                  {effectiveCondUnitaire && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف (وحدة)' : 'Cond. unitaire'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveCondUnitaire}</span>
-                    </div>
-                  )}
-                  {effectiveCondGros && (
-                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف (جملة)' : 'Cond. gros'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveCondGros}</span>
-                    </div>
-                  )}
-                </div>
-              </Accordion>
-            )}
-
-            <Accordion title={language === 'ar' ? 'الوصف المفصل' : 'Description Détaillée'} icon={<ShoppingCart className="w-5 h-5 text-[#C8102E]" />}>
-              <div className="p-6 text-[#4A4A4A] leading-relaxed text-[15px] space-y-4 whitespace-pre-line">
-                {effectiveDescription}
+        {/* ── Informations Complémentaires (Hyper Pro longs textes) ── */}
+        {(effectiveApplications || effectiveAvantages || effectiveConseilsEntretien || effectiveInfoCommerciale) && (
+          <div className="mt-10 mb-12">
+            <Accordion title={language === 'ar' ? 'تفاصيل ومعلومات إضافية' : 'Détails & Applications'} icon={<Shield className="w-5 h-5 text-[#8B5CF6]" />} defaultOpen={true}>
+              <div className="p-6 space-y-5 text-sm">
+                {effectiveApplications && (
+                  <div className="border-b border-[#F3EFE8] pb-4">
+                    <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'التطبيقات (قطاعات/استخدامات):' : 'Applications (Secteurs/Usages):'}</span>
+                    <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveApplications}</p>
+                  </div>
+                )}
+                {effectiveAvantages && (
+                  <div className="border-b border-[#F3EFE8] pb-4">
+                    <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
+                    <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveAvantages}</p>
+                  </div>
+                )}
+                {effectiveConseilsEntretien && (
+                  <div className="border-b border-[#F3EFE8] pb-4">
+                    <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
+                    <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveConseilsEntretien}</p>
+                  </div>
+                )}
+                {effectiveInfoCommerciale && (
+                  <div className="pb-2">
+                    <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'معلومات تجارية (تعبئة، حد أدنى):' : 'Infos commerciales (Conditionnement, MOQ...):'}</span>
+                    <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveInfoCommerciale}</p>
+                  </div>
+                )}
               </div>
             </Accordion>
-
-            {/* ── Informations Complémentaires (Hyper Pro longs textes) ── */}
-            {(effectiveApplications || effectiveAvantages || effectiveConseilsEntretien || effectiveInfoCommerciale) && (
-              <Accordion title={language === 'ar' ? 'تفاصيل ومعلومات إضافية' : 'Détails & Applications'} icon={<Shield className="w-5 h-5 text-[#8B5CF6]" />}>
-                <div className="p-6 space-y-5 text-sm">
-                  {effectiveApplications && (
-                    <div className="border-b border-[#F3EFE8] pb-4">
-                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'التطبيقات (قطاعات/استخدامات):' : 'Applications (Secteurs/Usages):'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveApplications}</p>
-                    </div>
-                  )}
-                  {effectiveAvantages && (
-                    <div className="border-b border-[#F3EFE8] pb-4">
-                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveAvantages}</p>
-                    </div>
-                  )}
-                  {effectiveConseilsEntretien && (
-                    <div className="border-b border-[#F3EFE8] pb-4">
-                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveConseilsEntretien}</p>
-                    </div>
-                  )}
-                  {effectiveInfoCommerciale && (
-                    <div className="pb-2">
-                      <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'معلومات تجارية (تعبئة، حد أدنى):' : 'Infos commerciales (Conditionnement, MOQ...):'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveInfoCommerciale}</p>
-                    </div>
-                  )}
-                </div>
-              </Accordion>
-            )}
-
-            </div>
-
-
-
-
-
-
-
-        </div>
+          </div>
+        )}
 
         {/* ── Section 1 : Vous aimerez aussi (même catégorie) ── */}
         {similar.length > 0 && (

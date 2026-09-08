@@ -145,10 +145,102 @@ export function computeStockItems(
 
     const artMovements = movements.filter(m => m.articleId === a.id);
 
-    // ── CAS 1 : color === 'various' ET colorBreakdown renseigné ──────────────
+    const qualityBreakdown: any[] = Array.isArray(a.qualityBreakdown) ? a.qualityBreakdown : [];
     const colorBreakdown: any[] = Array.isArray(a.colorBreakdown) ? a.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(a.sizeBreakdown)  ? a.sizeBreakdown  : [];
 
+    // ── CAS 0 : qualityBreakdown renseigné (multi-qualités fabric ou zipper) ──
+    if (qualityBreakdown.length > 0) {
+      const totalQualityQty = qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0) || 1;
+      for (const row of qualityBreakdown) {
+        const qualityLabel = (row.quality || '').trim();
+        if (!qualityLabel) continue;
+
+        const rowPrice = (row.priceOverride !== '' && row.priceOverride !== undefined && Number(row.priceOverride) > 0)
+          ? Number(row.priceOverride)
+          : price;
+
+        let initialQty = 0;
+        if (row.initialQtyByStore) {
+          initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
+        } else if (a.initialQtyByStore) {
+          const rowRatio = (Number(row.quantity) || 0) / totalQualityQty;
+          const proratedStoreMap: Record<string, number> = {};
+          Object.entries(a.initialQtyByStore).forEach(([sId, val]) => {
+            proratedStoreMap[sId] = Math.round((Number(val) || 0) * rowRatio);
+          });
+          initialQty = getInitialQtyForStore({ initialQtyByStore: proratedStoreMap }, activeStore, userStoreId, stores);
+        }
+
+        const qualityMov = artMovements.filter(m =>
+          m.quality?.toLowerCase() === qualityLabel.toLowerCase()
+        );
+        let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
+        const targetMovs = qualityMov.length > 0
+          ? qualityMov
+          : artMovements.map(m => ({
+              ...m,
+              quantity: Math.round((m.quantity * (Number(row.quantity) || 1)) / totalQualityQty)
+            }));
+
+        for (const m of targetMovs) {
+          if (m.reason === 'TRANSFERT') {
+            if (activeStore === 'ALL') continue;
+            if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
+            if (isVisibleForUser(m.toStoreId)) mouvIN += m.quantity;
+          } else {
+            if (isVisibleForUser(m.storeId)) {
+              if (m.type === 'IN') mouvIN += m.quantity;
+              if (m.type === 'OUT') mouvOUT += m.quantity;
+              if (m.type === 'ADJUSTMENT') mouvADJ += m.quantity;
+            }
+          }
+        }
+
+        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        const lastMov = [...qualityMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
+
+        results.push({
+          articleId:           `${a.id}__quality__${qualityLabel}`,
+          categoryId:          a.categoryId,
+          productName,
+          color:               a.color !== 'various' ? a.color : (row.color || undefined),
+          size:                row.size || (a.size !== 'various' ? a.size : undefined),
+          quality:             qualityLabel,
+          gsm:                 row.gsm ?? a.gsm,
+          fabricWidth:         row.fabricWidth ?? a.fabricWidth,
+          rollLength:          row.rollLength ?? a.rollLength,
+          rollLengthUnit:      row.rollLengthUnit ?? a.rollLengthUnit,
+          packagingPerBag:     row.packagingPerBag ?? a.packagingPerBag,
+          zipperType:          row.zipperType ?? a.zipperType,
+          slider:              row.slider ?? a.slider,
+          sliderType:          row.sliderType ?? a.sliderType,
+          tapeWeightGsm:       row.tapeWeightGsm ?? a.tapeWeightGsm,
+          sliderWeightG:       row.sliderWeightG ?? a.sliderWeightG,
+          pcsPerBag:           row.pcsPerBag ?? a.pcsPerBag,
+          bagsPerCarton:       row.bagsPerCarton ?? a.bagsPerCarton,
+          unitOfMeasure:       a.unitOfMeasure || 'unité',
+          purchasePricePerUnit: rowPrice,
+          hasTTCCost,
+          sellingPrice:        sellPrice,
+          initialQty,
+          mouvementsIn:        mouvIN,
+          mouvementsOut:       mouvOUT,
+          currentQty,
+          totalValue:          currentQty * rowPrice,
+          totalSellingValue:   sellPrice ? currentQty * sellPrice : undefined,
+          minThreshold:        a.minStockThreshold,
+          lastMovementDate:    lastMov?.date ?? a.stockEntryDate,
+          stockEntryDate:      a.stockEntryDate,
+          _realArticleId:      a.id,
+          _qualityKey:         qualityLabel,
+          qtyByStore:          computeQtyByStoreHelper(row.initialQtyByStore ? row : a, targetMovs),
+        } as any);
+      }
+      continue;
+    }
+
+    // ── CAS 1 : color === 'various' ET colorBreakdown renseigné ──────────────
     if ((a.color === 'various' || a.color === 'Various') && colorBreakdown.length > 0) {
       // Un StockItem par entrée dans colorBreakdown
       for (const row of colorBreakdown) {
@@ -189,6 +281,19 @@ export function computeStockItems(
           productName,
           color:               colorLabel,
           size:                a.size !== 'various' ? a.size : undefined,
+          quality:             a.quality,
+          gsm:                 a.gsm,
+          fabricWidth:         a.fabricWidth,
+          rollLength:          a.rollLength,
+          rollLengthUnit:      a.rollLengthUnit,
+          packagingPerBag:     a.packagingPerBag,
+          zipperType:          a.zipperType,
+          slider:              a.slider,
+          sliderType:          a.sliderType,
+          tapeWeightGsm:       a.tapeWeightGsm,
+          sliderWeightG:       a.sliderWeightG,
+          pcsPerBag:           a.pcsPerBag,
+          bagsPerCarton:       a.bagsPerCarton,
           unitOfMeasure:       a.unitOfMeasure || 'unité',
           purchasePricePerUnit: price,
           hasTTCCost,
@@ -247,6 +352,19 @@ export function computeStockItems(
           productName,
           color:               a.color !== 'various' ? a.color : undefined,
           size:                sizeLabel,
+          quality:             a.quality,
+          gsm:                 a.gsm,
+          fabricWidth:         a.fabricWidth,
+          rollLength:          a.rollLength,
+          rollLengthUnit:      a.rollLengthUnit,
+          packagingPerBag:     a.packagingPerBag,
+          zipperType:          a.zipperType,
+          slider:              a.slider,
+          sliderType:          a.sliderType,
+          tapeWeightGsm:       a.tapeWeightGsm,
+          sliderWeightG:       a.sliderWeightG,
+          pcsPerBag:           a.pcsPerBag,
+          bagsPerCarton:       a.bagsPerCarton,
           unitOfMeasure:       a.unitOfMeasure || 'unité',
           purchasePricePerUnit: price,
           hasTTCCost,
@@ -293,6 +411,19 @@ export function computeStockItems(
       productName,
       color:               a.color !== 'various' ? a.color : undefined,
       size:                a.size  !== 'various' ? a.size  : undefined,
+      quality:             a.quality,
+      gsm:                 a.gsm,
+      fabricWidth:         a.fabricWidth,
+      rollLength:          a.rollLength,
+      rollLengthUnit:      a.rollLengthUnit,
+      packagingPerBag:     a.packagingPerBag,
+      zipperType:          a.zipperType,
+      slider:              a.slider,
+      sliderType:          a.sliderType,
+      tapeWeightGsm:       a.tapeWeightGsm,
+      sliderWeightG:       a.sliderWeightG,
+      pcsPerBag:           a.pcsPerBag,
+      bagsPerCarton:       a.bagsPerCarton,
       unitOfMeasure:       a.unitOfMeasure || 'unité',
       purchasePricePerUnit: price,
       hasTTCCost,

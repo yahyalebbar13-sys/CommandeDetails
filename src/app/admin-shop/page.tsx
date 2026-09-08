@@ -2062,6 +2062,7 @@ function ProduitsView() {
     color: string; 
     colorHex: string; 
     image?: string; 
+    model?: string;
     size: string; 
     stockStatus: EditStockStatus; 
     price: string;
@@ -2333,6 +2334,7 @@ function ProduitsView() {
       color: v.color || '',
       colorHex: v.colorHex || '#C8102E',
       image: v.image || '',
+      model: v.model || '',
       size: v.size || '',
       stockStatus: stockToStatus(v.stock ?? 999),
       price: v.price?.toString() || '',
@@ -2360,14 +2362,16 @@ function ProduitsView() {
         .map((v, i) => {
           const s = EDIT_STOCK_STATUS[v.stockStatus];
           const colorName = v.color.trim();
+          const modelName = v.model?.trim();
           const sizeName = v.size?.trim();
-          const finalColorName = (!colorName && !sizeName) ? `Couleur ${i + 1}` : colorName;
+          const finalColorName = (!colorName && !sizeName && !modelName) ? `Couleur ${i + 1}` : colorName;
 
           const obj: Record<string, unknown> = {
             id: v.id,
             stock: s.stock,
             inStock: s.stock > 0,
             ...(finalColorName && { color: finalColorName, colorHex: v.colorHex || '#C8102E' }),
+            ...(modelName && { model: modelName }),
             ...(sizeName && { size: sizeName }),
           };
           if (v.image) obj.image = v.image;
@@ -2891,15 +2895,15 @@ Cette action est irréversible.`)) return;
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Couleurs disponibles</label>
                       <button
                         type="button"
-                        onClick={() => setEditVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', stockStatus: 'available', price: '' }])}
+                        onClick={() => setEditVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', model: '', size: '', stockStatus: 'available', price: '' }])}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
                       >
-                        <Plus className="w-3.5 h-3.5" /> Ajouter une couleur
+                        <Plus className="w-3.5 h-3.5" /> Ajouter une variante
                       </button>
                     </div>
                     {editVariants.length === 0 && (
                       <p className="text-xs text-gray-600 py-2 px-3 rounded-lg bg-white/3 border border-white/5">
-                        Pas de couleurs — stock et prix unique.
+                        Pas de variantes — stock et prix unique.
                       </p>
                     )}
                     <div className="space-y-1.5">
@@ -2915,6 +2919,11 @@ Cette action est irréversible.`)) return;
                               onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, color: e.target.value } : x))}
                               placeholder="Couleur (opt.)"
                               className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                            />
+                            <input type="text" value={v.model || ''}
+                              onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, model: e.target.value } : x))}
+                              placeholder="Modèle (opt.)"
+                              className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
                             />
                             <input type="text" value={v.size}
                               onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, size: e.target.value } : x))}
@@ -3178,8 +3187,8 @@ Cette action est irréversible.`)) return;
                                 return (
                                   <div key={ev.id} className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
                                     <div className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/20" style={{ background: ev.colorHex || '#888' }} />
-                                    <span className="text-xs font-bold text-white flex-shrink-0 min-w-0 max-w-[120px] truncate">
-                                      {ev.size ? `[${ev.size}] ` : ''}{ev.color || 'Variante'}
+                                    <span className="text-xs font-bold text-white flex-shrink-0 min-w-0 max-w-[160px] truncate">
+                                      {ev.model ? `[${ev.model}] ` : ''}{ev.size ? `[${ev.size}] ` : ''}{ev.color || 'Variante'}
                                     </span>
                                     <span className="text-gray-500 text-xs">→</span>
                                     <select
@@ -3360,6 +3369,7 @@ function NouveauProduitModal({
     color: string; 
     colorHex: string; 
     image?: string; 
+    model?: string;
     size: string; 
     stockStatus: StockStatus; 
     price: string;
@@ -3392,7 +3402,7 @@ function NouveauProduitModal({
 
   const addVariant = () => setVariants(v => [
     ...v,
-    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: '', stockStatus: 'available', price: '' },
+    { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', model: '', size: '', stockStatus: 'available', price: '' },
   ]);
   const removeVariant = (id: string) => setVariants(v => v.filter(x => x.id !== id));
   const updateVariant = <K extends keyof VariantForm>(id: string, field: K, val: VariantForm[K]) =>
@@ -3405,14 +3415,16 @@ function NouveauProduitModal({
   const buildVariant = (v: VariantForm, index: number) => {
     const s = STOCK_STATUS[v.stockStatus];
     const colorName = v.color.trim();
+    const modelName = v.model?.trim();
     const sizeName = v.size.trim();
-    const finalColorName = (!colorName && !sizeName) ? `Option ${index + 1}` : colorName;
+    const finalColorName = (!colorName && !sizeName && !modelName) ? `Option ${index + 1}` : colorName;
 
     const obj: Record<string, unknown> = {
       id: v.id,
       stock: s.stock,
       inStock: s.stock > 0,
       ...(finalColorName && { color: finalColorName, colorHex: v.colorHex || '#C8102E' }),
+      ...(modelName && { model: modelName }),
       ...(sizeName && { size: sizeName }),
     };
     if (v.image) obj.image = v.image;
@@ -3758,22 +3770,36 @@ function NouveauProduitModal({
             </div>
           </div>
 
-          {/* ── Couleurs par Taille ───────────────────────────────────────────────── */}
+          {/* ── Couleurs par Taille & Modèle ─────────────────────────────────────── */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Tailles & Couleurs)</label>
-              <button
-                type="button"
-                onClick={() => {
-                  const size = prompt("Nom de la nouvelle taille (laissez vide pour une taille standard) :", "");
-                  if (size !== null) {
-                    setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size: size.trim(), stockStatus: 'available', price: '' }]);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" /> Ajouter une taille
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Variantes (Modèles, Tailles & Couleurs)</label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const model = prompt("Nom du modèle (ex: Modèle Fermé, Séparable, #5...) :", "");
+                    if (model !== null) {
+                      setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', model: model.trim(), size: '', stockStatus: 'available', price: '' }]);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs font-semibold hover:bg-amber-500/30 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> + Modèle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const size = prompt("Nom de la taille (ex: 20 cm, 30 cm, Standard...) :", "");
+                    if (size !== null) {
+                      setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', model: '', size: size.trim(), stockStatus: 'available', price: '' }]);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D4A843]/20 text-[#D4A843] text-xs font-semibold hover:bg-[#D4A843]/30 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> + Taille
+                </button>
+              </div>
             </div>
 
             {variants.length === 0 && (
@@ -3784,29 +3810,31 @@ function NouveauProduitModal({
 
             {Object.entries(
               variants.reduce((acc, v) => {
-                const s = v.size || '';
-                if (!acc[s]) acc[s] = [];
-                acc[s].push(v);
+                const groupKey = [v.model ? `Modèle : ${v.model}` : '', v.size ? `Taille : ${v.size}` : ''].filter(Boolean).join('  |  ') || 'Standard (Par défaut)';
+                if (!acc[groupKey]) acc[groupKey] = [];
+                acc[groupKey].push(v);
                 return acc;
               }, {} as Record<string, typeof variants>)
-            ).map(([size, vars]) => (
-              <div key={size} className="rounded-xl bg-white/5 border border-white/10 p-3">
+            ).map(([groupLabel, vars]) => {
+              const sample = vars[0];
+              return (
+              <div key={groupLabel} className="rounded-xl bg-white/5 border border-white/10 p-3">
                 <div className="flex justify-between items-center mb-3">
                   <span className="font-bold text-[#D4A843] text-xs uppercase tracking-wider">
-                    {size ? `Taille : ${size}` : 'Taille Standard (Par défaut)'}
+                    {groupLabel}
                   </span>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', size, stockStatus: 'available', price: '' }])}
+                      onClick={() => setVariants(v => [...v, { id: `v_${Date.now()}`, color: '', colorHex: '#C8102E', model: sample?.model || '', size: sample?.size || '', stockStatus: 'available', price: '' }])}
                       className="text-xs text-[#C8102E] hover:underline font-semibold flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" /> Ajouter Couleur
                     </button>
                     <button
-                      onClick={() => setVariants(v => v.filter(x => (x.size || '') !== size))}
+                      onClick={() => setVariants(v => v.filter(x => ([x.model ? `Modèle : ${x.model}` : '', x.size ? `Taille : ${x.size}` : ''].filter(Boolean).join('  |  ') || 'Standard (Par défaut)') !== groupLabel))}
                       className="text-xs text-gray-500 hover:text-red-400 hover:underline flex items-center gap-1"
                     >
-                      <Trash2 className="w-3 h-3" /> Supprimer Taille
+                      <Trash2 className="w-3 h-3" /> Supprimer Groupe
                     </button>
                   </div>
                 </div>
@@ -3830,6 +3858,20 @@ function NouveauProduitModal({
                           onChange={e => updateVariant(v.id, 'color', e.target.value)}
                           placeholder="Couleur (opt.)"
                           className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0"
+                        />
+                        <input
+                          type="text"
+                          value={v.model || ''}
+                          onChange={e => updateVariant(v.id, 'model', e.target.value)}
+                          placeholder="Modèle (opt.)"
+                          className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
+                        />
+                        <input
+                          type="text"
+                          value={v.size}
+                          onChange={e => updateVariant(v.id, 'size', e.target.value)}
+                          placeholder="Taille (opt.)"
+                          className="w-24 flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-600 min-w-0 border-l border-white/10 pl-2"
                         />
                         <select
                           value={v.stockStatus}
@@ -3951,7 +3993,8 @@ function NouveauProduitModal({
                   ))}
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         </div>
 

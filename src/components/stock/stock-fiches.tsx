@@ -148,7 +148,7 @@ function ProductFiche({
   const groupedVariantsDetails = useMemo(() => {
     return Array.from(
       variants.reduce((map, v) => {
-        const key = `${v.color || ''}|${v.size || ''}`.toLowerCase();
+        const key = `${v.quality || ''}|${v.color || ''}|${v.size || ''}`.toLowerCase();
         if (!map.has(key)) {
           map.set(key, { 
             ...v, 
@@ -168,32 +168,42 @@ function ProductFiche({
         return map;
       }, new Map<string, any>()).values()
     ).sort((a: any, b: any) => {
-      const aKey = `${a.color || ''}`;
-      const bKey = `${b.color || ''}`;
+      const aKey = `${a.quality || ''} ${a.color || ''} ${a.size || ''}`;
+      const bKey = `${b.quality || ''} ${b.color || ''} ${b.size || ''}`;
       return aKey.localeCompare(bKey, undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [variants]);
 
-  const variantsBySize = useMemo(() => {
+  const hasQualities = useMemo(() => {
+    return variants.some(v => Boolean(v.quality || v.gsm || v.fabricWidth || v.sliderType));
+  }, [variants]);
+
+  const variantsByGroup = useMemo(() => {
     const map = new Map<string, any[]>();
     groupedVariantsDetails.forEach(v => {
-      const sizeKey = v.size || 'STANDARD';
-      if (!map.has(sizeKey)) map.set(sizeKey, []);
-      map.get(sizeKey)!.push(v);
+      let groupKey = 'STANDARD';
+      if (hasQualities) {
+        groupKey = v.quality || [v.gsm ? `${v.gsm}g/m²` : '', v.fabricWidth ? `${v.fabricWidth}cm` : '', v.rollLength ? `${v.rollLength}${v.rollLengthUnit || 'm'}` : ''].filter(Boolean).join(' · ') || (v.size || 'Qualité Standard');
+      } else {
+        groupKey = v.size || 'STANDARD';
+      }
+      if (!map.has(groupKey)) map.set(groupKey, []);
+      map.get(groupKey)!.push(v);
     });
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' }));
-  }, [groupedVariantsDetails]);
+  }, [groupedVariantsDetails, hasQualities]);
 
-  const [selectedSize, setSelectedSize] = useState<string>(variantsBySize[0]?.[0] || 'STANDARD');
+  const [selectedGroup, setSelectedGroup] = useState<string>(variantsByGroup[0]?.[0] || 'STANDARD');
 
-  // Si la taille sélectionnée n'existe plus (ex: filtre change), on reset
+  // Si le groupe sélectionné n'existe plus (ex: filtre change), on reset
   useEffect(() => {
-    if (variantsBySize.length > 0 && !variantsBySize.some(v => v[0] === selectedSize)) {
-      setSelectedSize(variantsBySize[0]?.[0] || 'STANDARD');
+    if (variantsByGroup.length > 0 && !variantsByGroup.some(v => v[0] === selectedGroup)) {
+      setSelectedGroup(variantsByGroup[0]?.[0] || 'STANDARD');
     }
-  }, [variantsBySize, selectedSize]);
+  }, [variantsByGroup, selectedGroup]);
 
-  const currentSizeVariants = variantsBySize.find(v => v[0] === selectedSize)?.[1] || [];
+  const currentGroupVariants = variantsByGroup.find(v => v[0] === selectedGroup)?.[1] || [];
+  const firstGroupVar = currentGroupVariants[0] || article;
 
   return (
     <div className="space-y-6">
@@ -250,23 +260,62 @@ function ProductFiche({
         </div>
       </div>
 
-      {/* ── Tableaux des variantes avec Onglets par taille ── */}
+      {/* ── Tableaux des variantes avec Onglets par Qualité / Taille ── */}
       <div className="space-y-4">
-        {variantsBySize.length > 1 && (
+        {variantsByGroup.length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {variantsBySize.map(([sizeName]) => (
+            {variantsByGroup.map(([groupName]) => (
               <button
-                key={sizeName}
-                onClick={() => setSelectedSize(sizeName)}
+                key={groupName}
+                onClick={() => setSelectedGroup(groupName)}
                 className={`px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
-                  selectedSize === sizeName 
-                    ? 'bg-stone-900 text-white border-stone-900 shadow-md scale-105'
+                  selectedGroup === groupName 
+                    ? hasQualities ? 'bg-violet-900 text-white border-violet-900 shadow-md scale-105' : 'bg-stone-900 text-white border-stone-900 shadow-md scale-105'
                     : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50 hover:text-stone-700'
                 }`}
               >
-                Taille : {sizeName}
+                {hasQualities ? `Qualité : ${groupName}` : `Taille : ${groupName}`}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Fiche technique de la qualité sélectionnée */}
+        {firstGroupVar && (firstGroupVar.gsm || firstGroupVar.fabricWidth || firstGroupVar.rollLength || firstGroupVar.packagingPerBag || firstGroupVar.slider || firstGroupVar.sliderType || firstGroupVar.zipperType) && (
+          <div className="bg-violet-50/70 border border-violet-100 rounded-2xl px-5 py-3 flex flex-wrap items-center gap-3">
+            <span className="text-[9px] font-black text-violet-800 uppercase tracking-widest flex items-center gap-1.5">
+              <Tag className="w-3 h-3 text-violet-600" /> Spécifications techniques ({selectedGroup}) :
+            </span>
+            {firstGroupVar.gsm && (
+              <span className="bg-white text-violet-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-violet-200 shadow-xs">
+                {firstGroupVar.gsm} g/m²
+              </span>
+            )}
+            {firstGroupVar.fabricWidth && (
+              <span className="bg-white text-blue-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs">
+                Largeur : {firstGroupVar.fabricWidth} cm
+              </span>
+            )}
+            {firstGroupVar.rollLength && (
+              <span className="bg-white text-stone-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-stone-200 shadow-xs">
+                Longueur : {firstGroupVar.rollLength} {firstGroupVar.rollLengthUnit || 'm'}/rlx
+              </span>
+            )}
+            {firstGroupVar.packagingPerBag && (
+              <span className="bg-white text-amber-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-amber-200 shadow-xs">
+                Conditionnement : {firstGroupVar.packagingPerBag} rlx/sac
+              </span>
+            )}
+            {firstGroupVar.zipperType && (
+              <span className="bg-white text-amber-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-amber-200 shadow-xs">
+                Type : {firstGroupVar.zipperType}
+              </span>
+            )}
+            {firstGroupVar.slider && (
+              <span className="bg-white text-stone-700 font-black text-[10px] px-2.5 py-1 rounded-lg border border-stone-200 shadow-xs">
+                Curseur : {firstGroupVar.slider} {firstGroupVar.sliderType ? `(${firstGroupVar.sliderType})` : ''}
+              </span>
+            )}
           </div>
         )}
 
@@ -274,7 +323,9 @@ function ProductFiche({
           <div className="px-6 py-4 border-b border-stone-50 bg-stone-50/50 flex items-center gap-2">
             <Package className="w-4 h-4 text-stone-500" />
             <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">
-              {selectedSize === 'STANDARD' ? 'État des Variantes' : `Couleurs pour la taille : ${selectedSize}`}
+              {hasQualities 
+                ? `Couleurs & Variantes pour la qualité : ${selectedGroup}`
+                : selectedGroup === 'STANDARD' ? 'État des Variantes' : `Couleurs pour la taille : ${selectedGroup}`}
             </h4>
           </div>
           <div className="overflow-x-auto">
@@ -282,7 +333,8 @@ function ProductFiche({
               <thead>
                 <tr className="border-b border-stone-100">
                   <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Couleur</th>
-                  {selectedSize === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>}
+                  {hasQualities && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Qualité</th>}
+                  {!hasQualities && selectedGroup === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>}
                   <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Seuil Min.</th>
                   <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
                   <th className="px-6 py-3 text-right font-black text-rose-600/70 uppercase tracking-widest text-[8px]">Sorties</th>
@@ -294,7 +346,7 @@ function ProductFiche({
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
-                {currentSizeVariants.map((v: any, i: number) => {
+                {currentGroupVariants.map((v: any, i: number) => {
                   const isRupt = v.currentQty <= 0;
                   const isAlerte = v.minThreshold != null && v.currentQty <= v.minThreshold;
                   return (
@@ -302,7 +354,13 @@ function ProductFiche({
                       <td className="px-6 py-4">
                         {v.color ? <span className="font-bold text-stone-700">{v.color}</span> : <span className="text-stone-300">—</span>}
                       </td>
-                      {selectedSize === 'STANDARD' && (
+                      {hasQualities && (
+                        <td className="px-6 py-4">
+                          <span className="font-bold text-stone-700">{v.quality || selectedGroup}</span>
+                          {v.gsm && <span className="text-[9px] text-stone-400 block">{v.gsm}g/m² {v.fabricWidth ? `· ${v.fabricWidth}cm` : ''}</span>}
+                        </td>
+                      )}
+                      {!hasQualities && selectedGroup === 'STANDARD' && (
                         <td className="px-6 py-4">
                           {v.size ? <span className="font-bold text-stone-700">{v.size}</span> : <span className="text-stone-300">—</span>}
                         </td>
@@ -582,16 +640,34 @@ function ProductsTable({
                     
                     <h3 className="text-sm font-black text-stone-900 uppercase leading-tight line-clamp-2 mt-2">{a.productName}</h3>
                     <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-4">
-                      {isMulti ? (
-                        <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">
-                          {variants.length} variantes
-                        </span>
-                      ) : (
-                        <>
-                          {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
-                          {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
-                        </>
-                      )}
+                      {(() => {
+                        const distinctQualities = Array.from(new Set(variants.map((v: any) => v.quality).filter(Boolean)));
+                        return (
+                          <>
+                            {distinctQualities.length > 1 && (
+                              <span className="text-[9px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
+                                {distinctQualities.length} qualités
+                              </span>
+                            )}
+                            {distinctQualities.length === 1 && (
+                              <span className="text-[9px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
+                                {distinctQualities[0]}
+                              </span>
+                            )}
+                            {isMulti ? (
+                              <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">
+                                {variants.length} variantes
+                              </span>
+                            ) : (
+                              <>
+                                {a.size  && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.size}</span>}
+                                {a.color && <span className="text-[9px] font-bold bg-stone-50 border border-stone-100 text-stone-500 px-2 py-0.5 rounded-md uppercase">{a.color}</span>}
+                                {a.gsm && <span className="text-[9px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-2 py-0.5 rounded-md uppercase">{a.gsm}g/m²</span>}
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                   <div className="mt-auto pt-4 border-t border-stone-100">
@@ -683,6 +759,11 @@ export default function StockFiches({
             categoryId: item.categoryId,
             color: item.color,
             size: item.size,
+            quality: item.quality,
+            gsm: item.gsm,
+            fabricWidth: item.fabricWidth,
+            rollLength: item.rollLength,
+            rollLengthUnit: item.rollLengthUnit,
             unitOfMeasure: item.unitOfMeasure,
             purchasePriceMAD: item.purchasePricePerUnit,
           });

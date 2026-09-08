@@ -148,6 +148,14 @@ export type StockMovement = {
   productName: string;
   color?: string;
   size?: string;
+  quality?: string;
+  gsm?: number;
+  fabricWidth?: number;
+  rollLength?: number;
+  rollLengthUnit?: string;
+  sliderType?: string;
+  zipperType?: string;
+  slider?: string;
   unitOfMeasure: string;
   type: StockMovementType;
   reason: StockMovementReason;
@@ -167,6 +175,19 @@ export type StockItem = {
   productName: string;
   color?: string;
   size?: string;
+  quality?: string;
+  gsm?: number;
+  fabricWidth?: number;
+  rollLength?: number;
+  rollLengthUnit?: string;
+  packagingPerBag?: number;
+  zipperType?: string;
+  slider?: string;
+  sliderType?: string;
+  tapeWeightGsm?: number;
+  sliderWeightG?: number;
+  pcsPerBag?: number;
+  bagsPerCarton?: number;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
   hasTTCCost?: boolean;           // true si coût de revient TTC calculé, false si FOB estimé
@@ -186,6 +207,7 @@ export type StockItem = {
   _realArticleId?: string;        // articleId Firestore réel (si ID virtuel)
   _colorKey?: string;             // couleur de la variante
   _sizeKey?: string;              // taille de la variante
+  _qualityKey?: string;           // qualité de la variante
 };
 
 // ── Types de vente (POS rapide) ────────────────────────────────────────────────
@@ -194,6 +216,7 @@ export type SaleItem = {
   productName: string;
   color?: string;
   size?: string;
+  quality?: string;
   categoryId: string;
   generalCategoryId?: string;
   unitOfMeasure: string;
@@ -229,6 +252,7 @@ export type TransferOrderItem = {
   productName: string;
   color?: string;
   size?: string;
+  quality?: string;
   unitOfMeasure: string;
   sentQty: number;
   receivedQty?: number;
@@ -276,6 +300,7 @@ export type OrderItem = {
   productName: string;
   color?: string;
   size?: string;
+  quality?: string;
   categoryId: string;
   generalCategoryId?: string;
   unitOfMeasure: string;

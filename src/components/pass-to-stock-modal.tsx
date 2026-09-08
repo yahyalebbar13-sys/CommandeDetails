@@ -194,24 +194,70 @@ export default function PassToStockModal({ open, onOpenChange, facture, associat
         const productName = parts.length > 0 ? parts.join(' ') : (article.name || article.specs || article.categoryId || 'Produit');
 
         const coutRevient = computeCoutRevientMad(article);
-        addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
-          articleId:        article.id,
-          categoryId:       article.categoryId,
-          productName,
-          color:            article.color || null,
-          size:             article.size  || null,
-          unitOfMeasure:    article.unitOfMeasure || 'unité',
-          type:             'IN',
-          reason:           'ARRIVAGE',
-          storeId:          storeSelections[article.id] || warehouseOptions[0]?.id || '',
-          quantity:         Number(article.quantity) || 0,
-          date:             formData.stockEntryDate,
-          factureId:        facture.id,
-          factureRef:       facture.id,
-          purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
-          notes:            `Arrivage ${facture.id}`,
-          createdAt:        serverTimestamp(),
-        }).catch(err => console.warn('[StockMovement] failed:', err));
+        const targetStore = storeSelections[article.id] || warehouseOptions[0]?.id || '';
+        const hasQualityBreakdown = Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length > 0;
+
+        if (hasQualityBreakdown) {
+          article.qualityBreakdown.forEach((row: any) => {
+            const rowQty = Number(row.quantity) || 0;
+            if (rowQty <= 0) return;
+            addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
+              articleId:        article.id,
+              categoryId:       article.categoryId,
+              productName,
+              color:            article.color || row.color || null,
+              size:             row.size || article.size || null,
+              quality:          row.quality || null,
+              gsm:              row.gsm ?? article.gsm ?? null,
+              fabricWidth:      row.fabricWidth ?? article.fabricWidth ?? null,
+              rollLength:       row.rollLength ?? article.rollLength ?? null,
+              rollLengthUnit:   row.rollLengthUnit ?? article.rollLengthUnit ?? null,
+              packagingPerBag:  row.packagingPerBag ?? article.packagingPerBag ?? null,
+              zipperType:       row.zipperType ?? article.zipperType ?? null,
+              slider:           row.slider ?? article.slider ?? null,
+              sliderType:       row.sliderType ?? article.sliderType ?? null,
+              unitOfMeasure:    article.unitOfMeasure || 'unité',
+              type:             'IN',
+              reason:           'ARRIVAGE',
+              storeId:          targetStore,
+              quantity:         rowQty,
+              date:             formData.stockEntryDate,
+              factureId:        facture.id,
+              factureRef:       facture.id,
+              purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
+              notes:            `Arrivage ${facture.id} · Qualité ${row.quality}`,
+              createdAt:        serverTimestamp(),
+            }).catch(err => console.warn('[StockMovement] failed:', err));
+          });
+        } else {
+          addDoc(collection(firestore, 'users', user.uid, 'stockMovements'), {
+            articleId:        article.id,
+            categoryId:       article.categoryId,
+            productName,
+            color:            article.color || null,
+            size:             article.size  || null,
+            quality:          article.quality || null,
+            gsm:              article.gsm ?? null,
+            fabricWidth:      article.fabricWidth ?? null,
+            rollLength:       article.rollLength ?? null,
+            rollLengthUnit:   article.rollLengthUnit ?? null,
+            packagingPerBag:  article.packagingPerBag ?? null,
+            zipperType:       article.zipperType ?? null,
+            slider:           article.slider ?? null,
+            sliderType:       article.sliderType ?? null,
+            unitOfMeasure:    article.unitOfMeasure || 'unité',
+            type:             'IN',
+            reason:           'ARRIVAGE',
+            storeId:          targetStore,
+            quantity:         Number(article.quantity) || 0,
+            date:             formData.stockEntryDate,
+            factureId:        facture.id,
+            factureRef:       facture.id,
+            purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
+            notes:            `Arrivage ${facture.id}${article.quality ? ` · Qualité ${article.quality}` : ''}`,
+            createdAt:        serverTimestamp(),
+          }).catch(err => console.warn('[StockMovement] failed:', err));
+        }
       });
     }
 

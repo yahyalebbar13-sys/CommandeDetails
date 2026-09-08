@@ -75,6 +75,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
   // Collect all specs with variant overrides
   const technicalSpecs: { label: string; value: string; icon?: React.ReactNode }[] = [
     { label: 'Matériau', value: selectedVariant?.material || product.material || '', icon: <Layers className="w-3.5 h-3.5" /> },
+    { label: 'Modèle', value: selectedVariant?.model || '' },
     { label: 'Type de produit', value: selectedVariant?.typeProduit || product.typeProduit || '' },
     { label: 'Spécification', value: selectedVariant?.specification || product.specification || '' },
     { label: 'Couleur', value: selectedVariant?.color || product.couleur || '', icon: <Palette className="w-3.5 h-3.5" /> },
@@ -227,7 +228,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                               style={{ background: v.colorHex }}
                             />
                           )}
-                          <span>{v.size ? `[${v.size}] ` : ''}{v.color || 'Option'}</span>
+                          <span>{v.model ? `[${v.model}] ` : ''}{v.size ? `[${v.size}] ` : ''}{v.color || 'Option'}</span>
                           <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
                             isSel ? 'bg-white/20 text-white' : v.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
                           }`}>
@@ -253,7 +254,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                 <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 animate-in fade-in duration-200">
                   <Sparkles className="w-3.5 h-3.5 text-[#D4A843] flex-shrink-0" />
                   <span>
-                    Option : {selectedVariant.size ? `Taille ${selectedVariant.size}` : ''} {selectedVariant.color ? `— ${selectedVariant.color}` : ''}
+                    Option : {selectedVariant.model ? `Modèle ${selectedVariant.model} ` : ''}{selectedVariant.size ? `Taille ${selectedVariant.size} ` : ''}{selectedVariant.color ? `— ${selectedVariant.color}` : ''}
                   </span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${selectedVariant.stock > 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                     {selectedVariant.stock > 0 ? `${selectedVariant.stock} en stock` : 'Rupture'}
@@ -334,7 +335,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                 <p className="text-[10px] text-gray-400 mb-3 uppercase tracking-wider font-bold">Intéressé par ce produit ?</p>
                 <div className="flex gap-3">
                   <a
-                    href={`https://wa.me/212760998347?text=${encodeURIComponent(`Bonjour LEBTEX, je suis intéressé par le produit "${product.catalogueName || product.name}"${selectedVariant ? ` (Option: ${selectedVariant.size ? `Taille ${selectedVariant.size} ` : ''}${selectedVariant.color || ''})` : ''} (${product.sku || product.id}). Pouvez-vous m'envoyer les prix et disponibilités ?`)}`}
+                    href={`https://wa.me/212760998347?text=${encodeURIComponent(`Bonjour LEBTEX, je suis intéressé par le produit "${product.catalogueName || product.name}"${selectedVariant ? ` (Option: ${selectedVariant.model ? `Modèle ${selectedVariant.model} ` : ''}${selectedVariant.size ? `Taille ${selectedVariant.size} ` : ''}${selectedVariant.color || ''})` : ''} (${product.sku || product.id}). Pouvez-vous m'envoyer les prix et disponibilités ?`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#1eba57] transition-colors"
