@@ -221,7 +221,7 @@ function ProductFiche({
         <div className="h-1.5 w-full" style={{ background: color }} />
         <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{article.categoryId}</p>
+            <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest">{article.categoryId}</p>
             <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.nameFR || article.productName}</h3>
             {article.nameFR && article.nameFR.toLowerCase() !== article.productName.toLowerCase() && (
               <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{article.productName}</p>
@@ -336,7 +336,6 @@ function ProductFiche({
               <thead>
                 <tr className="border-b border-stone-100">
                   <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Couleur</th>
-                  {hasQualities && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Qualité</th>}
                   {!hasQualities && selectedGroup === 'STANDARD' && <th className="px-6 py-3 text-left font-black text-stone-400 uppercase tracking-widest text-[8px]">Taille</th>}
                   <th className="px-6 py-3 text-right font-black text-stone-400 uppercase tracking-widest text-[8px]">Seuil Min.</th>
                   <th className="px-6 py-3 text-right font-black text-emerald-600/70 uppercase tracking-widest text-[8px]">Entrées</th>
@@ -357,12 +356,6 @@ function ProductFiche({
                       <td className="px-6 py-4">
                         {v.color ? <span className="font-bold text-stone-700">{v.color}</span> : <span className="text-stone-300">—</span>}
                       </td>
-                      {hasQualities && (
-                        <td className="px-6 py-4">
-                          <span className="font-bold text-stone-700">{v.quality || selectedGroup}</span>
-                          {v.gsm && <span className="text-[9px] text-stone-400 block">{v.gsm}g/m² {v.fabricWidth ? `· ${v.fabricWidth}cm` : ''}</span>}
-                        </td>
-                      )}
                       {!hasQualities && selectedGroup === 'STANDARD' && (
                         <td className="px-6 py-4">
                           {v.size ? <span className="font-bold text-stone-700">{v.size}</span> : <span className="text-stone-300">—</span>}
@@ -1017,7 +1010,7 @@ export default function StockFiches({
                       )}
                     </div>
                     <div>
-                      <h3 className="text-[11px] font-black text-stone-800 uppercase tracking-tighter line-clamp-2">{sc.name}</h3>
+                      <h3 className="text-[12px] font-black text-stone-950 uppercase tracking-tight line-clamp-2">{sc.name}</h3>
                       <p className="text-[8px] text-stone-400 font-bold mt-0.5">{items.length} référence{items.length !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-stone-50">
@@ -1212,7 +1205,7 @@ export default function StockFiches({
                             )}
                           </div>
                           <div>
-                            <h3 className="text-[12px] font-black text-stone-800 uppercase tracking-tighter line-clamp-2 min-h-[2rem]">
+                            <h3 className="text-[12px] font-black text-stone-950 uppercase tracking-tight line-clamp-2 min-h-[2rem]">
                               {gc.name}
                             </h3>
                             <p className="text-[8px] text-stone-400 font-bold mt-0.5">

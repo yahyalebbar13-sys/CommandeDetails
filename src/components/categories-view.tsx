@@ -303,6 +303,49 @@ export default function CategoriesView({
 
   const [declarations, setDeclarations] = useState<Record<string, any>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<{open: boolean; id?: string; name?: string}>({open: false});
+  const [editingSubCategory, setEditingSubCategory] = useState<any>(null);
+  const [renameSubCatName, setRenameSubCatName] = useState('');
+  const [editingGeneralCategory, setEditingGeneralCategory] = useState<any>(null);
+  const [renameGenCatName, setRenameGenCatName] = useState('');
+
+  const handleSaveRenameSubCat = () => {
+    if (!user || !firestore || !editingSubCategory || !renameSubCatName.trim()) return;
+    const oldName = editingSubCategory.name;
+    const newName = renameSubCatName.trim().toUpperCase();
+    if (oldName === newName) {
+      setEditingSubCategory(null);
+      return;
+    }
+    const docRef = doc(firestore, 'users', user.uid, 'categories', editingSubCategory.id);
+    updateDocumentNonBlocking(docRef, { name: newName });
+    
+    // Also update all articles referencing this categoryId by name
+    const catArticles = articles.filter(a => a.categoryId === oldName);
+    catArticles.forEach(a => {
+      const aRef = doc(firestore, 'users', user.uid, 'articles', a.id);
+      updateDocumentNonBlocking(aRef, { categoryId: newName });
+    });
+
+    toast({ title: '✅ Sous-catégorie renommée', description: `${oldName} → ${newName} (${catArticles.length} article(s) mis à jour)` });
+    setEditingSubCategory(null);
+    setRenameSubCatName('');
+  };
+
+  const handleSaveRenameGenCat = () => {
+    if (!user || !firestore || !editingGeneralCategory || !renameGenCatName.trim()) return;
+    const oldName = editingGeneralCategory.name;
+    const newName = renameGenCatName.trim().toUpperCase();
+    if (oldName === newName) {
+      setEditingGeneralCategory(null);
+      return;
+    }
+    const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingGeneralCategory.id);
+    updateDocumentNonBlocking(docRef, { name: newName });
+
+    toast({ title: '✅ Pôle renommé', description: `${oldName} → ${newName}` });
+    setEditingGeneralCategory(null);
+    setRenameGenCatName('');
+  };
   
   useEffect(() => {
     if (!firestore || !user || !selectedCategory) return;
@@ -2489,8 +2532,19 @@ export default function CategoriesView({
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <div>
-              <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.2em] mb-0.5">Exploration du Pôle</p>
-              <h2 className="text-xl font-black text-stone-900 uppercase tracking-tighter leading-none">{parent?.name}</h2>
+              <p className="text-[9px] font-black text-stone-900 uppercase tracking-[0.2em] mb-0.5">Exploration du Pôle</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-black text-stone-950 uppercase tracking-tight leading-none">{parent?.name}</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
+                  title="Renommer le pôle"
+                  onClick={() => { if (parent) { setEditingGeneralCategory(parent); setRenameGenCatName(parent.name); } }}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
           <div className="relative w-full md:w-64">
@@ -2556,6 +2610,15 @@ export default function CategoriesView({
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-6 w-6 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Renommer la sous-catégorie"
+                        onClick={(e) => { e.stopPropagation(); if (catObj) { setEditingSubCategory(catObj); setRenameSubCatName(catObj.name); } }}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-6 w-6 text-stone-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                         title="Configurer le rappel de commande"
                         onClick={(e) => { e.stopPropagation(); if (catObj) { setReorderConfigCat(catObj); setReorderSeasons(catObj.orderSchedule ? [...catObj.orderSchedule] : []); } }}
@@ -2582,7 +2645,7 @@ export default function CategoriesView({
                       <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
                     </div>
                   </div>
-                    <h3 className="font-black text-[11px] text-stone-800 uppercase leading-tight mb-3 line-clamp-2 min-h-[2rem] group-hover:text-stone-900">{sc.name}</h3>
+                    <h3 className="font-black text-[12px] text-stone-950 uppercase leading-tight mb-3 line-clamp-2 min-h-[2rem] group-hover:text-black">{sc.name}</h3>
 
                   {alertVisible && (
                     <div className={`mb-2 px-2.5 py-1.5 rounded-xl border ${alertColor.border} ${alertColor.light} flex items-center gap-2`}>
@@ -2750,6 +2813,72 @@ export default function CategoriesView({
         </DialogContent>
       </Dialog>
 
+      {/* ── Modal renommer sous-catégorie ── */}
+      <Dialog open={!!editingSubCategory} onOpenChange={open => { if (!open) { setEditingSubCategory(null); setRenameSubCatName(''); } }}>
+        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-stone-900 p-5 text-white shrink-0">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer la sous-catégorie</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingSubCategory?.name}</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom de la sous-catégorie</Label>
+              <Input
+                value={renameSubCatName}
+                onChange={e => setRenameSubCatName(e.target.value)}
+                placeholder="Ex: NYLON ZIPPER"
+                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveRenameSubCat(); }}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingSubCategory(null); setRenameSubCatName(''); }}>Annuler</Button>
+              <Button
+                className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={!renameSubCatName.trim()}
+                onClick={handleSaveRenameSubCat}
+              >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal renommer pôle ── */}
+      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); } }}>
+        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-stone-900 p-5 text-white shrink-0">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer le Pôle</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingGeneralCategory?.name}</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom du Pôle</Label>
+              <Input
+                value={renameGenCatName}
+                onChange={e => setRenameGenCatName(e.target.value)}
+                placeholder="Ex: ZIPPER NYLON"
+                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveRenameGenCat(); }}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); }}>Annuler</Button>
+              <Button
+                className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={!renameGenCatName.trim()}
+                onClick={handleSaveRenameGenCat}
+              >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       </>
     );
   }
@@ -2833,7 +2962,7 @@ export default function CategoriesView({
       <div className="space-y-12">
         {organizedCategories.map((group, groupIdx) => (
           <div key={groupIdx} className="space-y-5">
-            <h3 className="text-xl font-black text-stone-900 uppercase tracking-tighter flex items-center gap-3">
+            <h3 className="text-xl font-black text-stone-950 uppercase tracking-tighter flex items-center gap-3">
               <div className="w-2 h-6 bg-amber-500 rounded-full" />
               {group.title}
               <span className="text-xs font-bold text-stone-400 normal-case tracking-normal">
@@ -2858,7 +2987,7 @@ export default function CategoriesView({
                         <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Articles</p>
                       </div>
                     </div>
-                    <h3 className="text-sm font-black text-stone-800 uppercase leading-none mb-6 group-hover:text-stone-900 tracking-tighter">{stat.name}</h3>
+                    <h3 className="text-sm font-black text-stone-950 uppercase leading-none mb-6 group-hover:text-black tracking-tight">{stat.name}</h3>
                     <div className="space-y-2 pt-5 border-t border-stone-50">
                       <div className="flex justify-between items-center text-[9px]">
                         <span className="text-stone-400 font-black uppercase flex items-center gap-1">
@@ -2878,15 +3007,26 @@ export default function CategoriesView({
                       </div>
                     </div>
                     <div className="mt-6 flex justify-between items-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        title="Déplacer vers un autre pôle"
-                        onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) setMovingGeneralCategory(catObj); }}
-                      >
-                        <ArrowRightLeft className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-all"
+                          title="Renommer le pôle"
+                          onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) { setEditingGeneralCategory(catObj); setRenameGenCatName(catObj.name); } }}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-stone-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          title="Déplacer vers un autre pôle"
+                          onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) setMovingGeneralCategory(catObj); }}
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                       <div className="p-1.5 bg-stone-50 rounded opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
                         <ArrowUpRight className="w-3.5 h-3.5 text-stone-900" />
                       </div>
@@ -2898,6 +3038,39 @@ export default function CategoriesView({
           </div>
         ))}
       </div>
+
+      {/* ── Modal renommer pôle ── */}
+      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); } }}>
+        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-stone-900 p-5 text-white shrink-0">
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer le Pôle</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingGeneralCategory?.name}</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom du Pôle</Label>
+              <Input
+                value={renameGenCatName}
+                onChange={e => setRenameGenCatName(e.target.value)}
+                placeholder="Ex: ZIPPER NYLON"
+                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveRenameGenCat(); }}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); }}>Annuler</Button>
+              <Button
+                className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
+                disabled={!renameGenCatName.trim()}
+                onClick={handleSaveRenameGenCat}
+              >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
