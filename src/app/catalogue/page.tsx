@@ -63,39 +63,47 @@ function SpecRow({ label, value, icon }: { label: string; value: string; icon?: 
 // ─── PRODUCT SHEET MODAL (Fiche Produit Complète) ─────────────────────────────
 function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () => void }) {
   const [activeImg, setActiveImg] = useState(0);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
 
-  // Collect all specs
+  const variants = product.variants || [];
+  const selectedVariant = variants.find(v => v.id === selectedVariantId) || null;
+
+  const effectiveDescription = selectedVariant?.description || product.description;
+  const effectiveShortDescription = selectedVariant?.shortDescription || product.shortDescription;
+  const effectiveInStock = selectedVariant ? selectedVariant.stock > 0 : product.inStock;
+
+  // Collect all specs with variant overrides
   const technicalSpecs: { label: string; value: string; icon?: React.ReactNode }[] = [
-    { label: 'Matériau', value: product.material || '', icon: <Layers className="w-3.5 h-3.5" /> },
-    { label: 'Type de produit', value: product.typeProduit || '' },
-    { label: 'Spécification', value: product.specification || '' },
-    { label: 'Couleur', value: product.couleur || '', icon: <Palette className="w-3.5 h-3.5" /> },
-    { label: 'Largeur', value: product.width || '', icon: <Ruler className="w-3.5 h-3.5" /> },
-    { label: 'Largeur maille', value: product.largeurMaille || '' },
-    { label: 'Longueur', value: product.longueur || '', icon: <Ruler className="w-3.5 h-3.5" /> },
-    { label: 'Poids', value: product.weight ? `${product.weight} g` : '', icon: <Weight className="w-3.5 h-3.5" /> },
-    { label: 'Emballage', value: product.packaging || '', icon: <Box className="w-3.5 h-3.5" /> },
-    { label: 'Matière / Mailles', value: product.matiereMailles || '' },
+    { label: 'Matériau', value: selectedVariant?.material || product.material || '', icon: <Layers className="w-3.5 h-3.5" /> },
+    { label: 'Type de produit', value: selectedVariant?.typeProduit || product.typeProduit || '' },
+    { label: 'Spécification', value: selectedVariant?.specification || product.specification || '' },
+    { label: 'Couleur', value: selectedVariant?.color || product.couleur || '', icon: <Palette className="w-3.5 h-3.5" /> },
+    { label: 'Taille', value: selectedVariant?.size || '' },
+    { label: 'Largeur', value: selectedVariant?.width || product.width || '', icon: <Ruler className="w-3.5 h-3.5" /> },
+    { label: 'Largeur maille', value: selectedVariant?.largeurMaille || product.largeurMaille || '' },
+    { label: 'Longueur', value: selectedVariant?.longueur || product.longueur || '', icon: <Ruler className="w-3.5 h-3.5" /> },
+    { label: 'Poids', value: (selectedVariant?.weight !== undefined ? selectedVariant.weight : product.weight) ? `${selectedVariant?.weight !== undefined ? selectedVariant.weight : product.weight} g` : '', icon: <Weight className="w-3.5 h-3.5" /> },
+    { label: 'Emballage', value: selectedVariant?.packaging || product.packaging || '', icon: <Box className="w-3.5 h-3.5" /> },
+    { label: 'Matière / Mailles', value: selectedVariant?.matiereMailles || product.matiereMailles || '' },
     { label: 'Composition ruban', value: product.compositionRuban || '' },
     { label: 'Type', value: product.type || '' },
     { label: 'Design', value: product.design || '', icon: <Palette className="w-3.5 h-3.5" /> },
     { label: 'Résistance', value: product.resistance || '', icon: <Shield className="w-3.5 h-3.5" /> },
     { label: 'Sécurité', value: product.securite || '', icon: <Shield className="w-3.5 h-3.5" /> },
     { label: 'Compatible avec', value: product.compatibleAvec || '', icon: <Wrench className="w-3.5 h-3.5" /> },
-    { label: 'Conditionnement unitaire', value: product.conditionnementUnitaire || '', icon: <Box className="w-3.5 h-3.5" /> },
-    { label: 'Conditionnement gros', value: product.conditionnementGros || '', icon: <Box className="w-3.5 h-3.5" /> },
+    { label: 'Conditionnement unitaire', value: selectedVariant?.conditionnementUnitaire || product.conditionnementUnitaire || '', icon: <Box className="w-3.5 h-3.5" /> },
+    { label: 'Conditionnement gros', value: selectedVariant?.conditionnementGros || product.conditionnementGros || '', icon: <Box className="w-3.5 h-3.5" /> },
   ].filter(s => s.value);
 
   const infoSpecs: { label: string; value: string }[] = [
-    { label: 'Applications', value: product.applications || '' },
-    { label: 'Avantages', value: product.avantages || '' },
-    { label: 'Conseils d\'entretien', value: product.conseilsEntretien || '' },
-    { label: 'Information commerciale', value: product.informationCommerciale || '' },
+    { label: 'Applications', value: selectedVariant?.applications || product.applications || '' },
+    { label: 'Avantages', value: selectedVariant?.avantages || product.avantages || '' },
+    { label: 'Conseils d\'entretien', value: selectedVariant?.conseilsEntretien || product.conseilsEntretien || '' },
+    { label: 'Information commerciale', value: selectedVariant?.informationCommerciale || product.informationCommerciale || '' },
   ].filter(s => s.value);
 
-  const variants = product.variants || [];
   const images = product.images || [];
-  const hasDetailedInfo = technicalSpecs.length > 0 || infoSpecs.length > 0 || product.description;
+  const hasDetailedInfo = technicalSpecs.length > 0 || infoSpecs.length > 0 || effectiveDescription;
 
   // Prevent body scroll
   useEffect(() => {
@@ -124,7 +132,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <StockDot inStock={product.inStock} />
+            <StockDot inStock={effectiveInStock} />
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-[#F0ECE8] text-gray-400 hover:text-gray-600 transition-all">
               <X className="w-5 h-5" />
             </button>
@@ -146,7 +154,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                     <Package className="w-16 h-16 text-gray-200" />
                   </div>
                 )}
-                {!product.inStock && (
+                {!effectiveInStock && (
                   <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-red-500/90 text-white text-[10px] font-bold uppercase">
                     Indisponible
                   </div>
@@ -175,39 +183,62 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                 </div>
               )}
 
-              {/* Variants */}
-              {variants.length > 0 && (() => {
-                const colors = [...new Set(variants.filter(v => v.color).map(v => v.color))];
-                const sizes = [...new Set(variants.filter(v => v.size).map(v => v.size))];
-                return (
-                  <div className="mt-5 pt-5 border-t border-[#F0ECE8]">
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                      Variantes disponibles ({variants.length})
+              {/* Interactive Variants Selector */}
+              {variants.length > 0 && (
+                <div className="mt-5 pt-5 border-t border-[#F0ECE8]">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Tailles & Modèles ({variants.length})
                     </h4>
-                    <div className="flex flex-col gap-2 text-sm">
-                      {colors.length > 0 && (
-                        <div>
-                          <span className="font-bold text-[#1A1A1A]">Couleurs : </span>
-                          <span className="text-gray-600">
-                            {colors.length > 4 ? "Disponible en plusieurs couleurs" : colors.join(' / ')}
-                          </span>
-                        </div>
-                      )}
-                      {sizes.length > 0 && (
-                        <div>
-                          <span className="font-bold text-[#1A1A1A]">Tailles : </span>
-                          <span className="text-gray-600">
-                            {sizes.join(', ')}
-                          </span>
-                        </div>
-                      )}
-                      {colors.length === 0 && sizes.length === 0 && (
-                        <div className="text-gray-600">Plusieurs références disponibles.</div>
-                      )}
-                    </div>
+                    {selectedVariant && (
+                      <button
+                        onClick={() => setSelectedVariantId('')}
+                        className="text-[10px] text-[#C8102E] font-bold hover:underline"
+                      >
+                        Vue globale
+                      </button>
+                    )}
                   </div>
-                );
-              })()}
+                  <p className="text-[11px] text-gray-500 mb-2">
+                    Cliquez sur une variante pour voir ses caractéristiques :
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+                    {variants.map(v => {
+                      const isSel = v.id === selectedVariantId;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => {
+                            setSelectedVariantId(isSel ? '' : v.id);
+                            if (v.image && images) {
+                              const idx = images.findIndex(img => img === v.image);
+                              if (idx !== -1) setActiveImg(idx);
+                            }
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all text-left ${
+                            isSel
+                              ? 'bg-[#C8102E] text-white border-[#C8102E] shadow-sm'
+                              : 'bg-white text-[#1A1A1A] border-[#E8E4DF] hover:border-[#C8102E]/40 hover:bg-red-50/20'
+                          }`}
+                        >
+                          {v.colorHex && (
+                            <span
+                              className="w-3 h-3 rounded-full border border-black/10 flex-shrink-0"
+                              style={{ background: v.colorHex }}
+                            />
+                          )}
+                          <span>{v.size ? `[${v.size}] ` : ''}{v.color || 'Option'}</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                            isSel ? 'bg-white/20 text-white' : v.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+                          }`}>
+                            {v.stock > 0 ? `${v.stock}` : '0'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right — Product info */}
@@ -216,6 +247,26 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
               <h1 className="text-xl sm:text-2xl font-black text-[#1A1A1A] leading-tight mb-2" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 {product.catalogueName || product.name}
               </h1>
+
+              {/* Selected variant indicator badge */}
+              {selectedVariant && (
+                <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 animate-in fade-in duration-200">
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4A843] flex-shrink-0" />
+                  <span>
+                    Option : {selectedVariant.size ? `Taille ${selectedVariant.size}` : ''} {selectedVariant.color ? `— ${selectedVariant.color}` : ''}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${selectedVariant.stock > 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                    {selectedVariant.stock > 0 ? `${selectedVariant.stock} en stock` : 'Rupture'}
+                  </span>
+                </div>
+              )}
+
+              {/* Short Description */}
+              {effectiveShortDescription && (
+                <p className="text-sm text-gray-500 font-medium mb-3 italic leading-relaxed">
+                  {effectiveShortDescription}
+                </p>
+              )}
 
               {/* Tags */}
               {product.tags.length > 0 && (
@@ -229,12 +280,12 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
               )}
 
               {/* Description */}
-              {product.description && (
+              {effectiveDescription && (
                 <div className="mb-6">
                   <h3 className="text-[10px] font-bold text-[#C8102E] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Info className="w-3 h-3" /> Description
                   </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{product.description}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{effectiveDescription}</p>
                 </div>
               )}
 
@@ -283,7 +334,7 @@ function ProductSheet({ product, onClose }: { product: ShopProduct; onClose: () 
                 <p className="text-[10px] text-gray-400 mb-3 uppercase tracking-wider font-bold">Intéressé par ce produit ?</p>
                 <div className="flex gap-3">
                   <a
-                    href={`https://wa.me/212760998347?text=${encodeURIComponent(`Bonjour LEBTEX, je suis intéressé par le produit "${product.catalogueName || product.name}" (${product.sku || product.id}). Pouvez-vous m'envoyer les prix et disponibilités ?`)}`}
+                    href={`https://wa.me/212760998347?text=${encodeURIComponent(`Bonjour LEBTEX, je suis intéressé par le produit "${product.catalogueName || product.name}"${selectedVariant ? ` (Option: ${selectedVariant.size ? `Taille ${selectedVariant.size} ` : ''}${selectedVariant.color || ''})` : ''} (${product.sku || product.id}). Pouvez-vous m'envoyer les prix et disponibilités ?`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white text-sm font-bold hover:bg-[#1eba57] transition-colors"

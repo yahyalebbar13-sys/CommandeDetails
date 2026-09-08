@@ -135,6 +135,7 @@ export interface ShopProduct {
   conditionnementUnitaire?: string;
   conditionnementGros?: string;
   stockArticleId?: string;
+  stockArticleIds?: Record<string, string>;
 
   createdAt?: any;
   updatedAt?: any;

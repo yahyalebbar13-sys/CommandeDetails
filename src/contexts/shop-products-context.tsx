@@ -152,6 +152,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
         ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
         ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
         ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
+        ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
       };
     });
     // Filter out hardcoded products marked hidden by admin
@@ -217,6 +218,7 @@ export function ShopProductsProvider({ children }: { children: React.ReactNode }
           ...(ov.conditionnementUnitaire && { conditionnementUnitaire: ov.conditionnementUnitaire }),
           ...(ov.conditionnementGros && { conditionnementGros: ov.conditionnementGros }),
           ...(ov.stockArticleId && { stockArticleId: ov.stockArticleId }),
+          ...(ov.stockArticleIds && { stockArticleIds: ov.stockArticleIds }),
         };
       });
     return [...visibleHardcoded, ...mergedCustom];

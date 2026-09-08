@@ -2057,7 +2057,22 @@ function ProduitsView() {
   };
   const stockToStatus = (stock: number): EditStockStatus =>
     stock === 0 ? 'out_of_stock' : stock <= 10 ? 'limited' : 'available';
-  const [editVariants, setEditVariants] = useState<Array<{ id: string; color: string; colorHex: string; image?: string; size: string; stockStatus: EditStockStatus; price: string }>>([]);
+  const [editVariants, setEditVariants] = useState<Array<{ 
+    id: string; 
+    color: string; 
+    colorHex: string; 
+    image?: string; 
+    size: string; 
+    stockStatus: EditStockStatus; 
+    price: string;
+    shortDescription?: string;
+    description?: string;
+    material?: string;
+    typeProduit?: string;
+    weight?: number;
+    width?: string;
+    packaging?: string;
+  }>>([]);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2321,6 +2336,13 @@ function ProduitsView() {
       size: v.size || '',
       stockStatus: stockToStatus(v.stock ?? 999),
       price: v.price?.toString() || '',
+      shortDescription: v.shortDescription || '',
+      description: v.description || '',
+      material: v.material || '',
+      typeProduit: v.typeProduit || '',
+      weight: v.weight,
+      width: v.width || '',
+      packaging: v.packaging || '',
     })));
   };
 
@@ -2337,17 +2359,28 @@ function ProduitsView() {
       const builtVariants = editVariants
         .map((v, i) => {
           const s = EDIT_STOCK_STATUS[v.stockStatus];
-          const colorName = v.color.trim() || `Couleur ${i + 1}`;
+          const colorName = v.color.trim();
+          const sizeName = v.size?.trim();
+          const finalColorName = (!colorName && !sizeName) ? `Couleur ${i + 1}` : colorName;
+
           const obj: Record<string, unknown> = {
             id: v.id,
             stock: s.stock,
             inStock: s.stock > 0,
-            color: colorName,
-            colorHex: v.colorHex || '#C8102E',
+            ...(finalColorName && { color: finalColorName, colorHex: v.colorHex || '#C8102E' }),
+            ...(sizeName && { size: sizeName }),
           };
-          if (v.size) obj.size = v.size;
           if (v.image) obj.image = v.image;
           if (v.price) obj.price = parseFloat(v.price);
+          
+          if (v.shortDescription) obj.shortDescription = v.shortDescription;
+          if (v.description) obj.description = v.description;
+          if (v.material) obj.material = v.material;
+          if (v.typeProduit) obj.typeProduit = v.typeProduit;
+          if (v.weight) obj.weight = v.weight;
+          if (v.width) obj.width = v.width;
+          if (v.packaging) obj.packaging = v.packaging;
+
           return obj;
         });
 
@@ -2406,30 +2439,36 @@ function ProduitsView() {
         base.stockArticleIds = (editForm as any).stockArticleIds;
       }
       
-      // Si lié au stock, calculer inStock et stockQty depuis le stock réel
-      if ((editForm as any).stockArticleId) {
-        const linkedItem = computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId);
-        if (linkedItem) {
-          base.inStock = linkedItem.currentQty > 0;
-          base.stockQty = linkedItem.currentQty;
-          // Also update variant stock from real stock variants
-          if (linkedItem.variants?.length > 0 && builtVariants.length > 0) {
-            const stockIds = (editForm as any).stockArticleIds || {};
-            for (const bv of builtVariants) {
-              const mappedStockVarId = stockIds[(bv as any).id];
-              if (mappedStockVarId) {
-                const stockVar = linkedItem.variants.find((sv: any) => sv.variantId === mappedStockVarId);
-                if (stockVar) {
-                  (bv as any).stock = stockVar.qty;
-                  (bv as any).inStock = stockVar.qty > 0;
-                }
+      // Si lié au stock ou si des variantes sont liées au stock réel
+      const linkedItem = (editForm as any).stockArticleId ? computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId) : null;
+      if (linkedItem) {
+        base.inStock = linkedItem.currentQty > 0;
+        base.stockQty = linkedItem.currentQty;
+      }
+
+      // Synchronisation du stock réel pour chaque variante
+      const stockIds = (editForm as any).stockArticleIds || {};
+      if (builtVariants.length > 0 && Object.keys(stockIds).length > 0) {
+        for (const bv of builtVariants) {
+          const mappedStockVarId = stockIds[(bv as any).id];
+          if (mappedStockVarId) {
+            (bv as any).stockArticleId = mappedStockVarId;
+            const stockVar = linkedItem?.variants?.find((sv: any) => sv.variantId === mappedStockVarId);
+            if (stockVar) {
+              (bv as any).stock = stockVar.qty;
+              (bv as any).inStock = stockVar.qty > 0;
+            } else {
+              const directItem = computedStockItems.find((s: any) => s.articleId === mappedStockVarId);
+              if (directItem) {
+                (bv as any).stock = directItem.currentQty;
+                (bv as any).inStock = directItem.currentQty > 0;
               }
             }
-            base.variants = builtVariants;
-            base.inStock = builtVariants.some((v: any) => (v as any).stock > 0);
-            base.stockQty = builtVariants.reduce((s: number, v: any) => s + ((v as any).stock || 0), 0);
           }
         }
+        base.variants = builtVariants;
+        base.inStock = builtVariants.some((v: any) => (v as any).stock > 0);
+        base.stockQty = builtVariants.reduce((s: number, v: any) => s + ((v as any).stock || 0), 0);
       }
 
       await setDoc(doc(db, 'shop_product_overrides', productId), base, { merge: true });
@@ -2913,6 +2952,87 @@ Cette action est irréversible.`)) return;
                               />
                             ))}
                           </div>
+
+                          {/* Détails & Caractéristiques spécifiques de la variante */}
+                          <details className="px-3 pb-3 pt-1 border-t border-white/5 text-xs">
+                            <summary className="cursor-pointer text-[11px] font-bold text-[#D4A843] hover:text-[#e5be5e] flex items-center gap-1 select-none py-1">
+                              ⚙️ Descriptions & Caractéristiques spécifiques de cette taille / variante
+                            </summary>
+                            <div className="mt-2 space-y-2 bg-black/40 p-3 rounded-xl border border-white/5">
+                              <div>
+                                <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Description courte (spécifique à cette variante)</label>
+                                <input
+                                  type="text"
+                                  value={v.shortDescription || ''}
+                                  onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, shortDescription: e.target.value } : x))}
+                                  placeholder="Ex: Version extra-résistante, modèle court..."
+                                  className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Description complète (spécifique à cette variante)</label>
+                                <textarea
+                                  value={v.description || ''}
+                                  onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, description: e.target.value } : x))}
+                                  rows={2}
+                                  placeholder="Description détaillée de cette variante (remplace la description générale si renseignée)..."
+                                  className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50 resize-none"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                                <div>
+                                  <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Type produit</label>
+                                  <input
+                                    type="text"
+                                    value={v.typeProduit || ''}
+                                    onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, typeProduit: e.target.value } : x))}
+                                    placeholder="Ex: Fermeture #5"
+                                    className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Matière</label>
+                                  <input
+                                    type="text"
+                                    value={v.material || ''}
+                                    onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, material: e.target.value } : x))}
+                                    placeholder="Ex: Métal / Nylon"
+                                    className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Largeur / Dimension</label>
+                                  <input
+                                    type="text"
+                                    value={v.width || ''}
+                                    onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, width: e.target.value } : x))}
+                                    placeholder="Ex: 5 mm"
+                                    className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Poids (g)</label>
+                                  <input
+                                    type="number"
+                                    value={v.weight || ''}
+                                    onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, weight: e.target.value ? parseFloat(e.target.value) : undefined } : x))}
+                                    placeholder="Ex: 50"
+                                    className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Conditionnement</label>
+                                  <input
+                                    type="text"
+                                    value={v.packaging || ''}
+                                    onChange={e => setEditVariants(ev => ev.map(x => x.id === v.id ? { ...x, packaging: e.target.value } : x))}
+                                    placeholder="Ex: Boîte de 100 pcs"
+                                    className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </details>
                         </div>
                       ))}
                     </div>
@@ -3029,22 +3149,39 @@ Cette action est irréversible.`)) return;
                         </div>
 
                         {/* Variant-level stock linking */}
-                        {(editForm as any).stockArticleId && (() => {
-                          const linked = computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId);
-                          if (!linked?.variants?.length || editVariants.length === 0) return null;
+                        {editVariants.length > 0 && (() => {
+                          const linked = (editForm as any).stockArticleId
+                            ? computedStockItems.find((s: any) => s.articleId === (editForm as any).stockArticleId)
+                            : null;
                           return (
-                            <div className="space-y-2 mt-3">
-                              <p className="text-[10px] font-bold text-cyan-400/70 uppercase tracking-wider">Liaison variantes</p>
+                            <div className="space-y-2 mt-3 pt-3 border-t border-cyan-500/20">
+                              <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                                  <span>🔗</span> Liaison stock par taille / modèle
+                                </p>
+                                <span className="text-[10px] text-gray-500">
+                                  Chaque variante reliée à son stock réel
+                                </span>
+                              </div>
                               {editVariants.map(ev => {
                                 const currentMapping = ((editForm as any).stockArticleIds || {})[ev.id];
-                                const mappedVariant = currentMapping ? linked.variants.find((sv: any) => sv.variantId === currentMapping) : null;
+                                // Check if mapped to subvariant
+                                const mappedSubVariant = (currentMapping && linked?.variants)
+                                  ? linked.variants.find((sv: any) => sv.variantId === currentMapping)
+                                  : null;
+                                // Check if mapped to direct stock item
+                                const mappedDirectItem = currentMapping
+                                  ? computedStockItems.find((s: any) => s.articleId === currentMapping)
+                                  : null;
+                                const currentQty = mappedSubVariant ? mappedSubVariant.qty : (mappedDirectItem ? mappedDirectItem.currentQty : null);
+
                                 return (
-                                  <div key={ev.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/5">
-                                    <div className="w-4 h-4 rounded-full flex-shrink-0 border border-white/20" style={{ background: ev.colorHex || '#888' }} />
-                                    <span className="text-xs text-gray-300 flex-shrink-0 min-w-0 truncate" style={{ maxWidth: 100 }}>
-                                      {ev.color || ev.size || 'Variante'}
+                                  <div key={ev.id} className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+                                    <div className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/20" style={{ background: ev.colorHex || '#888' }} />
+                                    <span className="text-xs font-bold text-white flex-shrink-0 min-w-0 max-w-[120px] truncate">
+                                      {ev.size ? `[${ev.size}] ` : ''}{ev.color || 'Variante'}
                                     </span>
-                                    <span className="text-gray-600 text-xs">→</span>
+                                    <span className="text-gray-500 text-xs">→</span>
                                     <select
                                       value={currentMapping || ''}
                                       onChange={e => {
@@ -3053,18 +3190,29 @@ Cette action est irréversible.`)) return;
                                         else delete ids[ev.id];
                                         setEditForm(prev => ({ ...prev, stockArticleIds: ids } as any));
                                       }}
-                                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-cyan-500/50 cursor-pointer"
+                                      className="flex-1 min-w-[200px] bg-black/40 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-cyan-400 cursor-pointer"
                                     >
-                                      <option value="">— Non lié —</option>
-                                      {linked.variants.map((sv: any) => (
-                                        <option key={sv.variantId} value={sv.variantId} style={{ background: '#1a1a1a' }}>
-                                          {sv.label} ({sv.qty} en stock)
-                                        </option>
-                                      ))}
+                                      <option value="">— Non lié au stock réel —</option>
+                                      {linked?.variants && linked.variants.length > 0 && (
+                                        <optgroup label={`Sous-variantes de : ${linked.productName || 'Article parent'}`}>
+                                          {linked.variants.map((sv: any) => (
+                                            <option key={sv.variantId} value={sv.variantId} style={{ background: '#1a1a1a' }}>
+                                              {sv.label} ({sv.qty} en stock)
+                                            </option>
+                                          ))}
+                                        </optgroup>
+                                      )}
+                                      <optgroup label="Tous les articles du Stock Réel">
+                                        {computedStockItems.map((item: any) => (
+                                          <option key={item.articleId} value={item.articleId} style={{ background: '#1a1a1a' }}>
+                                            {item.productName} {item.color ? `(${item.color})` : ''} {item.size ? `[${item.size}]` : ''} — {item.currentQty} {item.unitOfMeasure || 'pcs'}
+                                          </option>
+                                        ))}
+                                      </optgroup>
                                     </select>
-                                    {mappedVariant && (
-                                      <span className={`text-[10px] font-bold flex-shrink-0 ${mappedVariant.qty > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                        {mappedVariant.qty}
+                                    {currentQty !== null && (
+                                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-full flex-shrink-0 ${currentQty > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                                        {currentQty} en stock
                                       </span>
                                     )}
                                   </div>
@@ -3207,7 +3355,22 @@ function NouveauProduitModal({
     conditionnementGros: '',
   });
   type StockStatus = 'available' | 'limited' | 'out_of_stock';
-  type VariantForm = { id: string; color: string; colorHex: string; image?: string; size: string; stockStatus: StockStatus; price: string };
+  type VariantForm = { 
+    id: string; 
+    color: string; 
+    colorHex: string; 
+    image?: string; 
+    size: string; 
+    stockStatus: StockStatus; 
+    price: string;
+    shortDescription?: string;
+    description?: string;
+    material?: string;
+    typeProduit?: string;
+    weight?: number;
+    width?: string;
+    packaging?: string;
+  };
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -3254,6 +3417,16 @@ function NouveauProduitModal({
     };
     if (v.image) obj.image = v.image;
     if (v.price) obj.price = parseFloat(v.price);
+    
+    // Add new technical and description fields
+    if (v.shortDescription) obj.shortDescription = v.shortDescription;
+    if (v.description) obj.description = v.description;
+    if (v.material) obj.material = v.material;
+    if (v.typeProduit) obj.typeProduit = v.typeProduit;
+    if (v.weight) obj.weight = v.weight;
+    if (v.width) obj.width = v.width;
+    if (v.packaging) obj.packaging = v.packaging;
+
     return obj;
   };
 
@@ -3693,6 +3866,87 @@ function NouveauProduitModal({
                           />
                         ))}
                       </div>
+
+                      {/* Détails & Caractéristiques spécifiques de la variante */}
+                      <details className="px-3 pb-3 pt-1 border-t border-white/5 text-xs">
+                        <summary className="cursor-pointer text-[11px] font-bold text-[#D4A843] hover:text-[#e5be5e] flex items-center gap-1 select-none py-1">
+                          ⚙️ Descriptions & Caractéristiques spécifiques de cette taille / variante
+                        </summary>
+                        <div className="mt-2 space-y-2 bg-black/40 p-3 rounded-xl border border-white/5">
+                          <div>
+                            <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Description courte (spécifique à cette variante)</label>
+                            <input
+                              type="text"
+                              value={v.shortDescription || ''}
+                              onChange={e => updateVariant(v.id, 'shortDescription', e.target.value)}
+                              placeholder="Ex: Version extra-résistante, modèle court..."
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">Description complète (spécifique à cette variante)</label>
+                            <textarea
+                              value={v.description || ''}
+                              onChange={e => updateVariant(v.id, 'description', e.target.value)}
+                              rows={2}
+                              placeholder="Description détaillée de cette variante..."
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50 resize-none"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                            <div>
+                              <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Type produit</label>
+                              <input
+                                type="text"
+                                value={v.typeProduit || ''}
+                                onChange={e => updateVariant(v.id, 'typeProduit', e.target.value)}
+                                placeholder="Ex: Fermeture #5"
+                                className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Matière</label>
+                              <input
+                                type="text"
+                                value={v.material || ''}
+                                onChange={e => updateVariant(v.id, 'material', e.target.value)}
+                                placeholder="Ex: Métal / Nylon"
+                                className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Largeur / Dimension</label>
+                              <input
+                                type="text"
+                                value={v.width || ''}
+                                onChange={e => updateVariant(v.id, 'width', e.target.value)}
+                                placeholder="Ex: 5 mm"
+                                className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Poids (g)</label>
+                              <input
+                                type="number"
+                                value={v.weight || ''}
+                                onChange={e => updateVariant(v.id, 'weight', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                placeholder="Ex: 50"
+                                className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="text-[9px] text-gray-400 font-bold uppercase block mb-0.5">Conditionnement</label>
+                              <input
+                                type="text"
+                                value={v.packaging || ''}
+                                onChange={e => updateVariant(v.id, 'packaging', e.target.value)}
+                                placeholder="Ex: Boîte de 100 pcs"
+                                className="w-full px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-[#D4A843]/50"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </details>
                     </div>
                   ))}
                 </div>

@@ -75,9 +75,11 @@ function MultiVariantSelector({
   wholesalePrice?: number;
   minOrderQty?: number;
   onAdd: (items: CartItem[]) => void;
+  onVariantSelect?: (variant: ProductVariant | null, size: string) => void;
 }) {
   const { language } = useLanguage();
   const [qtys, setQtys] = useState<Record<string, number>>({});
+  const [focusedVariantId, setFocusedVariantId] = useState<string>('');
 
   const safeVariants = React.useMemo(() => variants.map((v, i) => ({ ...v, _safeId: v.id ? `${v.id}-${i}` : `v-${i}` })), [variants]);
 
@@ -87,6 +89,20 @@ function MultiVariantSelector({
   const [selectedSize, setSelectedSize] = useState<string>(hasSizes ? '' : (uniqueSizes[0] || 'Standard'));
 
   const visibleVariants = selectedSize ? safeVariants.filter(v => (v.size || 'Standard') === selectedSize) : [];
+
+  const handleSelectSize = (sz: string) => {
+    setSelectedSize(sz);
+    const firstOfSize = safeVariants.find(v => (v.size || 'Standard') === sz) || null;
+    if (firstOfSize) {
+      setFocusedVariantId(firstOfSize._safeId);
+    }
+    onVariantSelect?.(firstOfSize, sz);
+  };
+
+  const handleFocusVariant = (v: (typeof safeVariants)[0]) => {
+    setFocusedVariantId(v._safeId);
+    onVariantSelect?.(v, v.size || selectedSize || 'Standard');
+  };
 
   const setQty = (variantId: string, delta: number, max: number | undefined) => {
     setQtys(prev => {
@@ -151,7 +167,7 @@ function MultiVariantSelector({
               return (
                 <button
                   key={sz}
-                  onClick={() => setSelectedSize(sz)}
+                  onClick={() => handleSelectSize(sz)}
                   className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 cursor-pointer touch-manipulation transition-all duration-200 flex items-center gap-2
                     ${isSelected
                       ? 'border-[#C8102E] bg-[#C8102E] text-white shadow-md scale-105'
@@ -248,6 +264,8 @@ function MultiVariantSelector({
                     const isSelected = qty > 0;
                     const colorLabel = v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '';
 
+                    const isFocused = focusedVariantId === v._safeId;
+
                     return (
                       <div
                         key={v._safeId}
@@ -256,9 +274,12 @@ function MultiVariantSelector({
                             ? 'opacity-40 border-gray-200 bg-gray-50 cursor-not-allowed'
                             : isSelected
                               ? 'border-[#C8102E] bg-red-50/50 shadow-md scale-[1.02]'
-                              : 'border-[#E8E4DF] bg-white hover:border-[#C8102E]/40 hover:shadow-sm'
+                              : isFocused
+                                ? 'border-[#C8102E]/70 bg-amber-50/30 ring-2 ring-[#C8102E]/30 shadow-sm'
+                                : 'border-[#E8E4DF] bg-white hover:border-[#C8102E]/40 hover:shadow-sm'
                           }`}
                         onClick={() => {
+                          handleFocusVariant(v);
                           if (outOfStock) return;
                           if (!isSelected) {
                             setQty(v._safeId, 1, v.stock);
@@ -394,6 +415,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   }, [isLoading, id, directDone]);
 
   const [selectedVariant, setSelectedVariant] = React.useState<ProductVariant | null>(null);
+  const [activeVariant, setActiveVariant] = React.useState<ProductVariant | null>(null);
+  const [activeSize, setActiveSize] = React.useState<string>('');
   const [qty, setQty] = React.useState(1);
   const [mainImg, setMainImg] = React.useState(0);
   const [wished, setWished] = React.useState(false);
@@ -404,6 +427,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   React.useEffect(() => {
     setMainImg(0);
     setSelectedVariant(null);
+    setActiveVariant(null);
+    setActiveSize('');
     setAdded(false);
     if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
     if (product?.minOrderQty) setQty(product.minOrderQty);
@@ -457,6 +482,40 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const currentPrice = selectedVariant?.price || product.price;
   const stock = selectedVariant?.stock ?? product.stockQty;
   const inStock = hasVariants ? product.variants.some(v => v.stock > 0) : stock > 0;
+
+  const currentVariant = activeVariant || (activeSize ? product.variants?.find(v => (v.size || 'Standard') === activeSize) : null);
+
+  const effectiveShortDescription = (language === 'ar' ? currentVariant?.shortDescriptionAr : currentVariant?.shortDescription)
+    || currentVariant?.shortDescription
+    || (language === 'ar' ? product.shortDescriptionAr : product.shortDescription)
+    || product.shortDescription;
+
+  const effectiveDescription = (language === 'ar' ? currentVariant?.descriptionAr : currentVariant?.description)
+    || currentVariant?.description
+    || (language === 'ar' ? product.descriptionAr : product.description)
+    || product.description;
+
+  const effectiveTypeProduit = currentVariant?.typeProduit || product.typeProduit;
+  const effectiveMaterial = currentVariant?.material || currentVariant?.matiereMailles || product.matiereMailles || product.material;
+  const effectiveWidth = currentVariant?.width || currentVariant?.largeurMaille || product.largeurMaille || product.width;
+  const effectiveLength = currentVariant?.longueur || product.longueur;
+  const effectiveWeight = currentVariant?.weight !== undefined ? currentVariant.weight : product.weight;
+  const effectivePackaging = currentVariant?.packaging || product.packaging;
+  const effectiveCondUnitaire = currentVariant?.conditionnementUnitaire || product.conditionnementUnitaire;
+  const effectiveCondGros = currentVariant?.conditionnementGros || product.conditionnementGros;
+  const effectiveApplications = currentVariant?.applications || product.applications;
+  const effectiveAvantages = currentVariant?.avantages || product.avantages;
+  const effectiveConseilsEntretien = currentVariant?.conseilsEntretien || product.conseilsEntretien;
+  const effectiveInfoCommerciale = currentVariant?.informationCommerciale || product.informationCommerciale;
+
+  const handleVariantSelect = (v: ProductVariant | null, size: string) => {
+    setActiveVariant(v);
+    setActiveSize(size);
+    if (v?.image && product.images) {
+      const idx = product.images.findIndex(img => img === v.image);
+      if (idx !== -1) setMainImg(idx);
+    }
+  };
 
   const handleAddToCart = () => {
     addItem({
@@ -537,8 +596,25 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               {language === 'ar' && product.nameAr ? product.nameAr : product.name}
             </h1>
 
+            {/* Selected variant indicator badge */}
+            {currentVariant && (
+              <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-50 border border-amber-200/80 text-xs font-bold text-amber-900 animate-in fade-in duration-200">
+                <Sparkles className="w-3.5 h-3.5 text-[#D4A843] flex-shrink-0" />
+                <span>
+                  {language === 'ar'
+                    ? `الخيار المحدد: ${currentVariant.size ? `مقاس ${currentVariant.size}` : ''} ${currentVariant.color || ''}`
+                    : `Option : ${currentVariant.size ? `Taille ${currentVariant.size}` : ''} ${currentVariant.color ? `— ${currentVariant.color}` : ''}`}
+                </span>
+                {currentVariant.stock !== undefined && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${currentVariant.stock > 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                    {currentVariant.stock > 0 ? `${currentVariant.stock} en stock` : 'Rupture'}
+                  </span>
+                )}
+              </div>
+            )}
+
             <p className="text-[#6B6B6B] text-sm md:text-base leading-relaxed mb-6 whitespace-pre-wrap">
-              {language === 'ar' && product.shortDescriptionAr ? product.shortDescriptionAr : product.shortDescription}
+              {effectiveShortDescription}
             </p>
 
             <div className="flex items-center gap-3 mb-4">
@@ -550,9 +626,13 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold mb-5 ${inStock ? 'bg-green-50 text-[#10B981]' : 'bg-red-50 text-red-600'}`}>
               <span className={`w-2 h-2 rounded-full ${inStock ? 'bg-[#10B981]' : 'bg-red-500'}`} />
               {inStock
-                ? hasVariants
-                  ? (language === 'ar' ? `${product.variants.reduce((s, v) => s + v.stock, 0)} قطعة متوفرة` : `${product.variants.reduce((s, v) => s + v.stock, 0)} unités disponibles`)
-                  : (language === 'ar' ? `متوفر (${stock} قطعة)` : `En stock (${stock} disponibles)`)
+                ? currentVariant
+                  ? (language === 'ar'
+                      ? (currentVariant.stock > 0 ? `${currentVariant.stock} قطعة متوفرة لهذا الخيار` : 'هذا الخيار غير متوفر حالياً')
+                      : (currentVariant.stock > 0 ? `${currentVariant.stock} disponibles pour cette option` : 'Cette variante est en rupture'))
+                  : hasVariants
+                    ? (language === 'ar' ? `${product.variants.reduce((s, v) => s + v.stock, 0)} قطعة متوفرة` : `${product.variants.reduce((s, v) => s + v.stock, 0)} unités disponibles`)
+                    : (language === 'ar' ? `متوفر (${stock} قطعة)` : `En stock (${stock} disponibles)`)
                 : (language === 'ar' ? 'نفد المخزون' : 'Rupture de stock')}
             </div>
 
@@ -569,6 +649,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 wholesalePrice={product.wholesalePrice}
                 minOrderQty={product.minOrderQty}
                 onAdd={handleAddVariantsToCart}
+                onVariantSelect={handleVariantSelect}
               />
             ) : (
               <>
@@ -612,19 +693,19 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         <div className="mt-10 mb-12">
           <div className="space-y-4">
             {/* ── Caractéristiques Techniques (Hyper Pro) ── */}
-            {(product.typeProduit || product.matiereMailles || product.compositionRuban || product.largeurMaille || product.longueur || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || product.conditionnementUnitaire || product.conditionnementGros) && (
+            {(effectiveTypeProduit || effectiveMaterial || product.compositionRuban || effectiveWidth || effectiveLength || product.type || product.design || product.securite || product.resistance || product.compatibleAvec || effectiveCondUnitaire || effectiveCondGros || effectiveWeight || effectivePackaging) && (
               <Accordion title={language === 'ar' ? 'معلومات تفصيلية' : 'Informations Détaillées'} icon={<Package className="w-5 h-5 text-[#10B981]" />} defaultOpen={true}>
                 <div className="p-6 grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {product.typeProduit && (
+                  {effectiveTypeProduit && (
                     <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'نوع المنتج' : 'Type de produit'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.typeProduit}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveTypeProduit}</span>
                     </div>
                   )}
-                  {product.matiereMailles && (
+                  {effectiveMaterial && (
                     <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'مادة' : 'Matière'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.matiereMailles}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveMaterial}</span>
                     </div>
                   )}
                   {product.compositionRuban && (
@@ -633,16 +714,28 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                       <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.compositionRuban}</span>
                     </div>
                   )}
-                  {product.largeurMaille && (
+                  {effectiveWidth && (
                     <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'العرض' : 'Largeur'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.largeurMaille}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveWidth}</span>
                     </div>
                   )}
-                  {product.longueur && (
+                  {effectiveLength && (
                     <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الطول' : 'Longueur'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.longueur}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveLength}</span>
+                    </div>
+                  )}
+                  {effectiveWeight !== undefined && (
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'الوزن' : 'Poids'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveWeight} g</span>
+                    </div>
+                  )}
+                  {effectivePackaging && (
+                    <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف' : 'Emballage'}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectivePackaging}</span>
                     </div>
                   )}
                   {product.type && (
@@ -675,16 +768,16 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                       <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.compatibleAvec}</span>
                     </div>
                   )}
-                  {product.conditionnementUnitaire && (
+                  {effectiveCondUnitaire && (
                     <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف (وحدة)' : 'Cond. unitaire'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.conditionnementUnitaire}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveCondUnitaire}</span>
                     </div>
                   )}
-                  {product.conditionnementGros && (
+                  {effectiveCondGros && (
                     <div className="bg-[#FDFBF8] p-3 rounded-xl border border-[#F3EFE8] flex flex-col gap-1 transition-all hover:border-[#C8102E]/20 hover:shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{language === 'ar' ? 'التعبئة والتغليف (جملة)' : 'Cond. gros'}</span>
-                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{product.conditionnementGros}</span>
+                      <span className="text-[13px] font-semibold text-[#1A1A1A]">{effectiveCondGros}</span>
                     </div>
                   )}
                 </div>
@@ -692,38 +785,37 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             )}
 
             <Accordion title={language === 'ar' ? 'الوصف المفصل' : 'Description Détaillée'} icon={<ShoppingCart className="w-5 h-5 text-[#C8102E]" />}>
-              <div className="p-6 text-[#4A4A4A] leading-relaxed text-[15px] space-y-4">
-                {language === 'ar' && product.descriptionAr ? product.descriptionAr : product.description}
+              <div className="p-6 text-[#4A4A4A] leading-relaxed text-[15px] space-y-4 whitespace-pre-line">
+                {effectiveDescription}
               </div>
             </Accordion>
 
-
             {/* ── Informations Complémentaires (Hyper Pro longs textes) ── */}
-            {(product.applications || product.avantages || product.conseilsEntretien || product.informationCommerciale) && (
+            {(effectiveApplications || effectiveAvantages || effectiveConseilsEntretien || effectiveInfoCommerciale) && (
               <Accordion title={language === 'ar' ? 'تفاصيل ومعلومات إضافية' : 'Détails & Applications'} icon={<Shield className="w-5 h-5 text-[#8B5CF6]" />}>
                 <div className="p-6 space-y-5 text-sm">
-                  {product.applications && (
+                  {effectiveApplications && (
                     <div className="border-b border-[#F3EFE8] pb-4">
                       <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'التطبيقات (قطاعات/استخدامات):' : 'Applications (Secteurs/Usages):'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.applications}</p>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveApplications}</p>
                     </div>
                   )}
-                  {product.avantages && (
+                  {effectiveAvantages && (
                     <div className="border-b border-[#F3EFE8] pb-4">
                       <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'المميزات:' : 'Avantages:'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.avantages}</p>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveAvantages}</p>
                     </div>
                   )}
-                  {product.conseilsEntretien && (
+                  {effectiveConseilsEntretien && (
                     <div className="border-b border-[#F3EFE8] pb-4">
                       <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'نصائح العناية:' : "Conseils d'entretien:"}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.conseilsEntretien}</p>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveConseilsEntretien}</p>
                     </div>
                   )}
-                  {product.informationCommerciale && (
+                  {effectiveInfoCommerciale && (
                     <div className="pb-2">
                       <span className="font-bold text-[#1A1A1A] block mb-2">{language === 'ar' ? 'معلومات تجارية (تعبئة، حد أدنى):' : 'Infos commerciales (Conditionnement, MOQ...):'}</span>
-                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{product.informationCommerciale}</p>
+                      <p className="text-[#6B6B6B] whitespace-pre-line leading-relaxed">{effectiveInfoCommerciale}</p>
                     </div>
                   )}
                 </div>
