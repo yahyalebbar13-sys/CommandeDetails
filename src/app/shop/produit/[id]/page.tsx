@@ -65,6 +65,7 @@ function MultiVariantSelector({
   wholesalePrice,
   minOrderQty,
   onAdd,
+  onVariantSelect,
 }: {
   variants: ProductVariant[];
   basePrice: number;
@@ -78,34 +79,62 @@ function MultiVariantSelector({
   onVariantSelect?: (variant: ProductVariant | null, size: string) => void;
 }) {
   const { language } = useLanguage();
-  const { openCart } = useShopCartActions();
   const [qtys, setQtys] = useState<Record<string, number>>({});
   const [focusedVariantId, setFocusedVariantId] = useState<string>('');
 
-  const safeVariants = React.useMemo(() => variants.map((v, i) => ({ ...v, _safeId: v.id ? `${v.id}-${i}` : `v-${i}` })), [variants]);
+  const safeVariants = React.useMemo(
+    () => variants.map((v, i) => ({ ...v, _safeId: v.id ? `${v.id}-${i}` : `v-${i}` })),
+    [variants]
+  );
 
-  // Model & Size selection logic
-  const uniqueModels = Array.from(new Set(safeVariants.map(v => v.model?.trim()).filter(Boolean) as string[]));
+  // Model selection logic
+  const uniqueModels = React.useMemo(() => {
+    return Array.from(new Set(safeVariants.map(v => v.model?.trim()).filter(Boolean) as string[]));
+  }, [safeVariants]);
   const hasModels = uniqueModels.length > 0;
 
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>(() => (hasModels ? uniqueModels[0] : ''));
 
-  // Active variants for current model (or all if no model selected)
-  const activeVariantsForModel = selectedModel
-    ? safeVariants.filter(v => (v.model?.trim() || '') === selectedModel)
-    : safeVariants;
+  // Active variants for currently selected model
+  const activeVariantsForModel = React.useMemo(() => {
+    if (!hasModels || !selectedModel) return safeVariants;
+    const filtered = safeVariants.filter(v => (v.model?.trim() || '') === selectedModel);
+    return filtered.length > 0 ? filtered : safeVariants;
+  }, [safeVariants, hasModels, selectedModel]);
 
-  const uniqueSizes = Array.from(new Set(activeVariantsForModel.map(v => v.size?.trim() || 'Standard')));
+  // Size selection logic
+  const uniqueSizes = React.useMemo(() => {
+    return Array.from(new Set(activeVariantsForModel.map(v => v.size?.trim() || 'Standard')));
+  }, [activeVariantsForModel]);
   const hasSizes = uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
-  
-  const [selectedSize, setSelectedSize] = useState<string>('');
-  const [step, setStep] = useState<'choose_model' | 'choose_size' | 'choose_colors' | 'completed_size'>(
-    hasModels ? 'choose_model' : hasSizes ? 'choose_size' : 'choose_colors'
-  );
-  const [lastAddedInfo, setLastAddedInfo] = useState<{ model?: string; size: string; count: number } | null>(null);
 
+  const [selectedSize, setSelectedSize] = useState<string>(() => (uniqueSizes[0] || 'Standard'));
+
+  // Keep selectedSize in sync with available sizes of current model
+  React.useEffect(() => {
+    if (uniqueSizes.length > 0 && (!selectedSize || !uniqueSizes.includes(selectedSize))) {
+      const nextSz = uniqueSizes[0];
+      setSelectedSize(nextSz);
+      const v = activeVariantsForModel.find(x => (x.size?.trim() || 'Standard') === nextSz) || activeVariantsForModel[0] || null;
+      if (v) {
+        setFocusedVariantId(v._safeId);
+        onVariantSelect?.(v, nextSz);
+      }
+    }
+  }, [uniqueSizes, selectedSize, activeVariantsForModel, onVariantSelect]);
+
+  // Initial sync on mount
+  React.useEffect(() => {
+    const initialVariant = activeVariantsForModel.find(v => (v.size?.trim() || 'Standard') === selectedSize) || activeVariantsForModel[0] || null;
+    if (initialVariant) {
+      setFocusedVariantId(initialVariant._safeId);
+      onVariantSelect?.(initialVariant, initialVariant.size || selectedSize || 'Standard');
+    }
+  }, []);
+
+  // Visible variants for current model + size
   const visibleVariants = activeVariantsForModel.filter(v => {
-    if (selectedSize) {
+    if (hasSizes && selectedSize && selectedSize !== 'Standard') {
       return (v.size?.trim() || 'Standard') === selectedSize;
     }
     return true;
@@ -115,21 +144,13 @@ function MultiVariantSelector({
     setSelectedModel(mod);
     const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
     const modSizes = Array.from(new Set(modVars.map(v => v.size?.trim() || 'Standard')));
-    const modHasSizes = modSizes.length > 1 || (modSizes.length === 1 && modSizes[0] !== 'Standard');
-    const firstOfModel = modVars[0] || null;
-    if (firstOfModel) {
-      setFocusedVariantId(firstOfModel._safeId);
+    const nextSize = (selectedSize && modSizes.includes(selectedSize)) ? selectedSize : (modSizes[0] || 'Standard');
+    setSelectedSize(nextSize);
+    const firstOfModelSize = modVars.find(v => (v.size?.trim() || 'Standard') === nextSize) || modVars[0] || null;
+    if (firstOfModelSize) {
+      setFocusedVariantId(firstOfModelSize._safeId);
     }
-    if (modHasSizes) {
-      setSelectedSize('');
-      onVariantSelect?.(firstOfModel, '');
-      setStep('choose_size');
-    } else {
-      const singleSz = modSizes[0] || 'Standard';
-      setSelectedSize(singleSz);
-      onVariantSelect?.(firstOfModel, singleSz);
-      setStep('choose_colors');
-    }
+    onVariantSelect?.(firstOfModelSize, nextSize);
   };
 
   const handleSelectSize = (sz: string) => {
@@ -139,7 +160,6 @@ function MultiVariantSelector({
       setFocusedVariantId(firstOfSize._safeId);
     }
     onVariantSelect?.(firstOfSize, sz);
-    setStep('choose_colors');
   };
 
   const handleFocusVariant = (v: (typeof safeVariants)[0]) => {
@@ -156,33 +176,32 @@ function MultiVariantSelector({
     });
   };
 
-  const currentSizeQty = visibleVariants.reduce((s, v) => s + (qtys[v._safeId] || 0), 0);
+  const totalAllQty = Object.values(qtys).reduce((s, q) => s + q, 0);
 
-  const handleAddCurrentSize = () => {
+  const handleAddSelectedToCart = () => {
     const items: CartItem[] = [];
-    visibleVariants.forEach(v => {
-      const qty = qtys[v._safeId] || 0;
-      if (qty > 0) {
-        const itemPrice = v.price ?? basePrice;
+    safeVariants.forEach(v => {
+      const q = qtys[v._safeId] || 0;
+      if (q > 0) {
         items.push({
           productId,
           productName,
           productNameAr: productNameAr || undefined,
           productImage: v.image || productImage,
-          price: itemPrice,
+          price: v.price ?? basePrice,
           originalPrice: v.price ?? basePrice,
           wholesalePrice,
           minOrderQty,
-          quantity: qty,
-          variant: { 
-            color: v.color, 
-            colorAr: v.colorAr, 
-            colorHex: v.colorHex, 
+          quantity: q,
+          variant: {
+            color: v.color,
+            colorAr: v.colorAr,
+            colorHex: v.colorHex,
             model: v.model,
             modelAr: v.modelAr,
-            size: v.size, 
-            sizeAr: v.sizeAr, 
-            variantId: v.id 
+            size: v.size,
+            sizeAr: v.sizeAr,
+            variantId: v.id,
           },
           maxStock: v.stock,
         });
@@ -191,175 +210,53 @@ function MultiVariantSelector({
 
     if (items.length === 0) return;
     onAdd(items);
-
-    const addedSizeName = selectedSize || 'Standard';
-    const addedModelName = selectedModel || undefined;
-    const addedCount = currentSizeQty;
-
-    // Clear qtys for this size
-    setQtys(prev => {
-      const next = { ...prev };
-      visibleVariants.forEach(v => { delete next[v._safeId]; });
-      return next;
-    });
-
-    if (hasSizes || hasModels) {
-      setLastAddedInfo({ model: addedModelName, size: addedSizeName, count: addedCount });
-      setStep('completed_size');
-    }
-  };
-
-  const handleStartAnother = () => {
-    if (hasSizes) {
-      setSelectedSize('');
-      setFocusedVariantId('');
-      setStep('choose_size');
-    } else if (hasModels) {
-      setSelectedModel('');
-      setSelectedSize('');
-      setFocusedVariantId('');
-      setStep('choose_model');
-    } else {
-      setStep('choose_colors');
-    }
+    setQtys({});
   };
 
   return (
-    <div className="mb-5">
-      {/* ── Progress steps (only when product has models or sizes) ── */}
-      {(hasModels || hasSizes) && (
-        <div className="flex items-center justify-between mb-5 bg-white border border-[#E8E4DF] rounded-2xl p-3 shadow-xs">
-          {hasModels && (
-            <>
-              <button
-                onClick={() => setStep('choose_model')}
-                className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold transition-colors cursor-pointer ${
-                  step === 'choose_model' ? 'text-[#C8102E]' : 'text-gray-500 hover:text-[#1A1A1A]'
-                }`}
-              >
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
-                  step === 'choose_model' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'
-                }`}>1</span>
-                <span>{language === 'ar' ? '1. الموديل' : '1. Modèle'}</span>
-              </button>
-
-              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-            </>
-          )}
-
-          {hasSizes && (
-            <>
-              <button
-                onClick={() => { if (!hasModels || selectedModel) setStep('choose_size'); }}
-                disabled={hasModels && !selectedModel}
-                className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold transition-colors ${
-                  step === 'choose_size'
-                    ? 'text-[#C8102E]'
-                    : (!hasModels || selectedModel)
-                      ? 'text-gray-500 hover:text-[#1A1A1A] cursor-pointer'
-                      : 'text-gray-300 cursor-not-allowed'
-                }`}
-              >
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
-                  step === 'choose_size' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'
-                }`}>{hasModels ? '2' : '1'}</span>
-                <span>{language === 'ar' ? (hasModels ? '2. المقاس' : '1. المقاس') : (hasModels ? '2. Taille' : '1. Taille')}</span>
-              </button>
-
-              <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-            </>
-          )}
-
-          <button
-            onClick={() => {
-              if ((!hasModels || selectedModel) && (!hasSizes || selectedSize)) {
-                setStep('choose_colors');
-              }
-            }}
-            disabled={(hasModels && !selectedModel) || (hasSizes && !selectedSize)}
-            className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold transition-colors ${
-              step === 'choose_colors'
-                ? 'text-[#C8102E]'
-                : ((!hasModels || selectedModel) && (!hasSizes || selectedSize))
-                  ? 'text-gray-500 hover:text-[#1A1A1A] cursor-pointer'
-                  : 'text-gray-300 cursor-not-allowed'
-            }`}
-          >
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
-              step === 'choose_colors' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'
-            }`}>{hasModels && hasSizes ? '3' : (hasModels || hasSizes) ? '2' : '1'}</span>
-            <span>{language === 'ar' ? 'الألوان والكمية' : 'Couleurs & Qté'}</span>
-          </button>
-
-          <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-
-          <div className={`flex items-center gap-1.5 sm:gap-2 text-xs font-bold ${
-            step === 'completed_size' ? 'text-emerald-600' : 'text-gray-400'
-          }`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
-              step === 'completed_size' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-400'
-            }`}>{hasModels && hasSizes ? '4' : (hasModels || hasSizes) ? '3' : '2'}</span>
-            <span>{language === 'ar' ? 'تأكيد' : 'Validation'}</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 1 (When models present) : Choose Model ── */}
-      {step === 'choose_model' && hasModels && (
-        <div className="space-y-3.5 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-black text-[#1A1A1A]">
-                {language === 'ar' ? 'الخطوة 1 : اختر الموديل للمتابعة' : 'Étape 1 : Choisissez un modèle'}
-              </p>
-              <p className="text-xs text-gray-500">
-                {language === 'ar' ? 'لكل موديل مواصفاته، مقاساته وألوانه الخاصة' : 'Chaque modèle possède ses spécifications, tailles et coloris'}
-              </p>
+    <div className="mb-5 space-y-4">
+      {/* ── Model Selector (When product has multiple models) ── */}
+      {hasModels && (
+        <div className="p-3.5 rounded-2xl bg-white border border-[#E8E4DF] shadow-2xs">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#C8102E]" />
+              <span className="text-xs font-black uppercase tracking-wider text-[#1A1A1A]">
+                {language === 'ar' ? '1. الموديل' : '1. Modèle'}
+              </span>
             </div>
-            <span className="text-xs font-bold text-[#C8102E] bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
-              {uniqueModels.length} {language === 'ar' ? 'موديلات' : 'modèles'}
+            <span className="text-xs font-bold text-[#C8102E] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+              {selectedModel ? selectedModel : (language === 'ar' ? 'اختر' : 'Choisir')}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-wrap gap-2">
             {uniqueModels.map(mod => {
+              const isCurrent = mod === selectedModel;
               const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
               const totalStock = modVars.reduce((s, v) => s + v.stock, 0);
-              const isOutOfStock = totalStock === 0;
-              const modSizes = Array.from(new Set(modVars.map(v => v.size?.trim() || 'Standard'))).filter(s => s !== 'Standard');
 
               return (
                 <button
                   key={mod}
+                  type="button"
                   onClick={() => handleSelectModel(mod)}
-                  disabled={isOutOfStock}
-                  className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
-                    isOutOfStock
-                      ? 'opacity-40 border-gray-200 bg-gray-50 cursor-not-allowed'
-                      : 'border-[#E8E4DF] bg-white hover:border-[#C8102E] hover:shadow-md hover:bg-red-50/10 active:scale-[0.99]'
+                  className={`px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm transition-all duration-200 cursor-pointer flex items-center gap-2 ${
+                    isCurrent
+                      ? 'bg-[#1A1A1A] text-white shadow-md ring-2 ring-black/20 scale-[1.02]'
+                      : 'bg-[#FBF8F3] border border-[#E8E4DF] text-gray-700 hover:border-[#1A1A1A] hover:bg-white active:scale-[0.98]'
                   }`}
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-base font-black text-[#1A1A1A] group-hover:text-[#C8102E] transition-colors">
-                      {mod}
+                  <span>{mod}</span>
+                  {totalStock > 0 ? (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isCurrent ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {totalStock} {language === 'ar' ? 'متاح' : 'dispo'}
                     </span>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {modSizes.length > 0 && (
-                        <>
-                          <span>{modSizes.length} taille{modSizes.length > 1 ? 's' : ''}</span>
-                          <span>·</span>
-                        </>
-                      )}
-                      <span>{modVars.length} option{modVars.length > 1 ? 's' : ''}</span>
-                      <span>·</span>
-                      <span className={`font-semibold ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {isOutOfStock ? (language === 'ar' ? 'نفد' : 'Rupture') : `${totalStock} ${language === 'ar' ? 'متوفر' : 'en stock'}`}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#C8102E] group-hover:text-white text-gray-400 flex items-center justify-center transition-all flex-shrink-0">
-                    <ChevronRight className="w-4 h-4" />
-                  </div>
+                  ) : (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isCurrent ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-700'}`}>
+                      {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -367,74 +264,48 @@ function MultiVariantSelector({
         </div>
       )}
 
-      {/* ── STEP : Choose Size ── */}
-      {step === 'choose_size' && hasSizes && (
-        <div className="space-y-3.5 animate-in fade-in duration-200">
-          {hasModels && selectedModel && (
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/80 border border-amber-200">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#D4A843]" />
-                <span className="text-xs text-amber-900 font-bold">
-                  {language === 'ar' ? 'الموديل المختار :' : 'Modèle sélectionné :'} <strong className="text-[#C8102E] font-black">{selectedModel}</strong>
-                </span>
-              </div>
-              <button
-                onClick={() => { setSelectedModel(''); setSelectedSize(''); setStep('choose_model'); }}
-                className="text-xs font-bold text-gray-600 hover:text-[#C8102E] underline cursor-pointer"
-              >
-                ← {language === 'ar' ? 'تغيير الموديل' : 'Changer de modèle'}
-              </button>
+      {/* ── Size Selector (When product has sizes) ── */}
+      {hasSizes && (
+        <div className="p-3.5 rounded-2xl bg-white border border-[#E8E4DF] shadow-2xs">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <Ruler className="w-4 h-4 text-[#D4A843]" />
+              <span className="text-xs font-black uppercase tracking-wider text-[#1A1A1A]">
+                {hasModels ? (language === 'ar' ? '2. المقاس' : '2. Taille') : (language === 'ar' ? '1. المقاس' : '1. Taille')}
+              </span>
             </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-black text-[#1A1A1A]">
-                {hasModels 
-                  ? (language === 'ar' ? 'الخطوة 2 : اختر المقاس المناسب' : 'Étape 2 : Choisissez une taille')
-                  : (language === 'ar' ? 'الخطوة 1 : اختر مقاساً للمتابعة' : 'Étape 1 : Choisissez une taille')}
-              </p>
-              <p className="text-xs text-gray-500">
-                {language === 'ar' ? 'سيتم تحميل تفاصيل وألوان هذا المقاس' : 'Chaque taille possède ses propres couleurs, stocks et spécifications'}
-              </p>
-            </div>
-            <span className="text-xs font-bold text-[#C8102E] bg-red-50 px-2.5 py-1 rounded-full border border-red-100">
-              {uniqueSizes.length} {language === 'ar' ? 'مقاسات' : 'tailles'}
+            <span className="text-xs font-bold text-[#C8102E] bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+              {selectedSize && selectedSize !== 'Standard' ? selectedSize : (language === 'ar' ? 'اختر مقاساً' : 'Sélectionnez')}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-wrap gap-2.5">
             {uniqueSizes.map(sz => {
+              const isCurrent = sz === selectedSize;
               const sizeVars = activeVariantsForModel.filter(v => (v.size?.trim() || 'Standard') === sz);
               const totalStock = sizeVars.reduce((s, v) => s + v.stock, 0);
-              const isOutOfStock = totalStock === 0;
 
               return (
                 <button
                   key={sz}
+                  type="button"
                   onClick={() => handleSelectSize(sz)}
-                  disabled={isOutOfStock}
-                  className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer flex items-center justify-between group ${
-                    isOutOfStock
-                      ? 'opacity-40 border-gray-200 bg-gray-50 cursor-not-allowed'
-                      : 'border-[#E8E4DF] bg-white hover:border-[#C8102E] hover:shadow-md hover:bg-red-50/10 active:scale-[0.99]'
+                  className={`px-4 py-2.5 rounded-xl font-black text-sm transition-all duration-200 cursor-pointer flex items-center gap-2 ${
+                    isCurrent
+                      ? 'bg-[#C8102E] text-white shadow-md shadow-[#C8102E]/25 ring-2 ring-[#C8102E]/30 scale-[1.02]'
+                      : 'bg-[#FBF8F3] border-2 border-[#E8E4DF] text-[#1A1A1A] hover:border-[#C8102E] hover:text-[#C8102E] hover:bg-white active:scale-[0.98]'
                   }`}
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-base font-black text-[#1A1A1A] group-hover:text-[#C8102E] transition-colors">
-                      {sz}
+                  <span className="font-black text-sm">{sz}</span>
+                  {totalStock > 0 ? (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isCurrent ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {totalStock}
                     </span>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <span>{sizeVars.length} couleur{sizeVars.length > 1 ? 's' : ''}</span>
-                      <span>·</span>
-                      <span className={`font-semibold ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
-                        {isOutOfStock ? (language === 'ar' ? 'نفد' : 'Rupture') : `${totalStock} ${language === 'ar' ? 'متوفر' : 'en stock'}`}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#C8102E] group-hover:text-white text-gray-400 flex items-center justify-center transition-all flex-shrink-0">
-                    <ChevronRight className="w-4 h-4" />
-                  </div>
+                  ) : (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isCurrent ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      {language === 'ar' ? 'طلب' : 'Demande'}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -442,267 +313,183 @@ function MultiVariantSelector({
         </div>
       )}
 
-      {/* ── STEP : Choose Colors & Quantity ── */}
-      {step === 'choose_colors' && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          {(selectedModel || (hasSizes && selectedSize)) && (
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#C8102E] animate-pulse" />
+      {/* ── Colors & Quantities ── */}
+      <div className="space-y-4">
+        {(() => {
+          const displayVariants = visibleVariants;
+          if (displayVariants.length === 0) {
+            return (
+              <p className="text-sm text-gray-500 italic p-4 rounded-xl bg-white border border-[#E8E4DF]">
+                {language === 'ar' ? 'لا توجد خيارات متاحة لهذا التحديد.' : 'Aucune variante disponible pour cette option.'}
+              </p>
+            );
+          }
+
+          const isSimpleSize = displayVariants.length === 1 && (!displayVariants[0]?.color || displayVariants[0]?.color?.startsWith('Option')) && !displayVariants[0]?.image;
+
+          if (isSimpleSize) {
+            const v = displayVariants[0];
+            const qty = qtys[v._safeId] || 0;
+            return (
+              <div className="flex items-center justify-between bg-white border border-[#E8E4DF] p-4 rounded-2xl shadow-xs">
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900/70 block">
-                    {language === 'ar' ? 'قيد التحديد' : 'Option en cours de commande'}
-                  </span>
-                  <span className="text-base font-black text-[#C8102E]">
-                    {selectedModel ? `[${selectedModel}] ` : ''}
-                    {selectedSize && selectedSize !== 'Standard' ? `${selectedSize}` : ''}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {hasSizes && (
-                  <button
-                    onClick={() => setStep('choose_size')}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-bold text-gray-700 hover:text-[#C8102E] hover:border-[#C8102E] transition-all cursor-pointer shadow-2xs"
-                  >
-                    ← {language === 'ar' ? 'تغيير المقاس' : 'Changer de taille'}
-                  </button>
-                )}
-                {hasModels && (
-                  <button
-                    onClick={() => { setSelectedModel(''); setSelectedSize(''); setStep('choose_model'); }}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-bold text-gray-700 hover:text-[#C8102E] hover:border-[#C8102E] transition-all cursor-pointer shadow-2xs"
-                  >
-                    ← {language === 'ar' ? 'تغيير الموديل' : 'Changer de modèle'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Color options for this model/size */}
-          {(() => {
-            const displayVariants = visibleVariants;
-            if (displayVariants.length === 0) return <p className="text-sm text-gray-500 italic">{language === 'ar' ? 'لا توجد خيارات متاحة لهذا المقاس.' : 'Aucune variante disponible pour ce choix.'}</p>;
-
-            const isSimpleSize = displayVariants.length === 1 && (!displayVariants[0]?.color || displayVariants[0]?.color?.startsWith('Option')) && !displayVariants[0]?.image;
-
-            if (isSimpleSize) {
-              const v = displayVariants[0];
-              const qty = qtys[v._safeId] || 0;
-              return (
-                <div className="flex items-center justify-between bg-white border border-gray-200 p-4 rounded-2xl shadow-xs">
-                  <div>
-                    <p className="font-black text-lg text-[#C8102E]">
-                      {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+                  <p className="font-black text-lg text-[#C8102E]">
+                    {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+                  </p>
+                  {v.stock <= 10 && v.stock > 0 && (
+                    <p className="text-[11px] text-[#D4A843] font-bold mt-0.5">
+                      {language === 'ar' ? `🔥 متبقي ${v.stock} فقط!` : `🔥 Plus que ${v.stock} en stock !`}
                     </p>
-                    {v.stock <= 10 && v.stock > 0 && (
-                      <p className="text-[11px] text-[#D4A843] font-bold mt-0.5">{language === 'ar' ? `🔥 متبقي ${v.stock} فقط!` : `🔥 Plus que ${v.stock} en stock !`}</p>
-                    )}
-                    {v.stock === 0 && (
-                      <p className="text-[11px] text-red-500 font-bold mt-0.5">{language === 'ar' ? 'نفد المخزون' : 'Rupture de stock'}</p>
-                    )}
-                  </div>
-                  {v.stock > 0 ? (
-                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-full px-2 py-1.5 shadow-xs">
-                      <button onClick={() => setQty(v._safeId, -1, v.stock)}
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 cursor-pointer touch-manipulation">
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-8 text-center font-black text-lg text-[#C8102E]">{qty}</span>
-                      <button onClick={() => setQty(v._safeId, 1, v.stock)}
-                        disabled={qty >= v.stock}
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 disabled:opacity-30 cursor-pointer touch-manipulation">
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="px-4 py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm">{language === 'ar' ? 'نفد' : 'Épuisé'}</span>
+                  )}
+                  {v.stock === 0 && (
+                    <p className="text-[11px] text-gray-500 font-bold mt-0.5">
+                      {language === 'ar' ? 'متوفر عند الطلب' : 'Disponible sur commande'}
+                    </p>
                   )}
                 </div>
-              );
-            }
-
-            return (
-              <>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-[#1A1A1A]">
-                    {language === 'ar' ? `اختر الألوان والكميات المطلوبة :` : `Sélectionnez vos couleurs & quantités :`}
-                  </p>
-                  <span className="text-[11px] font-bold text-[#C8102E] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
-                    {displayVariants.length} {language === 'ar' ? 'لون' : `couleur${displayVariants.length > 1 ? 's' : ''}`}
-                  </span>
+                <div className="flex items-center gap-3 bg-[#FBF8F3] border border-[#E8E4DF] rounded-full px-2 py-1.5 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setQty(v._safeId, -1, v.stock)}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 hover:text-[#C8102E] hover:bg-white cursor-pointer touch-manipulation transition-colors"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="w-8 text-center font-black text-lg text-[#C8102E]">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQty(v._safeId, 1, v.stock)}
+                    disabled={v.stock > 0 && qty >= v.stock}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-gray-600 hover:text-[#C8102E] hover:bg-white disabled:opacity-30 cursor-pointer touch-manipulation transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                 </div>
-
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {displayVariants.map(v => {
-                    const outOfStock = v.stock === 0;
-                    const qty = qtys[v._safeId] || 0;
-                    const isSelected = qty > 0;
-                    const colorLabel = v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '';
-                    const isFocused = focusedVariantId === v._safeId;
-
-                    return (
-                      <div
-                        key={v._safeId}
-                        className={`relative flex flex-col items-center rounded-2xl p-2.5 border-2 touch-manipulation cursor-pointer transition-all duration-200
-                          ${outOfStock
-                            ? 'opacity-40 border-gray-200 bg-gray-50 cursor-not-allowed'
-                            : isSelected
-                              ? 'border-[#C8102E] bg-red-50/50 shadow-md scale-[1.02]'
-                              : isFocused
-                                ? 'border-[#C8102E]/70 bg-amber-50/30 ring-2 ring-[#C8102E]/30 shadow-xs'
-                                : 'border-[#E8E4DF] bg-white hover:border-[#C8102E]/40 hover:shadow-xs'
-                          }`}
-                        onClick={() => {
-                          handleFocusVariant(v);
-                          if (outOfStock) return;
-                          if (!isSelected) {
-                            setQty(v._safeId, 1, v.stock);
-                          }
-                        }}
-                      >
-                        {isSelected && (
-                          <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow z-10">
-                            <span className="text-white text-[9px] font-black">✓</span>
-                          </div>
-                        )}
-
-                        {v.image ? (
-                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-gray-100 mb-1.5">
-                            <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                          </div>
-                        ) : (
-                          <div
-                            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 mb-1.5 ${isSelected ? 'border-[#C8102E] ring-2 ring-[#C8102E]/20' : 'border-gray-200'}`}
-                            style={{ background: v.colorHex || '#ccc' }}
-                          />
-                        )}
-
-                        {colorLabel && (
-                          <p className={`text-[11px] font-semibold text-center leading-tight ${isSelected ? 'text-[#C8102E]' : 'text-gray-600'}`}>
-                            {colorLabel}
-                          </p>
-                        )}
-
-                        <p className={`text-[9px] mt-0.5 ${outOfStock ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
-                          {outOfStock ? (language === 'ar' ? 'نفد' : 'Épuisé') : `${v.stock} ${language === 'ar' ? 'متوفر' : 'dispo'}`}
-                        </p>
-
-                        {isSelected && (
-                          <div className="flex items-center gap-1.5 mt-2 bg-white border border-gray-200 rounded-full px-1 py-0.5 shadow-xs">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setQty(v._safeId, -1, v.stock); }}
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 cursor-pointer touch-manipulation"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="w-5 text-center text-sm font-black text-[#C8102E]">{qty}</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setQty(v._safeId, 1, v.stock); }}
-                              disabled={qty >= v.stock}
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 disabled:opacity-30 cursor-pointer touch-manipulation"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-
-                        {outOfStock && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ borderRadius: 'inherit' }}>
-                            <div className="w-[120%] h-[2px] bg-red-400/40 -rotate-12" />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+              </div>
             );
-          })()}
+          }
 
-          {/* Current Selection Summary */}
-          {currentSizeQty > 0 && (
-            <div className="mt-4 flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
-              <p className="text-sm text-gray-700">
-                <span className="font-black text-[#1A1A1A]">{currentSizeQty}</span> {language === 'ar' ? 'قطعة مختارة لـ' : 'article(s) sélectionné(s) pour'}{' '}
-                <span className="font-black text-[#C8102E]">
-                  {selectedModel ? `[${selectedModel}] ` : ''}
-                  {selectedSize && selectedSize !== 'Standard' ? `${selectedSize}` : ''}
+          return (
+            <div className="bg-white border border-[#E8E4DF] p-4 rounded-2xl shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs sm:text-sm font-black text-[#1A1A1A]">
+                  {hasModels || hasSizes
+                    ? (language === 'ar' ? 'الألوان والكميات المطلوبة :' : 'Couleurs & quantités :')
+                    : (language === 'ar' ? 'اختر اللون والكمية :' : 'Sélectionnez vos couleurs & quantités :')}
+                </p>
+                <span className="text-[11px] font-bold text-[#C8102E] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-100">
+                  {displayVariants.length} {language === 'ar' ? 'لون' : `couleur${displayVariants.length > 1 ? 's' : ''}`}
                 </span>
-              </p>
-              <p className="text-sm font-black text-[#C8102E]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</p>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
+                {displayVariants.map(v => {
+                  const outOfStock = v.stock === 0;
+                  const qty = qtys[v._safeId] || 0;
+                  const isSelected = qty > 0;
+                  const colorLabel = v.color && !v.color.startsWith('Option') ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) : '';
+                  const isFocused = focusedVariantId === v._safeId;
+
+                  return (
+                    <div
+                      key={v._safeId}
+                      className={`relative flex flex-col items-center rounded-2xl p-2.5 border-2 touch-manipulation cursor-pointer transition-all duration-200 ${
+                        isSelected
+                          ? 'border-[#C8102E] bg-red-50/50 shadow-md scale-[1.02]'
+                          : isFocused
+                            ? 'border-[#C8102E]/70 bg-amber-50/30 ring-2 ring-[#C8102E]/30 shadow-xs'
+                            : 'border-[#E8E4DF] bg-white hover:border-[#C8102E]/40 hover:shadow-xs'
+                      }`}
+                      onClick={() => {
+                        handleFocusVariant(v);
+                        if (!isSelected) {
+                          setQty(v._safeId, 1, v.stock);
+                        }
+                      }}
+                    >
+                      {isSelected && (
+                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C8102E] border-2 border-white flex items-center justify-center shadow z-10">
+                          <span className="text-white text-[9px] font-black">✓</span>
+                        </div>
+                      )}
+
+                      {v.image ? (
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-gray-100 mb-1.5">
+                          <img src={v.image} alt={v.color || 'Design'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div
+                          className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 mb-1.5 ${isSelected ? 'border-[#C8102E] ring-2 ring-[#C8102E]/20' : 'border-gray-200'}`}
+                          style={{ background: v.colorHex || '#ccc' }}
+                        />
+                      )}
+
+                      {colorLabel && (
+                        <p className={`text-[11px] font-semibold text-center leading-tight ${isSelected ? 'text-[#C8102E]' : 'text-gray-600'}`}>
+                          {colorLabel}
+                        </p>
+                      )}
+
+                      <p className={`text-[9px] mt-0.5 ${outOfStock ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+                        {outOfStock ? (language === 'ar' ? 'طلب' : 'Sur commande') : `${v.stock} ${language === 'ar' ? 'متوفر' : 'dispo'}`}
+                      </p>
+
+                      {isSelected && (
+                        <div className="flex items-center gap-1.5 mt-2 bg-white border border-gray-200 rounded-full px-1 py-0.5 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setQty(v._safeId, -1, v.stock); }}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 cursor-pointer touch-manipulation"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="w-5 text-center text-sm font-black text-[#C8102E]">{qty}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setQty(v._safeId, 1, v.stock); }}
+                            disabled={v.stock > 0 && qty >= v.stock}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-[#C8102E] hover:bg-red-50 disabled:opacity-30 cursor-pointer touch-manipulation"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          );
+        })()}
 
-          {/* Button : Add this size/model to cart */}
-          <button
-            onClick={handleAddCurrentSize}
-            disabled={currentSizeQty === 0}
-            className={`w-full mt-2 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 touch-manipulation transition-all duration-200 ${
-              currentSizeQty === 0
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 cursor-pointer active:scale-[0.99]'
-            }`}
-          >
-            <ShoppingCart className="w-5 h-5" />
-            {currentSizeQty === 0
-              ? (language === 'ar' ? 'اختر لوناً وكمية للمتابعة' : 'Sélectionnez au moins une couleur')
-              : (hasSizes || hasModels)
-                ? (language === 'ar' ? `تأكيد وإضافة للسلة — ${currentSizeQty} منتج` : `Valider et ajouter au panier (${currentSizeQty})`)
-                : (language === 'ar' ? `إضافة للسلة — ${currentSizeQty} منتج` : `Ajouter au panier — ${currentSizeQty} article${currentSizeQty > 1 ? 's' : ''}`)}
-          </button>
-        </div>
-      )}
-
-      {/* ── STEP : Completed Confirmation & Next Option ── */}
-      {step === 'completed_size' && lastAddedInfo && (
-        <div className="p-6 rounded-3xl bg-emerald-50/90 border-2 border-emerald-200 text-center space-y-4 animate-in zoom-in-95 duration-200 shadow-sm">
-          <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-md">
-            <CheckCircle2 className="w-7 h-7" />
-          </div>
-          <div>
-            <h3 className="text-lg font-black text-emerald-950">
-              {language === 'ar'
-                ? `✓ تمت الإضافة للسلة بنجاح !`
-                : `✓ ${lastAddedInfo.model ? `Modèle "${lastAddedInfo.model}" ` : ''}${lastAddedInfo.size && lastAddedInfo.size !== 'Standard' ? `Taille "${lastAddedInfo.size}" ` : ''}ajouté(e) au panier !`}
-            </h3>
-            <p className="text-xs sm:text-sm text-emerald-800 mt-1">
-              {language === 'ar'
-                ? `تمت إضافة ${lastAddedInfo.count} قطعة بنجاح. يمكنك الآن متابعة الطلب أو اختيار مقاس/موديل آخر.`
-                : `${lastAddedInfo.count} article(s) ont été validés. Vous pouvez maintenant choisir une autre option ou finaliser votre commande.`}
+        {/* Total summary bar */}
+        {totalAllQty > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 bg-red-50 border border-[#C8102E]/20 rounded-xl">
+            <p className="text-sm text-gray-700">
+              <span className="font-black text-[#1A1A1A]">{totalAllQty}</span>{' '}
+              {language === 'ar' ? 'قطعة محددة للطلب' : `article${totalAllQty > 1 ? 's' : ''} sélectionné${totalAllQty > 1 ? 's' : ''}`}
             </p>
+            <p className="text-sm font-black text-[#C8102E]">{language === 'ar' ? 'حسب الطلب' : 'Sur demande'}</p>
           </div>
+        )}
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button
-              onClick={handleStartAnother}
-              className="flex-1 py-3.5 px-4 rounded-xl font-black text-sm bg-white border-2 border-[#C8102E] text-[#C8102E] hover:bg-red-50 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-[0.99]"
-            >
-              <span>👉</span> {language === 'ar' ? 'طلب مقاس أو موديل آخر' : (hasSizes ? 'Choisir une autre taille' : 'Choisir un autre modèle')}
-            </button>
-            {hasModels && hasSizes && (
-              <button
-                onClick={() => {
-                  setSelectedModel('');
-                  setSelectedSize('');
-                  setFocusedVariantId('');
-                  setStep('choose_model');
-                }}
-                className="py-3.5 px-4 rounded-xl font-bold text-sm bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              >
-                <span>🔄</span> {language === 'ar' ? 'تغيير الموديل' : 'Changer de modèle'}
-              </button>
-            )}
-            <button
-              onClick={() => openCart()}
-              className="flex-1 py-3.5 px-4 rounded-xl font-black text-sm bg-[#C8102E] text-white hover:bg-[#a00d25] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[#C8102E]/20 active:scale-[0.99]"
-            >
-              <ShoppingCart className="w-4 h-4" /> {language === 'ar' ? 'عرض السلة / إنهاء الطلب' : 'Voir le panier'}
-            </button>
-          </div>
-        </div>
-      )}
+        {/* Add to Cart button */}
+        <button
+          type="button"
+          onClick={handleAddSelectedToCart}
+          disabled={totalAllQty === 0}
+          className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 touch-manipulation transition-all duration-200 ${
+            totalAllQty === 0
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 cursor-pointer active:scale-[0.99]'
+          }`}
+        >
+          <ShoppingCart className="w-5 h-5" />
+          {totalAllQty === 0
+            ? (language === 'ar' ? 'اختر الكمية للمتابعة' : 'Sélectionnez une quantité')
+            : (language === 'ar' ? `إضافة للسلة — ${totalAllQty} منتج` : `Ajouter au panier — ${totalAllQty} article${totalAllQty > 1 ? 's' : ''}`)}
+        </button>
+      </div>
     </div>
   );
 }
@@ -756,7 +543,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     setActiveVariant(null);
     setActiveSize('');
     setAdded(false);
-    if (product?.variants?.[0]) setSelectedVariant(product.variants[0]);
+    if (product?.variants?.[0]) {
+      setSelectedVariant(product.variants[0]);
+      setActiveVariant(product.variants[0]);
+      if (product.variants[0].size) setActiveSize(product.variants[0].size);
+    }
     if (product?.minOrderQty) setQty(product.minOrderQty);
     else setQty(1);
   }, [product?.id]);
