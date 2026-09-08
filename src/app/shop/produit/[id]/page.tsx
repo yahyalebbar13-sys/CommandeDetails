@@ -9,6 +9,10 @@ import {
   ShieldCheck, 
   Sparkles, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
+  Search,
+  X,
   Minus, 
   Plus, 
   ArrowLeft, 
@@ -73,7 +77,7 @@ function ModernProductCard({ product }: { product: ShopProduct }) {
   );
 }
 
-// ─── Multi-Variant Configurator ──────────────────────────────────────────────
+// ─── Multi-Variant Configurator (Temu Style) ─────────────────────────────────
 interface MultiVariantSelectorProps {
   variants: ProductVariant[];
   basePrice: number;
@@ -102,20 +106,28 @@ function MultiVariantSelector({
   onVariantSelect,
 }: MultiVariantSelectorProps) {
   const { language } = useLanguage();
+
+  // Mode: standard single Temu selection vs. multi-quantity batch mode
+  const [isBatchMode, setIsBatchMode] = useState(false);
   const [qtys, setQtys] = useState<Record<string, number>>({});
-  const [focusedVariantId, setFocusedVariantId] = useState<string>('');
+  const [singleQty, setSingleQty] = useState(minOrderQty || 1);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
+
+  // Expand / collapse for "si yen bcp"
+  const [isSizesExpanded, setIsSizesExpanded] = useState(false);
+  const [isColorsExpanded, setIsColorsExpanded] = useState(false);
+  const [colorSearch, setColorSearch] = useState('');
 
   const safeVariants = useMemo(
     () => variants.map((v, i) => ({ ...v, _safeId: v.id ? `${v.id}-${i}` : `v-${i}` })),
     [variants]
   );
 
-  // Unique models list
+  // 1. Models
   const uniqueModels = useMemo(() => {
     return Array.from(new Set(safeVariants.map(v => v.model?.trim()).filter(Boolean) as string[]));
   }, [safeVariants]);
   const hasModels = uniqueModels.length > 0;
-
   const [selectedModel, setSelectedModel] = useState<string>(() => (hasModels ? uniqueModels[0] : ''));
 
   // Variants active for the selected model
@@ -125,44 +137,70 @@ function MultiVariantSelector({
     return filtered.length > 0 ? filtered : safeVariants;
   }, [safeVariants, hasModels, selectedModel]);
 
-  // Unique sizes list for this model
+  // 2. Sizes
   const uniqueSizes = useMemo(() => {
     return Array.from(new Set(activeVariantsForModel.map(v => v.size?.trim() || 'Standard')));
   }, [activeVariantsForModel]);
   const hasSizes = uniqueSizes.length > 1 || (uniqueSizes.length === 1 && uniqueSizes[0] !== 'Standard');
-
-  const [selectedSize, setSelectedSize] = useState<string>(() => (uniqueSizes[0] || 'Standard'));
+  const [selectedSize, setSelectedSize] = useState<string>(() => uniqueSizes[0] || 'Standard');
 
   // Synchronize size if current size isn't available in new model
   useEffect(() => {
     if (uniqueSizes.length > 0 && (!selectedSize || !uniqueSizes.includes(selectedSize))) {
       const nextSz = uniqueSizes[0];
       setSelectedSize(nextSz);
-      const v = activeVariantsForModel.find(x => (x.size?.trim() || 'Standard') === nextSz) || activeVariantsForModel[0] || null;
-      if (v) {
-        setFocusedVariantId(v._safeId);
-        onVariantSelect?.(v, nextSz);
+    }
+  }, [uniqueSizes, selectedSize]);
+
+  // 3. Colors / Variants for current model + current size
+  const variantsForSize = useMemo(() => {
+    return activeVariantsForModel.filter(v => {
+      if (hasSizes && selectedSize && selectedSize !== 'Standard') {
+        return (v.size?.trim() || 'Standard') === selectedSize;
+      }
+      return true;
+    });
+  }, [activeVariantsForModel, hasSizes, selectedSize]);
+
+  // Active selected variant in single mode
+  const activeVariant = useMemo(() => {
+    return variantsForSize.find(v => v._safeId === selectedVariantId) || variantsForSize[0] || null;
+  }, [variantsForSize, selectedVariantId]);
+
+  // Synchronize active variant when size or model changes
+  useEffect(() => {
+    if (variantsForSize.length > 0) {
+      const exists = variantsForSize.some(v => v._safeId === selectedVariantId);
+      if (!exists) {
+        const nextV = variantsForSize[0];
+        setSelectedVariantId(nextV._safeId);
+        onVariantSelect?.(nextV, nextV.size || selectedSize || 'Standard');
       }
     }
-  }, [uniqueSizes, selectedSize, activeVariantsForModel, onVariantSelect]);
+  }, [variantsForSize, selectedVariantId, selectedSize, onVariantSelect]);
 
-  // Initial synchronization on mount
+  // Initial sync on mount
   useEffect(() => {
-    const initialVariant = activeVariantsForModel.find(v => (v.size?.trim() || 'Standard') === selectedSize) || activeVariantsForModel[0] || null;
-    if (initialVariant) {
-      setFocusedVariantId(initialVariant._safeId);
-      onVariantSelect?.(initialVariant, initialVariant.size || selectedSize || 'Standard');
+    const initV = variantsForSize.find(v => v._safeId === selectedVariantId) || variantsForSize[0] || null;
+    if (initV) {
+      setSelectedVariantId(initV._safeId);
+      onVariantSelect?.(initV, initV.size || selectedSize || 'Standard');
     }
   }, []);
 
-  // Visible variants (matching current model + current size)
-  const visibleVariants = activeVariantsForModel.filter(v => {
-    if (hasSizes && selectedSize && selectedSize !== 'Standard') {
-      return (v.size?.trim() || 'Standard') === selectedSize;
-    }
-    return true;
-  });
+  // Filtered colors based on search
+  const filteredVariants = useMemo(() => {
+    if (!colorSearch.trim()) return variantsForSize;
+    const q = colorSearch.toLowerCase().trim();
+    return variantsForSize.filter(v => {
+      const colorFr = (v.color || '').toLowerCase();
+      const colorAr = (v.colorAr || '').toLowerCase();
+      const model = (v.model || '').toLowerCase();
+      return colorFr.includes(q) || colorAr.includes(q) || model.includes(q);
+    });
+  }, [variantsForSize, colorSearch]);
 
+  // Selection handlers
   const handleSelectModel = (mod: string) => {
     setSelectedModel(mod);
     const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
@@ -171,26 +209,27 @@ function MultiVariantSelector({
     setSelectedSize(nextSize);
     const firstOfModelSize = modVars.find(v => (v.size?.trim() || 'Standard') === nextSize) || modVars[0] || null;
     if (firstOfModelSize) {
-      setFocusedVariantId(firstOfModelSize._safeId);
+      setSelectedVariantId(firstOfModelSize._safeId);
+      onVariantSelect?.(firstOfModelSize, nextSize);
     }
-    onVariantSelect?.(firstOfModelSize, nextSize);
   };
 
   const handleSelectSize = (sz: string) => {
     setSelectedSize(sz);
     const firstOfSize = activeVariantsForModel.find(v => (v.size?.trim() || 'Standard') === sz) || null;
     if (firstOfSize) {
-      setFocusedVariantId(firstOfSize._safeId);
+      setSelectedVariantId(firstOfSize._safeId);
+      onVariantSelect?.(firstOfSize, sz);
     }
-    onVariantSelect?.(firstOfSize, sz);
   };
 
-  const handleFocusVariant = (v: (typeof safeVariants)[0]) => {
-    setFocusedVariantId(v._safeId);
+  const handleSelectColor = (v: (typeof safeVariants)[0]) => {
+    setSelectedVariantId(v._safeId);
     onVariantSelect?.(v, v.size || selectedSize || 'Standard');
   };
 
-  const setQty = (variantId: string, delta: number, max: number | undefined) => {
+  // Quantity helpers
+  const setBatchQty = (variantId: string, delta: number, max: number | undefined) => {
     setQtys(prev => {
       const current = prev[variantId] || 0;
       const safeMax = (typeof max === 'number' && !isNaN(max)) ? max : 999999;
@@ -199,9 +238,38 @@ function MultiVariantSelector({
     });
   };
 
-  const totalAllQty = Object.values(qtys).reduce((s, q) => s + q, 0);
+  const totalBatchQty = Object.values(qtys).reduce((s, q) => s + q, 0);
 
-  const handleAddSelectedToCart = () => {
+  // Single Add to Cart
+  const handleAddSingleToCart = () => {
+    if (!activeVariant) return;
+    const item: CartItem = {
+      productId,
+      productName,
+      productNameAr: productNameAr || undefined,
+      productImage: activeVariant.image || productImage,
+      price: activeVariant.price ?? basePrice,
+      originalPrice: activeVariant.price ?? basePrice,
+      wholesalePrice,
+      minOrderQty,
+      quantity: Math.max(minOrderQty || 1, singleQty),
+      variant: {
+        color: activeVariant.color,
+        colorAr: activeVariant.colorAr,
+        colorHex: activeVariant.colorHex,
+        model: activeVariant.model,
+        modelAr: activeVariant.modelAr,
+        size: activeVariant.size,
+        sizeAr: activeVariant.sizeAr,
+        variantId: activeVariant.id,
+      },
+      maxStock: activeVariant.stock,
+    };
+    onAdd([item]);
+  };
+
+  // Batch Add to Cart
+  const handleAddBatchToCart = () => {
     const items: CartItem[] = [];
     safeVariants.forEach(v => {
       const q = qtys[v._safeId] || 0;
@@ -230,25 +298,64 @@ function MultiVariantSelector({
         });
       }
     });
-
     if (items.length === 0) return;
     onAdd(items);
     setQtys({});
   };
 
-  const isSimpleSize = visibleVariants.length === 1 && (!visibleVariants[0]?.color || visibleVariants[0]?.color?.startsWith('Option')) && !visibleVariants[0]?.image;
+  // Pagination for "si yen bcp"
+  const MAX_SIZES_COLLAPSED = 8;
+  const hasManySizes = uniqueSizes.length > MAX_SIZES_COLLAPSED;
+  const displayedSizes = (hasManySizes && !isSizesExpanded)
+    ? uniqueSizes.slice(0, MAX_SIZES_COLLAPSED)
+    : uniqueSizes;
+
+  // Auto-expand sizes if active size is past MAX_SIZES_COLLAPSED
+  useEffect(() => {
+    if (hasManySizes && !isSizesExpanded) {
+      const idx = uniqueSizes.indexOf(selectedSize);
+      if (idx >= MAX_SIZES_COLLAPSED) {
+        setIsSizesExpanded(true);
+      }
+    }
+  }, [selectedSize, uniqueSizes, hasManySizes, isSizesExpanded]);
+
+  const MAX_COLORS_COLLAPSED = 14;
+  const hasManyColors = variantsForSize.length > MAX_COLORS_COLLAPSED;
+  const displayedVariants = (hasManyColors && !isColorsExpanded && !colorSearch.trim())
+    ? filteredVariants.slice(0, MAX_COLORS_COLLAPSED)
+    : filteredVariants;
+
+  // Auto-expand colors if active color is past MAX_COLORS_COLLAPSED
+  useEffect(() => {
+    if (hasManyColors && !isColorsExpanded) {
+      const idx = variantsForSize.findIndex(v => v._safeId === selectedVariantId);
+      if (idx >= MAX_COLORS_COLLAPSED) {
+        setIsColorsExpanded(true);
+      }
+    }
+  }, [selectedVariantId, variantsForSize, hasManyColors, isColorsExpanded]);
+
+  const activeColorName = activeVariant?.color && !activeVariant.color.startsWith('Option')
+    ? (language === 'ar' && activeVariant.colorAr ? activeVariant.colorAr : activeVariant.color)
+    : '';
+
+  const activePrice = activeVariant?.price ?? basePrice;
+  const singleTotalPrice = activePrice * singleQty;
+
+  const isSimpleSizeOnly = visibleVariants.length === 1 && (!visibleVariants[0]?.color || visibleVariants[0]?.color?.startsWith('Option')) && !visibleVariants[0]?.image;
 
   return (
     <div className="space-y-4 pt-1">
       {/* ── 1. Model Selector ── */}
       {hasModels && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-neutral-700" />
               {language === 'ar' ? 'الموديل :' : 'Modèle :'}
             </span>
-            <span className="text-xs font-bold text-neutral-900">
+            <span className="text-xs font-bold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded-md">
               {selectedModel}
             </span>
           </div>
@@ -265,57 +372,11 @@ function MultiVariantSelector({
                   onClick={() => handleSelectModel(mod)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                     isCurrent
-                      ? 'bg-neutral-900 text-white shadow-sm ring-1 ring-neutral-900 scale-[1.01]'
-                      : 'bg-neutral-50 text-neutral-700 border border-neutral-200/80 hover:bg-white hover:border-neutral-400'
+                      ? 'bg-neutral-900 text-white shadow-sm ring-2 ring-neutral-900/20 scale-[1.01]'
+                      : 'bg-white text-neutral-700 border border-neutral-200/90 hover:border-neutral-900 hover:bg-neutral-50'
                   }`}
                 >
                   <span>{mod}</span>
-                  {totalStock > 0 ? (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isCurrent ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
-                      {totalStock}
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isCurrent ? 'bg-white/20 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
-                      {language === 'ar' ? 'طلب' : 'Cde'}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── 2. Size Selector ── */}
-      {hasSizes && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-              <Ruler className="w-3.5 h-3.5 text-[#C8102E]" />
-              {language === 'ar' ? 'المقاس / الحجم :' : 'Taille / Dimension :'}
-            </span>
-            <span className="text-xs font-bold text-[#C8102E]">
-              {selectedSize && selectedSize !== 'Standard' ? selectedSize : ''}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {uniqueSizes.map(sz => {
-              const isCurrent = sz === selectedSize;
-              const sizeVars = activeVariantsForModel.filter(v => (v.size?.trim() || 'Standard') === sz);
-              const totalStock = sizeVars.reduce((s, v) => s + v.stock, 0);
-
-              return (
-                <button
-                  key={sz}
-                  type="button"
-                  onClick={() => handleSelectSize(sz)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                    isCurrent
-                      ? 'bg-[#C8102E] text-white shadow-sm ring-2 ring-[#C8102E]/25 scale-[1.01]'
-                      : 'bg-white text-neutral-800 border border-neutral-200/90 hover:border-[#C8102E] hover:text-[#C8102E]'
-                  }`}
-                >
-                  <span>{sz}</span>
                   {totalStock > 0 ? (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isCurrent ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'}`}>
                       {totalStock}
@@ -332,178 +393,405 @@ function MultiVariantSelector({
         </div>
       )}
 
-      {/* ── 3. Color & Quantity Selector ── */}
-      {isSimpleSize ? (
-        (() => {
-          const v = visibleVariants[0];
-          const qty = qtys[v._safeId] || 0;
-          return (
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-50/80 border border-neutral-200/70">
-              <div>
-                <p className="text-xs font-bold text-neutral-900">
-                  {language === 'ar' ? 'الكمية المطلوبة' : 'Quantité à commander'}
-                </p>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  {v.stock > 0 
-                    ? `${v.stock} ${language === 'ar' ? 'متوفر بالمخزن' : 'en stock'}` 
-                    : (language === 'ar' ? 'متوفر عند الطلب' : 'Disponible sur commande')}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => setQty(v._safeId, -1, v.stock)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-600 hover:text-[#C8102E] hover:bg-neutral-50 cursor-pointer transition-colors"
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="w-7 text-center font-black text-sm text-[#C8102E]">{qty}</span>
-                <button
-                  type="button"
-                  onClick={() => setQty(v._safeId, 1, v.stock)}
-                  disabled={v.stock > 0 && qty >= v.stock}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-neutral-600 hover:text-[#C8102E] hover:bg-neutral-50 disabled:opacity-30 cursor-pointer transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          );
-        })()
-      ) : (
-        <div>
-          <div className="flex items-center justify-between mb-2">
+      {/* ── 2. Size Selector (Temu Style with Smart Collapse) ── */}
+      {hasSizes && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              {language === 'ar' ? 'الخيارات والألوان :' : 'Couleurs & Variantes :'}
+              <Ruler className="w-3.5 h-3.5 text-neutral-700" />
+              {language === 'ar' ? 'المقاس / الحجم :' : 'Taille :'}
             </span>
-            <span className="text-xs font-semibold text-neutral-500">
-              {visibleVariants.length} {language === 'ar' ? 'خيارات' : `variante${visibleVariants.length > 1 ? 's' : ''}`}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-neutral-900 bg-neutral-100 px-2.5 py-0.5 rounded-md">
+                {selectedSize && selectedSize !== 'Standard' ? selectedSize : (language === 'ar' ? 'قياسي' : 'Standard')}
+              </span>
+              <span className="text-[11px] text-neutral-400 font-medium">
+                ({uniqueSizes.length} {language === 'ar' ? 'مقاسات' : `taille${uniqueSizes.length > 1 ? 's' : ''}`})
+              </span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-            {visibleVariants.map(v => {
-              const qty = qtys[v._safeId] || 0;
-              const isSelected = qty > 0;
-              const isFocused = focusedVariantId === v._safeId;
-              const colorLabel = v.color && !v.color.startsWith('Option') 
-                ? (language === 'ar' && v.colorAr ? v.colorAr : v.color) 
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+            {displayedSizes.map(sz => {
+              const isCurrent = sz === selectedSize;
+              const sizeVars = activeVariantsForModel.filter(v => (v.size?.trim() || 'Standard') === sz);
+              const totalStock = sizeVars.reduce((s, v) => s + v.stock, 0);
+              const isOutOfStock = totalStock === 0;
+
+              return (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => handleSelectSize(sz)}
+                  className={`min-w-[50px] px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center text-center select-none relative ${
+                    isCurrent
+                      ? 'bg-neutral-900 text-white shadow-sm ring-2 ring-neutral-900/20 border-neutral-900 scale-[1.02] z-10'
+                      : isOutOfStock
+                        ? 'bg-neutral-50 text-neutral-400 border border-dashed border-neutral-200 opacity-60'
+                        : 'bg-white text-neutral-800 border border-neutral-200 hover:border-neutral-900 hover:bg-neutral-50/80'
+                  }`}
+                >
+                  <span className={`truncate w-full ${isOutOfStock && !isCurrent ? 'line-through' : ''}`}>
+                    {sz}
+                  </span>
+                  {totalStock > 0 && totalStock <= 3 && (
+                    <span className="text-[9px] text-amber-500 font-bold leading-none mt-0.5">
+                      {totalStock} {language === 'ar' ? 'باقي' : 'rest.'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Expand/collapse button when there are many sizes */}
+          {hasManySizes && (
+            <button
+              type="button"
+              onClick={() => setIsSizesExpanded(v => !v)}
+              className="mt-1 text-xs font-bold text-neutral-600 hover:text-[#C8102E] transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>
+                {isSizesExpanded
+                  ? (language === 'ar' ? '▲ إخفاء باقي المقاسات' : '▲ Afficher moins de tailles')
+                  : (language === 'ar' ? `▼ عرض جميع المقاسات (${uniqueSizes.length})` : `▼ Voir toutes les tailles (${uniqueSizes.length})`)}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── 3. Color Selector (Temu Style with Thumbnail Swatches & Live Search) ── */}
+      {!isSimpleSizeOnly && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-neutral-700" />
+              {language === 'ar' ? 'اللون :' : 'Couleur :'}
+            </span>
+            <div className="flex items-center gap-2">
+              {activeColorName && (
+                <span className="text-xs font-bold text-neutral-900 bg-neutral-100 px-2.5 py-0.5 rounded-md flex items-center gap-1.5">
+                  {activeVariant?.colorHex && (
+                    <span
+                      className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block"
+                      style={{ backgroundColor: activeVariant.colorHex }}
+                    />
+                  )}
+                  <span>{activeColorName}</span>
+                </span>
+              )}
+              <span className="text-[11px] text-neutral-400 font-medium">
+                ({variantsForSize.length} {language === 'ar' ? 'ألوان' : `couleur${variantsForSize.length > 1 ? 's' : ''}`})
+              </span>
+            </div>
+          </div>
+
+          {/* Quick search input if there are more than 8 colors */}
+          {variantsForSize.length > 8 && (
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              <input
+                type="text"
+                value={colorSearch}
+                onChange={(e) => setColorSearch(e.target.value)}
+                placeholder={language === 'ar' ? '🔍 ابحث عن لون بالاسم أو الرمز...' : '🔍 Rechercher une couleur (nom, code)...'}
+                className="w-full pl-8 pr-8 py-1.5 text-xs bg-neutral-50 border border-neutral-200/90 rounded-xl focus:bg-white focus:border-neutral-900 focus:outline-none transition-all placeholder:text-neutral-400"
+              />
+              {colorSearch && (
+                <button
+                  type="button"
+                  onClick={() => setColorSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Thumbnail Swatches Grid */}
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2 pt-0.5">
+            {displayedVariants.map(v => {
+              const isSelected = v._safeId === activeVariant?._safeId;
+              const colorLabel = v.color && !v.color.startsWith('Option')
+                ? (language === 'ar' && v.colorAr ? v.colorAr : v.color)
                 : '';
+              const isOutOfStock = v.stock === 0;
 
               return (
                 <div
                   key={v._safeId}
-                  onClick={() => {
-                    handleFocusVariant(v);
-                    if (!isSelected) {
-                      setQty(v._safeId, 1, v.stock);
-                    }
-                  }}
-                  className={`relative flex flex-col items-center p-2.5 rounded-2xl border transition-all cursor-pointer select-none ${
+                  onClick={() => handleSelectColor(v)}
+                  className={`group/swatch relative flex flex-col items-center justify-center p-1 rounded-2xl border-2 transition-all duration-150 cursor-pointer select-none ${
                     isSelected
-                      ? 'border-[#C8102E] bg-rose-50/40 shadow-xs ring-1 ring-[#C8102E]'
-                      : isFocused
-                        ? 'border-neutral-900 bg-neutral-50/50'
-                        : 'border-neutral-200 bg-white hover:border-neutral-400'
+                      ? 'border-neutral-900 ring-2 ring-neutral-900/20 bg-neutral-50/80 shadow-xs scale-105 z-10'
+                      : isOutOfStock
+                        ? 'border-neutral-200 bg-neutral-50/50 opacity-50'
+                        : 'border-neutral-200/90 bg-white hover:border-neutral-900 hover:scale-102'
                   }`}
+                  title={`${colorLabel || 'Option'} • ${v.stock > 0 ? `${v.stock} en stock` : 'Sur commande'}`}
                 >
+                  {/* Miniature Image / Color Fill */}
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden relative flex items-center justify-center bg-neutral-100 border border-neutral-150/70">
+                    {v.image ? (
+                      <img
+                        src={v.image}
+                        alt={colorLabel || 'Option'}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover group-hover/swatch:scale-110 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full rounded-lg"
+                        style={{ backgroundColor: v.colorHex || '#d1d5db' }}
+                      />
+                    )}
+
+                    {/* Out of stock diagonal slash */}
+                    {isOutOfStock && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-[130%] h-[2px] bg-red-500 rotate-45 shadow-2xs" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Active checkmark badge (Temu style) */}
                   {isSelected && (
-                    <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#C8102E] text-white flex items-center justify-center text-[9px] font-bold shadow-xs">
-                      <Check className="w-2.5 h-2.5" />
+                    <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[8px] font-bold shadow-xs">
+                      <Check className="w-2 h-2" />
                     </div>
                   )}
 
-                  {v.image ? (
-                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-neutral-100 mb-1.5 bg-neutral-50">
-                      <img src={v.image} alt={v.color || 'Option'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div
-                      className={`w-9 h-9 rounded-full border mb-1.5 shadow-2xs ${isSelected ? 'ring-2 ring-[#C8102E]/30' : 'border-neutral-200'}`}
-                      style={{ background: v.colorHex || '#d1d5db' }}
-                    />
-                  )}
-
+                  {/* Color Name below swatch */}
                   {colorLabel && (
-                    <p className={`text-[11px] font-bold text-center leading-tight truncate w-full ${isSelected ? 'text-[#C8102E]' : 'text-neutral-800'}`}>
+                    <span className={`text-[10px] font-semibold text-center mt-1 truncate max-w-[54px] leading-tight ${
+                      isSelected ? 'text-neutral-950 font-bold' : 'text-neutral-600'
+                    }`}>
                       {colorLabel}
-                    </p>
-                  )}
-
-                  <p className="text-[9px] text-neutral-400 mt-0.5">
-                    {v.stock > 0 ? `${v.stock} dispo` : (language === 'ar' ? 'طلب' : 'Sur cde')}
-                  </p>
-
-                  {isSelected && (
-                    <div className="flex items-center gap-1 mt-2 bg-white border border-neutral-200 rounded-full px-1.5 py-0.5 shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setQty(v._safeId, -1, v.stock); }}
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-neutral-500 hover:text-[#C8102E] hover:bg-rose-50 cursor-pointer"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-4 text-center text-xs font-black text-[#C8102E]">{qty}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setQty(v._safeId, 1, v.stock); }}
-                        disabled={v.stock > 0 && qty >= v.stock}
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-neutral-500 hover:text-[#C8102E] hover:bg-rose-50 disabled:opacity-30 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                    </span>
                   )}
                 </div>
               );
             })}
           </div>
+
+          {/* Expand/collapse button when there are many colors */}
+          {hasManyColors && !colorSearch.trim() && (
+            <button
+              type="button"
+              onClick={() => setIsColorsExpanded(v => !v)}
+              className="mt-1 text-xs font-bold text-neutral-600 hover:text-[#C8102E] transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <span>
+                {isColorsExpanded
+                  ? (language === 'ar' ? '▲ إخفاء باقي الألوان' : '▲ Afficher moins de couleurs')
+                  : (language === 'ar' ? `▼ عرض جميع الألوان (${variantsForSize.length})` : `▼ Voir toutes les couleurs (${variantsForSize.length})`)}
+              </span>
+            </button>
+          )}
         </div>
       )}
 
-      {/* ── Summary Indicator ── */}
-      {totalAllQty > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-900 text-white rounded-xl text-xs">
-          <span className="font-semibold">
-            {totalAllQty} {language === 'ar' ? 'قطعة محددة' : `article${totalAllQty > 1 ? 's' : ''} sélectionné${totalAllQty > 1 ? 's' : ''}`}
-          </span>
-          <span className="font-black text-[#FFD700]">
-            {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
-          </span>
+      {/* ── 4. Buy Box & Quantity Controls ── */}
+      {!isBatchMode ? (
+        <div className="pt-2 border-t border-neutral-200/80 space-y-3">
+          {/* Active selection summary card */}
+          {activeVariant && (
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-neutral-50/80 border border-neutral-200/70 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-white border border-neutral-200 flex-shrink-0 relative">
+                  {activeVariant.image ? (
+                    <img src={activeVariant.image} alt="Sélection" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full" style={{ backgroundColor: activeVariant.colorHex || '#ccc' }} />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-neutral-900 truncate">
+                    {activeVariant.model && <span className="mr-1">{activeVariant.model} •</span>}
+                    {activeVariant.size && <span className="mr-1">{activeVariant.size} •</span>}
+                    <span className="text-[#C8102E] font-bold">{activeColorName || 'Option'}</span>
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-sm font-black text-neutral-900">
+                      {formatPrice(activePrice)}
+                    </span>
+                    <span className="text-neutral-300">•</span>
+                    {activeVariant.stock > 0 ? (
+                      <span className={`text-[11px] font-bold ${activeVariant.stock <= 5 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {activeVariant.stock <= 5
+                          ? (language === 'ar' ? `باقي فقط ${activeVariant.stock} !` : `⚡ Plus que ${activeVariant.stock} en stock !`)
+                          : (language === 'ar' ? `✓ متوفر (${activeVariant.stock})` : `✓ En stock (${activeVariant.stock})`)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-neutral-500">
+                        {language === 'ar' ? 'متوفر عند الطلب' : 'Disponible sur commande'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stepper */}
+              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1 shadow-2xs flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSingleQty(q => Math.max(minOrderQty || 1, q - 1))}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-neutral-600 hover:text-[#C8102E] hover:bg-neutral-50 cursor-pointer transition-colors"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="w-6 sm:w-7 text-center font-black text-xs sm:text-sm text-neutral-900">{singleQty}</span>
+                <button
+                  type="button"
+                  onClick={() => setSingleQty(q => (activeVariant.stock > 0 ? Math.min(activeVariant.stock, q + 1) : q + 1))}
+                  disabled={activeVariant.stock > 0 && singleQty >= activeVariant.stock}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-neutral-600 hover:text-[#C8102E] hover:bg-neutral-50 disabled:opacity-30 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={handleAddSingleToCart}
+              disabled={!activeVariant}
+              className="col-span-2 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 active:scale-[0.99] cursor-pointer transition-all"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>
+                {language === 'ar'
+                  ? `إضافة للسلة • ${formatPrice(singleTotalPrice)}`
+                  : `Ajouter au panier • ${formatPrice(singleTotalPrice)}`}
+              </span>
+            </button>
+
+            {whatsappHref && (
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="col-span-1 py-3.5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 bg-[#25D366] hover:bg-[#1da851] text-white transition-all shadow-sm active:scale-[0.99] cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>{language === 'ar' ? 'واتساب' : 'WhatsApp'}</span>
+              </a>
+            )}
+          </div>
+
+          {/* Toggle for Batch Multi-Variant Mode */}
+          {variantsForSize.length > 1 && (
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => setIsBatchMode(true)}
+                className="text-xs font-semibold text-neutral-500 hover:text-[#C8102E] underline transition-colors cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>
+                  {language === 'ar'
+                    ? '📦 طلب عدة ألوان في نفس الوقت (للجملة والمشاغل)'
+                    : '📦 Commander plusieurs couleurs à la fois (Mode Gros / Ateliers)'}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ── Batch Multi-Quantity Mode (Wholesale / Atelier) ── */
+        <div className="pt-2 border-t border-neutral-200/80 space-y-3">
+          <div className="flex items-center justify-between bg-neutral-900 text-white p-3 rounded-xl">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold">
+                {language === 'ar' ? 'وضع الطلب المتعدد (للجملة والمشاغل)' : 'Mode commande groupée multi-couleurs'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsBatchMode(false)}
+              className="text-xs text-neutral-300 hover:text-white underline cursor-pointer"
+            >
+              {language === 'ar' ? 'الرجوع لاختيار لون واحد' : 'Retour au mode simple'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto shop-scrollbar p-1">
+            {variantsForSize.map(v => {
+              const q = qtys[v._safeId] || 0;
+              const colorLabel = v.color && !v.color.startsWith('Option')
+                ? (language === 'ar' && v.colorAr ? v.colorAr : v.color)
+                : '';
+
+              return (
+                <div
+                  key={v._safeId}
+                  className={`p-2 rounded-xl border flex items-center justify-between gap-2 ${
+                    q > 0 ? 'border-[#C8102E] bg-rose-50/40' : 'border-neutral-200 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-neutral-100 flex-shrink-0 border">
+                      {v.image ? (
+                        <img src={v.image} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full" style={{ backgroundColor: v.colorHex || '#ccc' }} />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-neutral-900 truncate">{colorLabel || 'Option'}</p>
+                      <p className="text-[9px] text-neutral-400">{v.stock > 0 ? `${v.stock} dispo` : 'Sur cde'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-lg px-1 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setBatchQty(v._safeId, -1, v.stock)}
+                      className="w-5 h-5 flex items-center justify-center text-neutral-500 hover:text-[#C8102E]"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-4 text-center text-xs font-black text-[#C8102E]">{q}</span>
+                    <button
+                      type="button"
+                      onClick={() => setBatchQty(v._safeId, 1, v.stock)}
+                      disabled={v.stock > 0 && q >= v.stock}
+                      className="w-5 h-5 flex items-center justify-center text-neutral-500 hover:text-[#C8102E] disabled:opacity-30"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-neutral-100 text-xs font-bold text-neutral-800">
+            <span>
+              {totalBatchQty} {language === 'ar' ? 'قطع مختارة' : `article${totalBatchQty > 1 ? 's' : ''} sélectionné${totalBatchQty > 1 ? 's' : ''}`}
+            </span>
+            <button
+              type="button"
+              onClick={handleAddBatchToCart}
+              disabled={totalBatchQty === 0}
+              className={`px-4 py-2 rounded-xl text-white font-bold transition-all cursor-pointer ${
+                totalBatchQty === 0
+                  ? 'bg-neutral-300 cursor-not-allowed'
+                  : 'bg-[#C8102E] hover:bg-[#a00d25]'
+              }`}
+            >
+              {language === 'ar' ? `إضافة (${totalBatchQty}) للسلة` : `Ajouter (${totalBatchQty}) au panier`}
+            </button>
+          </div>
         </div>
       )}
-
-      {/* ── Action Buttons ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-        <button
-          type="button"
-          onClick={handleAddSelectedToCart}
-          disabled={totalAllQty === 0}
-          className={`col-span-2 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            totalAllQty === 0
-              ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-              : 'bg-[#C8102E] hover:bg-[#a00d25] text-white shadow-lg shadow-[#C8102E]/20 active:scale-[0.99]'
-          }`}
-        >
-          <ShoppingCart className="w-4 h-4" />
-          {totalAllQty === 0
-            ? (language === 'ar' ? 'اختر الكمية للمتابعة' : 'Sélectionnez une quantité')
-            : (language === 'ar' ? `إضافة للسلة (${totalAllQty})` : `Ajouter au panier (${totalAllQty})`)}
-        </button>
-
-        {whatsappHref && (
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="col-span-1 py-3.5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 bg-[#25D366] hover:bg-[#1da851] text-white transition-all shadow-sm active:scale-[0.99] cursor-pointer"
-          >
-            <MessageCircle className="w-4 h-4" />
-            {language === 'ar' ? 'واتساب' : 'WhatsApp'}
-          </a>
-        )}
-      </div>
     </div>
   );
 }
@@ -661,6 +949,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   const handleVariantSelect = (v: ProductVariant | null, size: string) => {
     setActiveVariant(v);
+    setSelectedVariant(v);
     setActiveSize(size);
     if (v?.image && product.images) {
       const idx = product.images.findIndex(img => img === v.image);
