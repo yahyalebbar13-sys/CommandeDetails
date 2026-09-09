@@ -381,7 +381,7 @@ export default function ShopHeader() {
                         onMouseLeave={() => setIsCategoriesOpen(false)}
                         style={{
                           left: `${menuStyle.left}px`,
-                          width: "min(940px, calc(100vw - 32px))",
+                          width: "min(1180px, calc(100vw - 32px))",
                         }}
                         className="absolute top-[calc(100%+6px)] bg-white rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2),0_10px_25px_-5px_rgba(0,0,0,0.08)] border border-neutral-200/90 z-50 overflow-hidden animate-in fade-in-0 duration-150"
                       >
@@ -392,9 +392,9 @@ export default function ShopHeader() {
                         />
 
                         {/* 2-Column Grid */}
-                        <div className="grid grid-cols-12 h-[480px]">
+                        <div className="grid grid-cols-12 h-[560px]">
                           {/* ── Left Column: Categories List (Temu-style) ── */}
-                          <div className="col-span-4 bg-neutral-50/75 border-r border-neutral-200/70 py-3 overflow-y-auto shop-scrollbar">
+                          <div className="col-span-3 bg-neutral-50/75 border-r border-neutral-200/70 py-3 overflow-y-auto shop-scrollbar">
                             <div className="px-4 pb-2 mb-1 border-b border-neutral-200/60 flex items-center justify-between">
                               <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
                                 {t('nav_categories')}
@@ -439,7 +439,7 @@ export default function ShopHeader() {
                           </div>
 
                           {/* ── Right Column: Active Category Showcase (Temu-style) ── */}
-                          <div className="col-span-8 bg-white p-6 overflow-y-auto shop-scrollbar flex flex-col justify-between">
+                          <div className="col-span-9 bg-white p-6 overflow-y-auto shop-scrollbar flex flex-col justify-between">
                             <div>
                               {/* Top Header Link: "Tout [Nom Catégorie] >" */}
                               {activeCategory && (
@@ -526,8 +526,8 @@ export default function ShopHeader() {
                                           {desktopProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
                                         </span>
                                       </div>
-                                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3.5">
-                                        {desktopProducts.slice(0, 8).map((p) => {
+                                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                                        {desktopProducts.map((p) => {
                                           const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
                                           const pImg = p.images?.[0] || activeCategory.image;
                                           const hasPrice = typeof p.price === 'number' && p.price > 0;
@@ -544,7 +544,7 @@ export default function ShopHeader() {
                                                     src={pImg}
                                                     alt={pName}
                                                     fill
-                                                    sizes="160px"
+                                                    sizes="180px"
                                                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                                                   />
                                                 ) : (
@@ -589,8 +589,8 @@ export default function ShopHeader() {
                                       {desktopProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
                                     </span>
                                   </div>
-                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3.5">
-                                    {desktopProducts.slice(0, 8).map((p) => {
+                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                                    {desktopProducts.map((p) => {
                                       const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
                                       const pImg = p.images?.[0] || activeCategory.image;
                                       const hasPrice = typeof p.price === 'number' && p.price > 0;

@@ -124,8 +124,8 @@ export default React.memo(function ProductCard({ product, showAddToCart = true }
         {/* Price row + cart button */}
         <div className="flex items-end justify-between mt-1">
           <div className="flex flex-col">
-            <span className="text-[15px] font-extrabold text-[#1A1A1A] leading-tight">
-              {language === 'ar' ? 'حسب الطلب' : 'Sur demande'}
+            <span className="text-[15px] font-extrabold text-[#C8102E] leading-tight">
+              {product.price > 0 ? formatPrice(product.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
             </span>
             {product.inStock && (
               <span className="text-[10px] text-gray-400 mt-0.5">

@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import ProductCard from '@/components/shop/ProductCard';
 import { 
   ShoppingCart, 
   Heart, 
@@ -841,8 +842,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [mainImg, setMainImg] = useState(0);
   const [wished, setWished] = useState(false);
   const [added, setAdded] = useState(false);
-  const [similar, setSimilar] = useState<ShopProduct[]>([]);
-  const [discover, setDiscover] = useState<ShopProduct[]>([]);
+  const [exploreProducts, setExploreProducts] = useState<ShopProduct[]>([]);
+  const [exploreVisibleCount, setExploreVisibleCount] = useState(24);
+  const exploreObserverRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'specs' | 'applications' | 'entretien' | 'commercial'>('specs');
 
   useEffect(() => {
@@ -862,18 +864,45 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     if (!product || products.length === 0) return;
-    const sameCategory = products
-      .filter(p => p.categorySlug === product.categorySlug && p.id !== product.id)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 4);
-    setSimilar(sameCategory);
 
-    const otherCategories = products
-      .filter(p => p.categorySlug !== product.categorySlug && p.id !== product.id)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 4);
-    setDiscover(otherCategories);
+    // 1. Products from same category (excluding current)
+    const sameCategory = products.filter(
+      p => p.id !== product.id && (p.categorySlug === product.categorySlug || p.additionalCategorySlugs?.includes(product.categorySlug))
+    );
+
+    // 2. Products from other categories (excluding current)
+    const otherProducts = products.filter(
+      p => p.id !== product.id && p.categorySlug !== product.categorySlug && !p.additionalCategorySlugs?.includes(product.categorySlug)
+    );
+
+    // Shuffle other categories for discovery
+    const shuffledOthers = [...otherProducts].sort(() => 0.5 - Math.random());
+
+    // Combine: same category first, then other products
+    const combined = [...sameCategory, ...shuffledOthers];
+
+    // Deduplicate by ID
+    const unique = Array.from(new Map(combined.map(p => [p.id, p])).values());
+
+    setExploreProducts(unique);
+    setExploreVisibleCount(24);
   }, [product?.id, products]);
+
+  // Infinite scroll observer for "Explorer vos centres d'intérêt"
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setExploreVisibleCount(prev => Math.min(prev + 24, exploreProducts.length));
+        }
+      },
+      { rootMargin: '500px' }
+    );
+    if (exploreObserverRef.current) {
+      observer.observe(exploreObserverRef.current);
+    }
+    return () => observer.disconnect();
+  }, [exploreProducts.length]);
 
   if (isLoading || directLoading) {
     return (
@@ -1366,47 +1395,56 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
           </div>
         )}
 
-        {/* ── Similar Products ── */}
-        {similar.length > 0 && (
-          <div className="mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl sm:text-2xl font-black text-neutral-900" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                {language === 'ar' ? 'منتجات مماثلة' : 'Vous aimerez aussi'}
-              </h2>
-              <Link 
-                href={`/shop/categorie/${product.categorySlug}`}
-                className="text-xs font-bold text-[#C8102E] hover:underline cursor-pointer"
-              >
-                {language === 'ar' ? 'عرض المزيد ←' : 'Voir tout →'}
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {similar.map(p => (
-                <ModernProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* ── Temu-Style: Explorer vos centres d'intérêt ── */}
+        {exploreProducts.length > 0 && (
+          <div className="mt-16 pt-10 border-t border-neutral-200">
+            {/* Temu-Style Section Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#C8102E]/15 to-[#D4A843]/20 flex items-center justify-center text-[#C8102E] shadow-2xs flex-shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black text-neutral-900 tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                    {language === 'ar' ? 'استكشف اهتماماتك' : "Explorer vos centres d'intérêt"}
+                  </h2>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    {language === 'ar' 
+                      ? 'مختارات موصى بها لك بأفضل الأسعار وبجودة مضمونة' 
+                      : 'Articles sélectionnés pour vous selon vos centres d\'intérêt'}
+                  </p>
+                </div>
+              </div>
 
-        {/* ── Discover More ── */}
-        {discover.length > 0 && (
-          <div className="mt-14">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl sm:text-2xl font-black text-neutral-900" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                {language === 'ar' ? 'اكتشف المزيد' : 'Découvrez aussi'}
-              </h2>
-              <Link 
-                href="/shop/boutique"
-                className="text-xs font-bold text-[#C8102E] hover:underline cursor-pointer"
-              >
-                {language === 'ar' ? 'تصفح الكل ←' : 'Toute la boutique →'}
-              </Link>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-neutral-500 bg-neutral-100 px-3 py-1 rounded-full">
+                  {exploreProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
+                </span>
+                <Link 
+                  href="/shop/boutique"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C8102E] hover:text-[#a00d25] px-3.5 py-1.5 rounded-xl border border-[#C8102E]/20 hover:border-[#C8102E] transition-all cursor-pointer touch-manipulation"
+                >
+                  <span>{language === 'ar' ? 'عرض الكتالوج كاملاً ←' : 'Tout le catalogue →'}</span>
+                </Link>
+              </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {discover.map(p => (
-                <ModernProductCard key={p.id} product={p} />
+
+            {/* High-Density Grid like Temu (2 cols mobile, 3-4 tablet, 5-6 desktop) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4">
+              {exploreProducts.slice(0, exploreVisibleCount).map(p => (
+                <ProductCard key={p.id} product={p} showAddToCart={true} />
               ))}
             </div>
+
+            {/* Infinite Scroll Sentinel */}
+            {exploreVisibleCount < exploreProducts.length && (
+              <div ref={exploreObserverRef} className="flex flex-col items-center justify-center py-8 gap-2">
+                <div className="w-7 h-7 border-2 border-[#C8102E] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-neutral-400 font-medium">
+                  {language === 'ar' ? 'تحميل المزيد من المنتجات…' : 'Chargement de produits…'}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
