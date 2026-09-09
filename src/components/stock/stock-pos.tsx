@@ -56,6 +56,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
         (i.nameFR && i.nameFR.toLowerCase().includes(q)) ||
         i.color?.toLowerCase().includes(q) ||
         i.size?.toLowerCase().includes(q) ||
+        (i.categoryNameFR && i.categoryNameFR.toLowerCase().includes(q)) ||
         i.categoryId?.toLowerCase().includes(q)
       );
     }
@@ -163,11 +164,16 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
             <Input
-              placeholder="Rechercher un produit..."
+              placeholder="Rechercher par nom, couleur, taille, catégorie..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="pl-10 h-11 rounded-xl border-stone-200 text-sm font-bold"
             />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700">
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -183,6 +189,8 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
           </button>
           {cats.map(cat => {
             const count = availableItems.filter(i => i.categoryId === cat).length;
+            const catItem = availableItems.find(i => i.categoryId === cat);
+            const catDisplayName = catItem?.categoryNameFR || cat;
             return (
               <button
                 key={cat}
@@ -191,7 +199,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
                   activeCat === cat ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-500/20' : 'bg-white text-stone-500 border-stone-200 hover:border-emerald-300'
                 }`}
               >
-                {cat.length > 20 ? cat.substring(0, 20) + '…' : cat} ({count})
+                {catDisplayName.length > 20 ? catDisplayName.substring(0, 20) + '…' : catDisplayName} ({count})
               </button>
             );
           })}
@@ -226,7 +234,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
                 >
                   {/* Badge catégorie */}
                   <div className={`absolute top-2 left-2 text-[7px] font-black uppercase px-1.5 py-0.5 rounded-lg border ${catColorMap[item.categoryId] || 'bg-stone-50 border-stone-200 text-stone-500'}`}>
-                    {item.categoryId?.substring(0, 15)}
+                    {(item.categoryNameFR || item.categoryId)?.substring(0, 18)}
                   </div>
 
                   {/* Badge in cart */}

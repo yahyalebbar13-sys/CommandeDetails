@@ -53,8 +53,10 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [searchTerm, setSearchTerm] = useState('');
 
   const [newCatName, setNewCatName] = useState('');
+  const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
   const [newSubName, setNewSubName] = useState('');
+  const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
   const [newSubCustomsValue, setNewSubCustomsValue] = useState<number | ''>('');
   const [newSubDutyRate, setNewSubDutyRate] = useState<number | ''>('');
@@ -65,7 +67,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [movingPole, setMovingPole] = useState<GeneralCategory | null>(null);
   const [moveTargetLine, setMoveTargetLine] = useState('');
   const [editingPole, setEditingPole] = useState<GeneralCategory | null>(null);
-  const [editPoleName, setEditPoleName] = useState('');
+  const [editPoleNameFR, setEditPoleNameFR] = useState('');
 
   const now = new Date();
 
@@ -191,10 +193,11 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', id);
     const data: any = { id, name: newCatName.trim().toUpperCase() };
+    if (newCatNameFR.trim()) data.nameFR = newCatNameFR.trim().toUpperCase();
     if (newCatLine) data.line = newCatLine;
     setDocumentNonBlocking(docRef, data, { merge: true });
     toast({ title: 'Pôle logistique créé' });
-    setNewCatName(''); setNewCatLine(''); setIsModalOpen(false);
+    setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setIsModalOpen(false);
   };
 
   const handleAddSubCategory = () => {
@@ -202,6 +205,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const id = crypto.randomUUID();
     const docRef = doc(firestore, 'users', user.uid, 'categories', id);
     const catData: any = { id, name: newSubName.trim().toUpperCase(), generalCategoryId: targetGenCatId };
+    if (newSubNameFR.trim()) catData.nameFR = newSubNameFR.trim().toUpperCase();
     if (newSubHsCode) catData.hsCode = newSubHsCode;
     if (newSubCustomsValue !== '') catData.customsValuePerKg = Number(newSubCustomsValue);
     if (newSubDutyRate !== '') catData.importDutyRate = Number(newSubDutyRate);
@@ -209,7 +213,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     if (newSubTvaRate !== '') catData.tvaRate = Number(newSubTvaRate);
     setDocumentNonBlocking(docRef, catData, { merge: true });
     toast({ title: 'Sous-catégorie ajoutée' });
-    setNewSubName(''); setNewSubHsCode(''); setNewSubCustomsValue('');
+    setNewSubName(''); setNewSubNameFR(''); setNewSubHsCode(''); setNewSubCustomsValue('');
     setNewSubDutyRate(''); setNewSubTpiRate(''); setNewSubTvaRate('');
     setTargetGenCatId(null); setIsSubModalOpen(false);
   };
@@ -226,14 +230,14 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     setIsSubModalOpen(true);
   };
 
-  const handleRenamePole = () => {
-    if (!user || !firestore || !editingPole || !editPoleName.trim()) return;
-    const newName = editPoleName.trim().toUpperCase();
+  const handleSavePoleNameFR = () => {
+    if (!user || !firestore || !editingPole) return;
+    const nameFR = editPoleNameFR.trim() ? editPoleNameFR.trim().toUpperCase() : null;
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPole.id);
-    updateDocumentNonBlocking(docRef, { name: newName });
-    toast({ title: '✅ Pôle renommé', description: `${editingPole.name} → ${newName}` });
+    updateDocumentNonBlocking(docRef, { nameFR });
+    toast({ title: '✅ Nom français enregistré', description: nameFR ? `${editingPole.name} → ${nameFR}` : 'Nom français réinitialisé' });
     setEditingPole(null);
-    setEditPoleName('');
+    setEditPoleNameFR('');
   };
 
   return (
@@ -362,8 +366,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
-                                title="Renommer le pôle"
-                                onClick={(e) => { e.stopPropagation(); setEditingPole(gc); setEditPoleName(gc.name); }}
+                                title="Définir le nom français (Stock)"
+                                onClick={(e) => { e.stopPropagation(); setEditingPole(gc); setEditPoleNameFR(gc.nameFR || ''); }}
                               >
                                 <Pencil className="w-3 h-3" />
                               </Button>
@@ -388,9 +392,16 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                           </div>
 
                           {/* Name */}
-                          <h3 className="text-[12px] font-black text-stone-950 uppercase leading-tight tracking-tight group-hover:text-stone-900 line-clamp-2 min-h-[2rem] mb-3">
-                            {gc.name}
-                          </h3>
+                          <div className="min-h-[2.5rem] mb-3">
+                            <h3 className="text-[12px] font-black text-stone-950 uppercase leading-tight tracking-tight group-hover:text-stone-900 line-clamp-2">
+                              {gc.nameFR || gc.name}
+                            </h3>
+                            {gc.nameFR && gc.nameFR.toLowerCase() !== gc.name.toLowerCase() && (
+                              <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mt-0.5 truncate">
+                                {gc.name}
+                              </p>
+                            )}
+                          </div>
 
                           {/* Value progress bar */}
                           <div className="mb-3">
@@ -458,14 +469,25 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </div>
           <div className="p-5 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Désignation du Pôle</label>
+              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Désignation du Pôle (Code / Nom d'origine)</label>
               <Input
                 value={newCatName}
                 onChange={e => setNewCatName(e.target.value)}
-                placeholder="EX: TEXTILES, ACCESSOIRES..."
+                placeholder="EX: TEXTILES, ZIPPER..."
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-stone-900 text-base"
                 autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleAddGeneralCategory()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                Nom en Français (pour le Stock) <span className="text-stone-400 font-normal lowercase">(optionnel)</span>
+              </label>
+              <Input
+                value={newCatNameFR}
+                onChange={e => setNewCatNameFR(e.target.value)}
+                placeholder="EX: TISSUS, FERMETURES ÉCLAIR..."
+                className="h-10 uppercase font-bold border-amber-200 bg-amber-50/40 rounded-xl focus:ring-amber-600 text-xs"
               />
             </div>
             <div className="space-y-1.5">
@@ -522,13 +544,24 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
           </div>
           <div className="p-5 sm:p-6 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Nom de la famille produit</label>
+              <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Nom de la famille produit (Code / Nom technique)</label>
               <Input
                 value={newSubName}
                 onChange={e => setNewSubName(e.target.value)}
-                placeholder="EX: ZIPPER NO5, FIL 40/2..."
+                placeholder="EX: NYLON ZIPPER, T/C TWILL..."
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-amber-600 text-base"
                 autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                Nom en Français (pour le Stock) <span className="text-stone-400 font-normal lowercase">(optionnel)</span>
+              </label>
+              <Input
+                value={newSubNameFR}
+                onChange={e => setNewSubNameFR(e.target.value)}
+                placeholder="EX: FERMETURE NYLON, DOUBLURE SATIN..."
+                className="h-10 uppercase font-bold border-amber-200 bg-amber-50/40 rounded-xl focus:ring-amber-600 text-xs"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -627,31 +660,31 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal renommer pôle ── */}
-      <Dialog open={!!editingPole} onOpenChange={open => { if (!open) { setEditingPole(null); setEditPoleName(''); } }}>
+      {/* ── Modal nom français du pôle ── */}
+      <Dialog open={!!editingPole} onOpenChange={open => { if (!open) { setEditingPole(null); setEditPoleNameFR(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer le Pôle</DialogTitle>
-            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingPole?.name}</p>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Nom Français du Pôle (Stock)</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Pôle d'origine : {editingPole?.name}</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom du Pôle</Label>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom Commercial en Français (Stock)</Label>
               <Input
-                value={editPoleName}
-                onChange={e => setEditPoleName(e.target.value)}
-                placeholder="Ex: ZIPPER NYLON"
-                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                value={editPoleNameFR}
+                onChange={e => setEditPoleNameFR(e.target.value)}
+                placeholder="Ex: FERMETURES ÉCLAIR, TISSUS..."
+                className="h-11 border-amber-200 bg-amber-50/30 font-bold rounded-xl text-xs uppercase"
                 autoFocus
-                onKeyDown={e => { if (e.key === 'Enter') handleRenamePole(); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleSavePoleNameFR(); }}
               />
+              <p className="text-[9px] text-stone-400 font-medium">Ce nom sera utilisé pour l'affichage dans le stock et la vente sans modifier le nom d'origine.</p>
             </div>
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleName(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleNameFR(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                disabled={!editPoleName.trim()}
-                onClick={handleRenamePole}
+                onClick={handleSavePoleNameFR}
               >
                 Enregistrer
               </Button>

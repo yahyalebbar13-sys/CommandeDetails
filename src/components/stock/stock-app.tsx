@@ -81,11 +81,12 @@ export function computeStockItems(
   articles: any[],
   movements: StockMovement[],
   categories: any[],
-  activeStore: StoreLocation | 'ALL' | 'ALL_MAIN',
+  activeStore: StoreLocation | 'ALL' | 'ALL_MAIN' = 'ALL',
   includeAll: boolean = false,
   userRole: string = 'ADMIN',
   stores: any[] = [],
-  userStoreId: string = ''
+  userStoreId: string = '',
+  generalCategories: any[] = []
 ): StockItem[] {
   const isVisibleForUser = (storeId: string | undefined) => {
     if (activeStore === 'ALL') return true;
@@ -135,6 +136,9 @@ export function computeStockItems(
   for (const a of stockArticles) {
     // ── Lookup catégorie et nom du produit ─────────────────────────────────────
     const cat = categories.find(c => c.id === a.categoryId || c.name === a.categoryId);
+    const catNameFR = cat?.nameFR;
+    const genCat = generalCategories.find(g => g.id === cat?.generalCategoryId || g.id === a.generalCategoryId);
+    const poleNameFR = genCat?.nameFR;
     const baseCategoryName = (cat?.name || a.categoryId || a.name || '').trim();
 
     // Matcher la qualité dans la catégorie si configurée
@@ -146,7 +150,7 @@ export function computeStockItems(
       a.quality && q.label?.toLowerCase() === a.quality.toLowerCase()
     );
     const qualityNameFR = matchedZipperQ?.nameFR || matchedFabricQ?.nameFR;
-    const itemFR = a.nameFR || qualityNameFR;
+    const itemFR = a.nameFR || qualityNameFR || catNameFR;
 
     // Nom complet du produit (ne pas tronquer la catégorie/produit)
     const parts: string[] = [];
@@ -229,6 +233,8 @@ export function computeStockItems(
         results.push({
           articleId:           `${a.id}__quality__${qualityLabel}`,
           categoryId:          a.categoryId,
+          categoryNameFR:      catNameFR,
+          poleNameFR:          poleNameFR,
           productName:         rowProductName,
           nameFR:              rowNameFR,
           color:               a.color !== 'various' ? a.color : (row.color || undefined),
@@ -305,6 +311,8 @@ export function computeStockItems(
         results.push({
           articleId:           `${a.id}__color__${colorLabel}`, // ID virtuel unique
           categoryId:          a.categoryId,
+          categoryNameFR:      catNameFR,
+          poleNameFR:          poleNameFR,
           productName,
           nameFR:              itemFR,
           color:               colorLabel,
@@ -377,6 +385,8 @@ export function computeStockItems(
         results.push({
           articleId:           `${a.id}__size__${sizeLabel}`,
           categoryId:          a.categoryId,
+          categoryNameFR:      catNameFR,
+          poleNameFR:          poleNameFR,
           productName,
           nameFR:              itemFR,
           color:               a.color !== 'various' ? a.color : undefined,
@@ -437,6 +447,8 @@ export function computeStockItems(
     results.push({
       articleId:           a.id,
       categoryId:          a.categoryId,
+      categoryNameFR:      catNameFR,
+      poleNameFR:          poleNameFR,
       productName,
       nameFR:              itemFR,
       color:               a.color !== 'various' ? a.color : undefined,
@@ -663,25 +675,25 @@ export default function StockApp() {
   }, [userRole, userStoreId]);
 
   const stockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore, false, userRole, stores),
-    [articles, movements, categories, activeStore, userRole, stores]
+    computeStockItems(articles, movements, categories, activeStore, false, userRole, stores, userStoreId, generalCategories),
+    [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
   );
 
   const allStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore, true, userRole, stores),
-    [articles, movements, categories, activeStore, userRole, stores]
+    computeStockItems(articles, movements, categories, activeStore, true, userRole, stores, userStoreId, generalCategories),
+    [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
   );
 
   const effectiveInventoryStoreId = (userRole === 'ADMIN' && inventoryWarehouseId) ? inventoryWarehouseId : activeStore;
   const inventoryStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores),
-    [articles, movements, categories, effectiveInventoryStoreId, userRole, stores]
+    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId, generalCategories),
+    [articles, movements, categories, effectiveInventoryStoreId, userRole, stores, userStoreId, generalCategories]
   );
 
   const effectiveSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : saleStoreId;
   const saleStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores),
-    [articles, movements, categories, effectiveSaleStoreId, userRole, stores]
+    computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores, userStoreId, generalCategories),
+    [articles, movements, categories, effectiveSaleStoreId, userRole, stores, userStoreId, generalCategories]
   );
 
   const isChrifaOrWarehouse = (id: string | undefined) => {

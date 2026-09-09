@@ -296,9 +296,9 @@ function AlertCard({ item, level, onOrder, onThreshold }: {
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{item.productName}</p>
+            <p className="text-[11px] font-black text-stone-800 uppercase leading-tight">{item.nameFR || item.productName}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-              <span className="text-[9px] font-bold text-stone-400">{item.categoryId}</span>
+              <span className="text-[9px] font-bold text-stone-400">{item.categoryNameFR || item.categoryId}</span>
               {item.quality && (
                 <span className="bg-violet-100 text-violet-700 font-black text-[8px] px-1.5 py-0.2 rounded uppercase">
                   {item.quality}

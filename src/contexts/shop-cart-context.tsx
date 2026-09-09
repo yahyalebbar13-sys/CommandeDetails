@@ -9,9 +9,18 @@ interface CartState {
   isOpen: boolean;
 }
 
-// Unique key per cart line (productId + optional variantId)
-function cartKey(productId: string, variantId?: string) {
-  return variantId ? `${productId}::${variantId}` : productId;
+// Unique key per cart line (productId + optional variant or variantId)
+function getVariantUniqueKey(variant?: CartItem['variant'], variantId?: string): string | undefined {
+  if (variantId && variantId.trim()) return variantId.trim();
+  if (!variant) return undefined;
+  if (variant.variantId && variant.variantId.trim()) return variant.variantId.trim();
+  const parts = [variant.model?.trim(), variant.size?.trim(), variant.color?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join('__') : undefined;
+}
+
+function cartKey(productId: string, variant?: CartItem['variant'], variantId?: string) {
+  const vid = getVariantUniqueKey(variant, variantId);
+  return vid ? `${productId}::${vid}` : productId;
 }
 
 type CartAction =
@@ -28,9 +37,9 @@ type CartAction =
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD_ITEM': {
-      const key = cartKey(action.payload.productId, action.payload.variant?.variantId);
+      const key = cartKey(action.payload.productId, action.payload.variant);
       const existing = state.items.findIndex(
-        i => cartKey(i.productId, i.variant?.variantId) === key
+        i => cartKey(i.productId, i.variant) === key
       );
       if (existing >= 0) {
         const items = [...state.items];
@@ -43,8 +52,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case 'ADD_ITEMS': {
       let items = [...state.items];
       for (const newItem of action.payload) {
-        const key = cartKey(newItem.productId, newItem.variant?.variantId);
-        const existing = items.findIndex(i => cartKey(i.productId, i.variant?.variantId) === key);
+        const key = cartKey(newItem.productId, newItem.variant);
+        const existing = items.findIndex(i => cartKey(i.productId, i.variant) === key);
         if (existing >= 0) {
           const newQty = Math.min(items[existing].quantity + newItem.quantity, items[existing].maxStock);
           items[existing] = { ...items[existing], quantity: newQty };
@@ -56,17 +65,17 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     }
     case 'REMOVE_ITEM': {
       const { productId, variantId } = action.payload;
-      const key = cartKey(productId, variantId);
+      const key = cartKey(productId, undefined, variantId);
       return {
         ...state,
-        items: state.items.filter(i => cartKey(i.productId, i.variant?.variantId) !== key),
+        items: state.items.filter(i => cartKey(i.productId, i.variant) !== key),
       };
     }
     case 'UPDATE_QTY': {
       const { productId, variantId, quantity } = action.payload;
-      const key = cartKey(productId, variantId);
+      const key = cartKey(productId, undefined, variantId);
       const items = state.items.map(i =>
-        cartKey(i.productId, i.variant?.variantId) === key
+        cartKey(i.productId, i.variant) === key
           ? { ...i, quantity: Math.max(1, Math.min(quantity, i.maxStock)) }
           : i
       );
@@ -84,8 +93,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       const safeItems = Array.isArray(action.payload) ? action.payload.filter(i => i && typeof i === 'object') : [];
       const merged: CartItem[] = [];
       for (const item of safeItems) {
-        const key = cartKey(item.productId, item.variant?.variantId);
-        const existing = merged.findIndex(i => cartKey(i.productId, i.variant?.variantId) === key);
+        const key = cartKey(item.productId, item.variant);
+        const existing = merged.findIndex(i => cartKey(i.productId, i.variant) === key);
         if (existing >= 0) {
           merged[existing] = { ...merged[existing], quantity: merged[existing].quantity + item.quantity };
         } else {

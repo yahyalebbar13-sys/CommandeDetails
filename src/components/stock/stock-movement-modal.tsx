@@ -133,7 +133,7 @@ export function ProductPicker({
                 >
                   <Layers className="w-3 h-3 shrink-0" style={{ color }} />
                   <div>
-                    <p className="text-[9px] font-black text-stone-800 uppercase">{sc.name}</p>
+                    <p className="text-[9px] font-black text-stone-800 uppercase">{sc.nameFR || sc.name}</p>
                     <p className="text-[7px] text-stone-400 font-bold">{count} réf.</p>
                   </div>
                 </button>
@@ -160,7 +160,7 @@ export function ProductPicker({
               >
                 <Layers className="w-3.5 h-3.5 shrink-0" style={{ color }} />
                 <div>
-                  <p className="text-[9px] font-black text-stone-800 uppercase leading-tight">{gc.name}</p>
+                  <p className="text-[9px] font-black text-stone-800 uppercase leading-tight">{gc.nameFR || gc.name}</p>
                   <p className="text-[7px] text-stone-400 font-bold">{gcItems.length} réf. en stock</p>
                 </div>
               </button>
@@ -182,7 +182,7 @@ export function ProductPicker({
             <ChevronLeft className="w-3 h-3" /> Retour
           </button>
           <span className="text-stone-200">/</span>
-          <span className="text-[8px] font-black text-stone-700 uppercase">{gc?.name}</span>
+          <span className="text-[8px] font-black text-stone-700 uppercase">{gc?.nameFR || gc?.name}</span>
         </div>
         <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">2 · Choisir une sous-catégorie</p>
         <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1">
@@ -197,7 +197,7 @@ export function ProductPicker({
               >
                 <Layers className="w-3 h-3 shrink-0" style={{ color }} />
                 <div>
-                  <p className="text-[9px] font-black text-stone-800 uppercase leading-tight">{sc.name}</p>
+                  <p className="text-[9px] font-black text-stone-800 uppercase leading-tight">{sc.nameFR || sc.name}</p>
                   <p className="text-[7px] text-stone-400 font-bold">{count} réf.</p>
                 </div>
               </button>
@@ -534,9 +534,9 @@ export default function StockMovementModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-black text-stone-900 uppercase tracking-tight leading-none truncate">
-                      {selectedStock?.productName}
+                      {selectedStock?.nameFR || selectedStock?.productName}
                     </p>
-                    <p className="text-[7px] font-bold text-stone-400 mt-0.5">{selectedStock?.categoryId}</p>
+                    <p className="text-[7px] font-bold text-stone-400 mt-0.5">{selectedStock?.categoryNameFR || selectedStock?.categoryId}</p>
                   </div>
                 </div>
 

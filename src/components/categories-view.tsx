@@ -309,40 +309,29 @@ export default function CategoriesView({
   const [renameGenCatName, setRenameGenCatName] = useState('');
 
   const handleSaveRenameSubCat = () => {
-    if (!user || !firestore || !editingSubCategory || !renameSubCatName.trim()) return;
-    const oldName = editingSubCategory.name;
-    const newName = renameSubCatName.trim().toUpperCase();
-    if (oldName === newName) {
-      setEditingSubCategory(null);
-      return;
-    }
+    if (!user || !firestore || !editingSubCategory) return;
+    const newNameFR = renameSubCatName.trim().toUpperCase();
     const docRef = doc(firestore, 'users', user.uid, 'categories', editingSubCategory.id);
-    updateDocumentNonBlocking(docRef, { name: newName });
+    updateDocumentNonBlocking(docRef, { nameFR: newNameFR || null });
     
-    // Also update all articles referencing this categoryId by name
-    const catArticles = articles.filter(a => a.categoryId === oldName);
-    catArticles.forEach(a => {
-      const aRef = doc(firestore, 'users', user.uid, 'articles', a.id);
-      updateDocumentNonBlocking(aRef, { categoryId: newName });
+    toast({ 
+      title: '✅ Nom commercial français enregistré', 
+      description: newNameFR ? `${editingSubCategory.name} → ${newNameFR}` : `Nom français réinitialisé pour ${editingSubCategory.name}` 
     });
-
-    toast({ title: '✅ Sous-catégorie renommée', description: `${oldName} → ${newName} (${catArticles.length} article(s) mis à jour)` });
     setEditingSubCategory(null);
     setRenameSubCatName('');
   };
 
   const handleSaveRenameGenCat = () => {
-    if (!user || !firestore || !editingGeneralCategory || !renameGenCatName.trim()) return;
-    const oldName = editingGeneralCategory.name;
-    const newName = renameGenCatName.trim().toUpperCase();
-    if (oldName === newName) {
-      setEditingGeneralCategory(null);
-      return;
-    }
+    if (!user || !firestore || !editingGeneralCategory) return;
+    const newNameFR = renameGenCatName.trim().toUpperCase();
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingGeneralCategory.id);
-    updateDocumentNonBlocking(docRef, { name: newName });
+    updateDocumentNonBlocking(docRef, { nameFR: newNameFR || null });
 
-    toast({ title: '✅ Pôle renommé', description: `${oldName} → ${newName}` });
+    toast({ 
+      title: '✅ Nom commercial français du pôle enregistré', 
+      description: newNameFR ? `${editingGeneralCategory.name} → ${newNameFR}` : `Nom français réinitialisé pour ${editingGeneralCategory.name}` 
+    });
     setEditingGeneralCategory(null);
     setRenameGenCatName('');
   };
@@ -379,6 +368,7 @@ export default function CategoriesView({
 
   const [isCustomsModalOpen, setIsCustomsModalOpen] = useState(false);
   const [customsForm, setCustomsForm] = useState({
+    nameFR: '',
     hsCode: '',
     customsValuePerKg: '',
     importDutyRate: '',
@@ -423,6 +413,7 @@ export default function CategoriesView({
   useEffect(() => {
     if (currentCategoryObj && isCustomsModalOpen) {
       setCustomsForm({
+        nameFR: currentCategoryObj.nameFR || '',
         hsCode: currentCategoryObj.hsCode || '',
         customsValuePerKg: currentCategoryObj.customsValuePerKg ?? '',
         importDutyRate: currentCategoryObj.importDutyRate ?? '',
@@ -619,6 +610,7 @@ export default function CategoriesView({
     });
 
     const payload: Record<string, any> = {
+      nameFR: customsForm.nameFR?.trim() ? customsForm.nameFR.trim().toUpperCase() : null,
       hsCode: customsForm.hsCode || null,
       customsValuePerKg: customsForm.customsValuePerKg === '' ? null : Number(customsForm.customsValuePerKg),
       importDutyRate: customsForm.importDutyRate === '' ? null : Number(customsForm.importDutyRate),
@@ -760,6 +752,7 @@ export default function CategoriesView({
 
       stats[gc.id] = { 
         name: gc.name,
+        nameFR: gc.nameFR,
         line: (gc as any).line,
         count: groupArticles.length, 
         totalValue,
@@ -800,8 +793,11 @@ export default function CategoriesView({
           totalValue 
         };
       })
-      .filter(sc => sc.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      .filter(sc => 
+        (sc.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        (sc.nameFR || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+      )
+      .sort((a, b) => ((a.nameFR || a.name) || '').localeCompare((b.nameFR || b.name) || ''));
   }, [selectedGeneralCategoryId, subCategories, articles, debouncedSearchTerm, todayStr]);
 
   const currentArticles = useMemo(() => {
@@ -2139,6 +2135,20 @@ export default function CategoriesView({
               <p className="text-amber-200 text-[9px] font-bold uppercase tracking-widest mt-1">Audit Analytique Produit — {selectedCategory}</p>
             </div>
             <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center justify-between">
+                  <span>Nom en Français (pour le Stock)</span>
+                  <span className="text-[8px] text-stone-400 font-bold lowercase">optionnel</span>
+                </Label>
+                <Input
+                  placeholder="EX: FERMETURES ÉCLAIR NYLON, DOUBLURE SATIN..."
+                  className="h-10 text-[11px] font-bold border-amber-200 focus:ring-amber-600 bg-amber-50/40 uppercase"
+                  value={customsForm.nameFR}
+                  onChange={e => setCustomsForm(p => ({ ...p, nameFR: e.target.value }))}
+                />
+                <p className="text-[8px] text-stone-400 font-medium">Ce nom sera utilisé pour l'affichage dans le stock et la vente sans modifier le nom technique.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Code HS</Label>
@@ -2534,13 +2544,18 @@ export default function CategoriesView({
             <div>
               <p className="text-[9px] font-black text-stone-900 uppercase tracking-[0.2em] mb-0.5">Exploration du Pôle</p>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-black text-stone-950 uppercase tracking-tight leading-none">{parent?.name}</h2>
+                <div>
+                  <h2 className="text-2xl font-black text-stone-950 uppercase tracking-tight leading-none">{parent?.nameFR || parent?.name}</h2>
+                  {parent?.nameFR && parent?.nameFR !== parent?.name && (
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mt-0.5">({parent?.name})</p>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
-                  title="Renommer le pôle"
-                  onClick={() => { if (parent) { setEditingGeneralCategory(parent); setRenameGenCatName(parent.name); } }}
+                  title="Configurer le nom français du pôle"
+                  onClick={() => { if (parent) { setEditingGeneralCategory(parent); setRenameGenCatName(parent.nameFR || ''); } }}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
@@ -2611,8 +2626,8 @@ export default function CategoriesView({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="Renommer la sous-catégorie"
-                        onClick={(e) => { e.stopPropagation(); if (catObj) { setEditingSubCategory(catObj); setRenameSubCatName(catObj.name); } }}
+                        title="Configurer le nom français"
+                        onClick={(e) => { e.stopPropagation(); if (catObj) { setEditingSubCategory(catObj); setRenameSubCatName(catObj.nameFR || ''); } }}
                       >
                         <Pencil className="w-3 h-3" />
                       </Button>
@@ -2645,7 +2660,16 @@ export default function CategoriesView({
                       <Badge className="bg-stone-900 text-white text-[8px] font-black uppercase px-2">{sc.count}</Badge>
                     </div>
                   </div>
-                    <h3 className="font-black text-[12px] text-stone-950 uppercase leading-tight mb-3 line-clamp-2 min-h-[2rem] group-hover:text-black">{sc.name}</h3>
+                  <div className="mb-3 min-h-[2rem]">
+                    <h3 className="font-black text-[12px] text-stone-950 uppercase leading-tight group-hover:text-black">
+                      {sc.nameFR || sc.name}
+                    </h3>
+                    {sc.nameFR && sc.nameFR !== sc.name && (
+                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-tight mt-0.5">
+                        {sc.name}
+                      </p>
+                    )}
+                  </div>
 
                   {alertVisible && (
                     <div className={`mb-2 px-2.5 py-1.5 rounded-xl border ${alertColor.border} ${alertColor.light} flex items-center gap-2`}>
@@ -2813,30 +2837,30 @@ export default function CategoriesView({
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal renommer sous-catégorie ── */}
+      {/* ── Modal nom français de la sous-catégorie ── */}
       <Dialog open={!!editingSubCategory} onOpenChange={open => { if (!open) { setEditingSubCategory(null); setRenameSubCatName(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer la sous-catégorie</DialogTitle>
-            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingSubCategory?.name}</p>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Nom Français de la Famille</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Code / Nom technique : {editingSubCategory?.name}</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom de la sous-catégorie</Label>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom Commercial en Français (Stock)</Label>
               <Input
                 value={renameSubCatName}
                 onChange={e => setRenameSubCatName(e.target.value)}
-                placeholder="Ex: NYLON ZIPPER"
-                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                placeholder="Ex: FERMETURES ÉCLAIR NYLON, BOUTONS..."
+                className="h-11 border-amber-200 bg-amber-50/30 font-bold rounded-xl text-xs uppercase"
                 autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveRenameSubCat(); }}
               />
+              <p className="text-[9px] text-stone-400 font-medium">Ce nom sera utilisé pour l'affichage dans le stock sans modifier le nom technique d'origine.</p>
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingSubCategory(null); setRenameSubCatName(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                disabled={!renameSubCatName.trim()}
                 onClick={handleSaveRenameSubCat}
               >
                 Enregistrer
@@ -2846,30 +2870,30 @@ export default function CategoriesView({
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal renommer pôle ── */}
+      {/* ── Modal nom français du pôle ── */}
       <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer le Pôle</DialogTitle>
-            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingGeneralCategory?.name}</p>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Nom Français du Pôle</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Pôle d'origine : {editingGeneralCategory?.name}</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom du Pôle</Label>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom Commercial en Français (Stock)</Label>
               <Input
                 value={renameGenCatName}
                 onChange={e => setRenameGenCatName(e.target.value)}
-                placeholder="Ex: ZIPPER NYLON"
-                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                placeholder="Ex: FERMETURES ÉCLAIR, TISSUS..."
+                className="h-11 border-amber-200 bg-amber-50/30 font-bold rounded-xl text-xs uppercase"
                 autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveRenameGenCat(); }}
               />
+              <p className="text-[9px] text-stone-400 font-medium">Ce nom sera utilisé pour l'affichage dans le stock sans modifier le nom d'origine.</p>
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                disabled={!renameGenCatName.trim()}
                 onClick={handleSaveRenameGenCat}
               >
                 Enregistrer
@@ -2987,7 +3011,16 @@ export default function CategoriesView({
                         <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Articles</p>
                       </div>
                     </div>
-                    <h3 className="text-sm font-black text-stone-950 uppercase leading-none mb-6 group-hover:text-black tracking-tight">{stat.name}</h3>
+                    <div className="mb-6">
+                      <h3 className="text-sm font-black text-stone-950 uppercase leading-none group-hover:text-black tracking-tight">
+                        {stat.nameFR || stat.name}
+                      </h3>
+                      {stat.nameFR && stat.nameFR !== stat.name && (
+                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mt-1">
+                          {stat.name}
+                        </p>
+                      )}
+                    </div>
                     <div className="space-y-2 pt-5 border-t border-stone-50">
                       <div className="flex justify-between items-center text-[9px]">
                         <span className="text-stone-400 font-black uppercase flex items-center gap-1">
@@ -3012,8 +3045,8 @@ export default function CategoriesView({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-all"
-                          title="Renommer le pôle"
-                          onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) { setEditingGeneralCategory(catObj); setRenameGenCatName(catObj.name); } }}
+                          title="Configurer le nom français du pôle"
+                          onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) { setEditingGeneralCategory(catObj); setRenameGenCatName(catObj.nameFR || ''); } }}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
@@ -3039,30 +3072,30 @@ export default function CategoriesView({
         ))}
       </div>
 
-      {/* ── Modal renommer pôle ── */}
+      {/* ── Modal nom français du pôle ── */}
       <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Renommer le Pôle</DialogTitle>
-            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">{editingGeneralCategory?.name}</p>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Nom Français du Pôle</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Pôle d'origine : {editingGeneralCategory?.name}</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom du Pôle</Label>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom Commercial en Français (Stock)</Label>
               <Input
                 value={renameGenCatName}
                 onChange={e => setRenameGenCatName(e.target.value)}
-                placeholder="Ex: ZIPPER NYLON"
-                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                placeholder="Ex: FERMETURES ÉCLAIR, TISSUS..."
+                className="h-11 border-amber-200 bg-amber-50/30 font-bold rounded-xl text-xs uppercase"
                 autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveRenameGenCat(); }}
               />
+              <p className="text-[9px] text-stone-400 font-medium">Ce nom sera utilisé pour l'affichage dans le stock sans modifier le nom d'origine.</p>
             </div>
             <div className="flex gap-2 pt-2">
               <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                disabled={!renameGenCatName.trim()}
                 onClick={handleSaveRenameGenCat}
               >
                 Enregistrer

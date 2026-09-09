@@ -183,7 +183,7 @@ function ProductFiche({
     groupedVariantsDetails.forEach(v => {
       let groupKey = 'STANDARD';
       if (hasQualities) {
-        groupKey = v.quality || [v.gsm ? `${v.gsm}g/m²` : '', v.fabricWidth ? `${v.fabricWidth}cm` : '', v.rollLength ? `${v.rollLength}${v.rollLengthUnit || 'm'}` : ''].filter(Boolean).join(' · ') || (v.size || 'Qualité Standard');
+        groupKey = v.quality || [v.gsm ? `${v.gsm}g/m²` : '', v.fabricWidth ? `${v.fabricWidth}cm` : '', v.rollLength ? `${v.rollLength}${v.rollLengthUnit || 'm'}` : ''].filter(Boolean).join(' · ') || (v.size || 'Standard');
       } else {
         groupKey = v.size || 'STANDARD';
       }
@@ -221,7 +221,12 @@ function ProductFiche({
         <div className="h-1.5 w-full" style={{ background: color }} />
         <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest">{article.categoryId}</p>
+            <p className="text-[10px] font-black text-stone-900 uppercase tracking-widest">
+              {article.categoryNameFR || article.categoryId}
+              {article.categoryNameFR && article.categoryNameFR !== article.categoryId && (
+                <span className="text-stone-400 font-bold ml-1.5 lowercase">({article.categoryId})</span>
+              )}
+            </p>
             <h3 className="text-2xl font-black text-stone-900 uppercase tracking-tighter mt-1">{article.nameFR || article.productName}</h3>
             {article.nameFR && article.nameFR.toLowerCase() !== article.productName.toLowerCase() && (
               <p className="text-[10px] font-bold text-stone-400 uppercase mt-0.5">{article.productName}</p>
@@ -277,7 +282,7 @@ function ProductFiche({
                     : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50 hover:text-stone-700'
                 }`}
               >
-                {hasQualities ? `Qualité : ${groupName}` : `Taille : ${groupName}`}
+                {hasQualities ? groupName : `Taille : ${groupName}`}
               </button>
             ))}
           </div>
@@ -327,7 +332,7 @@ function ProductFiche({
             <Package className="w-4 h-4 text-stone-500" />
             <h4 className="text-[10px] font-black text-stone-700 uppercase tracking-widest">
               {hasQualities 
-                ? `Couleurs & Variantes pour la qualité : ${selectedGroup}`
+                ? `Couleurs & Variantes · ${selectedGroup}`
                 : selectedGroup === 'STANDARD' ? 'État des Variantes' : `Couleurs pour la taille : ${selectedGroup}`}
             </h4>
           </div>
@@ -649,7 +654,7 @@ function ProductsTable({
                           <>
                             {distinctQualities.length > 1 && (
                               <span className="text-[9px] font-black bg-violet-100 border border-violet-200 text-violet-700 px-2 py-0.5 rounded-md uppercase">
-                                {distinctQualities.length} qualités
+                                {distinctQualities.length} déclinaisons
                               </span>
                             )}
                             {distinctQualities.length === 1 && (
@@ -819,7 +824,7 @@ export default function StockFiches({
     const lowerSearch = searchGenCat.toLowerCase().trim();
 
     genCatsWithStock.forEach(gc => {
-      if (lowerSearch && !gc.name.toLowerCase().includes(lowerSearch)) return;
+      if (lowerSearch && !gc.name.toLowerCase().includes(lowerSearch) && !(gc.nameFR && gc.nameFR.toLowerCase().includes(lowerSearch))) return;
 
       const catName = (gc.name || '').toLowerCase().trim();
       const explicitLine = (gc as any).line;
@@ -914,7 +919,7 @@ export default function StockFiches({
     return (
       <div className="space-y-6">
         <ProductsTable
-          items={items} subCatName={subCat?.name || selSubCat}
+          items={items} subCatName={subCat?.nameFR || subCat?.name || selSubCat}
           movements={movements} factures={factures}
           onBack={() => setSelSubCat(null)}
           headerProp={
@@ -978,7 +983,10 @@ export default function StockFiches({
           </button>
           <span className="text-stone-200">/</span>
           <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: lineColor }} />
-            <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">{gc?.name}</span>
+            <span className="text-[9px] font-black text-stone-900 uppercase tracking-widest">{gc?.nameFR || gc?.name}</span>
+            {gc?.nameFR && gc.nameFR !== gc.name && (
+              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-tight">({gc.name})</span>
+            )}
           </div>
         </div>
         {subCatsWS.length === 0 ? (
@@ -1010,7 +1018,14 @@ export default function StockFiches({
                       )}
                     </div>
                     <div>
-                      <h3 className="text-[12px] font-black text-stone-950 uppercase tracking-tight line-clamp-2">{sc.name}</h3>
+                      <h3 className="text-[12px] font-black text-stone-950 uppercase tracking-tight line-clamp-2">
+                        {sc.nameFR || sc.name}
+                      </h3>
+                      {sc.nameFR && sc.nameFR !== sc.name && (
+                        <p className="text-[8px] font-bold text-stone-400 uppercase tracking-tight mt-0.5">
+                          {sc.name}
+                        </p>
+                      )}
                       <p className="text-[8px] text-stone-400 font-bold mt-0.5">{items.length} référence{items.length !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="space-y-1 pt-2 border-t border-stone-50">
@@ -1206,8 +1221,13 @@ export default function StockFiches({
                           </div>
                           <div>
                             <h3 className="text-[12px] font-black text-stone-950 uppercase tracking-tight line-clamp-2 min-h-[2rem]">
-                              {gc.name}
+                              {gc.nameFR || gc.name}
                             </h3>
+                            {gc.nameFR && gc.nameFR !== gc.name && (
+                              <p className="text-[8px] font-bold text-stone-400 uppercase tracking-wider mt-0.5">
+                                {gc.name}
+                              </p>
+                            )}
                             <p className="text-[8px] text-stone-400 font-bold mt-0.5">
                               {subCount} famille{subCount !== 1 ? 's' : ''} · {gcItems.length} ref.
                             </p>

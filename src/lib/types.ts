@@ -15,11 +15,14 @@ export type Store = {
 export type GeneralCategory = {
   id: string;
   name: string;
+  nameFR?: string;
+  line?: string;
 };
 
 export type Category = {
   id: string;
   name: string;
+  nameFR?: string;
   generalCategoryId?: string;
   hsCode?: string;
   customsValuePerKg?: number;
@@ -176,6 +179,8 @@ export type StockMovement = {
 export type StockItem = {
   articleId: string;
   categoryId: string;
+  categoryNameFR?: string;
+  poleNameFR?: string;
   productName: string;
   nameFR?: string;
   color?: string;

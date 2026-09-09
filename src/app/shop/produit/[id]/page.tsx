@@ -226,6 +226,7 @@ function MultiVariantSelector({
   const handleSelectColor = (v: (typeof safeVariants)[0]) => {
     setSelectedVariantId(v._safeId);
     onVariantSelect?.(v, v.size || selectedSize || 'Standard');
+    setSingleQty(minOrderQty || 1);
   };
 
   // Quantity helpers
@@ -243,6 +244,7 @@ function MultiVariantSelector({
   // Single Add to Cart
   const handleAddSingleToCart = () => {
     if (!activeVariant) return;
+    const vKey = activeVariant.id || activeVariant._safeId || [activeVariant.model, activeVariant.size, activeVariant.color].filter(Boolean).join('__');
     const item: CartItem = {
       productId,
       productName,
@@ -261,11 +263,12 @@ function MultiVariantSelector({
         modelAr: activeVariant.modelAr,
         size: activeVariant.size,
         sizeAr: activeVariant.sizeAr,
-        variantId: activeVariant.id,
+        variantId: vKey,
       },
       maxStock: activeVariant.stock,
     };
     onAdd([item]);
+    setSingleQty(minOrderQty || 1);
   };
 
   // Batch Add to Cart
@@ -274,6 +277,7 @@ function MultiVariantSelector({
     safeVariants.forEach(v => {
       const q = qtys[v._safeId] || 0;
       if (q > 0) {
+        const vKey = v.id || v._safeId || [v.model, v.size, v.color].filter(Boolean).join('__');
         items.push({
           productId,
           productName,
@@ -292,7 +296,7 @@ function MultiVariantSelector({
             modelAr: v.modelAr,
             size: v.size,
             sizeAr: v.sizeAr,
-            variantId: v.id,
+            variantId: vKey,
           },
           maxStock: v.stock,
         });
@@ -958,6 +962,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   };
 
   const handleAddToCart = () => {
+    const vKey = selectedVariant
+      ? (selectedVariant.id || (selectedVariant as any)._safeId || [selectedVariant.model, selectedVariant.size, selectedVariant.color].filter(Boolean).join('__'))
+      : undefined;
     addItem({
       productId: product.id,
       productName: product.name,
@@ -976,10 +983,11 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         modelAr: selectedVariant.modelAr,
         size: selectedVariant.size, 
         sizeAr: selectedVariant.sizeAr, 
-        variantId: selectedVariant.id 
+        variantId: vKey,
       } : undefined,
       maxStock: stock,
     });
+    setQty(product.minOrderQty || 1);
     setAdded(true);
     setTimeout(() => { setAdded(false); openCart(); }, 1200);
   };

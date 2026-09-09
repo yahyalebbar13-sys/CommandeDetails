@@ -42,7 +42,10 @@ function CartProductGroup({
   const hasMultipleVariants = items.length > 1 || (items.length === 1 && first.variant?.color);
 
   const handleRemoveAll = () => {
-    items.forEach(item => onRemove(item.productId, item.variant?.variantId));
+    items.forEach(item => {
+      const vKey = item.variant?.variantId || [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join('__');
+      onRemove(item.productId, vKey || undefined);
+    });
   };
 
   return (
@@ -94,10 +97,11 @@ function CartProductGroup({
             const colorLabel = language === 'ar' && item.variant?.colorAr ? item.variant.colorAr : item.variant?.color;
             const sizeLabel = language === 'ar' && item.variant?.sizeAr ? item.variant.sizeAr : item.variant?.size;
             const label = [colorLabel, sizeLabel].filter(Boolean).join(' · ') || 'Standard';
+            const vKey = item.variant?.variantId || [item.variant?.model, item.variant?.size, item.variant?.color].filter(Boolean).join('__');
 
             return (
               <div
-                key={item.variant?.variantId || item.productId}
+                key={vKey ? `${item.productId}-${vKey}` : item.productId}
                 className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-1.5 pr-0.5 py-0.5 text-xs"
               >
                 {/* Color dot */}
@@ -113,7 +117,7 @@ function CartProductGroup({
                 {/* Qty stepper */}
                 <div className="flex items-center ml-0.5 bg-white border border-gray-200 rounded-full overflow-hidden">
                   <button
-                    onClick={() => onUpdateQty(item.productId, item.quantity - 1, item.variant?.variantId)}
+                    onClick={() => onUpdateQty(item.productId, item.quantity - 1, vKey || undefined)}
                     disabled={item.quantity <= 1}
                     className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
                   >
@@ -121,7 +125,7 @@ function CartProductGroup({
                   </button>
                   <span className="w-5 text-center text-[11px] font-bold text-gray-800 tabular-nums">{item.quantity}</span>
                   <button
-                    onClick={() => onUpdateQty(item.productId, item.quantity + 1, item.variant?.variantId)}
+                    onClick={() => onUpdateQty(item.productId, item.quantity + 1, vKey || undefined)}
                     disabled={item.quantity >= item.maxStock}
                     className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30 touch-manipulation"
                   >
@@ -131,7 +135,7 @@ function CartProductGroup({
 
                 {/* Remove single variant */}
                 <button
-                  onClick={() => onRemove(item.productId, item.variant?.variantId)}
+                  onClick={() => onRemove(item.productId, vKey || undefined)}
                   className="w-4 h-4 flex items-center justify-center text-gray-300 hover:text-red-500 rounded-full touch-manipulation"
                 >
                   <X className="w-2.5 h-2.5" />
@@ -145,7 +149,10 @@ function CartProductGroup({
         <div className="flex items-center justify-between mt-1">
           <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shadow-sm">
             <button
-              onClick={() => onUpdateQty(first.productId, first.quantity - 1, first.variant?.variantId)}
+              onClick={() => {
+                const vKey = first.variant?.variantId || [first.variant?.model, first.variant?.size, first.variant?.color].filter(Boolean).join('__');
+                onUpdateQty(first.productId, first.quantity - 1, vKey || undefined);
+              }}
               disabled={first.quantity <= 1}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation"
               aria-label="Diminuer"
@@ -156,7 +163,10 @@ function CartProductGroup({
               {first.quantity}
             </span>
             <button
-              onClick={() => onUpdateQty(first.productId, first.quantity + 1, first.variant?.variantId)}
+              onClick={() => {
+                const vKey = first.variant?.variantId || [first.variant?.model, first.variant?.size, first.variant?.color].filter(Boolean).join('__');
+                onUpdateQty(first.productId, first.quantity + 1, vKey || undefined);
+              }}
               disabled={first.quantity >= first.maxStock}
               className="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed touch-manipulation"
               aria-label="Augmenter"

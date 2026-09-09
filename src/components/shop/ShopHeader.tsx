@@ -26,6 +26,7 @@ import { useShopCart } from "@/contexts/shop-cart-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useShopProducts } from "@/contexts/shop-products-context";
 import SmartSearch from "@/components/shop/SmartSearch";
+import { formatPrice } from "@/lib/shop-utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface NavLink {
@@ -86,101 +87,39 @@ export default function ShopHeader() {
     return (mobileSelectedCatSlug ? SHOP_CATEGORIES.find(c => c.slug === mobileSelectedCatSlug) : null) || SHOP_CATEGORIES[0] || null;
   }, [mobileSelectedCatSlug, SHOP_CATEGORIES]);
 
-  // Strictly REAL subcategories & REAL products for Desktop Mega Menu (NO fake/dummy items)
-  const activeCategoryItems = useMemo(() => {
+  // Strictly REAL subcategories & REAL products for Desktop Mega Menu
+  const desktopSubcategories = useMemo(() => {
     if (!activeCategory) return [];
+    return allContextCategories.filter((c) => c.parentSlug === activeCategory.slug);
+  }, [activeCategory, allContextCategories]);
 
-    const subcats = allContextCategories.filter((c) => c.parentSlug === activeCategory.slug);
-    const prods = (allProducts || []).filter(
+  const desktopProducts = useMemo(() => {
+    if (!activeCategory) return [];
+    return (allProducts || []).filter(
       (p) =>
         p.categorySlug === activeCategory.slug ||
         p.additionalCategorySlugs?.includes(activeCategory.slug) ||
         p.categoryAliases?.some((a) => a.slug === activeCategory.slug) ||
-        subcats.some((s) => s.slug === p.categorySlug)
+        desktopSubcategories.some((s) => s.slug === p.categorySlug)
     );
+  }, [activeCategory, allProducts, desktopSubcategories]);
 
-    const items: Array<{
-      id: string;
-      name: string;
-      href: string;
-      image?: string;
-      isHot?: boolean;
-      icon?: string;
-    }> = [];
-
-    // 1. Real subcategories first
-    subcats.forEach((s) => {
-      items.push({
-        id: `sub-${s.id || s.slug}`,
-        name: language === 'ar' ? (s.nameAr || s.name) : s.name,
-        href: `/shop/categorie/${s.slug}`,
-        image: s.image || activeCategory.image,
-        isHot: Boolean(s.priority && s.priority >= 80),
-        icon: s.icon,
-      });
-    });
-
-    // 2. Real products ONLY
-    prods.forEach((p) => {
-      items.push({
-        id: `prod-${p.id}`,
-        name: language === 'ar' ? (p.nameAr || p.name) : p.name,
-        href: `/shop/produit/${p.id}`,
-        image: p.images?.[0] || activeCategory.image,
-        isHot: Boolean(p.isFeatured || p.isPromo),
-      });
-    });
-
-    return items;
-  }, [activeCategory, allContextCategories, allProducts, language]);
-
-  // Strictly REAL subcategories & REAL products for Mobile Category Explorer (NO fake/dummy items)
-  const mobileCategoryItems = useMemo(() => {
+  // Strictly REAL subcategories & REAL products for Mobile Category Explorer
+  const mobileSubcategories = useMemo(() => {
     if (!mobileActiveCat) return [];
+    return allContextCategories.filter((c) => c.parentSlug === mobileActiveCat.slug);
+  }, [mobileActiveCat, allContextCategories]);
 
-    const subcats = allContextCategories.filter((c) => c.parentSlug === mobileActiveCat.slug);
-    const prods = (allProducts || []).filter(
+  const mobileProducts = useMemo(() => {
+    if (!mobileActiveCat) return [];
+    return (allProducts || []).filter(
       (p) =>
         p.categorySlug === mobileActiveCat.slug ||
         p.additionalCategorySlugs?.includes(mobileActiveCat.slug) ||
         p.categoryAliases?.some((a) => a.slug === mobileActiveCat.slug) ||
-        subcats.some((s) => s.slug === p.categorySlug)
+        mobileSubcategories.some((s) => s.slug === p.categorySlug)
     );
-
-    const items: Array<{
-      id: string;
-      name: string;
-      href: string;
-      image?: string;
-      isHot?: boolean;
-      icon?: string;
-    }> = [];
-
-    // 1. Real subcategories first
-    subcats.forEach((s) => {
-      items.push({
-        id: `mob-sub-${s.id || s.slug}`,
-        name: language === 'ar' ? (s.nameAr || s.name) : s.name,
-        href: `/shop/categorie/${s.slug}`,
-        image: s.image || mobileActiveCat.image,
-        isHot: Boolean(s.priority && s.priority >= 80),
-        icon: s.icon,
-      });
-    });
-
-    // 2. Real products ONLY
-    prods.forEach((p) => {
-      items.push({
-        id: `mob-prod-${p.id}`,
-        name: language === 'ar' ? (p.nameAr || p.name) : p.name,
-        href: `/shop/produit/${p.id}`,
-        image: p.images?.[0] || mobileActiveCat.image,
-        isHot: Boolean(p.isFeatured || p.isPromo),
-      });
-    });
-
-    return items;
-  }, [mobileActiveCat, allContextCategories, allProducts, language]);
+  }, [mobileActiveCat, allProducts, mobileSubcategories]);
 
   // Dynamic position updater for Mega Menu & Notch
   useEffect(() => {
@@ -530,43 +469,175 @@ export default function ShopHeader() {
                               )}
 
                               {/* Circular Items Grid (5 columns per row, Temu style) */}
-                              {activeCategoryItems.length > 0 ? (
-                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-x-3 gap-y-5">
-                                  {activeCategoryItems.map((item) => (
-                                    <Link
-                                      key={item.id}
-                                      href={item.href}
-                                      onClick={() => setIsCategoriesOpen(false)}
-                                      className="group flex flex-col items-center cursor-pointer text-center"
-                                    >
-                                      {/* Circle Container */}
-                                      <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200 group-hover:border-[#C8102E] relative flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-2xs group-hover:shadow-md">
-                                        {item.image ? (
-                                          <Image
-                                            src={item.image}
-                                            alt={item.name}
-                                            fill
-                                            sizes="88px"
-                                            className="object-cover group-hover:scale-110 transition-transform duration-300"
-                                          />
-                                        ) : (
-                                          <Layers className="w-7 h-7 text-neutral-400" />
-                                        )}
-
-                                        {/* Orange HOT Badge */}
-                                        {item.isHot && (
-                                          <span className="absolute top-0.5 right-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs uppercase tracking-tight z-10 ring-1 ring-white">
-                                            HOT
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Centered 2-line Label */}
-                                      <span className="mt-2 text-xs font-semibold text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 max-w-[95px] leading-tight transition-colors">
-                                        {item.name}
+                              {/* Content Display: Separated Subcategories and/or Products (Grandes cartes) */}
+                              {desktopSubcategories.length > 0 ? (
+                                <div className="space-y-6">
+                                  {/* 1. Sous-catégories Section */}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                                        {language === 'ar' ? 'الفئات الفرعية' : 'Sous-catégories'}
+                                      </h4>
+                                      <span className="text-[11px] text-neutral-400 font-medium">
+                                        {desktopSubcategories.length} {language === 'ar' ? 'أقسام' : 'rayons'}
                                       </span>
-                                    </Link>
-                                  ))}
+                                    </div>
+                                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                                      {desktopSubcategories.map((sub) => {
+                                        const subName = language === 'ar' ? (sub.nameAr || sub.name) : sub.name;
+                                        const subImg = sub.image || activeCategory.image;
+                                        return (
+                                          <Link
+                                            key={sub.id || sub.slug}
+                                            href={`/shop/categorie/${sub.slug}`}
+                                            onClick={() => setIsCategoriesOpen(false)}
+                                            className="group flex flex-col items-center cursor-pointer text-center p-2 rounded-xl hover:bg-neutral-50 border border-transparent hover:border-neutral-200 transition-all"
+                                          >
+                                            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200 group-hover:border-[#C8102E] relative flex items-center justify-center transition-all group-hover:scale-105 shadow-2xs">
+                                              {subImg ? (
+                                                <Image
+                                                  src={subImg}
+                                                  alt={subName}
+                                                  fill
+                                                  sizes="64px"
+                                                  className="object-cover group-hover:scale-110 transition-transform duration-300"
+                                                />
+                                              ) : (
+                                                <Layers className="w-6 h-6 text-neutral-400" />
+                                              )}
+                                            </div>
+                                            <span className="mt-1.5 text-xs font-semibold text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 leading-tight transition-colors">
+                                              {subName}
+                                            </span>
+                                          </Link>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* 2. Produits de la catégorie (Grandes Cartes séparées) */}
+                                  {desktopProducts.length > 0 && (
+                                    <div className="pt-4 border-t border-neutral-100">
+                                      <div className="flex items-center justify-between mb-3">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                                          {language === 'ar' ? 'المنتجات المميزة' : 'Sélection de produits'}
+                                        </h4>
+                                        <span className="text-[11px] text-neutral-400 font-medium">
+                                          {desktopProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3.5">
+                                        {desktopProducts.slice(0, 8).map((p) => {
+                                          const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                                          const pImg = p.images?.[0] || activeCategory.image;
+                                          const hasPrice = typeof p.price === 'number' && p.price > 0;
+                                          return (
+                                            <Link
+                                              key={p.id}
+                                              href={`/shop/produit/${p.id}`}
+                                              onClick={() => setIsCategoriesOpen(false)}
+                                              className="group flex flex-col bg-white rounded-xl border border-neutral-200 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all cursor-pointer"
+                                            >
+                                              <div className="relative aspect-square bg-neutral-50 overflow-hidden">
+                                                {pImg ? (
+                                                  <Image
+                                                    src={pImg}
+                                                    alt={pName}
+                                                    fill
+                                                    sizes="160px"
+                                                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                                  />
+                                                ) : (
+                                                  <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
+                                                    <Layers className="w-6 h-6" />
+                                                  </div>
+                                                )}
+                                                {p.isPromo && (
+                                                  <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
+                                                    PROMO
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="p-2.5 flex flex-col flex-1 justify-between">
+                                                <p className="text-xs font-bold text-neutral-800 line-clamp-2 leading-snug group-hover:text-[#C8102E] transition-colors">
+                                                  {pName}
+                                                </p>
+                                                <div className="mt-2 pt-1 border-t border-neutral-100 flex items-center justify-between">
+                                                  <span className="text-xs font-black text-[#C8102E]">
+                                                    {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                                  </span>
+                                                  <span className="text-[10px] font-semibold text-neutral-400 group-hover:text-neutral-900 transition-colors">
+                                                    {language === 'ar' ? 'عرض ←' : 'Voir →'}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </Link>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : desktopProducts.length > 0 ? (
+                                /* S'il n'y a QUE des produits et PAS de sous-catégories: Grandes cartes directes! */
+                                <div>
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                                      {language === 'ar' ? 'جميع المنتجات' : 'Tous les produits'}
+                                    </h4>
+                                    <span className="text-[11px] text-neutral-400 font-medium">
+                                      {desktopProducts.length} {language === 'ar' ? 'منتج' : 'produits'}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3.5">
+                                    {desktopProducts.slice(0, 8).map((p) => {
+                                      const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                                      const pImg = p.images?.[0] || activeCategory.image;
+                                      const hasPrice = typeof p.price === 'number' && p.price > 0;
+                                      return (
+                                        <Link
+                                          key={p.id}
+                                          href={`/shop/produit/${p.id}`}
+                                          onClick={() => setIsCategoriesOpen(false)}
+                                          className="group flex flex-col bg-white rounded-xl border border-neutral-200 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all cursor-pointer"
+                                        >
+                                          <div className="relative aspect-square bg-neutral-50 overflow-hidden">
+                                            {pImg ? (
+                                              <Image
+                                                src={pImg}
+                                                alt={pName}
+                                                fill
+                                                sizes="160px"
+                                                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                              />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
+                                                <Layers className="w-6 h-6" />
+                                              </div>
+                                            )}
+                                            {p.isPromo && (
+                                              <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
+                                                PROMO
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="p-2.5 flex flex-col flex-1 justify-between">
+                                            <p className="text-xs font-bold text-neutral-800 line-clamp-2 leading-snug group-hover:text-[#C8102E] transition-colors">
+                                              {pName}
+                                            </p>
+                                            <div className="mt-2 pt-1 border-t border-neutral-100 flex items-center justify-between">
+                                              <span className="text-xs font-black text-[#C8102E]">
+                                                {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                              </span>
+                                              <span className="text-[10px] font-semibold text-neutral-400 group-hover:text-neutral-900 transition-colors">
+                                                {language === 'ar' ? 'عرض ←' : 'Voir →'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </Link>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               ) : activeCategory ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center bg-neutral-50/60 rounded-2xl border border-dashed border-neutral-200 p-6 my-4">
@@ -1074,43 +1145,175 @@ export default function ShopHeader() {
                     </Link>
                   </div>
 
-                  {/* Circular Items Grid */}
-                  {mobileCategoryItems.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-x-2 gap-y-4">
-                      {mobileCategoryItems.map((item) => (
-                        <Link
-                          key={item.id}
-                          href={item.href}
-                          onClick={() => setIsMobileCatExplorerOpen(false)}
-                          className="group flex flex-col items-center text-center cursor-pointer"
-                        >
-                          {/* Circle */}
-                          <div className="w-16 h-16 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200/90 group-hover:border-[#C8102E] relative flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs">
-                            {item.image ? (
-                              <Image
-                                src={item.image}
-                                alt={item.name}
-                                fill
-                                sizes="64px"
-                                className="object-cover group-hover:scale-110 transition-transform duration-300"
-                              />
-                            ) : (
-                              <Layers className="w-6 h-6 text-neutral-400" />
-                            )}
-
-                            {item.isHot && (
-                              <span className="absolute top-0 right-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[8px] font-black px-1 rounded-full shadow-2xs uppercase z-10 ring-1 ring-white">
-                                HOT
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Title */}
-                          <span className="mt-1.5 text-[11px] font-medium text-neutral-800 group-hover:text-[#C8102E] text-center line-clamp-2 leading-tight">
-                            {item.name}
+                  {/* Content Display: Separated Subcategories and/or Products (Grandes cartes) */}
+                  {mobileSubcategories.length > 0 ? (
+                    <div className="space-y-5">
+                      {/* 1. Sous-catégories Section */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-neutral-400">
+                            {language === 'ar' ? 'الأقسام الفرعية' : 'Sous-catégories'}
                           </span>
-                        </Link>
-                      ))}
+                          <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">
+                            {mobileSubcategories.length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {mobileSubcategories.map((sub) => {
+                            const subName = language === 'ar' ? (sub.nameAr || sub.name) : sub.name;
+                            const subImg = sub.image || mobileActiveCat.image;
+                            return (
+                              <Link
+                                key={sub.id || sub.slug}
+                                href={`/shop/categorie/${sub.slug}`}
+                                onClick={() => setIsMobileCatExplorerOpen(false)}
+                                className="group flex flex-col items-center text-center p-1.5 rounded-xl bg-neutral-50/70 border border-neutral-200/70 hover:border-[#C8102E] transition-all shadow-2xs active:scale-95 cursor-pointer"
+                              >
+                                <div className="w-12 h-12 rounded-xl overflow-hidden bg-white border border-neutral-200/80 relative flex items-center justify-center shadow-2xs">
+                                  {subImg ? (
+                                    <Image
+                                      src={subImg}
+                                      alt={subName}
+                                      fill
+                                      sizes="48px"
+                                      className="object-cover group-hover:scale-110 transition-transform duration-300"
+                                    />
+                                  ) : (
+                                    <Layers className="w-5 h-5 text-neutral-400" />
+                                  )}
+                                </div>
+                                <span className="mt-1 text-[10px] font-bold text-neutral-700 group-hover:text-[#C8102E] line-clamp-2 leading-tight">
+                                  {subName}
+                                </span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2. Produits de la catégorie (Grandes cartes séparées) */}
+                      {mobileProducts.length > 0 && (
+                        <div className="pt-3 border-t border-neutral-100">
+                          <div className="flex items-center justify-between mb-2.5">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-neutral-400">
+                              {language === 'ar' ? 'المنتجات المميزة' : 'Produits du rayon'}
+                            </span>
+                            <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">
+                              {mobileProducts.length}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {mobileProducts.map((p) => {
+                              const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                              const pImg = p.images?.[0] || mobileActiveCat.image;
+                              const hasPrice = typeof p.price === 'number' && p.price > 0;
+                              return (
+                                <Link
+                                  key={p.id}
+                                  href={`/shop/produit/${p.id}`}
+                                  onClick={() => setIsMobileCatExplorerOpen(false)}
+                                  className="group flex flex-col bg-white rounded-2xl border border-neutral-200/80 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all active:scale-[0.98] shadow-2xs"
+                                >
+                                  <div className="relative aspect-square bg-neutral-50 overflow-hidden">
+                                    {pImg ? (
+                                      <Image
+                                        src={pImg}
+                                        alt={pName}
+                                        fill
+                                        sizes="(max-width: 768px) 50vw, 160px"
+                                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
+                                        <Layers className="w-6 h-6" />
+                                      </div>
+                                    )}
+                                    {p.isPromo && (
+                                      <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
+                                        PROMO
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="p-2 flex flex-col flex-1 justify-between">
+                                    <p className="text-[11px] font-bold text-neutral-800 line-clamp-2 leading-snug group-hover:text-[#C8102E] transition-colors">
+                                      {pName}
+                                    </p>
+                                    <div className="mt-1.5 pt-1 border-t border-neutral-100 flex items-center justify-between">
+                                      <span className="text-xs font-black text-[#C8102E]">
+                                        {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                      </span>
+                                      <span className="text-[9px] font-bold text-neutral-400 group-hover:text-neutral-900">
+                                        {language === 'ar' ? 'عرض ←' : 'Voir →'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : mobileProducts.length > 0 ? (
+                    /* S'il n'y a QUE des produits et PAS de sous-catégories: Grandes cartes directes! */
+                    <div>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-neutral-400">
+                          {language === 'ar' ? 'جميع المنتجات' : 'Tous les produits'}
+                        </span>
+                        <span className="text-[10px] font-bold text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">
+                          {mobileProducts.length}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {mobileProducts.map((p) => {
+                          const pName = language === 'ar' ? (p.nameAr || p.name) : p.name;
+                          const pImg = p.images?.[0] || mobileActiveCat.image;
+                          const hasPrice = typeof p.price === 'number' && p.price > 0;
+                          return (
+                            <Link
+                              key={p.id}
+                              href={`/shop/produit/${p.id}`}
+                              onClick={() => setIsMobileCatExplorerOpen(false)}
+                              className="group flex flex-col bg-white rounded-2xl border border-neutral-200/80 overflow-hidden hover:border-[#C8102E] hover:shadow-md transition-all active:scale-[0.98] shadow-2xs"
+                            >
+                              <div className="relative aspect-square bg-neutral-50 overflow-hidden">
+                                {pImg ? (
+                                  <Image
+                                    src={pImg}
+                                    alt={pName}
+                                    fill
+                                    sizes="(max-width: 768px) 50vw, 200px"
+                                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400">
+                                    <Layers className="w-7 h-7" />
+                                  </div>
+                                )}
+                                {p.isPromo && (
+                                  <span className="absolute top-1.5 left-1.5 bg-[#C8102E] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs">
+                                    PROMO
+                                  </span>
+                                )}
+                              </div>
+                              <div className="p-2.5 flex flex-col flex-1 justify-between">
+                                <p className="text-xs font-bold text-neutral-800 line-clamp-2 leading-snug group-hover:text-[#C8102E] transition-colors">
+                                  {pName}
+                                </p>
+                                <div className="mt-2 pt-1.5 border-t border-neutral-100 flex items-center justify-between">
+                                  <span className="text-xs font-black text-[#C8102E]">
+                                    {hasPrice ? formatPrice(p.price) : (language === 'ar' ? 'حسب الطلب' : 'Sur demande')}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-neutral-400 group-hover:text-neutral-900">
+                                    {language === 'ar' ? 'تفاصيل ←' : 'Détails →'}
+                                  </span>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-8 text-center bg-neutral-50 rounded-xl border border-dashed border-neutral-200 p-4">
