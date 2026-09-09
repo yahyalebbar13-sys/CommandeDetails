@@ -797,7 +797,7 @@ export default function CategoriesView({
         (sc.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
         (sc.nameFR || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase())
       )
-      .sort((a, b) => ((a.nameFR || a.name) || '').localeCompare((b.nameFR || b.name) || ''));
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [selectedGeneralCategoryId, subCategories, articles, debouncedSearchTerm, todayStr]);
 
   const currentArticles = useMemo(() => {
@@ -2545,9 +2545,9 @@ export default function CategoriesView({
               <p className="text-[9px] font-black text-stone-900 uppercase tracking-[0.2em] mb-0.5">Exploration du Pôle</p>
               <div className="flex items-center gap-2">
                 <div>
-                  <h2 className="text-2xl font-black text-stone-950 uppercase tracking-tight leading-none">{parent?.nameFR || parent?.name}</h2>
-                  {parent?.nameFR && parent?.nameFR !== parent?.name && (
-                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mt-0.5">({parent?.name})</p>
+                  <h2 className="text-2xl font-black text-stone-950 uppercase tracking-tight leading-none">{parent?.name}</h2>
+                  {parent?.nameFR && (
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mt-0.5">FR (Stock) : {parent.nameFR}</p>
                   )}
                 </div>
                 <Button
@@ -2662,11 +2662,11 @@ export default function CategoriesView({
                   </div>
                   <div className="mb-3 min-h-[2rem]">
                     <h3 className="font-black text-[12px] text-stone-950 uppercase leading-tight group-hover:text-black">
-                      {sc.nameFR || sc.name}
+                      {sc.name}
                     </h3>
-                    {sc.nameFR && sc.nameFR !== sc.name && (
+                    {sc.nameFR && (
                       <p className="text-[9px] font-bold text-stone-400 uppercase tracking-tight mt-0.5">
-                        {sc.name}
+                        FR (Stock) : {sc.nameFR}
                       </p>
                     )}
                   </div>
@@ -3013,11 +3013,11 @@ export default function CategoriesView({
                     </div>
                     <div className="mb-6">
                       <h3 className="text-sm font-black text-stone-950 uppercase leading-none group-hover:text-black tracking-tight">
-                        {stat.nameFR || stat.name}
+                        {stat.name}
                       </h3>
-                      {stat.nameFR && stat.nameFR !== stat.name && (
+                      {stat.nameFR && (
                         <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mt-1">
-                          {stat.name}
+                          FR (Stock) : {stat.nameFR}
                         </p>
                       )}
                     </div>

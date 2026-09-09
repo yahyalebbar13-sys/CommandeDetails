@@ -394,11 +394,11 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                           {/* Name */}
                           <div className="min-h-[2.5rem] mb-3">
                             <h3 className="text-[12px] font-black text-stone-950 uppercase leading-tight tracking-tight group-hover:text-stone-900 line-clamp-2">
-                              {gc.nameFR || gc.name}
+                              {gc.name}
                             </h3>
-                            {gc.nameFR && gc.nameFR.toLowerCase() !== gc.name.toLowerCase() && (
+                            {gc.nameFR && (
                               <p className="text-[9px] font-bold text-stone-400 uppercase tracking-wider mt-0.5 truncate">
-                                {gc.name}
+                                FR (Stock) : {gc.nameFR}
                               </p>
                             )}
                           </div>
