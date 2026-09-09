@@ -46,7 +46,7 @@ export default function ShopPage() {
             </h1>
             <p className="text-white/60 text-xs sm:text-sm mb-4 max-w-sm">{t('hero_subtitle')}</p>
             <Link
-              href="/shop/categories"
+              href="/shop/boutique"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-lg touch-manipulation"
               style={{ background: 'linear-gradient(135deg, #C8102E, #a00d25)' }}
             >

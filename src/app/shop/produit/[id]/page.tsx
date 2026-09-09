@@ -1021,7 +1021,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </button>
             <Link href="/shop" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</Link>
             <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0" />
-            <Link href="/shop/categories" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
+            <Link href="/shop/boutique" className="hover:text-neutral-900 transition-colors whitespace-nowrap">{language === 'ar' ? 'المتجر' : 'Boutique'}</Link>
             <ChevronRight className="w-3 h-3 text-neutral-300 flex-shrink-0" />
             <Link href={`/shop/categorie/${product.categorySlug}`} className="hover:text-neutral-900 transition-colors whitespace-nowrap font-medium text-neutral-700">
               {language === 'ar' && product.categoryNameAr ? product.categoryNameAr : product.categoryName}
