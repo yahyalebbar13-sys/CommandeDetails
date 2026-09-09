@@ -67,6 +67,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [movingPole, setMovingPole] = useState<GeneralCategory | null>(null);
   const [moveTargetLine, setMoveTargetLine] = useState('');
   const [editingPole, setEditingPole] = useState<GeneralCategory | null>(null);
+  const [editPoleName, setEditPoleName] = useState('');
   const [editPoleNameFR, setEditPoleNameFR] = useState('');
 
   const now = new Date();
@@ -230,13 +231,16 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     setIsSubModalOpen(true);
   };
 
-  const handleSavePoleNameFR = () => {
+  const handleSavePole = () => {
     if (!user || !firestore || !editingPole) return;
+    const oldName = editingPole.name;
+    const newName = (editPoleName.trim() || oldName).toUpperCase();
     const nameFR = editPoleNameFR.trim() ? editPoleNameFR.trim().toUpperCase() : null;
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPole.id);
-    updateDocumentNonBlocking(docRef, { nameFR });
-    toast({ title: '✅ Nom français enregistré', description: nameFR ? `${editingPole.name} → ${nameFR}` : 'Nom français réinitialisé' });
+    updateDocumentNonBlocking(docRef, { name: newName, nameFR });
+    toast({ title: '✅ Pôle enregistré', description: `${newName}${nameFR ? ` · FR: ${nameFR}` : ''}` });
     setEditingPole(null);
+    setEditPoleName('');
     setEditPoleNameFR('');
   };
 
@@ -366,8 +370,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
-                                title="Définir le nom français (Stock)"
-                                onClick={(e) => { e.stopPropagation(); setEditingPole(gc); setEditPoleNameFR(gc.nameFR || ''); }}
+                                title="Modifier le pôle"
+                                onClick={(e) => { e.stopPropagation(); setEditingPole(gc); setEditPoleName(gc.name || ''); setEditPoleNameFR(gc.nameFR || ''); }}
                               >
                                 <Pencil className="w-3 h-3" />
                               </Button>
@@ -660,31 +664,41 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal nom français du pôle ── */}
-      <Dialog open={!!editingPole} onOpenChange={open => { if (!open) { setEditingPole(null); setEditPoleNameFR(''); } }}>
+      {/* ── Modal modifier pôle ── */}
+      <Dialog open={!!editingPole} onOpenChange={open => { if (!open) { setEditingPole(null); setEditPoleName(''); setEditPoleNameFR(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
-            <DialogTitle className="text-base font-black uppercase tracking-tight">Nom Français du Pôle (Stock)</DialogTitle>
-            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Pôle d'origine : {editingPole?.name}</p>
+            <DialogTitle className="text-base font-black uppercase tracking-tight">Modifier le Pôle</DialogTitle>
+            <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Vous pouvez inclure des chiffres (ex: PÔLE 1, ZIPPER #5...)</p>
           </div>
           <div className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom Commercial en Français (Stock)</Label>
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom / Titre du Pôle (Gestion)</Label>
+              <Input
+                value={editPoleName}
+                onChange={e => setEditPoleName(e.target.value)}
+                placeholder="Ex: 1. ZIPPER, POLE 2..."
+                className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleSavePole(); }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Nom Commercial en Français (Stock)</Label>
               <Input
                 value={editPoleNameFR}
                 onChange={e => setEditPoleNameFR(e.target.value)}
-                placeholder="Ex: FERMETURES ÉCLAIR, TISSUS..."
+                placeholder="Ex: FERMETURES ÉCLAIR 1, TISSUS 2..."
                 className="h-11 border-amber-200 bg-amber-50/30 font-bold rounded-xl text-xs uppercase"
-                autoFocus
-                onKeyDown={e => { if (e.key === 'Enter') handleSavePoleNameFR(); }}
+                onKeyDown={e => { if (e.key === 'Enter') handleSavePole(); }}
               />
-              <p className="text-[9px] text-stone-400 font-medium">Ce nom sera utilisé pour l'affichage dans le stock et la vente sans modifier le nom d'origine.</p>
+              <p className="text-[9px] text-stone-400 font-medium">Les chiffres et caractères spéciaux sont acceptés dans les deux titres.</p>
             </div>
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleNameFR(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleName(''); setEditPoleNameFR(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
-                onClick={handleSavePoleNameFR}
+                onClick={handleSavePole}
               >
                 Enregistrer
               </Button>
