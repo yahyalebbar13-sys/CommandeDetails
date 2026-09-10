@@ -483,7 +483,7 @@ export function computeStockItems(
     });
   }
   const isWarehouseView = stores.find(s => s.id === activeStore)?.type === 'WAREHOUSE';
-  if (isWarehouseView) {
+  if (isWarehouseView && !includeAll) {
     return results.filter(r => r.currentQty > 0);
   }
 
@@ -684,7 +684,16 @@ export default function StockApp() {
     [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
   );
 
-  const effectiveInventoryStoreId = (userRole === 'ADMIN' && inventoryWarehouseId) ? inventoryWarehouseId : activeStore;
+  const allStockItemsGlobal = useMemo(() =>
+    computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId, generalCategories),
+    [articles, movements, categories, userRole, stores, userStoreId, generalCategories]
+  );
+
+  const isCurrentStoreWarehouse = stores.some(s => s.id === activeStore && s.type === 'WAREHOUSE');
+  const effectiveInventoryStoreId = isCurrentStoreWarehouse 
+    ? activeStore 
+    : (userRole === 'ADMIN' && inventoryWarehouseId ? inventoryWarehouseId : activeStore);
+
   const inventoryStockItems = useMemo(() =>
     computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId, generalCategories),
     [articles, movements, categories, effectiveInventoryStoreId, userRole, stores, userStoreId, generalCategories]
@@ -1371,7 +1380,7 @@ export default function StockApp() {
 
     { id: 'stock',     label: 'En Stock',      category: 'logistique', icon: Package,         color: 'emerald' },
     { id: 'warehouses', label: 'Entrepôts',    category: 'logistique', icon: Warehouse,       adminOrMainOnly: true, color: 'blue' },
-    { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOnly: true },
+    { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOrMainOnly: true },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
     { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: Boxes },
@@ -1800,8 +1809,11 @@ export default function StockApp() {
                 adminUid={adminUid}
                 activeStore={effectiveInventoryStoreId}
                 stores={stores}
-                selectedWarehouseId={inventoryWarehouseId}
-                onWarehouseChange={setInventoryWarehouseId}
+                selectedWarehouseId={effectiveInventoryStoreId}
+                onWarehouseChange={(id) => {
+                  setInventoryWarehouseId(id);
+                  setActiveStore(id as any);
+                }}
                 stockItems={inventoryStockItems}
                 allStockItems={inventoryStockItems}
                 movements={movements}
@@ -1849,12 +1861,14 @@ export default function StockApp() {
               <StockWarehouses
                 stores={stores}
                 stockItems={stockItems}
+                allStockItems={allStockItemsGlobal}
                 movements={filteredMovements}
                 userRole={userRole}
                 userStoreId={userStoreId}
                 adminUid={adminUid}
                 onSelectStore={(storeId, view) => {
                   setActiveStore(storeId as any);
+                  setInventoryWarehouseId(storeId);
                   setActiveView(view || 'inventory');
                 }}
               />
@@ -1862,7 +1876,7 @@ export default function StockApp() {
             {activeView === 'stores' && userRole === 'ADMIN' && (
               <StoresView stores={stores} adminUid={adminUid} />
             )}
-            {activeView === 'arrivals' && (() => {
+            {activeView === 'arrivals' && (userRole === 'ADMIN' || isChrifaOrAdmin) && (() => {
               const tenDaysAgo = new Date();
               tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
               const tenDaysAgoStr = tenDaysAgo.toISOString().split('T')[0];

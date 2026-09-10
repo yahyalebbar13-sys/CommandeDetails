@@ -19,6 +19,7 @@ const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 
 interface StockWarehousesProps {
   stores: Store[];
   stockItems: StockItem[];
+  allStockItems?: StockItem[];
   movements: StockMovement[];
   userRole: string;
   userStoreId: string | null;
@@ -26,8 +27,10 @@ interface StockWarehousesProps {
   onSelectStore: (storeId: string, view?: 'inventory' | 'movements' | 'blind-inventory') => void;
 }
 
+const RESERVED_STORE_IDS = ['CHRIFA', 'DERB_OMAR', 'IDAA'];
+
 export default function StockWarehouses({
-  stores, stockItems, movements, userRole, userStoreId, adminUid, onSelectStore
+  stores, stockItems, allStockItems, movements, userRole, userStoreId, adminUid, onSelectStore
 }: StockWarehousesProps) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -44,12 +47,14 @@ export default function StockWarehouses({
   const [isEditing, setIsEditing] = useState(false);
   const [warehouseId, setWarehouseId] = useState('');
   const [warehouseName, setWarehouseName] = useState('');
+  const [isCustomId, setIsCustomId] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const openCreateModal = () => {
     setIsEditing(false);
     setWarehouseId('');
     setWarehouseName('');
+    setIsCustomId(false);
     setModalOpen(true);
   };
 
@@ -57,6 +62,7 @@ export default function StockWarehouses({
     setIsEditing(true);
     setWarehouseId(w.id);
     setWarehouseName(w.name);
+    setIsCustomId(true);
     setModalOpen(true);
   };
 
@@ -72,6 +78,20 @@ export default function StockWarehouses({
     }
 
     const safeId = (warehouseId || warehouseName).trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+
+    if (!safeId) {
+      toast({ title: 'Erreur', description: 'Identifiant d\'entrepôt invalide', variant: 'destructive' });
+      return;
+    }
+
+    if (RESERVED_STORE_IDS.includes(safeId)) {
+      toast({
+        title: 'Identifiant réservé',
+        description: `L'identifiant "${safeId}" est réservé pour les magasins principaux et ne peut pas être utilisé comme entrepôt.`,
+        variant: 'destructive'
+      });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -98,6 +118,12 @@ export default function StockWarehouses({
 
   const handleDeleteWarehouse = async (w: Store) => {
     if (!firestore || !adminUid) return;
+
+    if (RESERVED_STORE_IDS.includes(w.id)) {
+      toast({ title: 'Action interdite', description: 'Impossible de supprimer un magasin principal.', variant: 'destructive' });
+      return;
+    }
+
     if (!confirm(`Confirmez-vous la suppression définitive de l'entrepôt "${w.name}" (${w.id}) ?`)) return;
 
     try {
@@ -109,12 +135,15 @@ export default function StockWarehouses({
     }
   };
 
+  // Utiliser les articles complets (globaux) pour que chaque entrepôt affiche ses vraies pièces et stats
+  const itemsForStats = (allStockItems && allStockItems.length > 0) ? allStockItems : stockItems;
+
   const getWarehouseStats = (warehouseId: string) => {
     let refs = 0;
     let qty = 0;
     let val = 0;
 
-    stockItems.forEach(i => {
+    itemsForStats.forEach(i => {
       const storeQty = i.qtyByStore?.[warehouseId] || 0;
       if (storeQty > 0) {
         refs++;
@@ -132,7 +161,7 @@ export default function StockWarehouses({
     let totalVal = 0;
 
     warehouses.forEach(w => {
-      stockItems.forEach(i => {
+      itemsForStats.forEach(i => {
         const q = i.qtyByStore?.[w.id] || 0;
         if (q > 0) {
           refsSet.add(i.articleId);
@@ -364,9 +393,10 @@ export default function StockWarehouses({
                 placeholder="Ex: Entrepôt Tit Mellil, Dépôt Ain Sebaa..."
                 value={warehouseName}
                 onChange={(e) => {
-                  setWarehouseName(e.target.value);
-                  if (!isEditing && !warehouseId) {
-                    setWarehouseId(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'));
+                  const val = e.target.value;
+                  setWarehouseName(val);
+                  if (!isEditing && !isCustomId) {
+                    setWarehouseId(val.toUpperCase().replace(/[^A-Z0-9_]/g, '_'));
                   }
                 }}
                 required
@@ -381,11 +411,14 @@ export default function StockWarehouses({
                 placeholder="Ex: DEPOT_TIT_MELLIL"
                 value={warehouseId}
                 disabled={isEditing}
-                onChange={(e) => setWarehouseId(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))}
+                onChange={(e) => {
+                  setIsCustomId(true);
+                  setWarehouseId(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'));
+                }}
                 required
                 className="mt-1.5 h-11 rounded-xl border-stone-200 font-mono font-bold uppercase disabled:bg-stone-100"
               />
-              <p className="text-[10px] text-stone-400 mt-1">Utilisé dans les mouvements et les affectations de stock.</p>
+              <p className="text-[10px] text-stone-400 mt-1">Généré automatiquement ou personnalisable. Ne peut pas être CHRIFA, DERB_OMAR ou IDAA.</p>
             </div>
 
             <div className="pt-2 border-t border-stone-100">

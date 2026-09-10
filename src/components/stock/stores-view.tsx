@@ -43,6 +43,12 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
     
     const safeId = editingStore.id.toUpperCase().replace(/\s+/g, '_');
     const isWarehouse = editingStore.type === 'WAREHOUSE';
+
+    if (safeId === 'CHRIFA' && isWarehouse) {
+      toast({ variant: 'destructive', title: 'Action refusée', description: 'CHRIFA est le magasin principal et ne peut pas être configuré comme entrepôt.' });
+      return;
+    }
+
     const newEmail = isWarehouse ? null : (editingStore.accessEmail?.trim().toLowerCase() || null);
     const oldEmail = originalAccessEmail?.trim().toLowerCase() || null;
     setLoading(true);
@@ -108,7 +114,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
         id: safeId,
         name: editingStore.name,
         type: editingStore.type || 'STORE',
-        isMain: editingStore.isMain || false,
+        isMain: safeId === 'CHRIFA' ? true : (editingStore.isMain || false),
         accessEmail: newEmail || null
       }, { merge: true });
 
@@ -126,6 +132,12 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
 
   const handleDeleteStore = async (storeId: string) => {
     if (!firestore || !adminUid) return;
+
+    if (['CHRIFA', 'DERB_OMAR', 'IDAA'].includes(storeId)) {
+      toast({ variant: 'destructive', title: 'Action interdite', description: 'Impossible de supprimer un magasin principal.' });
+      return;
+    }
+
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce lieu ? (Peut causer des erreurs si des mouvements y sont liés)')) return;
 
     try {

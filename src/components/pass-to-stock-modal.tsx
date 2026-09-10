@@ -46,10 +46,22 @@ export default function PassToStockModal({
   const effectiveStores = (stores && stores.length > 0) ? stores : remoteStores;
 
   const warehouseOptions = React.useMemo(() => {
-    const list = (effectiveStores || []).filter((s: any) => s.type === 'WAREHOUSE');
-    if (list.length > 0) return list;
-    if ((effectiveStores || []).length > 0) return effectiveStores;
-    return [{ id: 'CHRIFA', name: 'Magasin Chrifa (Principal)', type: 'STORE' }];
+    if (!effectiveStores || effectiveStores.length === 0) {
+      return [{ id: 'CHRIFA', name: '🏪 Magasin CHRIFA (Principal)', type: 'STORE' }];
+    }
+    return effectiveStores.map((s: any) => ({
+      id: s.id,
+      name: s.type === 'WAREHOUSE'
+        ? `📦 Entrepôt : ${s.name}`
+        : `🏪 Magasin : ${s.name}${s.isMain ? ' (Principal)' : ''}`,
+      type: s.type
+    })).sort((a: any, b: any) => {
+      if (a.id === 'CHRIFA') return -1;
+      if (b.id === 'CHRIFA') return 1;
+      if (a.type === 'WAREHOUSE' && b.type !== 'WAREHOUSE') return -1;
+      if (a.type !== 'WAREHOUSE' && b.type === 'WAREHOUSE') return 1;
+      return a.name.localeCompare(b.name);
+    });
   }, [effectiveStores]);
 
   const [formData, setFormData] = useState({
