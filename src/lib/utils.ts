@@ -14,13 +14,17 @@ export function cleanUndefined<T extends Record<string, any>>(obj: T): T {
   if (Array.isArray(obj)) {
     return obj
       .filter(item => item !== undefined)
-      .map(item => (item && typeof item === 'object' && !(item instanceof Date) ? cleanUndefined(item) : item)) as any;
+      .map(item => (item && typeof item === 'object' && item.constructor === Object ? cleanUndefined(item) : item)) as any;
+  }
+  // Ne pas altérer les instances spéciales (ServerTimestampFieldValueImpl, Date, Timestamp, etc.)
+  if (obj.constructor !== Object) {
+    return obj;
   }
   const cleaned: any = {};
   for (const key of Object.keys(obj)) {
     const val = obj[key];
     if (val !== undefined) {
-      if (val !== null && typeof val === 'object' && !(val instanceof Date) && typeof (val as any).toMillis !== 'function') {
+      if (val !== null && typeof val === 'object' && val.constructor === Object) {
         cleaned[key] = cleanUndefined(val);
       } else {
         cleaned[key] = val;

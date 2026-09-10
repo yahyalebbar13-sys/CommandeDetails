@@ -760,7 +760,8 @@ export default function StockApp() {
   const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
   const openInvoices = invoices.filter(i => i.status === 'UNPAID' || i.status === 'PARTIAL').length;
 
-  // Filtres & statistiques des arrivages (limité aux arrivages entrés en stock depuis la gestion ≤ 10 jours)
+  // Filtres & statistiques des arrivages
+  const [arrivalFilter, setArrivalFilter] = useState<'ENTERED_10D' | 'PENDING' | 'ALL'>('ENTERED_10D');
   const [arrivalSearch, setArrivalSearch] = useState<string>('');
 
   const arrivalsStats = useMemo(() => {
@@ -769,6 +770,7 @@ export default function StockApp() {
     const tenDaysAgoStr = tenDaysAgo.toISOString().split('T')[0];
 
     let entered10D = 0;
+    let pending = 0;
     let totalArticles10D = 0;
     let totalQty10D = 0;
 
@@ -777,13 +779,15 @@ export default function StockApp() {
       const isEntered = !!(f.stockEntryDate || (f.status === 'STOCK') || movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN'));
       if (isEntered && entryDate && entryDate >= tenDaysAgoStr) {
         entered10D++;
-        const factureArts = articles.filter((a: any) => a.factureId === f.id);
+        const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
         totalArticles10D += factureArts.length;
         totalQty10D += factureArts.reduce((acc: number, a: any) => acc + (Number(a.quantity) || 0), 0);
+      } else if (!isEntered) {
+        pending++;
       }
     });
 
-    return { entered10D, totalArticles10D, totalQty10D, tenDaysAgoStr };
+    return { entered10D, pending, totalArticles10D, totalQty10D, tenDaysAgoStr };
   }, [factures, articles, movements]);
 
   const pendingArrivals = arrivalsStats.entered10D;
@@ -1885,7 +1889,7 @@ export default function StockApp() {
                   const isEnteredInStock = !!(f.stockEntryDate || f.status === 'STOCK' || movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN'));
                   const isWithin10Days = stockEntryDate ? stockEntryDate >= tenDaysAgoStr : false;
 
-                  const factureArts = articles.filter((a: any) => a.factureId === f.id);
+                  const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
                   const artCount = factureArts.length;
                   const totalQty = factureArts.reduce((acc: number, a: any) => acc + (Number(a.quantity) || 0), 0);
 
@@ -1900,8 +1904,11 @@ export default function StockApp() {
                   };
                 })
                 .filter((item) => {
-                  // STRICT: Uniquement les arrivages entrés en stock depuis la gestion ET de moins de 10 jours
-                  if (!item.isEnteredInStock || !item.isWithin10Days) return false;
+                  if (arrivalFilter === 'ENTERED_10D') {
+                    if (!item.isEnteredInStock || !item.isWithin10Days) return false;
+                  } else if (arrivalFilter === 'PENDING') {
+                    if (item.isEnteredInStock) return false;
+                  }
 
                   if (arrivalSearch.trim()) {
                     const q = arrivalSearch.toLowerCase().trim();
@@ -1912,13 +1919,15 @@ export default function StockApp() {
                   return true;
                 })
                 .sort((a, b) => {
-                  const dateA = a.stockEntryDate || '';
-                  const dateB = b.stockEntryDate || '';
+                  if (!a.isEnteredInStock && b.isEnteredInStock) return -1;
+                  if (a.isEnteredInStock && !b.isEnteredInStock) return 1;
+                  const dateA = a.stockEntryDate || a.f.arrivalDate || '';
+                  const dateB = b.stockEntryDate || b.f.arrivalDate || '';
                   return dateB.localeCompare(dateA);
                 });
 
-              const totalPieces10D = arrivalCardsData.reduce((s, item) => s + item.totalQty, 0);
-              const totalRefs10D = arrivalCardsData.reduce((s, item) => s + item.artCount, 0);
+              const totalPiecesFiltered = arrivalCardsData.reduce((s, item) => s + item.totalQty, 0);
+              const totalRefsFiltered = arrivalCardsData.reduce((s, item) => s + item.artCount, 0);
 
               return (
                 <div className="space-y-6 animate-in fade-in duration-300">
@@ -1927,39 +1936,98 @@ export default function StockApp() {
                     <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
                     <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                       <div>
-                        <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Entrées Récentes</p>
-                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Arrivages <span className="text-emerald-500">En Stock</span></h2>
+                        <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em] mb-2">Logistique Import</p>
+                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
+                          Arrivages <span className="text-emerald-500">StockVue</span>
+                        </h2>
                         <p className="text-stone-400 text-xs mt-2">
-                          Arrivages validés et entrés en stock depuis le logiciel de gestion au cours des <span className="text-emerald-400 font-bold">10 derniers jours</span> (≤ 10 jours).
+                          {arrivalFilter === 'ENTERED_10D'
+                            ? "Affichage des arrivages entrés en stock au cours des 10 derniers jours (≤ 10 jours)."
+                            : arrivalFilter === 'PENDING'
+                            ? "Dossiers d'arrivage en attente de validation pour entrer en stock."
+                            : "Historique global de tous les arrivages."}
                         </p>
                       </div>
 
                       {/* KPI Badges */}
                       <div className="flex flex-wrap items-center gap-3">
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-5 py-3">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Arrivages (≤ 10 jours)</p>
-                          <p className="text-2xl font-black text-emerald-400 mt-0.5">{arrivalCardsData.length}</p>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-5 py-3 cursor-pointer hover:bg-emerald-500/20 transition-all" onClick={() => setArrivalFilter('ENTERED_10D')}>
+                          <p className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Entrés en stock (≤ 10j)</p>
+                          <p className="text-2xl font-black text-emerald-400 mt-0.5">{arrivalsStats.entered10D}</p>
+                        </div>
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-3 cursor-pointer hover:bg-amber-500/20 transition-all" onClick={() => setArrivalFilter('PENDING')}>
+                          <p className="text-[8px] font-black uppercase tracking-widest text-amber-400">En attente d'entrée</p>
+                          <p className="text-2xl font-black text-amber-400 mt-0.5">{arrivalsStats.pending}</p>
                         </div>
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Références Reçues</p>
-                          <p className="text-2xl font-black text-white mt-0.5">{totalRefs10D}</p>
+                          <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Total Références</p>
+                          <p className="text-2xl font-black text-white mt-0.5">{totalRefsFiltered}</p>
                         </div>
                         <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-3">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Quantité Totale</p>
-                          <p className="text-2xl font-black text-white mt-0.5">{totalPieces10D.toLocaleString()}</p>
+                          <p className="text-[8px] font-black uppercase tracking-widest text-stone-400">Total Pièces</p>
+                          <p className="text-2xl font-black text-white mt-0.5">{totalPiecesFiltered.toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Barre d'outils : Recherche */}
-                  <div className="bg-white rounded-2xl border border-stone-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-                    <div className="flex items-center gap-2 text-xs font-black text-stone-600 uppercase tracking-wider">
-                      <Clock className="w-4 h-4 text-emerald-600" />
-                      Entrées en stock des 10 derniers jours ({arrivalCardsData.length})
+                  {/* Barre d'outils : Onglets + Recherche */}
+                  <div className="bg-white rounded-2xl border border-stone-200 p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                    {/* Onglets */}
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                      <button
+                        onClick={() => setArrivalFilter('ENTERED_10D')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'ENTERED_10D'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Entrés en stock (≤ 10 jours)
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'ENTERED_10D' ? 'bg-emerald-700 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {arrivalsStats.entered10D}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => setArrivalFilter('PENDING')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'PENDING'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        <Anchor className="w-3.5 h-3.5" />
+                        En attente d'entrée
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'PENDING' ? 'bg-amber-600 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {arrivalsStats.pending}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => setArrivalFilter('ALL')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          arrivalFilter === 'ALL'
+                            ? 'bg-stone-800 text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        Tout l'historique
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          arrivalFilter === 'ALL' ? 'bg-stone-700 text-white' : 'bg-stone-200 text-stone-700'
+                        }`}>
+                          {factures.length}
+                        </span>
+                      </button>
                     </div>
 
-                    <div className="relative w-full sm:w-80">
+                    {/* Barre de recherche */}
+                    <div className="relative w-full md:w-80">
                       <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <Input
                         type="text"
@@ -1984,28 +2052,34 @@ export default function StockApp() {
                     <div className="bg-white rounded-2xl p-16 text-center border border-stone-100 shadow-sm">
                       <Anchor className="w-12 h-12 text-stone-300 mx-auto mb-4" />
                       <p className="text-stone-600 font-black uppercase text-xs tracking-widest">
-                        {arrivalSearch ? "Aucun arrivage trouvé pour cette recherche" : "Aucun arrivage entré en stock au cours des 10 derniers jours"}
+                        {arrivalSearch ? "Aucun arrivage trouvé pour cette recherche" : "Aucun arrivage dans cette vue"}
                       </p>
                       <p className="text-stone-400 text-[11px] font-medium mt-1">
-                        Seuls les dossiers validés pour entrer en stock depuis la gestion il y a 10 jours ou moins sont affichés ici.
+                        {arrivalFilter === 'ENTERED_10D'
+                          ? "Aucun arrivage validé et entré en stock au cours des 10 derniers jours."
+                          : arrivalFilter === 'PENDING'
+                          ? "Tous les arrivages enregistrés sont déjà validés et entrés en stock !"
+                          : "Aucun dossier import enregistré."}
                       </p>
-                      {arrivalSearch && (
+                      {arrivalFilter === 'ENTERED_10D' && arrivalsStats.pending > 0 && (
                         <button
-                          onClick={() => setArrivalSearch('')}
-                          className="mt-4 px-4 py-2 bg-stone-900 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-stone-800 transition-all"
+                          onClick={() => setArrivalFilter('PENDING')}
+                          className="mt-4 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md"
                         >
-                          Effacer la recherche
+                          Voir les {arrivalsStats.pending} arrivage(s) en attente d'entrée
                         </button>
                       )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       {arrivalCardsData.map((item) => {
-                        const { f, artCount, totalQty, stockEntryDate, factureArts } = item;
+                        const { f, artCount, totalQty, stockEntryDate, isEnteredInStock, factureArts } = item;
                         return (
                           <div
                             key={f.id}
-                            className="bg-white rounded-2xl border-2 border-emerald-200 p-6 flex flex-col justify-between gap-4 transition-all shadow-sm hover:shadow-md"
+                            className={`bg-white rounded-2xl border-2 p-6 flex flex-col justify-between gap-4 transition-all shadow-sm hover:shadow-md ${
+                              isEnteredInStock ? 'border-emerald-200' : 'border-amber-300'
+                            }`}
                           >
                             <div>
                               <div className="flex items-start justify-between gap-3">
@@ -2014,13 +2088,21 @@ export default function StockApp() {
                                   <h3 className="text-xl font-black text-stone-900 uppercase tracking-tight mt-0.5">{f.id}</h3>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
-                                  <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> En stock
-                                  </span>
-                                  <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                    <Clock className="w-2.5 h-2.5 text-emerald-600" />
-                                    {formatDaysAgo(stockEntryDate)}
-                                  </span>
+                                  {isEnteredInStock ? (
+                                    <>
+                                      <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> En stock
+                                      </span>
+                                      <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                        <Clock className="w-2.5 h-2.5 text-emerald-600" />
+                                        {formatDaysAgo(stockEntryDate)}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                                      <Anchor className="w-3.5 h-3.5 text-amber-600" /> En attente de stock
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
@@ -2029,10 +2111,10 @@ export default function StockApp() {
                                   <p className="text-[8px] font-black text-stone-400 uppercase">Arrivée</p>
                                   <p className="text-[10px] font-black text-stone-700 mt-0.5">{f.arrivalDate || '—'}</p>
                                 </div>
-                                <div className="bg-emerald-50 rounded-xl p-2.5">
-                                  <p className="text-[8px] font-black text-emerald-600 uppercase">Entrée Stock</p>
-                                  <p className="text-[10px] font-black text-emerald-800 mt-0.5">
-                                    {stockEntryDate || 'Validé'}
+                                <div className={`rounded-xl p-2.5 ${isEnteredInStock ? 'bg-emerald-50' : 'bg-amber-50'}`}>
+                                  <p className={`text-[8px] font-black uppercase ${isEnteredInStock ? 'text-emerald-600' : 'text-amber-600'}`}>Entrée Stock</p>
+                                  <p className={`text-[10px] font-black mt-0.5 ${isEnteredInStock ? 'text-emerald-800' : 'text-amber-800'}`}>
+                                    {stockEntryDate || 'En attente'}
                                   </p>
                                 </div>
                                 <div className="bg-stone-50 rounded-xl p-2.5">
@@ -2063,10 +2145,23 @@ export default function StockApp() {
                             </div>
 
                             <div className="pt-2">
-                              <div className="flex items-center gap-2 justify-center bg-emerald-50 border border-emerald-100 rounded-xl py-2 px-3 text-emerald-700 text-[9px] font-black uppercase">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                Entrée validée le {stockEntryDate || '—'}
-                              </div>
+                              {!isEnteredInStock ? (
+                                <button
+                                  onClick={() => setPassToStockId(f.id)}
+                                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[9px] tracking-widest px-4 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 cursor-pointer"
+                                >
+                                  <Archive className="w-3.5 h-3.5" />
+                                  📥 Valider l'Entrée en Stock + Coût de Revient
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setPassToStockId(f.id)}
+                                  className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-2.5 rounded-xl transition-all cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Entrée validée {stockEntryDate ? `(${stockEntryDate})` : ''} · Modifier
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -2099,7 +2194,7 @@ export default function StockApp() {
           open={!!passToStockId}
           onOpenChange={open => !open && setPassToStockId(null)}
           facture={factures.find((f: any) => f.id === passToStockId)}
-          associatedArticles={articles.filter((a: any) => a.factureId === passToStockId)}
+          associatedArticles={articles.filter((a: any) => a.factureId === passToStockId || a.facture === passToStockId)}
           subCategories={categories}
           stores={stores}
           adminUid={adminUid}

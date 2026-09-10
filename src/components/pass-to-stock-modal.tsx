@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, serverTimestamp, addDoc, collection, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cleanUndefined } from '@/lib/utils';
 import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2 } from 'lucide-react';
@@ -215,7 +215,7 @@ export default function PassToStockModal({
         additionalCostsAmount: Number(formData.additionalCostsAmount) || 0,
         updatedAt: serverTimestamp()
       });
-      await updateDoc(factureRef, updates);
+      await setDoc(factureRef, updates, { merge: true });
 
       // 2. Propager Stock Entry Date + coût de revient MAD + Statut STOCK à chaque article
       if (associatedArticles && associatedArticles.length > 0) {
@@ -223,12 +223,12 @@ export default function PassToStockModal({
           const articleRef = doc(firestore, 'users', effectiveUid, 'articles', article.id);
           const coutRevient = computeCoutRevientMad(article);
 
-          await updateDoc(articleRef, cleanUndefined({
+          await setDoc(articleRef, cleanUndefined({
             stockEntryDate:   formData.stockEntryDate,
             status:           'STOCK',
             purchasePriceMAD: coutRevient > 0 ? coutRevient : null,
             updatedAt:        serverTimestamp()
-          }));
+          }), { merge: true });
 
           const baseName = (article.nameFR || article.name || article.categoryId || '').trim();
           const parts: string[] = [];
