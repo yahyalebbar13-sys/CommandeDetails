@@ -352,9 +352,9 @@ function MultiVariantSelector({
 
   return (
     <div className="space-y-4 pt-1">
-      {/* ── 1. Model Selector ── */}
+      {/* ── 1. Model Selector (Large Image Cards) ── */}
       {hasModels && (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-neutral-700" />
@@ -364,33 +364,56 @@ function MultiVariantSelector({
               {selectedModel}
             </span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
             {uniqueModels.map(mod => {
               const isCurrent = mod === selectedModel;
               const modVars = safeVariants.filter(v => (v.model?.trim() || '') === mod);
               const totalStock = modVars.reduce((s, v) => s + v.stock, 0);
+              // Use first variant with an image as representative
+              const representativeImage = modVars.find(v => v.image)?.image;
 
               return (
                 <button
                   key={mod}
                   type="button"
                   onClick={() => handleSelectModel(mod)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  className={`relative flex flex-col items-center rounded-2xl overflow-hidden transition-all cursor-pointer select-none ${
                     isCurrent
-                      ? 'bg-neutral-900 text-white shadow-sm ring-2 ring-neutral-900/20 scale-[1.01]'
-                      : 'bg-white text-neutral-700 border border-neutral-200/90 hover:border-neutral-900 hover:bg-neutral-50'
+                      ? 'ring-2 ring-neutral-900 shadow-md scale-[1.02] z-10'
+                      : 'border border-neutral-200/90 hover:border-neutral-900 hover:shadow-sm'
                   }`}
                 >
-                  <span>{mod}</span>
-                  {totalStock > 0 ? (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isCurrent ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-600'}`}>
-                      {totalStock}
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${isCurrent ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-400'}`}>
-                      {language === 'ar' ? 'طلب' : 'Cde'}
-                    </span>
-                  )}
+                  {/* Model Image */}
+                  <div className="w-full aspect-square bg-neutral-100 overflow-hidden relative">
+                    {representativeImage ? (
+                      <img
+                        src={representativeImage}
+                        alt={mod}
+                        loading="lazy"
+                        decoding="async"
+                        className={`w-full h-full object-cover transition-transform duration-300 ${isCurrent ? 'scale-105' : 'group-hover:scale-105'}`}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-400">
+                        <Layers className="w-8 h-8" />
+                      </div>
+                    )}
+                    {/* Selected checkmark */}
+                    {isCurrent && (
+                      <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
+                  {/* Model Name & Stock */}
+                  <div className={`w-full px-2 py-1.5 text-center ${isCurrent ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-800'}`}>
+                    <p className="text-[11px] font-bold truncate">{mod}</p>
+                    <p className={`text-[9px] font-semibold ${isCurrent ? 'text-neutral-300' : 'text-neutral-400'}`}>
+                      {totalStock > 0
+                        ? `${totalStock} ${language === 'ar' ? 'متوفر' : 'en stock'}`
+                        : (language === 'ar' ? 'حسب الطلب' : 'Sur commande')}
+                    </p>
+                  </div>
                 </button>
               );
             })}
@@ -515,72 +538,111 @@ function MultiVariantSelector({
             </div>
           )}
 
-          {/* Thumbnail Swatches Grid */}
-          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2 pt-0.5">
-            {displayedVariants.map(v => {
-              const isSelected = v._safeId === activeVariant?._safeId;
-              const colorLabel = v.color && !v.color.startsWith('Option')
-                ? (language === 'ar' && v.colorAr ? v.colorAr : v.color)
-                : '';
-              const isOutOfStock = v.stock === 0;
+          {/* Color Display: Large card for single color, grid swatches for multiple */}
+          {variantsForSize.length === 1 ? (
+            /* Single Color — Large Card Display */
+            <div
+              className="relative flex items-center gap-4 p-3 rounded-2xl border-2 border-neutral-900 ring-2 ring-neutral-900/20 bg-neutral-50/80 cursor-pointer select-none"
+              onClick={() => handleSelectColor(variantsForSize[0] as any)}
+            >
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-neutral-100 border border-neutral-200 flex-shrink-0 relative">
+                {variantsForSize[0].image ? (
+                  <img
+                    src={variantsForSize[0].image}
+                    alt={(() => { const cl = variantsForSize[0].color && !variantsForSize[0].color.startsWith('Option') ? (language === 'ar' && variantsForSize[0].colorAr ? variantsForSize[0].colorAr : variantsForSize[0].color) : ''; return cl || 'Option'; })()}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full rounded-lg"
+                    style={{ backgroundColor: variantsForSize[0].colorHex || '#d1d5db' }}
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-neutral-900">
+                  {(() => { const cl = variantsForSize[0].color && !variantsForSize[0].color.startsWith('Option') ? (language === 'ar' && variantsForSize[0].colorAr ? variantsForSize[0].colorAr : variantsForSize[0].color) : ''; return cl || (language === 'ar' ? 'الخيار المتاح' : 'Option disponible'); })()}
+                </p>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {variantsForSize[0].stock > 0
+                    ? `${variantsForSize[0].stock} ${language === 'ar' ? 'متوفر' : 'en stock'}`
+                    : (language === 'ar' ? 'متوفر عند الطلب' : 'Disponible sur commande')}
+                </p>
+              </div>
+              <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center shadow-sm">
+                <Check className="w-3 h-3" />
+              </div>
+            </div>
+          ) : (
+            /* Multiple Colors — Thumbnail Swatches Grid */
+            <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2 pt-0.5">
+              {displayedVariants.map(v => {
+                const isSelected = v._safeId === activeVariant?._safeId;
+                const colorLabel = v.color && !v.color.startsWith('Option')
+                  ? (language === 'ar' && v.colorAr ? v.colorAr : v.color)
+                  : '';
+                const isOutOfStock = v.stock === 0;
 
-              return (
-                <div
-                  key={v._safeId}
-                  onClick={() => handleSelectColor(v)}
-                  className={`group/swatch relative flex flex-col items-center justify-center p-1 rounded-2xl border-2 transition-all duration-150 cursor-pointer select-none ${
-                    isSelected
-                      ? 'border-neutral-900 ring-2 ring-neutral-900/20 bg-neutral-50/80 shadow-xs scale-105 z-10'
-                      : isOutOfStock
-                        ? 'border-neutral-200 bg-neutral-50/50 opacity-50'
-                        : 'border-neutral-200/90 bg-white hover:border-neutral-900 hover:scale-102'
-                  }`}
-                  title={`${colorLabel || 'Option'} • ${v.stock > 0 ? `${v.stock} en stock` : 'Sur commande'}`}
-                >
-                  {/* Miniature Image / Color Fill */}
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden relative flex items-center justify-center bg-neutral-100 border border-neutral-150/70">
-                    {v.image ? (
-                      <img
-                        src={v.image}
-                        alt={colorLabel || 'Option'}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover group-hover/swatch:scale-110 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full rounded-lg"
-                        style={{ backgroundColor: v.colorHex || '#d1d5db' }}
-                      />
-                    )}
+                return (
+                  <div
+                    key={v._safeId}
+                    onClick={() => handleSelectColor(v)}
+                    className={`group/swatch relative flex flex-col items-center justify-center p-1 rounded-2xl border-2 transition-all duration-150 cursor-pointer select-none ${
+                      isSelected
+                        ? 'border-neutral-900 ring-2 ring-neutral-900/20 bg-neutral-50/80 shadow-xs scale-105 z-10'
+                        : isOutOfStock
+                          ? 'border-neutral-200 bg-neutral-50/50 opacity-50'
+                          : 'border-neutral-200/90 bg-white hover:border-neutral-900 hover:scale-102'
+                    }`}
+                    title={`${colorLabel || 'Option'} • ${v.stock > 0 ? `${v.stock} en stock` : 'Sur commande'}`}
+                  >
+                    {/* Miniature Image / Color Fill */}
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden relative flex items-center justify-center bg-neutral-100 border border-neutral-150/70">
+                      {v.image ? (
+                        <img
+                          src={v.image}
+                          alt={colorLabel || 'Option'}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover group-hover/swatch:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded-lg"
+                          style={{ backgroundColor: v.colorHex || '#d1d5db' }}
+                        />
+                      )}
 
-                    {/* Out of stock diagonal slash */}
-                    {isOutOfStock && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-[130%] h-[2px] bg-red-500 rotate-45 shadow-2xs" />
+                      {/* Out of stock diagonal slash */}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-[130%] h-[2px] bg-red-500 rotate-45 shadow-2xs" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Active checkmark badge (Temu style) */}
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[8px] font-bold shadow-xs">
+                        <Check className="w-2 h-2" />
                       </div>
                     )}
+
+                    {/* Color Name below swatch */}
+                    {colorLabel && (
+                      <span className={`text-[10px] font-semibold text-center mt-1 truncate max-w-[54px] leading-tight ${
+                        isSelected ? 'text-neutral-950 font-bold' : 'text-neutral-600'
+                      }`}>
+                        {colorLabel}
+                      </span>
+                    )}
                   </div>
-
-                  {/* Active checkmark badge (Temu style) */}
-                  {isSelected && (
-                    <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[8px] font-bold shadow-xs">
-                      <Check className="w-2 h-2" />
-                    </div>
-                  )}
-
-                  {/* Color Name below swatch */}
-                  {colorLabel && (
-                    <span className={`text-[10px] font-semibold text-center mt-1 truncate max-w-[54px] leading-tight ${
-                      isSelected ? 'text-neutral-950 font-bold' : 'text-neutral-600'
-                    }`}>
-                      {colorLabel}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Expand/collapse button when there are many colors */}
           {hasManyColors && !colorSearch.trim() && (
