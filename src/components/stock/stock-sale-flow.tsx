@@ -629,7 +629,12 @@ export default function StockSaleFlow({
 
       await onCreateInvoice(invoiceData, movements, initialPayments);
       setDone(true);
-    } finally { setSaving(false); }
+    } catch (err: any) {
+      console.error('Erreur lors de la validation de la vente:', err);
+      alert(`Erreur lors de la validation de la vente : ${err?.message || err}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const reset = () => {

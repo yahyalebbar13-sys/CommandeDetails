@@ -647,12 +647,8 @@ export default function StockApp() {
     runMigration();
   }, [userRole, firestore, adminUid, loadingStores, stores]);
 
-  // Filtrer les anciens arrivages (avant la date de réinitialisation)
-  const RESET_DATE = '2026-07-06';
-  const movements = useMemo(() => allMovements.filter(m => {
-    if (m.reason === 'ARRIVAGE' && m.date < RESET_DATE) return false;
-    return true;
-  }), [allMovements]);
+  // Tous les mouvements de stock réels
+  const movements = allMovements;
 
   const warehouses = useMemo(() => stores.filter(s => s.type === 'WAREHOUSE'), [stores]);
   const [inventoryWarehouseId, setInventoryWarehouseId] = useState<string>('');
@@ -810,7 +806,8 @@ export default function StockApp() {
   const handleAddMovement = useCallback(async (movement: Omit<StockMovement, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
     try {
-      await addStockMovement(firestore, user.uid, movement);
+      const effectiveUid = adminUid || user.uid;
+      await addStockMovement(firestore, effectiveUid, movement);
       toast({
         title: movement.type === 'IN' ? 'Entrée enregistrée' : movement.type === 'OUT' ? 'Sortie enregistrée' : 'Ajustement enregistré',
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
@@ -818,7 +815,7 @@ export default function StockApp() {
     } catch {
       toast({ variant: 'destructive', title: 'Erreur', description: "Impossible d'enregistrer le mouvement." });
     }
-  }, [user, firestore, toast]);
+  }, [user, firestore, toast, adminUid]);
 
   // ── Backup JSON ──────────────────────────────────────────────────────────
   const handleBackup = useCallback(() => {
@@ -938,31 +935,37 @@ export default function StockApp() {
     initialPayments?: Omit<ClientPayment, 'id' | 'createdAt'>[]
   ) => {
     if (!user || !firestore) return;
-    const effectiveUid = adminUid || user.uid;
-    const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
-    const storeId = (invoice as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
-    const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
-      ...cleanUndefined(invoice),
-      storeId,
-      createdAt: serverTimestamp()
-    });
-    for (const m of movementsOut) {
-      await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
-        ...cleanUndefined(m),
+    try {
+      const effectiveUid = adminUid || user.uid;
+      const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
+      const storeId = (invoice as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
+      const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
+        ...cleanUndefined(invoice),
         storeId,
         createdAt: serverTimestamp()
       });
-    }
-    if (initialPayments && initialPayments.length > 0) {
-      for (const p of initialPayments) {
-        await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), {
-          ...cleanUndefined(p),
-          invoiceId: invRef.id,
+      for (const m of movementsOut) {
+        await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
+          ...cleanUndefined(m),
+          storeId,
           createdAt: serverTimestamp()
         });
       }
+      if (initialPayments && initialPayments.length > 0) {
+        for (const p of initialPayments) {
+          await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), {
+            ...cleanUndefined(p),
+            invoiceId: invRef.id,
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+      toast({ title: '✅ Vente enregistrée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
+    } catch (err: any) {
+      console.error('Error creating invoice/sale:', err);
+      toast({ title: 'Erreur', description: `Impossible d'enregistrer la vente : ${err?.message || err}`, variant: 'destructive' });
+      throw err;
     }
-    toast({ title: '✅ Facture créée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
   }, [user, firestore, toast, activeStore, adminUid, userRole, saleStoreId, stores]);
 
   const handleUpdateInvoiceStatus = useCallback(async (id: string, status: InvoiceStatus) => {
@@ -2212,6 +2215,7 @@ export default function StockApp() {
           subCategories={categories}
           stores={stores}
           adminUid={adminUid}
+          existingMovements={allMovements.filter((m: any) => m.factureId === passToStockId || m.factureRef === passToStockId)}
         />
       )}
 

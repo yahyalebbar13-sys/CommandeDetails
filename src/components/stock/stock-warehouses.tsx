@@ -176,7 +176,7 @@ export default function StockWarehouses({
       qty: totalQty,
       val: totalVal
     };
-  }, [warehouses, stockItems]);
+  }, [warehouses, itemsForStats]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

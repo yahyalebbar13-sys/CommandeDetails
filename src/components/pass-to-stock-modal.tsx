@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cleanUndefined } from '@/lib/utils';
 import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2 } from 'lucide-react';
@@ -19,6 +19,7 @@ interface PassToStockModalProps {
   subCategories: any[];
   stores?: any[];
   adminUid?: string | null;
+  existingMovements?: any[];
 }
 
 export default function PassToStockModal({
@@ -28,7 +29,8 @@ export default function PassToStockModal({
   associatedArticles,
   subCategories,
   stores,
-  adminUid
+  adminUid,
+  existingMovements
 }: PassToStockModalProps) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -45,24 +47,46 @@ export default function PassToStockModal({
   const { data: remoteStores = [] } = useCollection(storesRef);
   const effectiveStores = (stores && stores.length > 0) ? stores : remoteStores;
 
+  // Dans la validation des arrivages, SEULS les entrepôts doivent être affichés (pas les magasins de vente)
   const warehouseOptions = React.useMemo(() => {
-    if (!effectiveStores || effectiveStores.length === 0) {
-      return [{ id: 'CHRIFA', name: '🏪 Magasin CHRIFA (Principal)', type: 'STORE' }];
+    const whs = (effectiveStores || []).filter((s: any) => s.type === 'WAREHOUSE');
+    if (whs.length === 0) {
+      return [{ id: 'ENTREPOT_NO1', name: '📦 Entrepôt Principal (Par défaut)', type: 'WAREHOUSE' }];
     }
-    return effectiveStores.map((s: any) => ({
+    return whs.map((s: any) => ({
       id: s.id,
-      name: s.type === 'WAREHOUSE'
-        ? `📦 Entrepôt : ${s.name}`
-        : `🏪 Magasin : ${s.name}${s.isMain ? ' (Principal)' : ''}`,
-      type: s.type
-    })).sort((a: any, b: any) => {
-      if (a.id === 'CHRIFA') return -1;
-      if (b.id === 'CHRIFA') return 1;
-      if (a.type === 'WAREHOUSE' && b.type !== 'WAREHOUSE') return -1;
-      if (a.type !== 'WAREHOUSE' && b.type === 'WAREHOUSE') return 1;
-      return a.name.localeCompare(b.name);
-    });
+      name: `📦 ${s.name}`,
+      type: 'WAREHOUSE'
+    })).sort((a: any, b: any) => a.name.localeCompare(b.name));
   }, [effectiveStores]);
+
+  const [remoteMovements, setRemoteMovements] = useState<any[]>([]);
+  useEffect(() => {
+    if (!open || !facture?.id || !firestore || !effectiveUid) {
+      setRemoteMovements([]);
+      return;
+    }
+    if (existingMovements && existingMovements.length > 0) {
+      setRemoteMovements(existingMovements);
+      return;
+    }
+    const q = query(
+      collection(firestore, 'users', effectiveUid, 'stockMovements'),
+      where('factureId', '==', facture.id)
+    );
+    getDocs(q).then(snap => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setRemoteMovements(list);
+    }).catch(err => console.error('Error fetching movements for facture:', err));
+  }, [open, facture?.id, firestore, effectiveUid, existingMovements]);
+
+  const activeMovements = (existingMovements && existingMovements.length > 0) ? existingMovements : remoteMovements;
+
+  const isAlreadyInStock = Boolean(
+    facture?.status === 'STOCK' ||
+    facture?.stockEntryDate ||
+    activeMovements.length > 0
+  );
 
   const [formData, setFormData] = useState({
     stockEntryDate: '',
@@ -85,18 +109,24 @@ export default function PassToStockModal({
         additionalCostsAmount: Number(facture.additionalCostsAmount) || 0
       });
 
-      const defaultWh = warehouseOptions[0]?.id || 'CHRIFA';
+      // Identifier si un entrepôt valide avait déjà été sélectionné
+      const firstExistingStoreId = activeMovements?.find(m => m.storeId)?.storeId;
+      const isExistingStoreValid = warehouseOptions.some(w => w.id === firstExistingStoreId);
+      const defaultWh = isExistingStoreValid ? firstExistingStoreId : (warehouseOptions[0]?.id || 'ENTREPOT_NO1');
       setGlobalStoreId(defaultWh);
 
       if (associatedArticles && associatedArticles.length > 0) {
         const initialSelections: Record<string, string> = {};
         associatedArticles.forEach(a => {
-          initialSelections[a.id] = defaultWh;
+          const movForArt = activeMovements?.find(m => m.articleId === a.id);
+          const movStore = movForArt?.storeId;
+          const isMovStoreValid = warehouseOptions.some(w => w.id === movStore);
+          initialSelections[a.id] = (isMovStoreValid && movStore) ? movStore : defaultWh;
         });
         setStoreSelections(initialSelections);
       }
     }
-  }, [facture, open, associatedArticles, warehouseOptions]);
+  }, [facture, open, associatedArticles, warehouseOptions, activeMovements]);
 
   const handleGlobalStoreChange = (whId: string) => {
     setGlobalStoreId(whId);
@@ -229,6 +259,24 @@ export default function PassToStockModal({
       });
       await setDoc(factureRef, updates, { merge: true });
 
+      // 1b. Si l'arrivage existait déjà en stock ou est en cours de modification, supprimer les anciens mouvements d'arrivage pour éviter les doublons
+      const movsColl = collection(firestore, 'users', effectiveUid, 'stockMovements');
+      const q1 = query(movsColl, where('factureId', '==', facture.id));
+      const oldSnap1 = await getDocs(q1);
+      const deletePromises: Promise<any>[] = [];
+      oldSnap1.forEach(d => {
+        deletePromises.push(deleteDoc(d.ref));
+      });
+
+      const q2 = query(movsColl, where('factureRef', '==', facture.id));
+      const oldSnap2 = await getDocs(q2);
+      oldSnap2.forEach(d => {
+        if (!oldSnap1.docs.some(x => x.id === d.id)) {
+          deletePromises.push(deleteDoc(d.ref));
+        }
+      });
+      await Promise.all(deletePromises);
+
       // 2. Propager Stock Entry Date + coût de revient MAD + Statut STOCK à chaque article
       if (associatedArticles && associatedArticles.length > 0) {
         for (const article of associatedArticles) {
@@ -252,7 +300,7 @@ export default function PassToStockModal({
           }
           const fullEnglishName = parts.length > 0 ? `${baseName} ${parts.join(' ')}`.trim() : (baseName || article.specs || 'Produit');
           const defaultProductName = article.nameFR || fullEnglishName;
-          const targetStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || 'CHRIFA';
+          const targetStore = storeSelections[article.id] || globalStoreId || warehouseOptions[0]?.id || 'ENTREPOT_NO1';
 
           const hasQualityBreakdown = Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length > 0;
           const hasColorBreakdown = (article.color === 'various' || article.color === 'Various') && Array.isArray(article.colorBreakdown) && article.colorBreakdown.length > 0;
@@ -404,8 +452,8 @@ export default function PassToStockModal({
       }
 
       toast({ 
-        title: "✅ Entrée en stock validée", 
-        description: `Dossier ${facture.id} transféré au stock avec succès.` 
+        title: isAlreadyInStock ? "✅ Arrivage mis à jour" : "✅ Entrée en stock validée", 
+        description: `Dossier ${facture.id} mis à jour dans le stock avec succès.` 
       });
       onOpenChange(false);
     } catch (err: any) {
@@ -431,9 +479,11 @@ export default function PassToStockModal({
           </div>
           <div>
             <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none flex items-center gap-2">
-              Entrée en Stock <span className="opacity-70">&bull; {facture.id}</span>
+              {isAlreadyInStock ? "Modifier l'Entrée en Stock" : "Entrée en Stock"} <span className="opacity-70">&bull; {facture.id}</span>
             </DialogTitle>
-            <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mt-1">Saisie de clôture et valorisation</p>
+            <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mt-1">
+              {isAlreadyInStock ? "Mise à jour de l'affectation entrepôt et valorisation" : "Saisie de clôture et valorisation"}
+            </p>
           </div>
         </div>
 
@@ -529,7 +579,7 @@ export default function PassToStockModal({
             <div className="pt-4 border-t border-stone-100">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h4 className="text-[11px] font-black text-stone-900 uppercase tracking-widest flex items-center gap-2">
-                  <Archive className="w-4 h-4 text-emerald-500" /> Affectation Entrepôt / Magasin
+                  <Archive className="w-4 h-4 text-emerald-500" /> Affectation aux Entrepôts de Stockage
                 </h4>
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-bold text-stone-400 uppercase">Affecter tout à :</span>
@@ -612,7 +662,7 @@ export default function PassToStockModal({
               </>
             ) : (
               <>
-                <Save className="w-4 h-4" /> Finaliser l'Entrée
+                <Save className="w-4 h-4" /> {isAlreadyInStock ? "Enregistrer les modifications" : "Finaliser l'Entrée"}
               </>
             )}
           </Button>
