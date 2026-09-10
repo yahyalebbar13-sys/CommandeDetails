@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers, Package, ArrowRight, ArrowDownToLine, ArrowUpFromLine,
   ChevronLeft, AlertTriangle, CheckCircle2, BarChart3, DollarSign,
-  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse, Search, Filter
+  Boxes, TrendingUp, Hash, Calendar, Tag, Info, Warehouse, Search, Filter, Plus
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import AddOrderModal from '@/components/add-order-modal';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -711,11 +712,11 @@ function ProductsTable({
 
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
-  stockItems: rawStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
+  stockItems: rawStockItems, allStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
   isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement,
   stores = [], selectedWarehouseId, onWarehouseChange
 }: {
-  stockItems: any[]; movements: any[]; categories: any[];
+  stockItems: any[]; allStockItems?: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
   isInventoryView?: boolean; activeStore?: string; adminUid?: string | null; onAddMovement?: any;
   stores?: any[]; selectedWarehouseId?: string; onWarehouseChange?: (id: string) => void;
@@ -724,14 +725,17 @@ export default function StockFiches({
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [inventoryMode, setInventoryMode] = useState(false);
+  const [inventoryMode, setInventoryMode] = useState(isInventoryView);
   const [countedQuantities, setCountedQuantities] = useState<Record<string, string>>({});
+  const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
 
-  // Si on est en mode inventaire actif ou dans la vue inventaire, on affiche tous les articles pour pouvoir les compter. Sinon on masque les 0.
+  // Si on est en mode inventaire actif ou dans la vue inventaire, on affiche tous les articles pour pouvoir les compter (y compris 0). Sinon on masque les 0.
   const stockItems = useMemo(() => {
-    if (inventoryMode || isInventoryView) return rawStockItems;
+    if (inventoryMode || isInventoryView) {
+      return (allStockItems && allStockItems.length > 0) ? allStockItems : rawStockItems;
+    }
     return rawStockItems.filter(i => i.currentQty > 0);
-  }, [rawStockItems, inventoryMode, isInventoryView]);
+  }, [rawStockItems, allStockItems, inventoryMode, isInventoryView]);
 
   const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : (activeStore === 'ALL' ? (stores?.[0]?.id || 'CHRIFA') : activeStore);
 
@@ -743,9 +747,9 @@ export default function StockFiches({
     }
 
     let diffCount = 0;
-    for (const item of rawStockItems) {
+    for (const item of stockItems) {
       const countedStr = countedQuantities[item.articleId];
-      if (!countedStr) continue;
+      if (countedStr === undefined || countedStr === '') continue;
       const counted = parseFloat(countedStr);
       if (isNaN(counted)) continue;
 
@@ -793,9 +797,44 @@ export default function StockFiches({
       const k = item.categoryId || '';
       if (!map[k]) map[k] = [];
       map[k].push(item);
+      const cat = categories.find(c => c.id === k || c.name === k);
+      if (cat) {
+        if (cat.name && cat.name !== k) {
+          if (!map[cat.name]) map[cat.name] = [];
+          if (!map[cat.name].includes(item)) map[cat.name].push(item);
+        }
+        if (cat.id && cat.id !== k) {
+          if (!map[cat.id]) map[cat.id] = [];
+          if (!map[cat.id].includes(item)) map[cat.id].push(item);
+        }
+      }
     });
     return map;
-  }, [stockItems]);
+  }, [stockItems, categories]);
+
+  const inventoryActionBar = (
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      <Button
+        onClick={() => setIsNewProductModalOpen(true)}
+        className="bg-stone-900 hover:bg-stone-800 text-white font-black uppercase text-[10px] tracking-widest px-5 h-11 rounded-xl shadow-md flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+      >
+        <Plus className="w-4 h-4 text-emerald-400" />
+        Nouveau Produit
+      </Button>
+      {isInventoryView && (
+        inventoryMode ? (
+          <>
+            <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm hover:bg-red-50">Annuler</Button>
+            <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
+          </>
+        ) : (
+          <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
+            <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
+          </Button>
+        )
+      )}
+    </div>
+  );
 
   const genCatsWithStock = useMemo(() => {
     if (isInventoryView || inventoryMode) {
@@ -915,7 +954,13 @@ export default function StockFiches({
   // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
-    const items  = stockByCategory[subCat?.name || selSubCat] || [];
+    const items  = stockItems.filter(i =>
+      i.categoryId === selSubCat ||
+      i.categoryId === subCat?.name ||
+      i.categoryId === subCat?.id ||
+      (subCat?.nameFR && i.categoryId === subCat.nameFR) ||
+      (subCat?.name && stockByCategory[subCat.name]?.some((x: any) => x.articleId === i.articleId))
+    );
     return (
       <div className="space-y-6">
         <ProductsTable
@@ -926,26 +971,20 @@ export default function StockFiches({
             <div className="space-y-4 mb-6">
               {warehouseSelectorElement}
               <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
-              {isInventoryView && (
-                <div className="flex justify-end gap-3">
-                  {inventoryMode ? (
-                    <>
-                      <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm">Annuler</Button>
-                      <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
-                    </>
-                  ) : (
-                    <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
-                      <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
-                    </Button>
-                  )}
-                </div>
-              )}
+              {inventoryActionBar}
             </div>
           }
           userRole={userRole}
           inventoryMode={inventoryMode}
           countedQuantities={countedQuantities}
           setCountedQuantities={setCountedQuantities}
+        />
+        <AddOrderModal
+          open={isNewProductModalOpen}
+          onOpenChange={setIsNewProductModalOpen}
+          isInventoryMode={true}
+          activeStore={targetStore}
+          adminUid={adminUid}
         />
       </div>
     );
@@ -955,28 +994,17 @@ export default function StockFiches({
   if (selGenCat) {
     const gc         = generalCategories.find(g => g.id === selGenCat);
     const lineColor  = LINE_COLORS[(gc as any)?.line] || '#6B7280';
-    const subCatsWS  = categories.filter(c =>
-      c.generalCategoryId === selGenCat &&
-      (stockByCategory[c.name]?.length || 0) > 0
-    );
+    const subCatsWS  = (isInventoryView || inventoryMode)
+      ? categories.filter(c => c.generalCategoryId === selGenCat)
+      : categories.filter(c =>
+          c.generalCategoryId === selGenCat &&
+          ((stockByCategory[c.name]?.length || 0) > 0 || (stockByCategory[c.id]?.length || 0) > 0)
+        );
     return (
       <div className="space-y-6">
         {warehouseSelectorElement}
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
-        {isInventoryView && (
-          <div className="flex justify-end gap-3">
-            {inventoryMode ? (
-              <>
-                <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm">Annuler</Button>
-                <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
-              </>
-            ) : (
-              <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
-                <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
-              </Button>
-            )}
-          </div>
-        )}
+        {inventoryActionBar}
         <div className="flex items-center gap-2">
           <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
@@ -997,7 +1025,7 @@ export default function StockFiches({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {subCatsWS.map((sc, idx) => {
-              const items  = stockByCategory[sc.name] || [];
+              const items  = stockByCategory[sc.name] || stockByCategory[sc.id] || [];
               const qty    = items.reduce((s:number, i:any) => s + i.currentQty, 0);
               const val    = items.reduce((s:number, i:any) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
               const alerts = items.filter((i:any) => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
@@ -1051,6 +1079,13 @@ export default function StockFiches({
             })}
           </div>
         )}
+        <AddOrderModal
+          open={isNewProductModalOpen}
+          onOpenChange={setIsNewProductModalOpen}
+          isInventoryMode={true}
+          activeStore={targetStore}
+          adminUid={adminUid}
+        />
       </div>
     );
   }
@@ -1060,20 +1095,7 @@ export default function StockFiches({
     <div className="space-y-6">
       {warehouseSelectorElement}
       <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
-      {isInventoryView && (
-        <div className="flex justify-end gap-3">
-          {inventoryMode ? (
-            <>
-              <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm">Annuler</Button>
-              <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
-            </>
-          ) : (
-            <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
-              <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
-            </Button>
-          )}
-        </div>
-      )}
+      {inventoryActionBar}
 
       {/* ── Toolbar : Recherche & Filtre par Ligne (Fabric, Zipper, Slider, Bouton, Reste...) ── */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-100 shadow-sm">
@@ -1153,11 +1175,13 @@ export default function StockFiches({
 
             const groupCardsData = group.items.map(gc => {
               const gcSubs = categories.filter(c => c.generalCategoryId === gc.id);
-              const gcItems = stockItems.filter(i => gcSubs.some(s => s.name === i.categoryId || s.id === i.categoryId));
+              const gcItems = stockItems.filter(i => gcSubs.some(s => s.name === i.categoryId || s.id === i.categoryId || (s.nameFR && s.nameFR === i.categoryId)));
               const gcQty = gcItems.reduce((s, i) => s + i.currentQty, 0);
               const gcVal = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
               const gcAlertCount = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
-              const subCount = gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0).length;
+              const subCount = (isInventoryView || inventoryMode)
+                ? gcSubs.length
+                : gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0 || (stockByCategory[s.id]?.length || 0) > 0).length;
 
               groupQty += gcQty;
               groupVal += gcVal;
@@ -1261,6 +1285,13 @@ export default function StockFiches({
           })}
         </div>
       )}
+      <AddOrderModal
+        open={isNewProductModalOpen}
+        onOpenChange={setIsNewProductModalOpen}
+        isInventoryMode={true}
+        activeStore={targetStore}
+        adminUid={adminUid}
+      />
     </div>
   );
 }

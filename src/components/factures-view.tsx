@@ -434,12 +434,20 @@ export default function FacturesView({
                   </span>
                 </div>
               </div>
-              {selectedFacture.stockEntryDate && (
+              {selectedFacture.stockEntryDate ? (
                 <div className="bg-emerald-500/20 p-3 px-4 rounded-2xl border border-emerald-500/30 shrink-0">
                   <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Entrée Stock</p>
                   <p className="text-sm font-black text-white uppercase">{selectedFacture.stockEntryDate}</p>
                 </div>
-              )}
+              ) : onPassToStock ? (
+                <Button
+                  onClick={() => onPassToStock(selectedFacture.id)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-4 h-11 rounded-2xl shadow-lg flex items-center gap-2 shrink-0 hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Archive className="w-4 h-4" />
+                  Valider l'Entrée en Stock
+                </Button>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full lg:w-auto relative z-10">
@@ -1080,7 +1088,7 @@ export default function FacturesView({
             </div>
 
             {/* Bouton Enregistrer en Stock */}
-            {onPassToStock && f.arrivalDate && !f.stockEntryDate && (
+            {onPassToStock && !f.stockEntryDate && (
               <div className="mt-4 pt-3 border-t border-emerald-100" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={e => { e.stopPropagation(); onPassToStock(f.id); }}

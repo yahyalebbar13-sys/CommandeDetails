@@ -345,7 +345,7 @@ export function AddOrderForm({
       name: formData.categoryId,
       nameFR: formData.nameFR?.trim() || null,
       generalCategoryId: selectedGenCatId,
-      status: isInventoryMode ? 'SHIPPED' : 'TO_ORDER',
+      status: isInventoryMode ? 'STOCK' : 'TO_ORDER',
       isFullContainer,
       createdAt: serverTimestamp(),
       hsCode: selectedSubCat?.hsCode || null,
@@ -492,10 +492,12 @@ export function AddOrderForm({
     const splitCount = Math.max(qualitySplitCount, designSplitCount, colorSplitCount, sizeSplitCount);
 
     toast({
-      title: "✅ Besoin enregistré",
-      description: splitCount > 1
-        ? `${splitCount} articles créés (auto-split par prix)`
-        : "L'article a été ajouté à la liste des rappels.",
+      title: isInventoryMode ? "✅ Produit ajouté au stock" : "✅ Besoin enregistré",
+      description: isInventoryMode
+        ? "L'article a été ajouté avec succès à l'inventaire."
+        : (splitCount > 1
+            ? `${splitCount} articles créés (auto-split par prix)`
+            : "L'article a été ajouté à la liste des rappels."),
     });
     if (onSuccess) onSuccess({
       ...basePayload,
@@ -1246,11 +1248,34 @@ export function AddOrderForm({
   );
 }
 
-export default function AddOrderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+export interface AddOrderModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isInventoryMode?: boolean;
+  activeStore?: string;
+  adminUid?: string | null;
+  onSuccess?: (payload: any) => void;
+}
+
+export default function AddOrderModal({
+  open,
+  onOpenChange,
+  isInventoryMode = false,
+  activeStore = 'CHRIFA',
+  adminUid = null,
+  onSuccess
+}: AddOrderModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg border-stone-200 max-h-[92vh] overflow-y-auto rounded-2xl p-0">
-        <AddOrderForm key={open ? 'open' : 'closed'} onClose={() => onOpenChange(false)} />
+        <AddOrderForm
+          key={open ? 'open' : 'closed'}
+          onClose={() => onOpenChange(false)}
+          isInventoryMode={isInventoryMode}
+          activeStore={activeStore}
+          adminUid={adminUid}
+          onSuccess={onSuccess}
+        />
       </DialogContent>
     </Dialog>
   );

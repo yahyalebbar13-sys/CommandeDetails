@@ -433,6 +433,7 @@ function AdminApp() {
   const articlesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'articles'), [firestore, user]);
   const genCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'generalCategories'), [firestore, user]);
   const subCatsRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'categories'), [firestore, user]);
+  const storesRef = useMemoFirebase(() => (!firestore || !user) ? null : collection(firestore, 'users', user.uid, 'stores'), [firestore, user]);
   // payments is only needed by SuppliersView — load lazily when that tab is active
   const paymentsRef = useMemoFirebase(() => (!firestore || !user || activeTab !== 'suppliers') ? null : collection(firestore, 'users', user.uid, 'supplierPayments'), [firestore, user, activeTab]);
 
@@ -440,6 +441,7 @@ function AdminApp() {
   const { data: rawArticles, isLoading: isArticlesLoading } = useCollection(articlesRef);
   const { data: rawGenCats, isLoading: isGenCatsLoading } = useCollection(genCatsRef);
   const { data: rawSubCats, isLoading: isSubCatsLoading } = useCollection(subCatsRef);
+  const { data: rawStores } = useCollection(storesRef);
   const { data: rawPayments } = useCollection(paymentsRef); // no loading spinner — loads silently
 
   const factures = rawFactures || [];
@@ -448,6 +450,7 @@ function AdminApp() {
   const articles = useEnrichedArticles(rawArticles_, factures);
   const generalCategories = rawGenCats || [];
   const subCategories = rawSubCats || [];
+  const stores = rawStores || [];
   const payments = rawPayments || [];
 
   // ─── Auto-detect status transitions and send emails ────────────────────────────────────
@@ -644,7 +647,7 @@ function AdminApp() {
               <TimelineView articles={articles} factures={factures} onNavigateToFacture={(id) => { setPreviousTab(activeTab); setSelectedFactureId(id); setActiveTab('factures'); setIsMobileMenuOpen(false); }} onPassToStock={setPassToStockFactureId} />
             </div>
             <div className={activeTab === 'factures' ? 'block animate-in fade-in' : 'hidden'}>
-              <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} />
+              <FacturesView articles={articles} factures={factures} subCategories={subCategories} selectedFactureId={selectedFactureId} setSelectedFactureId={setSelectedFactureId} onNavigateToCategory={(c) => { setPreviousTab('factures'); setSelectedCategoryName(c); setActiveTab('categories'); }} onBack={() => { setSelectedFactureId(null); if (previousTab) { setActiveTab(previousTab); setPreviousTab(null); } }} onPassToStock={setPassToStockFactureId} />
             </div>
             <div className={activeTab === 'general-categories' ? 'block animate-in fade-in' : 'hidden'}>
               <GeneralCategoriesView articles={articles} generalCategories={generalCategories} subCategories={subCategories} onSelectGeneralCategory={(id) => { setPreviousTab(activeTab); setSelectedGeneralCategoryId(id); setActiveTab(id ? 'categories' : 'general-categories'); }} />
@@ -708,7 +711,9 @@ function AdminApp() {
         <PassToStockModal open={!!passToStockFactureId} onOpenChange={(open) => !open && setPassToStockFactureId(null)}
           facture={factures.find(f => f.id === passToStockFactureId)}
           associatedArticles={articles.filter(a => a.factureId === passToStockFactureId)}
-          subCategories={subCategories} />
+          subCategories={subCategories}
+          stores={stores}
+          adminUid={user?.uid} />
       )}
     </div>
   );

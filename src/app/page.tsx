@@ -685,7 +685,8 @@ function AdminApp() {
         <PassToStockModal open={!!passToStockFactureId} onOpenChange={(open) => !open && setPassToStockFactureId(null)}
           facture={factures.find(f => f.id === passToStockFactureId)}
           associatedArticles={articles.filter(a => a.factureId === passToStockFactureId)}
-          subCategories={subCategories} />
+          subCategories={subCategories}
+          adminUid={user?.uid} />
       )}
     </div>
   );
