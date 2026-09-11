@@ -195,6 +195,7 @@ export default function PendingOrdersView({ articles, factures, generalCategorie
                   <Building2 className="w-2.5 h-2.5" /> {o.supplierId}
                 </span>
               )}
+              {o.quality && <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase">{o.quality}</span>}
               {o.qualityBreakdown?.length > 0 && <span className="text-[8px] font-bold text-fuchsia-600 bg-fuchsia-50 border border-fuchsia-100 px-1.5 py-0.5 rounded uppercase">{o.qualityBreakdown.length} qualités</span>}
               {o.size && o.size !== 'various' && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.size}</span>}
               {o.sizeBreakdown?.length > 0 && <span className="text-[8px] font-bold text-teal-600 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded uppercase">{o.sizeBreakdown.length} tailles</span>}

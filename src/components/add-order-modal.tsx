@@ -41,6 +41,7 @@ const PRIORITY_CONFIG = [
 const EMPTY_FORM = {
   supplierId: '',
   categoryId: '',
+  quality: '',
   specs: '',
   quantity: '' as string | number,
   unitOfMeasure: 'pièces',
@@ -179,12 +180,14 @@ export function AddOrderForm({
   }, []);
 
   const handleQualityBreakdownChange = useCallback((rows: QualityBreakdownRow[] | null, total: number) => {
+    setQualityBreakdown(rows && rows.length > 0 ? rows : null);
     if (rows && rows.length === 1) {
-      setQualityBreakdown(null);
       const q = rows[0];
       setFormData((p: any) => ({
         ...p,
         quantity: total,
+        quality: q.quality || p.quality || '',
+        ...(q.nameFR ? { nameFR: q.nameFR } : {}),
         ...(q.gsm ? { gsm: q.gsm } : {}),
         ...(q.fabricWidth ? { fabricWidth: q.fabricWidth } : {}),
         ...(q.rollLength ? { rollLength: q.rollLength, rollLengthUnit: q.rollLengthUnit || 'm' } : {}),
@@ -199,10 +202,7 @@ export function AddOrderForm({
         ...(q.bagsPerCarton ? { bagsPerCarton: q.bagsPerCarton } : {}),
       }));
     } else if (rows && rows.length > 1) {
-      setQualityBreakdown(rows);
-      setFormData((p: any) => ({ ...p, quantity: total }));
-    } else {
-      setQualityBreakdown(null);
+      setFormData((p: any) => ({ ...p, quantity: total, quality: 'VARIOUS' }));
     }
   }, []);
 
@@ -348,6 +348,9 @@ export function AddOrderForm({
       name: formData.categoryId,
       nameFR: formData.nameFR?.trim() || null,
       generalCategoryId: selectedGenCatId,
+      quality: formData.quality || null,
+      qualityLabel: formData.quality || null,
+      specs: formData.specs || formData.quality || null,
       status: isInventoryMode ? 'STOCK' : 'TO_ORDER',
       isFullContainer,
       createdAt: serverTimestamp(),
@@ -389,6 +392,9 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         const firstRow = rows[0];
         const rowSpecs = rows.length === 1 ? {
+          quality: firstRow.quality || null,
+          qualityLabel: firstRow.quality || null,
+          specs: firstRow.quality || null,
           ...(firstRow.nameFR ? { nameFR: firstRow.nameFR } : {}),
           ...(firstRow.gsm ? { gsm: firstRow.gsm } : {}),
           ...(firstRow.fabricWidth ? { fabricWidth: firstRow.fabricWidth } : {}),
@@ -657,25 +663,31 @@ export function AddOrderForm({
                       <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
                     </div>
                   ) : fabricQualities.length > 0 ? (
-                    <Select onValueChange={v => {
-                      const q = fabricQualities[Number(v)];
-                      if (q) setFormData((p: any) => ({
-                        ...p,
-                        size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size,
-                        gsm: q.gsm || '',
-                        fabricWidth: q.fabricWidth || '',
-                        rollLength: q.rollLength || '',
-                        rollLengthUnit: q.rollLengthUnit || 'm',
-                        packagingPerBag: q.packagingPerBag || '',
-                        nameFR: q.nameFR || p.nameFR,
-                      }));
-                    }}>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = fabricQualities.find((x: any) => x.label === v) || fabricQualities[Number(v)];
+                        if (q) setFormData((p: any) => ({
+                          ...p,
+                          quality: q.label,
+                          qualityLabel: q.label,
+                          specs: p.specs ? p.specs : q.label,
+                          size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size,
+                          gsm: q.gsm || '',
+                          fabricWidth: q.fabricWidth || '',
+                          rollLength: q.rollLength || '',
+                          rollLengthUnit: q.rollLengthUnit || 'm',
+                          packagingPerBag: q.packagingPerBag || '',
+                          nameFR: q.nameFR || p.nameFR,
+                        }));
+                      }}
+                    >
                       <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
                         <SelectValue placeholder="Choisir une qualité..." />
                       </SelectTrigger>
                       <SelectContent>
                         {fabricQualities.map((q: any, i: number) => (
-                          <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -770,29 +782,35 @@ export function AddOrderForm({
                       <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
                     </div>
                   ) : zipperQualities.length > 0 ? (
-                    <Select onValueChange={v => {
-                      const q = zipperQualities[Number(v)];
-                      if (q) {
-                        setFormData((p: any) => ({
-                          ...p,
-                          size: q.length || p.size,
-                          zipperType: q.zipperType || p.zipperType,
-                          slider: q.slider || p.slider,
-                          sliderType: q.sliderType || p.sliderType,
-                          tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
-                          sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
-                          pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
-                          bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
-                          nameFR: q.nameFR || p.nameFR,
-                        }));
-                      }
-                    }}>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = zipperQualities.find((x: any) => x.label === v) || zipperQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            size: q.length || p.size,
+                            zipperType: q.zipperType || p.zipperType,
+                            slider: q.slider || p.slider,
+                            sliderType: q.sliderType || p.sliderType,
+                            tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
+                            sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                            pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                            bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-11 border-amber-200 bg-white font-bold rounded-xl text-amber-800">
                         <SelectValue placeholder="Choisir une qualité..." />
                       </SelectTrigger>
                       <SelectContent>
                         {zipperQualities.map((q: any, i: number) => (
-                          <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

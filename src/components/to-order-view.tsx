@@ -483,10 +483,11 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1">
+                            {o.quality && <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase">{o.quality}</span>}
                             {o.size && <span className="text-[8px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.size}</span>}
                             {o.color && <span className="text-[8px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded uppercase">{o.color}</span>}
                             {isZipper && o.zipperType && <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded uppercase">{o.zipperType} {o.slider || ''}</span>}
-                            {!isZipper && o.specs && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">{o.specs}</span>}
+                            {!isZipper && o.specs && (!o.quality || o.specs !== o.quality) && <span className="text-[8px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">{o.specs}</span>}
                           </div>
                           {(() => {
                             const lastOrder = findLastOrderPrice(o, articles);
@@ -669,10 +670,11 @@ export default function ToOrderView({ articles, factures, onEdit }: ToOrderViewP
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
+                              {o.quality && <span className="text-[9px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-lg uppercase">{o.quality}</span>}
                               {o.size && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.size}</span>}
                               {o.color && <span className="text-[9px] font-bold text-stone-500 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg uppercase">{o.color}</span>}
                               {isZipper && o.zipperType && <span className="text-[9px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg uppercase">{o.zipperType} {o.slider || ''}</span>}
-                              {!isZipper && o.specs && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
+                              {!isZipper && o.specs && (!o.quality || o.specs !== o.quality) && <span className="text-[9px] font-bold text-stone-400 bg-stone-50 border border-stone-100 px-2 py-0.5 rounded-lg">{o.specs}</span>}
                             </div>
                             {(() => {
                               const lastOrder = findLastOrderPrice(o, articles);

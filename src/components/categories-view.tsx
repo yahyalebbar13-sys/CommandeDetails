@@ -1415,7 +1415,7 @@ export default function CategoriesView({
                 </TableHeader>
                 <TableBody>
                   {groupedData.production.length > 0 ? groupedData.production.map(a => {
-                    const isTechnical = isTechnicalZipper(a.categoryId);
+                    const isTechnical = isTechnicalZipper(a.name || a.categoryId) || Boolean(a.zipperType || a.slider || a.sliderType);
                     return (
                       <TableRow key={a.id} className="hover:bg-amber-50/30 transition-colors border-stone-50">
                         <TableCell className="py-3.5 px-6 align-top">
@@ -1445,13 +1445,15 @@ export default function CategoriesView({
                             </div>
                           ) : isTechnical ? (
                             <div className="flex flex-col gap-0.5">
+                              {a.quality && <span className="text-violet-700 font-black text-[9px] uppercase">{a.quality}</span>}
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
-                          ) : (a.gsm || a.fabricWidth) ? (
+                          ) : (a.quality || a.gsm || a.fabricWidth) ? (
                             <div className="flex flex-wrap gap-1">
-                              {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{a.gsm}gsm</span>}
-                              {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{a.fabricWidth}cm</span>}
+                              {a.quality && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 text-[9px] font-black">{a.quality}</span>}
+                              {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 text-[8px] font-bold">{a.gsm}gsm</span>}
+                              {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[8px] font-bold">{a.fabricWidth}cm</span>}
                               {a.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{a.rollLength}{a.rollLengthUnit || 'm'}</span>}
                               {a.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{a.packagingPerBag}rlx/sac</span>}
                             </div>
@@ -1499,7 +1501,7 @@ export default function CategoriesView({
                 </TableHeader>
                 <TableBody>
                   {groupedData.transit.length > 0 ? groupedData.transit.map(a => {
-                    const isTechnical = isTechnicalZipper(a.categoryId);
+                    const isTechnical = isTechnicalZipper(a.name || a.categoryId) || Boolean(a.zipperType || a.slider || a.sliderType);
                     return (
                       <TableRow key={a.id} className="hover:bg-blue-50/20 transition-colors border-stone-50">
                         <TableCell className="py-3.5 px-6 align-top">
@@ -1525,13 +1527,15 @@ export default function CategoriesView({
                             </div>
                           ) : isTechnical ? (
                             <div className="flex flex-col gap-0.5">
+                              {a.quality && <span className="text-violet-700 font-black text-[9px] uppercase">{a.quality}</span>}
                               <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                               <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'} ({a.sliderType || '-'})</span>
                             </div>
-                          ) : (a.gsm || a.fabricWidth) ? (
+                          ) : (a.quality || a.gsm || a.fabricWidth) ? (
                             <div className="flex flex-wrap gap-1">
-                              {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{a.gsm}gsm</span>}
-                              {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{a.fabricWidth}cm</span>}
+                              {a.quality && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 text-[9px] font-black">{a.quality}</span>}
+                              {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 text-[8px] font-bold">{a.gsm}gsm</span>}
+                              {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[8px] font-bold">{a.fabricWidth}cm</span>}
                               {a.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{a.rollLength}{a.rollLengthUnit || 'm'}</span>}
                               {a.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{a.packagingPerBag}rlx/sac</span>}
                             </div>
@@ -1606,7 +1610,7 @@ export default function CategoriesView({
                       {arrivedArticles.map(a => {
                         const eff = computeEffectiveStatus(a);
                         const isValidated = validatedIds.has(a.id);
-                        const isTechnical = isTechnicalZipper(a.categoryId);
+                        const isTechnical = isTechnicalZipper(a.name || a.categoryId) || Boolean(a.zipperType || a.slider || a.sliderType);
                         return (
                           <TableRow key={a.id} className={`transition-colors border-stone-50 ${
                             isValidated ? 'hover:bg-emerald-50/20' : 'hover:bg-amber-50/20'
@@ -1636,13 +1640,15 @@ export default function CategoriesView({
                                 </div>
                               ) : isTechnical ? (
                                 <div className="flex flex-col gap-0.5">
+                                  {a.quality && <span className="text-violet-700 font-black text-[9px] uppercase">{a.quality}</span>}
                                   <span className="text-amber-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><Settings2 className="w-2.5 h-2.5" /> {a.zipperType || '-'}</span>
                                   <span className="text-blue-600 font-black text-[8px] flex items-center gap-1.5 uppercase"><MousePointer2 className="w-2.5 h-2.5" /> {a.slider || '-'}</span>
                                 </div>
-                              ) : (a.gsm || a.fabricWidth) ? (
+                              ) : (a.quality || a.gsm || a.fabricWidth) ? (
                                 <div className="flex flex-wrap gap-1">
-                                  {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black">{a.gsm}gsm</span>}
-                                  {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{a.fabricWidth}cm</span>}
+                                  {a.quality && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 text-[9px] font-black">{a.quality}</span>}
+                                  {a.gsm && <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 text-[8px] font-bold">{a.gsm}gsm</span>}
+                                  {a.fabricWidth && <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[8px] font-bold">{a.fabricWidth}cm</span>}
                                   {a.rollLength && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[8px] font-black">{a.rollLength}{a.rollLengthUnit || 'm'}</span>}
                                   {a.packagingPerBag && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{a.packagingPerBag}rlx/sac</span>}
                                 </div>
@@ -1694,8 +1700,14 @@ export default function CategoriesView({
           // Also compute order stats per quality
           const qualityStats = qualities.map(q => {
             const matchingArticles = currentArticles.filter((a: any) => {
+              if (a.quality && q.label && a.quality.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityLabel && q.label && a.qualityLabel.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityBreakdown && Array.isArray(a.qualityBreakdown)) {
+                if (a.qualityBreakdown.some((qb: any) => qb.quality && q.label && qb.quality.trim().toLowerCase() === q.label.trim().toLowerCase())) return true;
+              }
               if (q.gsm && Number(a.gsm) !== q.gsm) return false;
               if (q.fabricWidth && Number(a.fabricWidth) !== q.fabricWidth) return false;
+              if (!q.gsm && !q.fabricWidth) return false;
               return true;
             });
             return {
@@ -1795,6 +1807,11 @@ export default function CategoriesView({
           // Also compute order stats per zipper quality
           const qualityStats = qualities.map(q => {
             const matchingArticles = currentArticles.filter((a: any) => {
+              if (a.quality && q.label && a.quality.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityLabel && q.label && a.qualityLabel.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityBreakdown && Array.isArray(a.qualityBreakdown)) {
+                if (a.qualityBreakdown.some((qb: any) => qb.quality && q.label && qb.quality.trim().toLowerCase() === q.label.trim().toLowerCase())) return true;
+              }
               if (q.length) {
                 const qLen = q.length.trim().toLowerCase().replace(/\s+/g, '');
                 const qNum = qLen.replace(/[^0-9.]/g, '');
@@ -2536,9 +2553,9 @@ export default function CategoriesView({
                         label: '',
                         nameFR: '',
                         length: '',
-                        zipperType: 'C/E',
+                        zipperType: '',
                         slider: '',
-                        sliderType: 'A/L',
+                        sliderType: '',
                         tapeWeightGsm: '',
                         sliderWeightG: '',
                         pcsPerBag: '',

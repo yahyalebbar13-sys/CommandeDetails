@@ -118,12 +118,16 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   };
 
   const handleQualityBreakdownChange = (rows: QualityBreakdownRow[] | null, total: number) => {
+    setQualityBreakdown(rows && rows.length > 0 ? rows : null);
     if (rows && rows.length === 1) {
-      setQualityBreakdown(null);
       const q = rows[0];
       setFormData((p: any) => p ? {
         ...p,
         quantity: total,
+        quality: q.quality || p.quality || '',
+        qualityLabel: q.quality || p.quality || '',
+        specs: p.specs ? p.specs : (q.quality || ''),
+        ...(q.nameFR ? { nameFR: q.nameFR } : {}),
         ...(q.gsm ? { gsm: q.gsm } : {}),
         ...(q.fabricWidth ? { fabricWidth: q.fabricWidth } : {}),
         ...(q.rollLength ? { rollLength: q.rollLength, rollLengthUnit: q.rollLengthUnit || 'm' } : {}),
@@ -138,17 +142,23 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         ...(q.bagsPerCarton ? { bagsPerCarton: q.bagsPerCarton } : {}),
       } : p);
     } else if (rows && rows.length > 1) {
-      setQualityBreakdown(rows);
-      setFormData((p: any) => p ? { ...p, quantity: total } : p);
-    } else {
-      setQualityBreakdown(null);
+      setFormData((p: any) => p ? { ...p, quantity: total, quality: 'VARIOUS' } : p);
     }
   };
 
   useEffect(() => {
     if (article) {
+      const catName = article.categoryId || article.name || '';
+      const foundCat = (subCategories || []).find((sc: any) => sc.name === catName || sc.id === article.categoryId);
+      const resolvedGenCatId = article.generalCategoryId || foundCat?.generalCategoryId || '';
+
       setFormData({
         ...article,
+        categoryId: catName,
+        generalCategoryId: resolvedGenCatId,
+        quality: article.quality || article.qualityLabel || '',
+        qualityLabel: article.quality || article.qualityLabel || '',
+        specs: article.specs || article.quality || '',
         status: article.rawStatus || article.status,
         factureId: article.factureId || 'NONE',
         size: article.size || '',
@@ -159,6 +169,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         sliderWeightG: article.sliderWeightG ?? '',
         pcsPerBag: article.pcsPerBag ?? '',
         bagsPerCarton: article.bagsPerCarton ?? '',
+        gsm: article.gsm ?? '',
+        fabricWidth: article.fabricWidth ?? '',
+        rollLength: article.rollLength ?? '',
+        rollLengthUnit: article.rollLengthUnit || 'm',
+        packagingPerBag: article.packagingPerBag ?? '',
         priority: article.priority || 'todo',
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
@@ -167,7 +182,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         designRef: article.designRef || '',
         designImageUrl: article.designImageUrl || '',
       });
-      setSelectedGenCatId(article.generalCategoryId || '');
+      setSelectedGenCatId(resolvedGenCatId);
       setColorBreakdown(article.colorBreakdown || null);
       setSizeBreakdown(Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : null);
       setDesignBreakdown(article.designBreakdown || null);
@@ -179,7 +194,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       setDesignBreakdown(null);
       setQualityBreakdown(null);
     }
-  }, [article]);
+  }, [article, subCategories]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -409,14 +424,18 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...rawFormData } = formData;
     const cleanFormData = {
       ...rawFormData,
-      gsm: isFabric && rawFormData.gsm ? Number(rawFormData.gsm) : null,
-      fabricWidth: isFabric && rawFormData.fabricWidth ? Number(rawFormData.fabricWidth) : null,
-      rollLength: isFabric && rawFormData.rollLength ? Number(rawFormData.rollLength) : null,
-      packagingPerBag: isFabric && rawFormData.packagingPerBag ? Number(rawFormData.packagingPerBag) : null,
-      tapeWeightGsm: isZipper && rawFormData.tapeWeightGsm ? Number(rawFormData.tapeWeightGsm) : null,
-      sliderWeightG: isZipper && rawFormData.sliderWeightG ? Number(rawFormData.sliderWeightG) : null,
-      pcsPerBag: isZipper && rawFormData.pcsPerBag ? Number(rawFormData.pcsPerBag) : null,
-      bagsPerCarton: isZipper && rawFormData.bagsPerCarton ? Number(rawFormData.bagsPerCarton) : null,
+      quality: rawFormData.quality || null,
+      qualityLabel: rawFormData.quality || null,
+      specs: rawFormData.specs || rawFormData.quality || null,
+      gsm: (rawFormData.gsm !== '' && rawFormData.gsm != null) ? Number(rawFormData.gsm) : null,
+      fabricWidth: (rawFormData.fabricWidth !== '' && rawFormData.fabricWidth != null) ? Number(rawFormData.fabricWidth) : null,
+      rollLength: (rawFormData.rollLength !== '' && rawFormData.rollLength != null) ? Number(rawFormData.rollLength) : null,
+      rollLengthUnit: rawFormData.rollLength ? (rawFormData.rollLengthUnit || 'm') : null,
+      packagingPerBag: (rawFormData.packagingPerBag !== '' && rawFormData.packagingPerBag != null) ? Number(rawFormData.packagingPerBag) : null,
+      tapeWeightGsm: (rawFormData.tapeWeightGsm !== '' && rawFormData.tapeWeightGsm != null) ? Number(rawFormData.tapeWeightGsm) : null,
+      sliderWeightG: (rawFormData.sliderWeightG !== '' && rawFormData.sliderWeightG != null) ? Number(rawFormData.sliderWeightG) : null,
+      pcsPerBag: (rawFormData.pcsPerBag !== '' && rawFormData.pcsPerBag != null) ? Number(rawFormData.pcsPerBag) : null,
+      bagsPerCarton: (rawFormData.bagsPerCarton !== '' && rawFormData.bagsPerCarton != null) ? Number(rawFormData.bagsPerCarton) : null,
     };
     
     let isSplit = false;
@@ -470,8 +489,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         if (isFirst) {
           const finalData = {
             ...cleanFormData,
-            name: formData.categoryId,
+            name: formData.categoryId || formData.name || article.name,
+            categoryId: formData.categoryId || formData.name || article.categoryId || '',
             generalCategoryId: selectedGenCatId,
+            quality: formData.quality || null,
+            qualityLabel: formData.quality || null,
+            specs: formData.specs || formData.quality || null,
             factureId: finalFactureId,
             status: statusToSave,
             purchasePricePerUnit: price,
@@ -486,8 +509,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
           const finalData = {
             ...cleanFormData,
             id: newId,
-            name: formData.categoryId,
+            name: formData.categoryId || formData.name || article.name,
+            categoryId: formData.categoryId || formData.name || article.categoryId || '',
             generalCategoryId: selectedGenCatId,
+            quality: formData.quality || null,
+            qualityLabel: formData.quality || null,
+            specs: formData.specs || formData.quality || null,
             factureId: finalFactureId,
             status: statusToSave,
             purchasePricePerUnit: price,
@@ -501,8 +528,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     } else {
       const finalData = {
         ...cleanFormData,
-        name: formData.categoryId,
+        name: formData.categoryId || formData.name || article.name,
+        categoryId: formData.categoryId || formData.name || article.categoryId || '',
         generalCategoryId: selectedGenCatId,
+        quality: formData.quality || null,
+        qualityLabel: formData.quality || null,
+        specs: formData.specs || formData.quality || null,
         factureId: finalFactureId,
         status: statusToSave,
         qualityBreakdown: qualityBreakdown && qualityBreakdown.length > 0 ? qualityBreakdown : null,
@@ -863,29 +894,35 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 ) : zipperQualities.length > 0 ? (
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Qualité Zipper Fixe</Label>
-                    <Select onValueChange={v => {
-                      const q = zipperQualities[Number(v)];
-                      if (q) {
-                        setFormData((p: any) => ({
-                          ...p,
-                          size: q.length || p.size,
-                          zipperType: q.zipperType || p.zipperType,
-                          slider: q.slider || p.slider,
-                          sliderType: q.sliderType || p.sliderType,
-                          tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
-                          sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
-                          pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
-                          bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
-                          nameFR: q.nameFR || p.nameFR,
-                        }));
-                      }
-                    }}>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = zipperQualities.find((x: any) => x.label === v) || zipperQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            size: q.length || p.size,
+                            zipperType: q.zipperType || p.zipperType,
+                            slider: q.slider || p.slider,
+                            sliderType: q.sliderType || p.sliderType,
+                            tapeWeightGsm: q.tapeWeightGsm ?? p.tapeWeightGsm,
+                            sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                            pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                            bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-11 border-amber-200 bg-white font-bold rounded-xl text-amber-800">
                         <SelectValue placeholder="Choisir une qualité Zipper..." />
                       </SelectTrigger>
                       <SelectContent>
                         {zipperQualities.map((q: any, i: number) => (
-                          <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1029,16 +1066,31 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-black text-violet-500 uppercase tracking-widest">Qualité</Label>
-                      <Select onValueChange={v => {
-                        const q = fabricQualities[Number(v)];
-                        if (q) setFormData((p: any) => ({ ...p, size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size, gsm: q.gsm || '', fabricWidth: q.fabricWidth || '', rollLength: q.rollLength || '', rollLengthUnit: q.rollLengthUnit || 'm', packagingPerBag: q.packagingPerBag || '', nameFR: q.nameFR || p.nameFR }));
-                      }}>
+                      <Select
+                        value={formData.quality || ''}
+                        onValueChange={v => {
+                          const q = fabricQualities.find((x: any) => x.label === v) || fabricQualities[Number(v)];
+                          if (q) setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size,
+                            gsm: q.gsm || '',
+                            fabricWidth: q.fabricWidth || '',
+                            rollLength: q.rollLength || '',
+                            rollLengthUnit: q.rollLengthUnit || 'm',
+                            packagingPerBag: q.packagingPerBag || '',
+                            nameFR: q.nameFR || p.nameFR
+                          }));
+                        }}
+                      >
                         <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
                           <SelectValue placeholder="Choisir une qualité..." />
                         </SelectTrigger>
                         <SelectContent>
                           {fabricQualities.map((q: any, i: number) => (
-                            <SelectItem key={i} value={String(i)} className="font-bold text-[11px]">{q.label}</SelectItem>
+                            <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
