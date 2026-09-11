@@ -20,16 +20,18 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { Badge } from '@/components/ui/badge';
+import { getArticleDisplayName, getArticleFrenchName } from '@/lib/product-name-utils';
 
 interface ClientPortalAppProps {
   clientName: string;
   articles: any[];
   factures: any[];
   categories: any[];
+  generalCategories?: any[];
   onLogout?: () => void;
 }
 
-export function ClientPortalApp({ clientName, articles, factures, categories, onLogout }: ClientPortalAppProps) {
+export function ClientPortalApp({ clientName, articles, factures, categories, generalCategories = [], onLogout }: ClientPortalAppProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'to_order' | 'production' | 'transit' | 'customs' | 'stock' | 'history'>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -49,9 +51,11 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
         
         const mergedArticle = { ...a, arrivalDate, stockEntryDate };
         const derivedStatus = computeEffectiveStatus(mergedArticle);
+        const frenchName = getArticleFrenchName(mergedArticle, categories, generalCategories);
         
         return {
           ...mergedArticle,
+          frenchName,
           status: derivedStatus,
           orderDate,
           factureNoBL: facture?.noBL || null,
@@ -64,7 +68,7 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
         const tB = b.arrivalDate ? new Date(b.arrivalDate).getTime() : Infinity;
         return tA - tB;
       });
-  }, [clientName, articles, factures]);
+  }, [clientName, articles, factures, categories, generalCategories]);
 
   const stats = useMemo(() => {
     return {
@@ -117,6 +121,8 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
     const category = categories.find(c => c.id === article.categoryId || (c.name && c.name.toLowerCase() === (article.categoryId || '').toLowerCase()));
     const displayImage = article.imageUrl || article.designImageUrl || category?.imageUrl;
 
+    const { frenchName, originalName, hasDifferentFrenchName } = getArticleDisplayName(article, categories, generalCategories);
+
     const safeColorBreakdown = Array.isArray(article.colorBreakdown) 
       ? article.colorBreakdown 
       : (article.colorBreakdown && typeof article.colorBreakdown === 'object') 
@@ -135,7 +141,14 @@ export function ClientPortalApp({ clientName, articles, factures, categories, on
           </div>
         )}
         <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <p className="font-black text-stone-900 text-sm uppercase tracking-wider truncate mb-1">{article.name || article.categoryId}</p>
+          <p className="font-black text-stone-900 text-sm uppercase tracking-wider truncate mb-0.5">
+            {frenchName}
+          </p>
+          {hasDifferentFrenchName && (
+            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide truncate mb-1">
+              Réf : {originalName}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2 text-[11px] font-black text-stone-600 uppercase mb-1">
             <span>Qté: {Number(article.quantity).toLocaleString()} {article.unitOfMeasure || 'U'}</span>
             {article.orderDate && <span className="text-stone-400">• Cmd: {article.orderDate}</span>}

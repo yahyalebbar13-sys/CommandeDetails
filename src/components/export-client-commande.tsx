@@ -137,7 +137,8 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     doc.setTextColor(...WHITE);
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text((article.name || article.categoryId || "ARTICLE").toUpperCase(), MX + 10, y + 9.5);
+    const displayTitle = (article.frenchName || article.nameFR || article.name || article.categoryId || "ARTICLE").toUpperCase();
+    doc.text(displayTitle, MX + 10, y + 9.5);
 
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
@@ -168,13 +169,16 @@ export default function ExportClientCommande({ article }: ExportClientCommandePr
     })();
 
     const specs: [string, string][] = [
-      ["Désignation / Catégorie", (article.categoryId || "—").toUpperCase()],
+      ["Désignation / Catégorie", displayTitle],
       ["Taille",                  article.size && article.size !== "various" ? article.size.toUpperCase() : "DIVERSES"],
       ["Couleur",                 colorLabel],
       ["Quantité commandée",      fmtQty(article.quantity, article.unitOfMeasure)],
       ["Date de commande",        article.orderDate || todayStr],
       ["Date d'arrivée estimée",  article.arrivalDate || "À confirmer"],
     ];
+    if (article.name && (article.frenchName || article.nameFR) && article.name.trim().toLowerCase() !== (article.frenchName || article.nameFR).trim().toLowerCase()) {
+      specs.splice(1, 0, ["Réf. Usine", article.name.toUpperCase()]);
+    }
     if (article.zipperType) {
       specs.push(["Type Fermeture", article.zipperType.toUpperCase()]);
       specs.push(["Curseur / Type", `${article.slider || "—"} / ${article.sliderType || "—"}`.toUpperCase()]);

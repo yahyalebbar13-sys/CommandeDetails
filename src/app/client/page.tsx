@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ClientPortalApp } from '@/components/client-portal-app';
+import { getArticleFrenchName } from '@/lib/product-name-utils';
 import { Input } from '@/components/ui/input';
 import { Loader2, Lock, LogOut, ShieldCheck, ArrowRight, RefreshCw, Ship, X, Sparkles } from 'lucide-react';
 
@@ -31,6 +32,7 @@ export default function ClientPortalPage() {
   const [articles, setArticles] = useState<any[]>([]);
   const [factures, setFactures] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [generalCategories, setGeneralCategories] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState(false);
   const [showNewFeature, setShowNewFeature] = useState(true);
@@ -109,8 +111,8 @@ export default function ClientPortalPage() {
     setDataError(false);
 
     // ── Real-time listeners so the portal updates instantly when admin changes status ──
-    let artLoaded = false, facLoaded = false, catLoaded = false;
-    const checkDone = () => { if (artLoaded && facLoaded && catLoaded) setDataLoading(false); };
+    let artLoaded = false, facLoaded = false, catLoaded = false, genCatLoaded = false;
+    const checkDone = () => { if (artLoaded && facLoaded && catLoaded && genCatLoaded) setDataLoading(false); };
 
     const unsubArt = onSnapshot(
       collection(db, 'users', adminUid, 'articles'),
@@ -122,11 +124,12 @@ export default function ClientPortalPage() {
           newArticles.forEach(na => {
             const oa = prevArticlesRef.current.find(a => a.id === na.id);
             if (oa && oa.status !== na.status) {
+              const frTitle = getArticleFrenchName(na, categories, generalCategories);
               navigator.serviceWorker.ready.then(reg => {
                 reg.active?.postMessage({
                   type: 'SHOW_NOTIFICATION',
                   payload: {
-                    title: `Mise à jour : ${na.name || na.categoryId || 'Commande'}`,
+                    title: `Mise à jour : ${frTitle || na.name || na.categoryId || 'Commande'}`,
                     body: `Le statut est passé à : ${na.status}`,
                   }
                 });
@@ -152,8 +155,13 @@ export default function ClientPortalPage() {
       (snap) => { setCategories(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))); catLoaded = true; checkDone(); },
       () => {}
     );
+    const unsubGenCat = onSnapshot(
+      collection(db, 'users', adminUid, 'generalCategories'),
+      (snap) => { setGeneralCategories(snap.docs.map((d: any) => ({ id: d.id, ...d.data() }))); genCatLoaded = true; checkDone(); },
+      () => { genCatLoaded = true; checkDone(); }
+    );
 
-    return () => { unsubArt(); unsubFac(); unsubCat(); };
+    return () => { unsubArt(); unsubFac(); unsubCat(); unsubGenCat(); };
   }, [state.status]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -447,6 +455,7 @@ export default function ClientPortalPage() {
             articles={articles}
             factures={factures}
             categories={categories}
+            generalCategories={generalCategories}
             onLogout={handleLogout}
           />
         </div>
