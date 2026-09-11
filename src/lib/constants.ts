@@ -39,7 +39,8 @@ export const FABRIC_KEYWORDS = [
 ];
 
 export const ZIPPER_KEYWORDS = [
-  'zipper', 'nylon zipper', 'metal zipper', 'plastic zipper', 'long chain', 'fermeture'
+  'zipper', 'nylon zipper', 'metal zipper', 'plastic zipper', 'long chain', 'fermeture',
+  'zip', 'resine', 'résine', 'vislon', 'delrin', 'molded', 'injectee', 'injectée'
 ];
 
 /**
@@ -53,46 +54,62 @@ export function isFabricCategory(catName: string | undefined): boolean {
 
 /**
  * Détecte si un contexte (Ligne, Pôle ou Famille) relève des spécifications Fabric.
- * Vérifie d'abord specType explicite, puis la Ligne (Fabric), puis le pôle, puis la catégorie.
+ * Vérifie le nom de la catégorie en direct, le specType du pôle, la ligne du pôle, puis les mots-clés.
  */
 export function isFabricLineOrCategory(
   catName?: string | null,
   genCat?: any
 ): boolean {
+  // 1. Direct category name check
+  if (catName) {
+    const lower = catName.toLowerCase().trim();
+    if (FABRIC_KEYWORDS.some(kw => lower.includes(kw))) return true;
+  }
+
+  // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'fabric') return true;
-    if (genCat.specType === 'zipper' || genCat.specType === 'none') return false;
+    if (genCat.specType === 'zipper') return false;
+
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu')) return true;
+    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture')) return false;
+
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (FABRIC_KEYWORDS.some(kw => nameLower.includes(kw))) return true;
   }
-  if (catName) {
-    const lower = catName.toLowerCase().trim();
-    return FABRIC_KEYWORDS.some(kw => lower.includes(kw));
-  }
+
   return false;
 }
 
 /**
  * Détecte si un contexte (Ligne, Pôle ou Famille) relève des spécifications Zipper.
- * Vérifie d'abord specType explicite, puis la Ligne (Zipper), puis le pôle, puis la catégorie.
+ * Vérifie le nom de la catégorie en direct, le specType du pôle, la ligne du pôle, puis les mots-clés.
  */
 export function isZipperLineOrCategory(
   catName?: string | null,
   genCat?: any
 ): boolean {
+  // 1. Direct category name check (plastic zipper, nylon zipper, etc.)
+  if (catName) {
+    const lower = catName.toLowerCase().trim();
+    if (ZIPPER_KEYWORDS.some(kw => lower.includes(kw)) && !lower.includes('slider') && !lower.includes('puller')) {
+      return true;
+    }
+  }
+
+  // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'zipper') return true;
-    if (genCat.specType === 'fabric' || genCat.specType === 'none') return false;
+    if (genCat.specType === 'fabric') return false;
+
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture')) return true;
+    if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu')) return false;
+
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (ZIPPER_KEYWORDS.some(kw => nameLower.includes(kw)) && !nameLower.includes('slider') && !nameLower.includes('puller')) return true;
   }
-  if (catName) {
-    const lower = catName.toLowerCase().trim();
-    return ZIPPER_KEYWORDS.some(kw => lower.includes(kw)) && !lower.includes('slider') && !lower.includes('puller');
-  }
+
   return false;
 }

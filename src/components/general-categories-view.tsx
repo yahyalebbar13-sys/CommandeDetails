@@ -199,10 +199,20 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const data: any = { id, name: newCatName.trim().toUpperCase() };
     if (newCatNameFR.trim()) data.nameFR = newCatNameFR.trim().toUpperCase();
     if (newCatLine) data.line = newCatLine;
-    data.specType = newCatSpecType;
+
+    let finalSpec = newCatSpecType;
+    const lineLower = newCatLine.toLowerCase();
+    const nameLower = newCatName.toLowerCase();
+    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
+      if (finalSpec !== 'none') finalSpec = 'zipper';
+    } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
+      if (finalSpec !== 'none') finalSpec = 'fabric';
+    }
+    data.specType = finalSpec;
+
     setDocumentNonBlocking(docRef, data, { merge: true });
     toast({ title: 'Pôle logistique créé' });
-    setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setNewCatSpecType('fabric'); setIsModalOpen(false);
+    setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setNewCatSpecType('none'); setIsModalOpen(false);
   };
 
   const handleAddSubCategory = () => {
@@ -243,7 +253,17 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPole.id);
     const updateData: any = { name: newName, nameFR };
     if (editPoleLine) updateData.line = editPoleLine;
-    if (editPoleSpecType) updateData.specType = editPoleSpecType;
+
+    let finalSpec = editPoleSpecType;
+    const lineLower = (editPoleLine || '').toLowerCase();
+    const nameLower = newName.toLowerCase();
+    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
+      if (finalSpec !== 'none') finalSpec = 'zipper';
+    } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
+      if (finalSpec !== 'none') finalSpec = 'fabric';
+    }
+    updateData.specType = finalSpec;
+
     updateDocumentNonBlocking(docRef, updateData);
     toast({ title: '✅ Pôle enregistré', description: `${newName}${nameFR ? ` · FR: ${nameFR}` : ''}` });
     setEditingPole(null);
@@ -492,7 +512,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Désignation du Pôle (Code / Nom d'origine)</label>
               <Input
                 value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  setNewCatName(val);
+                  const lower = val.toLowerCase();
+                  if (lower.includes('zipper') || lower.includes('fermeture') || lower.includes('plastic') || lower.includes('zip') || lower.includes('resine')) {
+                    setNewCatSpecType('zipper');
+                    if (!newCatLine) setNewCatLine('Zipper');
+                  } else if (lower.includes('fabric') || lower.includes('popeline') || lower.includes('tissu') || lower.includes('interlining')) {
+                    setNewCatSpecType('fabric');
+                    if (!newCatLine) setNewCatLine('Fabric');
+                  }
+                }}
                 placeholder="EX: TEXTILES, ZIPPER..."
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-stone-900 text-base"
                 autoFocus

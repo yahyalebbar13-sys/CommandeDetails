@@ -278,17 +278,30 @@ export function AddOrderForm({
   }, [formData.categoryId, subCategories]);
 
   const fabricQualities = useMemo(() => {
-    if (!formData.categoryId) return [];
+    if (!formData.categoryId && !selectedGenCatId) return [];
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-    return Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : [];
-  }, [formData.categoryId, subCategories]);
+    const genCatId = selectedGenCatId || cat?.generalCategoryId;
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
+    const raw = [
+      ...(Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : []),
+      ...(Array.isArray(genCat?.fabricQualities) ? genCat.fabricQualities : [])
+    ];
+    return raw.filter((q, idx, arr) => arr.findIndex(x => (x.label && x.label === q.label) || (x.gsm && x.gsm === q.gsm && x.fabricWidth && x.fabricWidth === q.fabricWidth)) === idx);
+  }, [formData.categoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const zipperQualities = useMemo(() => {
-    if (!formData.categoryId) return [];
+    if (!formData.categoryId && !selectedGenCatId) return [];
     const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-    const raw = Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : [];
-    return raw.filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))));
-  }, [formData.categoryId, subCategories]);
+    const genCatId = selectedGenCatId || cat?.generalCategoryId;
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
+    const raw = [
+      ...(Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : []),
+      ...(Array.isArray(genCat?.zipperQualities) ? genCat.zipperQualities : [])
+    ];
+    return raw
+      .filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))))
+      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx);
+  }, [formData.categoryId, selectedGenCatId, subCategories, generalCategories]);
 
   // Validation
   const errors = useMemo(() => {

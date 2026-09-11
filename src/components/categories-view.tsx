@@ -358,7 +358,17 @@ export default function CategoriesView({
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingGeneralCategory.id);
     const updatePayload: any = { name: newName, nameFR: newNameFR };
     if (renameGenCatLine) updatePayload.line = renameGenCatLine;
-    if (renameGenCatSpecType) updatePayload.specType = renameGenCatSpecType;
+
+    let finalSpec = renameGenCatSpecType;
+    const lineLower = (renameGenCatLine || '').toLowerCase();
+    const nameLower = newName.toLowerCase();
+    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
+      if (finalSpec !== 'none') finalSpec = 'zipper';
+    } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
+      if (finalSpec !== 'none') finalSpec = 'fabric';
+    }
+    updatePayload.specType = finalSpec;
+
     updateDocumentNonBlocking(docRef, updatePayload);
 
     toast({ 
@@ -436,9 +446,9 @@ export default function CategoriesView({
     label: '',
     nameFR: '',
     length: '',
-    zipperType: 'C/E',
+    zipperType: '',
     slider: '',
-    sliderType: 'A/L',
+    sliderType: '',
     tapeWeightGsm: '',
     sliderWeightG: '',
     pcsPerBag: '',
@@ -471,9 +481,9 @@ export default function CategoriesView({
         label: '',
         nameFR: '',
         length: '',
-        zipperType: 'C/E',
+        zipperType: '',
         slider: '',
-        sliderType: 'A/L',
+        sliderType: '',
         tapeWeightGsm: '',
         sliderWeightG: '',
         pcsPerBag: '',
@@ -570,10 +580,11 @@ export default function CategoriesView({
       });
       setNewZipperQualityForm({
         label: '',
+        nameFR: '',
         length: '',
-        zipperType: 'C/E',
+        zipperType: '',
         slider: '',
-        sliderType: 'A/L',
+        sliderType: '',
         tapeWeightGsm: '',
         sliderWeightG: '',
         pcsPerBag: '',
@@ -1671,7 +1682,14 @@ export default function CategoriesView({
 
         {/* ── Type de Produit — Fabric only ── */}
         {isFabricCat && (() => {
-          const qualities = Array.isArray(currentCategoryObj?.fabricQualities) ? currentCategoryObj.fabricQualities : [];
+          const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
+          const rawQualities = [
+            ...(Array.isArray(currentCategoryObj?.fabricQualities) ? currentCategoryObj.fabricQualities : []),
+            ...(Array.isArray(genCat?.fabricQualities) ? genCat!.fabricQualities! : [])
+          ];
+          const qualities = rawQualities.filter((q, idx, arr) => 
+            arr.findIndex(x => (x.label && x.label === q.label) || (x.gsm && x.gsm === q.gsm && x.fabricWidth && x.fabricWidth === q.fabricWidth)) === idx
+          );
           
           // Also compute order stats per quality
           const qualityStats = qualities.map(q => {
@@ -1765,18 +1783,32 @@ export default function CategoriesView({
 
         {/* ── Type de Produit — Zipper only ── */}
         {isZipperCat && (() => {
-          const qualities = (Array.isArray(currentCategoryObj?.zipperQualities) ? currentCategoryObj.zipperQualities : [])
-            .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')));
+          const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
+          const rawQualities = [
+            ...(Array.isArray(currentCategoryObj?.zipperQualities) ? currentCategoryObj.zipperQualities : []),
+            ...(Array.isArray(genCat?.zipperQualities) ? genCat!.zipperQualities! : [])
+          ];
+          const qualities = rawQualities
+            .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')))
+            .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx);
 
           // Also compute order stats per zipper quality
           const qualityStats = qualities.map(q => {
             const matchingArticles = currentArticles.filter((a: any) => {
               if (q.length) {
                 const qLen = q.length.trim().toLowerCase().replace(/\s+/g, '');
+                const qNum = qLen.replace(/[^0-9.]/g, '');
                 const aSize = (a.size || '').trim().toLowerCase().replace(/\s+/g, '');
+                const aSizeNum = aSize.replace(/[^0-9.]/g, '');
                 const aSpecs = (a.specs || '').trim().toLowerCase().replace(/\s+/g, '');
                 const aName = (a.name || '').trim().toLowerCase().replace(/\s+/g, '');
-                if (aSize !== qLen && !aSpecs.includes(qLen) && !aName.includes(qLen)) return false;
+                const matchesLen = 
+                  aSize === qLen || 
+                  (Boolean(qNum) && Boolean(aSizeNum) && qNum === aSizeNum) ||
+                  aSpecs.includes(qLen) || 
+                  aName.includes(qLen) ||
+                  (Boolean(qNum) && (aSpecs.includes(qNum + 'cm') || aName.includes(qNum + 'cm')));
+                if (!matchesLen) return false;
               }
               if (q.zipperType) {
                 const qZ = q.zipperType.trim().toUpperCase();
@@ -1792,12 +1824,16 @@ export default function CategoriesView({
               if (q.slider) {
                 const qS = q.slider.trim().toLowerCase();
                 const aS = (a.slider || '').trim().toLowerCase();
-                if (aS && !aS.includes(qS)) return false;
+                const aSpecs = (a.specs || '').trim().toLowerCase();
+                const aName = (a.name || '').trim().toLowerCase();
+                if (aS && !aS.includes(qS) && !aSpecs.includes(qS) && !aName.includes(qS)) return false;
               }
               if (q.sliderType) {
                 const qST = q.sliderType.trim().toUpperCase();
                 const aST = (a.sliderType || '').trim().toUpperCase();
-                if (aST && aST !== qST) return false;
+                const aSpecs = (a.specs || '').trim().toUpperCase();
+                const aName = (a.name || '').trim().toUpperCase();
+                if (aST && aST !== qST && !aSpecs.includes(qST) && !aName.includes(qST)) return false;
               }
               return true;
             });
@@ -2425,19 +2461,20 @@ export default function CategoriesView({
                     </div>
                     <select className="h-8 text-[10px] font-bold border border-amber-200 rounded-lg bg-white px-2"
                       value={newZipperQualityForm.zipperType} onChange={e => setNewZipperQualityForm(p => ({ ...p, zipperType: e.target.value }))}>
-                      <option value="C/E">Fermeture: C/E</option>
-                      <option value="O/E">Fermeture: O/E</option>
-                      <option value="">Fermeture: Aucune</option>
+                      <option value="">Fermeture: Non spécifiée</option>
+                      <option value="C/E">Fermeture: C/E (Fermée)</option>
+                      <option value="O/E">Fermeture: O/E (Séparable)</option>
+                      <option value="TWO-WAY">Fermeture: Two-way (Double)</option>
                     </select>
                     <Input placeholder="Curseur (ex: Standard, HT)" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
                       value={newZipperQualityForm.slider} onChange={e => setNewZipperQualityForm(p => ({ ...p, slider: e.target.value }))} />
                     <select className="h-8 text-[10px] font-bold border border-amber-200 rounded-lg bg-white px-2"
                       value={newZipperQualityForm.sliderType} onChange={e => setNewZipperQualityForm(p => ({ ...p, sliderType: e.target.value }))}>
+                      <option value="">Type Curseur: Non spécifié</option>
                       <option value="A/L">Type Curseur: A/L</option>
                       <option value="P/L">Type Curseur: P/L</option>
                       <option value="N/L">Type Curseur: N/L</option>
                       <option value="SEMI A/L">Type Curseur: SEMI A/L</option>
-                      <option value="">Type Curseur: Aucun</option>
                     </select>
                     <Input type="number" step="any" placeholder="Grammage ruban g/m" className="h-8 text-[10px] font-bold border-amber-200 rounded-lg"
                       value={newZipperQualityForm.tapeWeightGsm} onChange={e => setNewZipperQualityForm(p => ({ ...p, tapeWeightGsm: e.target.value }))} />
@@ -2461,7 +2498,7 @@ export default function CategoriesView({
                       const bagsPerCarton = newZipperQualityForm.bagsPerCarton ? Number(newZipperQualityForm.bagsPerCarton) : undefined;
                       const nameFR = newZipperQualityForm.nameFR.trim() || undefined;
 
-                      if (!length && !slider && !tapeWeightGsm && !sliderWeightG && !pcsPerBag && !bagsPerCarton && !newZipperQualityForm.label.trim() && !nameFR) return;
+                      if (!length && !zipperType && !slider && !sliderType && !tapeWeightGsm && !sliderWeightG && !pcsPerBag && !bagsPerCarton && !newZipperQualityForm.label.trim() && !nameFR) return;
 
                       const autoLabel = [
                         length || null,
@@ -2607,235 +2644,6 @@ export default function CategoriesView({
             />
           </div>
         </div>
-
-        {/* ── Types de Produit — Qualités Fixes du Pôle (Fabric) ── */}
-        {isFabricLineOrCategory(parent?.name, parent) && (() => {
-          const pSubCats = subCategories.filter(sc => sc.generalCategoryId === parent?.id);
-          const pSubNames = new Set(pSubCats.map(sc => sc.name));
-          const pArticles = articles.filter(a => a.generalCategoryId === parent?.id || pSubNames.has(a.categoryId));
-          
-          const rawQualities = [
-            ...(Array.isArray(parent?.fabricQualities) ? parent.fabricQualities : []),
-            ...pSubCats.flatMap(sc => Array.isArray(sc.fabricQualities) ? sc.fabricQualities : [])
-          ];
-          const qualities = rawQualities.filter((q, idx, arr) => 
-            arr.findIndex(x => (x.label && x.label === q.label) || (x.gsm && x.gsm === q.gsm && x.fabricWidth && x.fabricWidth === q.fabricWidth)) === idx
-          );
-
-          const qualityStats = qualities.map(q => {
-            const matchingArticles = pArticles.filter((a: any) => {
-              if (q.gsm && Number(a.gsm) !== q.gsm) return false;
-              if (q.fabricWidth && Number(a.fabricWidth) !== q.fabricWidth) return false;
-              return true;
-            });
-            return {
-              ...q,
-              count: matchingArticles.length,
-              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
-              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
-              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
-            };
-          });
-
-          return (
-            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
-              <div className="h-1.5 w-full bg-violet-500" />
-              <CardHeader className="py-4 border-b border-stone-50">
-                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                  <Factory className="w-3 h-3 text-violet-500" /> Types de Produit — Qualités Fixes ({parent?.name})
-                  <span className="ml-auto text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{qualities.length} qualité{qualities.length > 1 ? 's' : ''}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-stone-50/50">
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Qualité</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">GSM</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Largeur</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Longueur</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Condit.</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {qualityStats.map((pt, idx) => (
-                        <TableRow key={idx} className="hover:bg-violet-50/30 transition-colors">
-                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.label}</TableCell>
-                          <TableCell className="text-center">
-                            {pt.gsm ? (
-                              <span className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">{pt.gsm}</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.fabricWidth ? (
-                              <span className="text-[10px] font-black text-stone-700">{pt.fabricWidth}cm</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.rollLength ? (
-                              <span className="text-[10px] font-black text-stone-700">{pt.rollLength}{pt.rollLengthUnit || 'm'}</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.packagingPerBag ? (
-                              <span className="text-[10px] font-black text-stone-700">{pt.packagingPerBag}rlx/sac</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
-                          </TableCell>
-                          <TableCell className="text-right text-[10px] font-black text-stone-800">
-                            {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {qualities.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={8} className="text-center py-6 text-stone-400 text-[10px] font-bold">
-                            Aucune qualité fixe définie sur ce pôle ou ses familles — cliquez sur une famille ci-dessous puis sur « Config & Douane » pour ajouter les qualités fixes
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
-
-        {/* ── Types de Produit — Qualités Fixes du Pôle (Zipper) ── */}
-        {isZipperLineOrCategory(parent?.name, parent) && (() => {
-          const pSubCats = subCategories.filter(sc => sc.generalCategoryId === parent?.id);
-          const pSubNames = new Set(pSubCats.map(sc => sc.name));
-          const pArticles = articles.filter(a => a.generalCategoryId === parent?.id || pSubNames.has(a.categoryId));
-
-          const rawQualities = [
-            ...(Array.isArray(parent?.zipperQualities) ? parent.zipperQualities : []),
-            ...pSubCats.flatMap(sc => Array.isArray(sc.zipperQualities) ? sc.zipperQualities : [])
-          ].filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')));
-
-          const qualities = rawQualities.filter((q, idx, arr) =>
-            arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx
-          );
-
-          const qualityStats = qualities.map(q => {
-            const matchingArticles = pArticles.filter((a: any) => {
-              if (q.length) {
-                const qLen = q.length.trim().toLowerCase().replace(/\s+/g, '');
-                const aSize = (a.size || '').trim().toLowerCase().replace(/\s+/g, '');
-                const aSpecs = (a.specs || '').trim().toLowerCase().replace(/\s+/g, '');
-                const aName = (a.name || '').trim().toLowerCase().replace(/\s+/g, '');
-                if (aSize !== qLen && !aSpecs.includes(qLen) && !aName.includes(qLen)) return false;
-              }
-              if (q.zipperType) {
-                const qZ = q.zipperType.trim().toUpperCase();
-                const aZ = (a.zipperType || '').trim().toUpperCase();
-                if (aZ && aZ !== qZ) return false;
-              }
-              if (q.slider) {
-                const qS = q.slider.trim().toLowerCase();
-                const aS = (a.slider || '').trim().toLowerCase();
-                if (aS && !aS.includes(qS)) return false;
-              }
-              return true;
-            });
-
-            return {
-              ...q,
-              count: matchingArticles.length,
-              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
-              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
-              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
-            };
-          });
-
-          return (
-            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
-              <div className="h-1.5 w-full bg-amber-500" />
-              <CardHeader className="py-4 border-b border-stone-50">
-                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
-                  <Factory className="w-3 h-3 text-amber-500" /> Types de Produit — Qualités Fixes ({parent?.name})
-                  <span className="ml-auto text-[8px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{qualities.length} qualité{qualities.length > 1 ? 's' : ''}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-stone-50/50">
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Qualité</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Taille</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fermeture</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Curseur</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Type Curseur</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Ruban (g/m)</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
-                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {qualityStats.map((pt, idx) => (
-                        <TableRow key={idx} className="hover:bg-amber-50/30 transition-colors">
-                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.label}</TableCell>
-                          <TableCell className="text-center">
-                            {pt.length ? (
-                              <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">{pt.length}</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.zipperType ? (
-                              <span className="text-[10px] font-black text-amber-700 uppercase">{pt.zipperType}</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.slider ? (
-                              <span className="text-[10px] font-black text-stone-700 uppercase">{pt.slider}</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.sliderType ? (
-                              <span className="text-[10px] font-black text-stone-600 uppercase">{pt.sliderType}</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {pt.tapeWeightGsm ? (
-                              <span className="text-[10px] font-black text-stone-700">{pt.tapeWeightGsm}g/m</span>
-                            ) : <span className="text-stone-200 text-[9px]">—</span>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
-                          </TableCell>
-                          <TableCell className="text-right text-[10px] font-black text-stone-800">
-                            {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {qualities.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={9} className="text-center py-6 text-stone-400 text-[10px] font-bold">
-                            Aucune qualité fixe définie sur ce pôle ou ses familles — cliquez sur une famille ci-dessous puis sur « Config & Douane » pour ajouter les qualités fixes
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
 
