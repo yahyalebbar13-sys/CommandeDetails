@@ -24,6 +24,7 @@ import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input'
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
+import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
 import { isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
 
@@ -725,7 +726,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     }
 
     setSplitOpen(false);
-    setSplitSelectedColors(new Set());
+    setSplitColorQtys({});
     setSplitQty(0);
     onOpenChange(false);
   };
