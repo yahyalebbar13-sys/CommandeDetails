@@ -17,6 +17,20 @@ export type GeneralCategory = {
   name: string;
   nameFR?: string;
   line?: string;
+  specType?: 'fabric' | 'zipper' | 'none';
+  fabricQualities?: { label: string; nameFR?: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
+  zipperQualities?: {
+    label: string;
+    nameFR?: string;
+    length?: string;
+    zipperType?: 'C/E' | 'O/E' | string;
+    slider?: string;
+    sliderType?: string;
+    tapeWeightGsm?: number;
+    sliderWeightG?: number;
+    pcsPerBag?: number;
+    bagsPerCarton?: number;
+  }[];
 };
 
 export type Category = {

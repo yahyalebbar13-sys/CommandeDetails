@@ -24,8 +24,8 @@ import ColorBreakdownInput, { ColorBreakdownRow } from './color-breakdown-input'
 import SizeBreakdownInput, { SizeBreakdownRow } from './size-breakdown-input';
 import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-input';
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
-import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
+import { isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -265,15 +265,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
       if (cat) genCatId = cat.generalCategoryId;
     }
-    if (genCatId) {
-      const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
-      if (genCat) {
-        const lower = (genCat.name || '').toLowerCase();
-        if (lower.includes('zipper') && !lower.includes('slider') && !lower.includes('puller')) return true;
-      }
-    }
-    const upper = formData?.categoryId?.toUpperCase() || "";
-    return upper.includes('ZIPPER') && !upper.includes('SLIDER') && !upper.includes('PULLER');
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isZipperLineOrCategory(formData?.categoryId, genCat);
   }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
 
   const isSlider = useMemo(() => {
@@ -292,29 +285,15 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData?.categoryId, subCategories]);
 
-  // ── Fabric detection — check pôle name, fallback to category name keywords ──
+  // ── Fabric detection — check pôle line, specType, keywords ──
   const isFabric = useMemo(() => {
-    const POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
-    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing', 'eva film', 't/c twill', 'oxford', 'twill'];
-    // 1) Check pôle name
     let genCatId = selectedGenCatId;
     if (!genCatId && formData?.categoryId) {
       const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
       if (cat) genCatId = cat.generalCategoryId;
     }
-    if (genCatId) {
-      const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
-      if (genCat) {
-        const lower = (genCat.name || '').toLowerCase();
-        if (POLE_KW.some(kw => lower.includes(kw))) return true;
-      }
-    }
-    // 2) Fallback: check category name
-    if (formData?.categoryId) {
-      const lower = formData.categoryId.toLowerCase();
-      if (CAT_KW.some(kw => lower.includes(kw))) return true;
-    }
-    return false;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isFabricLineOrCategory(formData?.categoryId, genCat);
   }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
 
   const availableGsm = useMemo(() => {

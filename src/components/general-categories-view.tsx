@@ -55,6 +55,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
+  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'none'>('fabric');
   const [newSubName, setNewSubName] = useState('');
   const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
@@ -69,6 +70,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [editingPole, setEditingPole] = useState<GeneralCategory | null>(null);
   const [editPoleName, setEditPoleName] = useState('');
   const [editPoleNameFR, setEditPoleNameFR] = useState('');
+  const [editPoleLine, setEditPoleLine] = useState('');
+  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'none'>('fabric');
 
   const now = new Date();
 
@@ -196,9 +199,10 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const data: any = { id, name: newCatName.trim().toUpperCase() };
     if (newCatNameFR.trim()) data.nameFR = newCatNameFR.trim().toUpperCase();
     if (newCatLine) data.line = newCatLine;
+    data.specType = newCatSpecType;
     setDocumentNonBlocking(docRef, data, { merge: true });
     toast({ title: 'Pôle logistique créé' });
-    setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setIsModalOpen(false);
+    setNewCatName(''); setNewCatNameFR(''); setNewCatLine(''); setNewCatSpecType('fabric'); setIsModalOpen(false);
   };
 
   const handleAddSubCategory = () => {
@@ -237,11 +241,15 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     const newName = (editPoleName.trim() || oldName).toUpperCase();
     const nameFR = editPoleNameFR.trim() ? editPoleNameFR.trim().toUpperCase() : null;
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPole.id);
-    updateDocumentNonBlocking(docRef, { name: newName, nameFR });
+    const updateData: any = { name: newName, nameFR };
+    if (editPoleLine) updateData.line = editPoleLine;
+    if (editPoleSpecType) updateData.specType = editPoleSpecType;
+    updateDocumentNonBlocking(docRef, updateData);
     toast({ title: '✅ Pôle enregistré', description: `${newName}${nameFR ? ` · FR: ${nameFR}` : ''}` });
     setEditingPole(null);
     setEditPoleName('');
     setEditPoleNameFR('');
+    setEditPoleLine('');
   };
 
   return (
@@ -371,7 +379,15 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                 size="icon"
                                 className="h-6 w-6 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
                                 title="Modifier le pôle"
-                                onClick={(e) => { e.stopPropagation(); setEditingPole(gc); setEditPoleName(gc.name || ''); setEditPoleNameFR(gc.nameFR || ''); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPole(gc);
+                                  setEditPoleName(gc.name || '');
+                                  setEditPoleNameFR(gc.nameFR || '');
+                                  setEditPoleLine((gc as any).line || '');
+                                  const autoSpec = (gc as any).specType || ((gc as any).line?.toLowerCase() === 'fabric' ? 'fabric' : (gc as any).line?.toLowerCase() === 'zipper' ? 'zipper' : 'none');
+                                  setEditPoleSpecType(autoSpec);
+                                }}
                               >
                                 <Pencil className="w-3 h-3" />
                               </Button>
@@ -503,7 +519,13 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                     <button
                       key={line}
                       type="button"
-                      onClick={() => setNewCatLine(line)}
+                      onClick={() => {
+                        setNewCatLine(line);
+                        const l = line.toLowerCase();
+                        if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
+                        else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
+                        else setNewCatSpecType('none');
+                      }}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${newCatLine === line ? 'border-stone-900 bg-stone-50' : 'border-stone-100 hover:border-stone-200'}`}
                     >
                       <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
@@ -518,9 +540,60 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 <Input 
                   placeholder="EX: TEXTILES, ACCESSOIRES..."
                   value={!availableLines.includes(newCatLine) ? newCatLine : ''}
-                  onChange={e => setNewCatLine(e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setNewCatLine(v);
+                    const l = v.toLowerCase();
+                    if (l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
+                    else if (l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
+                  }}
                   className="h-10 uppercase font-bold border-stone-200 rounded-xl focus:ring-stone-900 text-xs"
                 />
+              </div>
+
+              {/* ── Choix explicite du modèle de spécifications ── */}
+              <div className="pt-3 border-t border-stone-100 space-y-1.5">
+                <label className="text-[9px] font-black text-stone-600 uppercase tracking-widest block">
+                  Spécifications Qualités à donner
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewCatSpecType('fabric')}
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
+                      newCatSpecType === 'fabric'
+                        ? 'border-violet-600 bg-violet-50 text-violet-900 font-black shadow-sm'
+                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                    }`}
+                  >
+                    <span className="text-[10px] block uppercase font-black">🧵 Fabric</span>
+                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">GSM, Largeur...</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCatSpecType('zipper')}
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
+                      newCatSpecType === 'zipper'
+                        ? 'border-amber-500 bg-amber-50 text-amber-900 font-black shadow-sm'
+                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                    }`}
+                  >
+                    <span className="text-[10px] block uppercase font-black">⚡ Zipper</span>
+                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Curseur, Taille...</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCatSpecType('none')}
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
+                      newCatSpecType === 'none'
+                        ? 'border-stone-800 bg-stone-100 text-stone-900 font-black shadow-sm'
+                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                    }`}
+                  >
+                    <span className="text-[10px] block uppercase font-black">📦 Standard</span>
+                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Sans spé fixes</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -694,8 +767,71 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               />
               <p className="text-[9px] text-stone-400 font-medium">Les chiffres et caractères spéciaux sont acceptés dans les deux titres.</p>
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Ligne Logistique</Label>
+              <Select value={editPoleLine} onValueChange={(val) => {
+                setEditPoleLine(val);
+                const l = val.toLowerCase();
+                if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setEditPoleSpecType('fabric');
+                else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setEditPoleSpecType('zipper');
+                else setEditPoleSpecType('none');
+              }}>
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
+                  <SelectValue placeholder="Choisir une ligne..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableLines.map(line => (
+                    <SelectItem key={line} value={line} className="font-bold uppercase text-xs">{line}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditPoleSpecType('fabric')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    editPoleSpecType === 'fabric'
+                      ? 'border-violet-600 bg-violet-50 text-violet-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🧵 Fabric</span>
+                  <span className="text-[7px] text-stone-400 block">GSM, Largeur</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPoleSpecType('zipper')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    editPoleSpecType === 'zipper'
+                      ? 'border-amber-500 bg-amber-50 text-amber-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">⚡ Zipper</span>
+                  <span className="text-[7px] text-stone-400 block">Curseur, Taille</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPoleSpecType('none')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    editPoleSpecType === 'none'
+                      ? 'border-stone-800 bg-stone-100 text-stone-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">📦 Standard</span>
+                  <span className="text-[7px] text-stone-400 block">Sans spé</span>
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleName(''); setEditPoleNameFR(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingPole(null); setEditPoleName(''); setEditPoleNameFR(''); setEditPoleLine(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
                 onClick={handleSavePole}

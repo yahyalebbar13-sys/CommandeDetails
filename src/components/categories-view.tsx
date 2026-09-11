@@ -58,8 +58,7 @@ import { doc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { isZipperCategory as isTechnicalZipper } from '@/lib/constants';
+import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
@@ -309,6 +308,8 @@ export default function CategoriesView({
   const [editingGeneralCategory, setEditingGeneralCategory] = useState<any>(null);
   const [renameGenCatName, setRenameGenCatName] = useState('');
   const [renameGenCatNameFR, setRenameGenCatNameFR] = useState('');
+  const [renameGenCatLine, setRenameGenCatLine] = useState('');
+  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'none'>('fabric');
 
   const handleSaveRenameSubCat = () => {
     if (!user || !firestore || !editingSubCategory) return;
@@ -344,7 +345,10 @@ export default function CategoriesView({
     const newName = (renameGenCatName.trim() || oldName).toUpperCase();
     const newNameFR = renameGenCatNameFR.trim() ? renameGenCatNameFR.trim().toUpperCase() : null;
     const docRef = doc(firestore, 'users', user.uid, 'generalCategories', editingGeneralCategory.id);
-    updateDocumentNonBlocking(docRef, { name: newName, nameFR: newNameFR });
+    const updatePayload: any = { name: newName, nameFR: newNameFR };
+    if (renameGenCatLine) updatePayload.line = renameGenCatLine;
+    if (renameGenCatSpecType) updatePayload.specType = renameGenCatSpecType;
+    updateDocumentNonBlocking(docRef, updatePayload);
 
     toast({ 
       title: '✅ Pôle enregistré', 
@@ -353,6 +357,7 @@ export default function CategoriesView({
     setEditingGeneralCategory(null);
     setRenameGenCatName('');
     setRenameGenCatNameFR('');
+    setRenameGenCatLine('');
   };
   
   useEffect(() => {
@@ -466,44 +471,18 @@ export default function CategoriesView({
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
-  // Detect if current category is in the Fabric pôle
-  // Strategy: check pôle name first, then fallback to subcategory name keywords
-  const FABRIC_POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
-  const FABRIC_CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing', 'eva film', 't/c twill', 'oxford', 'twill'];
+  // Detect if current category is in the Fabric pôle or line
   const isFabricCat = useMemo(() => {
-    // 1) Check pôle name
     const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
-    if (genCatId) {
-      const genCat = generalCategories.find(g => g.id === genCatId);
-      if (genCat) {
-        const lower = (genCat.name || '').toLowerCase();
-        if (FABRIC_POLE_KW.some(kw => lower.includes(kw))) return true;
-      }
-    }
-    // 2) Fallback: check subcategory name
-    if (selectedCategory) {
-      const lower = selectedCategory.toLowerCase();
-      if (FABRIC_CAT_KW.some(kw => lower.includes(kw))) return true;
-    }
-    return false;
+    const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
+    return isFabricLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
   }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
 
-  // Detect if current category is in the Zipper pôle
-  const ZIPPER_POLE_KW = ['zipper', 'fermeture'];
-  const ZIPPER_CAT_KW = ['zipper', 'nylon zipper', 'metal zipper', 'plastic zipper', 'long chain', 'fermeture'];
+  // Detect if current category is in the Zipper pôle or line
   const isZipperCat = useMemo(() => {
-    // 1) Check pôle name
     const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
-    if (genCatId) {
-      const genCat = generalCategories.find(g => g.id === genCatId);
-      if (genCat) {
-        const lower = (genCat.name || '').toLowerCase();
-        if (ZIPPER_POLE_KW.some(kw => lower.includes(kw)) && !lower.includes('slider') && !lower.includes('puller')) return true;
-      }
-    }
-    // 2) Fallback: check subcategory name
-    const catName = (selectedCategory || currentCategoryObj?.name || '').toLowerCase();
-    return ZIPPER_CAT_KW.some(kw => catName.includes(kw)) && !catName.includes('puller') && !catName.includes('slider');
+    const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
+    return isZipperLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
   }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
 
   const [isSavingCustoms, setIsSavingCustoms] = useState(false);
@@ -2574,10 +2553,36 @@ export default function CategoriesView({
                   size="icon"
                   className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
                   title="Modifier le pôle"
-                  onClick={() => { if (parent) { setEditingGeneralCategory(parent); setRenameGenCatName(parent.name || ''); setRenameGenCatNameFR(parent.nameFR || ''); } }}
+                  onClick={() => {
+                    if (parent) {
+                      setEditingGeneralCategory(parent);
+                      setRenameGenCatName(parent.name || '');
+                      setRenameGenCatNameFR(parent.nameFR || '');
+                      setRenameGenCatLine(parent.line || '');
+                      const autoSpec = (parent as any).specType || (parent.line?.toLowerCase() === 'fabric' ? 'fabric' : parent.line?.toLowerCase() === 'zipper' ? 'zipper' : 'none');
+                      setRenameGenCatSpecType(autoSpec);
+                    }
+                  }}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {parent?.line && (
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+                    Ligne : {parent.line}
+                  </span>
+                )}
+                {isFabricLineOrCategory(parent?.name, parent) && (
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 flex items-center gap-1">
+                    🧵 Spécifications Fabric (GSM, Largeur...)
+                  </span>
+                )}
+                {isZipperLineOrCategory(parent?.name, parent) && (
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1">
+                    ⚡ Spécifications Zipper (Curseur, Taille...)
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -2591,6 +2596,235 @@ export default function CategoriesView({
             />
           </div>
         </div>
+
+        {/* ── Types de Produit — Qualités Fixes du Pôle (Fabric) ── */}
+        {isFabricLineOrCategory(parent?.name, parent) && (() => {
+          const pSubCats = subCategories.filter(sc => sc.generalCategoryId === parent?.id);
+          const pSubNames = new Set(pSubCats.map(sc => sc.name));
+          const pArticles = articles.filter(a => a.generalCategoryId === parent?.id || pSubNames.has(a.categoryId));
+          
+          const rawQualities = [
+            ...(Array.isArray(parent?.fabricQualities) ? parent.fabricQualities : []),
+            ...pSubCats.flatMap(sc => Array.isArray(sc.fabricQualities) ? sc.fabricQualities : [])
+          ];
+          const qualities = rawQualities.filter((q, idx, arr) => 
+            arr.findIndex(x => (x.label && x.label === q.label) || (x.gsm && x.gsm === q.gsm && x.fabricWidth && x.fabricWidth === q.fabricWidth)) === idx
+          );
+
+          const qualityStats = qualities.map(q => {
+            const matchingArticles = pArticles.filter((a: any) => {
+              if (q.gsm && Number(a.gsm) !== q.gsm) return false;
+              if (q.fabricWidth && Number(a.fabricWidth) !== q.fabricWidth) return false;
+              return true;
+            });
+            return {
+              ...q,
+              count: matchingArticles.length,
+              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
+              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
+            };
+          });
+
+          return (
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <div className="h-1.5 w-full bg-violet-500" />
+              <CardHeader className="py-4 border-b border-stone-50">
+                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                  <Factory className="w-3 h-3 text-violet-500" /> Types de Produit — Qualités Fixes ({parent?.name})
+                  <span className="ml-auto text-[8px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{qualities.length} qualité{qualities.length > 1 ? 's' : ''}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-stone-50/50">
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Qualité</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">GSM</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Largeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Longueur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Condit.</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {qualityStats.map((pt, idx) => (
+                        <TableRow key={idx} className="hover:bg-violet-50/30 transition-colors">
+                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.label}</TableCell>
+                          <TableCell className="text-center">
+                            {pt.gsm ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-700 text-[10px] font-black">{pt.gsm}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.fabricWidth ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.fabricWidth}cm</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.rollLength ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.rollLength}{pt.rollLengthUnit || 'm'}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.packagingPerBag ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.packagingPerBag}rlx/sac</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
+                          </TableCell>
+                          <TableCell className="text-right text-[10px] font-black text-stone-800">
+                            {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {qualities.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-6 text-stone-400 text-[10px] font-bold">
+                            Aucune qualité fixe définie sur ce pôle ou ses familles — cliquez sur une famille ci-dessous puis sur « Config & Douane » pour ajouter les qualités fixes
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* ── Types de Produit — Qualités Fixes du Pôle (Zipper) ── */}
+        {isZipperLineOrCategory(parent?.name, parent) && (() => {
+          const pSubCats = subCategories.filter(sc => sc.generalCategoryId === parent?.id);
+          const pSubNames = new Set(pSubCats.map(sc => sc.name));
+          const pArticles = articles.filter(a => a.generalCategoryId === parent?.id || pSubNames.has(a.categoryId));
+
+          const rawQualities = [
+            ...(Array.isArray(parent?.zipperQualities) ? parent.zipperQualities : []),
+            ...pSubCats.flatMap(sc => Array.isArray(sc.zipperQualities) ? sc.zipperQualities : [])
+          ].filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper')));
+
+          const qualities = rawQualities.filter((q, idx, arr) =>
+            arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx
+          );
+
+          const qualityStats = qualities.map(q => {
+            const matchingArticles = pArticles.filter((a: any) => {
+              if (q.length) {
+                const qLen = q.length.trim().toLowerCase().replace(/\s+/g, '');
+                const aSize = (a.size || '').trim().toLowerCase().replace(/\s+/g, '');
+                const aSpecs = (a.specs || '').trim().toLowerCase().replace(/\s+/g, '');
+                const aName = (a.name || '').trim().toLowerCase().replace(/\s+/g, '');
+                if (aSize !== qLen && !aSpecs.includes(qLen) && !aName.includes(qLen)) return false;
+              }
+              if (q.zipperType) {
+                const qZ = q.zipperType.trim().toUpperCase();
+                const aZ = (a.zipperType || '').trim().toUpperCase();
+                if (aZ && aZ !== qZ) return false;
+              }
+              if (q.slider) {
+                const qS = q.slider.trim().toLowerCase();
+                const aS = (a.slider || '').trim().toLowerCase();
+                if (aS && !aS.includes(qS)) return false;
+              }
+              return true;
+            });
+
+            return {
+              ...q,
+              count: matchingArticles.length,
+              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
+              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
+            };
+          });
+
+          return (
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <div className="h-1.5 w-full bg-amber-500" />
+              <CardHeader className="py-4 border-b border-stone-50">
+                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                  <Factory className="w-3 h-3 text-amber-500" /> Types de Produit — Qualités Fixes ({parent?.name})
+                  <span className="ml-auto text-[8px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{qualities.length} qualité{qualities.length > 1 ? 's' : ''}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-stone-50/50">
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Qualité</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Taille</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fermeture</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Curseur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Type Curseur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Ruban (g/m)</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {qualityStats.map((pt, idx) => (
+                        <TableRow key={idx} className="hover:bg-amber-50/30 transition-colors">
+                          <TableCell className="text-[10px] font-black text-stone-800 uppercase tracking-tighter py-3">{pt.label}</TableCell>
+                          <TableCell className="text-center">
+                            {pt.length ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">{pt.length}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.zipperType ? (
+                              <span className="text-[10px] font-black text-amber-700 uppercase">{pt.zipperType}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.slider ? (
+                              <span className="text-[10px] font-black text-stone-700 uppercase">{pt.slider}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.sliderType ? (
+                              <span className="text-[10px] font-black text-stone-600 uppercase">{pt.sliderType}</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.tapeWeightGsm ? (
+                              <span className="text-[10px] font-black text-stone-700">{pt.tapeWeightGsm}g/m</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
+                          </TableCell>
+                          <TableCell className="text-right text-[10px] font-black text-stone-800">
+                            {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {qualities.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-6 text-stone-400 text-[10px] font-bold">
+                            Aucune qualité fixe définie sur ce pôle ou ses familles — cliquez sur une famille ci-dessous puis sur « Config & Douane » pour ajouter les qualités fixes
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
 
@@ -3085,7 +3319,18 @@ export default function CategoriesView({
                           size="icon"
                           className="h-7 w-7 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-all"
                           title="Modifier le pôle"
-                          onClick={(e) => { e.stopPropagation(); const catObj = generalCategories.find(gc => gc.id === id); if (catObj) { setEditingGeneralCategory(catObj); setRenameGenCatName(catObj.name || ''); setRenameGenCatNameFR(catObj.nameFR || ''); } }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const catObj = generalCategories.find(gc => gc.id === id);
+                            if (catObj) {
+                              setEditingGeneralCategory(catObj);
+                              setRenameGenCatName(catObj.name || '');
+                              setRenameGenCatNameFR(catObj.nameFR || '');
+                              setRenameGenCatLine(catObj.line || '');
+                              const autoSpec = (catObj as any).specType || (catObj.line?.toLowerCase() === 'fabric' ? 'fabric' : catObj.line?.toLowerCase() === 'zipper' ? 'zipper' : 'none');
+                              setRenameGenCatSpecType(autoSpec);
+                            }
+                          }}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
@@ -3112,7 +3357,7 @@ export default function CategoriesView({
       </div>
 
       {/* ── Modal modifier le pôle ── */}
-      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); } }}>
+      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); } }}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Modifier le Pôle</DialogTitle>
@@ -3141,8 +3386,71 @@ export default function CategoriesView({
               />
               <p className="text-[9px] text-stone-400 font-medium">Les chiffres sont totalement acceptés dans les deux titres.</p>
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Ligne Logistique</Label>
+              <Select value={renameGenCatLine} onValueChange={(val) => {
+                setRenameGenCatLine(val);
+                const l = val.toLowerCase();
+                if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setRenameGenCatSpecType('fabric');
+                else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setRenameGenCatSpecType('zipper');
+                else setRenameGenCatSpecType('none');
+              }}>
+                <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
+                  <SelectValue placeholder="Choisir une ligne..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {['Fabric', 'Slider et puller', 'Zipper', 'Bouton', 'Reste'].map(line => (
+                    <SelectItem key={line} value={line} className="font-bold uppercase text-xs">{line}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRenameGenCatSpecType('fabric')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    renameGenCatSpecType === 'fabric'
+                      ? 'border-violet-600 bg-violet-50 text-violet-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🧵 Fabric</span>
+                  <span className="text-[7px] text-stone-400 block">GSM, Largeur</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenameGenCatSpecType('zipper')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    renameGenCatSpecType === 'zipper'
+                      ? 'border-amber-500 bg-amber-50 text-amber-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">⚡ Zipper</span>
+                  <span className="text-[7px] text-stone-400 block">Curseur, Taille</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenameGenCatSpecType('none')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    renameGenCatSpecType === 'none'
+                      ? 'border-stone-800 bg-stone-100 text-stone-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">📦 Standard</span>
+                  <span className="text-[7px] text-stone-400 block">Sans spé</span>
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
                 onClick={handleSaveRenameGenCat}

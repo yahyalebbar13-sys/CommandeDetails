@@ -32,13 +32,67 @@ export function isZipperCategory(catName: string | undefined): boolean {
   return upper.includes('ZIPPER') && !upper.includes('LONG CHAIN') && !upper.includes('SLIDER');
 }
 
-const FABRIC_KEYWORDS = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining'];
+export const FABRIC_KEYWORDS = [
+  'fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric',
+  'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining',
+  'pocketing', 'eva film', 't/c twill', 'oxford', 'twill', 'tissu', 'textile', 'woven'
+];
+
+export const ZIPPER_KEYWORDS = [
+  'zipper', 'nylon zipper', 'metal zipper', 'plastic zipper', 'long chain', 'fermeture'
+];
 
 /**
  * Détecte si un nom de catégorie appartient au pôle Fabric
  */
 export function isFabricCategory(catName: string | undefined): boolean {
   if (!catName) return false;
-  const lower = catName.toLowerCase();
+  const lower = catName.toLowerCase().trim();
   return FABRIC_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+/**
+ * Détecte si un contexte (Ligne, Pôle ou Famille) relève des spécifications Fabric.
+ * Vérifie d'abord specType explicite, puis la Ligne (Fabric), puis le pôle, puis la catégorie.
+ */
+export function isFabricLineOrCategory(
+  catName?: string | null,
+  genCat?: any
+): boolean {
+  if (genCat) {
+    if (genCat.specType === 'fabric') return true;
+    if (genCat.specType === 'zipper' || genCat.specType === 'none') return false;
+    const lineLower = (genCat.line || '').toLowerCase().trim();
+    if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu')) return true;
+    const nameLower = (genCat.name || '').toLowerCase().trim();
+    if (FABRIC_KEYWORDS.some(kw => nameLower.includes(kw))) return true;
+  }
+  if (catName) {
+    const lower = catName.toLowerCase().trim();
+    return FABRIC_KEYWORDS.some(kw => lower.includes(kw));
+  }
+  return false;
+}
+
+/**
+ * Détecte si un contexte (Ligne, Pôle ou Famille) relève des spécifications Zipper.
+ * Vérifie d'abord specType explicite, puis la Ligne (Zipper), puis le pôle, puis la catégorie.
+ */
+export function isZipperLineOrCategory(
+  catName?: string | null,
+  genCat?: any
+): boolean {
+  if (genCat) {
+    if (genCat.specType === 'zipper') return true;
+    if (genCat.specType === 'fabric' || genCat.specType === 'none') return false;
+    const lineLower = (genCat.line || '').toLowerCase().trim();
+    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture')) return true;
+    const nameLower = (genCat.name || '').toLowerCase().trim();
+    if (ZIPPER_KEYWORDS.some(kw => nameLower.includes(kw)) && !nameLower.includes('slider') && !nameLower.includes('puller')) return true;
+  }
+  if (catName) {
+    const lower = catName.toLowerCase().trim();
+    return ZIPPER_KEYWORDS.some(kw => lower.includes(kw)) && !lower.includes('slider') && !lower.includes('puller');
+  }
+  return false;
 }

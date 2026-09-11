@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
 import { findLastOrderPrice } from '@/lib/order-utils';
+import { isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -166,33 +167,24 @@ export default function CommercialExpensesView({
   }, [selectedGenCatId, categories]);
 
   const isZipper = useMemo(() => {
-    if (selectedGenCatId) {
-      const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
-      if (genCat) {
-        const lower = (genCat.name || '').toLowerCase();
-        if (lower.includes('zipper') && !lower.includes('slider') && !lower.includes('puller')) return true;
-      }
+    let genCatId = selectedGenCatId;
+    if (!genCatId && selectedCategoryName) {
+      const cat = (categories || []).find((sc: any) => sc.name === selectedCategoryName);
+      if (cat) genCatId = cat.generalCategoryId;
     }
-    const upper = (selectedCategoryName || '').toUpperCase();
-    return upper.includes('ZIPPER') && !upper.includes('SLIDER') && !upper.includes('PULLER');
-  }, [selectedGenCatId, generalCategories, selectedCategoryName]);
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isZipperLineOrCategory(selectedCategoryName, genCat);
+  }, [selectedGenCatId, generalCategories, selectedCategoryName, categories]);
 
   const isFabric = useMemo(() => {
-    const POLE_KW = ['fabric', 'tissu', 'textile', 'interlining', 'non woven', 'woven'];
-    const CAT_KW = ['fabric', 'non woven', 't/c fabric', 'popeline', 'leather', 'felt fabric', 'polyester fabric', 'taffeta fabric', 'woven interlining', 'interlining', 'pocketing', 'eva film', 't/c twill', 'oxford', 'twill'];
-    if (selectedGenCatId) {
-      const genCat = (generalCategories || []).find((gc: any) => gc.id === selectedGenCatId);
-      if (genCat) {
-        const lower = (genCat.name || '').toLowerCase();
-        if (POLE_KW.some(kw => lower.includes(kw))) return true;
-      }
+    let genCatId = selectedGenCatId;
+    if (!genCatId && selectedCategoryName) {
+      const cat = (categories || []).find((sc: any) => sc.name === selectedCategoryName);
+      if (cat) genCatId = cat.generalCategoryId;
     }
-    if (selectedCategoryName) {
-      const lower = selectedCategoryName.toLowerCase();
-      if (CAT_KW.some(kw => lower.includes(kw))) return true;
-    }
-    return false;
-  }, [selectedGenCatId, generalCategories, selectedCategoryName]);
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isFabricLineOrCategory(selectedCategoryName, genCat);
+  }, [selectedGenCatId, generalCategories, selectedCategoryName, categories]);
 
   const selectedSubCat = useMemo(() => {
     return (categories || []).find((sc: any) => sc.name === selectedCategoryName);
