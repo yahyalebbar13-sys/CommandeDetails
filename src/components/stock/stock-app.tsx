@@ -154,7 +154,11 @@ export function computeStockItems(
       (q.coneWeightG && a.coneWeightG && String(q.coneWeightG) === String(a.coneWeightG) &&
        q.threadWeightG && a.threadWeightG && String(q.threadWeightG) === String(a.threadWeightG))
     );
-    const qualityNameFR = matchedZipperQ?.nameFR || matchedFabricQ?.nameFR || matchedThreadQ?.nameFR;
+    const matchedSliderQ = cat?.sliderQualities?.find((q: any) =>
+      (a.quality && q.label?.toLowerCase() === a.quality.toLowerCase()) ||
+      (a.designRef && q.label?.toLowerCase() === a.designRef.toLowerCase())
+    );
+    const qualityNameFR = matchedZipperQ?.nameFR || matchedFabricQ?.nameFR || matchedThreadQ?.nameFR || matchedSliderQ?.nameFR;
     const itemFR = a.nameFR || qualityNameFR || catNameFR;
 
     // Nom complet du produit (ne pas tronquer la catégorie/produit)
@@ -178,7 +182,7 @@ export function computeStockItems(
     const colorBreakdown: any[] = Array.isArray(a.colorBreakdown) ? a.colorBreakdown : [];
     const sizeBreakdown:  any[] = Array.isArray(a.sizeBreakdown)  ? a.sizeBreakdown  : [];
 
-    // ── CAS 0 : qualityBreakdown renseigné (multi-qualités fabric ou zipper ou thread) ──
+    // ── CAS 0 : qualityBreakdown renseigné (multi-qualités fabric ou zipper ou thread ou slider) ──
     if (qualityBreakdown.length > 0) {
       const totalQualityQty = qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0) || 1;
       for (const row of qualityBreakdown) {
@@ -187,7 +191,8 @@ export function computeStockItems(
 
         const matchedRowQ = cat?.fabricQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
           || cat?.zipperQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
-          || cat?.threadQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase());
+          || cat?.threadQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase())
+          || cat?.sliderQualities?.find((q: any) => q.label?.toLowerCase() === qualityLabel.toLowerCase());
         
         const rowNameFR = row.nameFR || matchedRowQ?.nameFR || itemFR;
         const rowProductName = rowNameFR || (qualityLabel ? `${baseCategoryName} ${qualityLabel}`.trim() : productName);

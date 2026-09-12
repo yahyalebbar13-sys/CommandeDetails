@@ -27,7 +27,7 @@ import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-inp
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -129,6 +129,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         qualityLabel: q.quality || p.quality || '',
         specs: p.specs ? p.specs : (q.quality || ''),
         ...(q.nameFR ? { nameFR: q.nameFR } : {}),
+        ...(q.imageUrl ? { designImageUrl: q.imageUrl, designRef: q.quality } : {}),
         ...(q.gsm ? { gsm: q.gsm } : {}),
         ...(q.fabricWidth ? { fabricWidth: q.fabricWidth } : {}),
         ...(q.rollLength ? { rollLength: q.rollLength, rollLengthUnit: q.rollLengthUnit || 'm' } : {}),
@@ -320,9 +321,15 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
 
   const isSlider = useMemo(() => {
-    const upper = formData?.categoryId?.toUpperCase() || '';
-    return upper.includes('SLIDER') || upper.includes('PULLER');
-  }, [formData?.categoryId]);
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isSliderLineOrCategory(formData?.categoryId, genCat);
+  }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
 
   const isDesignCategory = useMemo(() => {
     const upper = (formData?.categoryId || '').toUpperCase();
@@ -429,6 +436,23 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return raw
       .filter((q: any) => Boolean(q && (q.label || q.coneWeightG || q.threadWeightG || q.lengthPerPiece || q.pcsPerBag || q.bagsPerCarton || q.nameFR)))
       .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.coneWeightG === q.coneWeightG && x.threadWeightG === q.threadWeightG && x.lengthPerPiece === q.lengthPerPiece)) === idx);
+  }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
+
+  const sliderQualities = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    const raw = [
+      ...(Array.isArray(cat?.sliderQualities) ? cat.sliderQualities : []),
+      ...(Array.isArray(genCat?.sliderQualities) ? genCat.sliderQualities : [])
+    ];
+    return raw
+      .filter((q: any) => Boolean(q && (q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.imageUrl || q.nameFR)))
+      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.size === q.size && x.sliderWeightG === q.sliderWeightG && x.imageUrl === q.imageUrl)) === idx);
   }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const lastOrderInfo = useMemo(() => {
@@ -1411,18 +1435,167 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             )}
 
+            {/* ── Slider fields & qualities ── */}
+            {isSlider && (
+              <div className="space-y-3 p-4 rounded-2xl bg-orange-50/50 border border-orange-100 md:col-span-2">
+                <p className="text-[9px] font-black text-orange-700 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="text-xs">🎛️</span> Spécifications Slider & Puller
+                </p>
+                {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-orange-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <Settings2 className="w-3 h-3" /> Qualité / Modèle Slider
+                    </Label>
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                      </span>
+                    </div>
+                  </div>
+                ) : sliderQualities.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-orange-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <Settings2 className="w-3 h-3" /> Qualité / Modèle Slider Fixe
+                    </Label>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = sliderQualities.find((x: any) => x.label === v) || sliderQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            size: q.size || p.size,
+                            sliderWeightG: q.sliderWeightG ?? p.sliderWeightG,
+                            pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                            bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                            designRef: q.label || p.designRef,
+                            designImageUrl: q.imageUrl || p.designImageUrl,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        } else {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: v,
+                            qualityLabel: v,
+                            specs: p.specs ? p.specs : v,
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 border-orange-200 bg-white font-bold rounded-xl text-orange-800">
+                        <SelectValue placeholder="Choisir un modèle / qualité..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.quality && !sliderQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
+                        {sliderQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">
+                            <div className="flex items-center gap-2">
+                              {q.imageUrl && (
+                                <img src={q.imageUrl} alt="" className="w-5 h-5 rounded object-cover border border-stone-200 shrink-0" />
+                              )}
+                              <span>{q.label}</span>
+                              {q.size && <span className="text-[10px] text-orange-600 font-bold">({q.size})</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
+                {/* Show current values as badges and thumbnail */}
+                {!qualityBreakdown && (
+                  <div className="flex items-center gap-3 pt-1">
+                    {formData.designImageUrl && (
+                      <div className="relative group shrink-0">
+                        <img
+                          src={formData.designImageUrl}
+                          alt="Aperçu design"
+                          className="w-12 h-12 rounded-xl object-cover border-2 border-orange-200 shadow-sm bg-white"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 flex flex-wrap gap-1.5">
+                      {formData.size && <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-800 text-[10px] font-black">Taille: {formData.size}</span>}
+                      {formData.sliderWeightG && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-black">Poids: {formData.sliderWeightG}g/pc</span>}
+                      {formData.pcsPerBag && <span className="px-2 py-1 rounded-lg bg-cyan-100 text-cyan-800 text-[10px] font-black">{formData.pcsPerBag} pcs/bag</span>}
+                      {formData.bagsPerCarton && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black">{formData.bagsPerCarton} bags/ctn</span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fallback uniquement si aucune qualité n'est pré-définie */}
+                {sliderQualities.length === 0 && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Taille</Label>
+                        <Input
+                          placeholder="Ex: #3, #5..."
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.size || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Curseur (g/pc)</Label>
+                        <Input
+                          placeholder="Ex: 2.5g"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.sliderWeightG || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, sliderWeightG: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pcs par Bag</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 1000"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.pcsPerBag || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, pcsPerBag: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Bags par Carton</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 10"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.bagsPerCarton || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, bagsPerCarton: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
+                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread || isSlider ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
               </Label>
               <div className="flex gap-2">
                 <Input
                   value={formData.specs || ''}
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))}
                   className="h-12 border-stone-200 font-bold rounded-xl"
-                  placeholder={isZipper || isThread ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
+                  placeholder={isZipper || isThread || isSlider ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
                 />
-                {!isZipper && !isThread && (
+                {!isZipper && !isThread && !isSlider && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1436,8 +1609,8 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
 
-            {/*  Design Picker  zipper & slider  */}
-            {isDesignCategory && formData.categoryId && (
+            {/*  Design Picker  zipper & slider (if not slider with predefined designs)  */}
+            {isDesignCategory && formData.categoryId && !isSlider && (
               <div className="md:col-span-2">
                 <DesignPicker
                   categoryName={formData.categoryId}
@@ -1634,10 +1807,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   value={qualityBreakdown}
                   onChange={handleQualityBreakdownChange}
                   unit={formData?.unitOfMeasure}
-                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : []}
+                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : []}
                   isFabric={isFabric}
                   isZipper={isZipper}
                   isThread={isThread}
+                  isSlider={isSlider}
                 />
                 <ColorBreakdownInput
                   categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}

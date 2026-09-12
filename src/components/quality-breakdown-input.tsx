@@ -19,6 +19,7 @@ interface QualityBreakdownInputProps {
   isFabric?: boolean;
   isZipper?: boolean;
   isThread?: boolean;
+  isSlider?: boolean;
 }
 
 /**
@@ -58,11 +59,12 @@ function parsePastedQualities(raw: string, availableQualities?: any[]): QualityB
       ...(matched?.nameFR ? { nameFR: matched.nameFR } : {}),
       quantity,
       priceOverride: priceOverride || '',
+      ...(matched?.imageUrl ? { imageUrl: matched.imageUrl } : {}),
       ...(matched?.gsm ? { gsm: matched.gsm } : {}),
       ...(matched?.fabricWidth ? { fabricWidth: matched.fabricWidth } : {}),
       ...(matched?.rollLength ? { rollLength: matched.rollLength, rollLengthUnit: matched.rollLengthUnit || 'm' } : {}),
       ...(matched?.packagingPerBag ? { packagingPerBag: matched.packagingPerBag } : {}),
-      ...(matched?.length ? { size: matched.length } : {}),
+      ...(matched?.size ? { size: matched.size } : matched?.length ? { size: matched.length } : {}),
       ...(matched?.zipperType ? { zipperType: matched.zipperType } : {}),
       ...(matched?.slider ? { slider: matched.slider } : {}),
       ...(matched?.sliderType ? { sliderType: matched.sliderType } : {}),
@@ -88,6 +90,8 @@ export default function QualityBreakdownInput({
   availableQualities = [],
   isFabric,
   isZipper,
+  isThread,
+  isSlider,
 }: QualityBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<QualityBreakdownRow[]>(value || []);
@@ -129,11 +133,12 @@ export default function QualityBreakdownInput({
         quality: initialQuality.label,
         quantity: 0,
         priceOverride: '',
+        ...(initialQuality.imageUrl ? { imageUrl: initialQuality.imageUrl } : {}),
         ...(initialQuality.gsm ? { gsm: initialQuality.gsm } : {}),
         ...(initialQuality.fabricWidth ? { fabricWidth: initialQuality.fabricWidth } : {}),
         ...(initialQuality.rollLength ? { rollLength: initialQuality.rollLength, rollLengthUnit: initialQuality.rollLengthUnit || 'm' } : {}),
         ...(initialQuality.packagingPerBag ? { packagingPerBag: initialQuality.packagingPerBag } : {}),
-        ...(initialQuality.length ? { size: initialQuality.length } : {}),
+        ...(initialQuality.size ? { size: initialQuality.size } : initialQuality.length ? { size: initialQuality.length } : {}),
         ...(initialQuality.zipperType ? { zipperType: initialQuality.zipperType } : {}),
         ...(initialQuality.slider ? { slider: initialQuality.slider } : {}),
         ...(initialQuality.sliderType ? { sliderType: initialQuality.sliderType } : {}),
@@ -171,14 +176,15 @@ export default function QualityBreakdownInput({
       return {
         ...r,
         quality: qObj.label,
+        imageUrl: qObj.imageUrl || undefined,
         // Fabric attributes
         gsm: qObj.gsm || undefined,
         fabricWidth: qObj.fabricWidth || undefined,
         rollLength: qObj.rollLength || undefined,
         rollLengthUnit: qObj.rollLengthUnit || 'm',
         packagingPerBag: qObj.packagingPerBag || undefined,
-        // Zipper attributes
-        size: qObj.length || undefined,
+        // Zipper / Slider attributes
+        size: qObj.size || qObj.length || undefined,
         zipperType: qObj.zipperType || undefined,
         slider: qObj.slider || undefined,
         sliderType: qObj.sliderType || undefined,
@@ -354,36 +360,61 @@ export default function QualityBreakdownInput({
                     <div key={index} className="grid grid-cols-[1fr_95px_85px_36px] items-center gap-1.5 p-2 hover:bg-fuchsia-50/20">
                       {/* Qualité column */}
                       <div className="space-y-1">
-                        {availableQualities.length > 0 ? (
-                          <div className="space-y-1">
-                            <Select
-                              value={hasMatchingPredef ? row.quality : '__custom__'}
-                              onValueChange={v => {
-                                if (v === '__custom__') {
-                                  handleSelectQuality(index, '');
-                                } else {
-                                  handleSelectQuality(index, v);
-                                }
-                              }}
-                            >
-                              <SelectTrigger className="h-8 text-[10px] font-bold border-fuchsia-200 rounded-lg bg-white">
-                                <SelectValue placeholder="Choisir une qualité..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {availableQualities.map((q, qIdx) => (
-                                  <SelectItem key={qIdx} value={q.label} className="font-bold text-[10px]">
-                                    {q.label}
-                                  </SelectItem>
-                                ))}
-                                <SelectItem value="__custom__" className="font-bold text-[10px] text-stone-400 italic">
-                                  Autre / Saisie libre...
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {!hasMatchingPredef && (
+                        <div className="flex items-center gap-1.5">
+                          {row.imageUrl && (
+                            <img
+                              src={row.imageUrl}
+                              alt={row.quality}
+                              className="w-8 h-8 object-cover rounded-lg border border-stone-200 bg-stone-50 shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            {availableQualities.length > 0 ? (
+                              <div className="space-y-1">
+                                <Select
+                                  value={hasMatchingPredef ? row.quality : '__custom__'}
+                                  onValueChange={v => {
+                                    if (v === '__custom__') {
+                                      handleSelectQuality(index, '');
+                                    } else {
+                                      handleSelectQuality(index, v);
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-[10px] font-bold border-fuchsia-200 rounded-lg bg-white">
+                                    <SelectValue placeholder="Choisir une qualité..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availableQualities.map((q, qIdx) => (
+                                      <SelectItem key={qIdx} value={q.label} className="font-bold text-[10px]">
+                                        <div className="flex items-center gap-1.5">
+                                          {q.imageUrl && <img src={q.imageUrl} alt="" className="w-4 h-4 object-cover rounded shrink-0" />}
+                                          <span>{q.label}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                    <SelectItem value="__custom__" className="font-bold text-[10px] text-stone-400 italic">
+                                      Autre / Saisie libre...
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {!hasMatchingPredef && (
+                                  <Input
+                                    placeholder="Saisie libre de la qualité..."
+                                    className="h-7 text-[10px] font-bold border-fuchsia-200 rounded-lg"
+                                    value={row.quality}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setRows(p => p.map((r, i) => i === index ? { ...r, quality: val } : r));
+                                      notifyParent(rows.map((r, i) => i === index ? { ...r, quality: val } : r), enabled);
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            ) : (
                               <Input
-                                placeholder="Saisie libre de la qualité..."
-                                className="h-7 text-[10px] font-bold border-fuchsia-200 rounded-lg"
+                                placeholder="Ex: 225gsm · 160cm ou Qualité..."
+                                className="h-8 text-[10px] font-bold border-fuchsia-200 rounded-lg"
                                 value={row.quality}
                                 onChange={e => {
                                   const val = e.target.value;
@@ -393,18 +424,7 @@ export default function QualityBreakdownInput({
                               />
                             )}
                           </div>
-                        ) : (
-                          <Input
-                            placeholder="Ex: 225gsm · 160cm ou Qualité..."
-                            className="h-8 text-[10px] font-bold border-fuchsia-200 rounded-lg"
-                            value={row.quality}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setRows(p => p.map((r, i) => i === index ? { ...r, quality: val } : r));
-                              notifyParent(rows.map((r, i) => i === index ? { ...r, quality: val } : r), enabled);
-                            }}
-                          />
-                        )}
+                        </div>
 
                         {/* Badges attributs de la ligne */}
                         <div className="flex flex-wrap gap-1">

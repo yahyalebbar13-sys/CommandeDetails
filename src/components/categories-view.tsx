@@ -43,7 +43,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
-import DesignLibrary from './design-library';
+import DesignLibrary, { useCategoryDesigns } from './design-library';
 import CustomsHistoryModal from './customs-history-modal';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -69,7 +69,7 @@ import { doc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
-import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory } from '@/lib/constants';
+import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
@@ -320,7 +320,7 @@ export default function CategoriesView({
   const [renameGenCatName, setRenameGenCatName] = useState('');
   const [renameGenCatNameFR, setRenameGenCatNameFR] = useState('');
   const [renameGenCatLine, setRenameGenCatLine] = useState('');
-  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'none'>('fabric');
+  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'none'>('fabric');
 
   const handleSaveRenameSubCat = () => {
     if (!user || !firestore || !editingSubCategory) return;
@@ -362,7 +362,9 @@ export default function CategoriesView({
     let finalSpec = renameGenCatSpecType;
     const lineLower = (renameGenCatLine || '').toLowerCase();
     const nameLower = newName.toLowerCase();
-    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
+    if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur') || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
+      if (finalSpec !== 'none') finalSpec = 'slider';
+    } else if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
       if (finalSpec !== 'none') finalSpec = 'zipper';
     } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
       if (finalSpec !== 'none') finalSpec = 'fabric';
@@ -413,6 +415,9 @@ export default function CategoriesView({
     return subCategories.find(c => c.name === selectedCategory) || null;
   }, [selectedCategory, subCategories]);
 
+  const { designs: categoryDesigns = [] } = useCategoryDesigns(currentCategoryObj?.id || null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title?: string } | null>(null);
+
   const [isCustomsModalOpen, setIsCustomsModalOpen] = useState(false);
   const [customsForm, setCustomsForm] = useState({
     nameFR: '',
@@ -449,6 +454,15 @@ export default function CategoriesView({
       pcsPerBag?: number;
       bagsPerCarton?: number;
     }[],
+    sliderQualities: [] as {
+      label: string;
+      nameFR?: string;
+      imageUrl?: string;
+      size?: string;
+      sliderWeightG?: number | string;
+      pcsPerBag?: number;
+      bagsPerCarton?: number;
+    }[],
   });
   const [newSizeInput, setNewSizeInput] = useState('');
   const [newGsmInput, setNewGsmInput] = useState('');
@@ -476,6 +490,16 @@ export default function CategoriesView({
     pcsPerBag: '',
     bagsPerCarton: '',
   });
+  const [newSliderQualityForm, setNewSliderQualityForm] = useState({
+    label: '',
+    nameFR: '',
+    imageUrl: '',
+    size: '',
+    sliderWeightG: '',
+    pcsPerBag: '',
+    bagsPerCarton: '',
+  });
+  const [sliderImageUploading, setSliderImageUploading] = useState(false);
 
   useEffect(() => {
     if (currentCategoryObj && isCustomsModalOpen) {
@@ -496,6 +520,8 @@ export default function CategoriesView({
           .filter(q => Boolean(q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))),
         threadQualities: (Array.isArray(currentCategoryObj.threadQualities) ? currentCategoryObj.threadQualities : [])
           .filter(q => Boolean(q.label || q.coneWeightG || q.threadWeightG || q.lengthPerPiece || q.pcsPerBag || q.bagsPerCarton || q.nameFR)),
+        sliderQualities: (Array.isArray(currentCategoryObj.sliderQualities) ? currentCategoryObj.sliderQualities : [])
+          .filter(q => Boolean(q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || q.imageUrl)),
       });
       setNewSizeInput('');
       setNewGsmInput('');
@@ -523,6 +549,15 @@ export default function CategoriesView({
         pcsPerBag: '',
         bagsPerCarton: '',
       });
+      setNewSliderQualityForm({
+        label: '',
+        nameFR: '',
+        imageUrl: '',
+        size: '',
+        sliderWeightG: '',
+        pcsPerBag: '',
+        bagsPerCarton: '',
+      });
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
@@ -546,6 +581,36 @@ export default function CategoriesView({
     const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
     return isThreadLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
   }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
+
+  // Detect if current category is in the Slider & Puller pôle or line
+  const isSliderCat = useMemo(() => {
+    const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
+    const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
+    return isSliderLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
+  }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
+
+  const handleSliderImageUpload = async (file: File) => {
+    if (!user || !currentCategoryObj) return;
+    setSliderImageUploading(true);
+    try {
+      const storage = getStorage(getApp());
+      const path = `users/${user.uid}/categories/${currentCategoryObj.id}/designs/slider_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const imgRef = storageRef(storage, path);
+      const task = uploadBytesResumable(imgRef, file);
+      await new Promise<void>((resolve, reject) => {
+        task.on('state_changed', null, reject, async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          setNewSliderQualityForm(p => ({ ...p, imageUrl: url }));
+          resolve();
+        });
+      });
+      toast({ title: '✅ Photo téléchargée' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur upload', description: err.message });
+    } finally {
+      setSliderImageUploading(false);
+    }
+  };
 
   const [isSavingCustoms, setIsSavingCustoms] = useState(false);
 
@@ -679,6 +744,38 @@ export default function CategoriesView({
       });
     }
 
+    // Check if user has uncommitted pending slider quality
+    let currentSliderQualities = [...customsForm.sliderQualities];
+    const slSize = newSliderQualityForm.size.trim().toUpperCase();
+    const slWeightRaw = newSliderQualityForm.sliderWeightG.trim();
+    const slWeight = slWeightRaw ? (isNaN(Number(slWeightRaw)) ? slWeightRaw : Number(slWeightRaw)) : null;
+    const slPcs = newSliderQualityForm.pcsPerBag ? Number(newSliderQualityForm.pcsPerBag) : null;
+    const slBags = newSliderQualityForm.bagsPerCarton ? Number(newSliderQualityForm.bagsPerCarton) : null;
+    const slNameFR = newSliderQualityForm.nameFR.trim() || undefined;
+    const slImg = newSliderQualityForm.imageUrl.trim() || undefined;
+    const slLabel = newSliderQualityForm.label.trim();
+    const hasSlInput = Boolean(slLabel || slSize || slWeight || slPcs || slBags || slNameFR || slImg);
+    if (hasSlInput) {
+      const autoLabel = [
+        slLabel || null,
+        slSize ? `Taille ${slSize}` : null,
+        slWeight ? `${slWeight}g/pc` : null,
+        slPcs ? `${slPcs}pcs/bag` : null,
+        slBags ? `${slBags}bags/ctn` : null,
+      ].filter(Boolean).join(' · ');
+      const label = slLabel || autoLabel || slNameFR || 'Slider';
+      currentSliderQualities.push({
+        label,
+        nameFR: slNameFR,
+        imageUrl: slImg,
+        size: slSize || undefined,
+        sliderWeightG: slWeight ?? undefined,
+        pcsPerBag: slPcs ?? undefined,
+        bagsPerCarton: slBags ?? undefined,
+      });
+      setNewSliderQualityForm({ label: '', nameFR: '', imageUrl: '', size: '', sliderWeightG: '', pcsPerBag: '', bagsPerCarton: '' });
+    }
+
     // Sanitize arrays to guarantee NO undefined fields inside array items for Firestore
     const cleanFabricQualities = currentFabricQualities.map(q => {
       const item: Record<string, any> = { label: q.label || 'Qualité' };
@@ -729,9 +826,33 @@ export default function CategoriesView({
         return item;
       });
 
+    const cleanSliderQualities = currentSliderQualities
+      .filter(q => Boolean(q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || q.imageUrl))
+      .map(q => {
+        const item: Record<string, any> = { label: q.label || 'Slider' };
+        if (q.nameFR?.trim()) item.nameFR = q.nameFR.trim();
+        if (q.imageUrl?.trim()) item.imageUrl = q.imageUrl.trim();
+        if (q.size?.trim()) item.size = q.size.trim().toUpperCase();
+        if (q.sliderWeightG != null && String(q.sliderWeightG).trim() !== '') {
+          item.sliderWeightG = isNaN(Number(q.sliderWeightG)) ? String(q.sliderWeightG).trim() : Number(q.sliderWeightG);
+        }
+        if (q.pcsPerBag != null && !isNaN(Number(q.pcsPerBag))) item.pcsPerBag = Number(q.pcsPerBag);
+        if (q.bagsPerCarton != null && !isNaN(Number(q.bagsPerCarton))) item.bagsPerCarton = Number(q.bagsPerCarton);
+        return item;
+      });
+
     cleanZipperQualities.forEach(q => {
       if (q.length) {
         const upper = q.length.trim().toUpperCase();
+        if (upper && !currentSizes.includes(upper)) {
+          currentSizes.push(upper);
+        }
+      }
+    });
+
+    cleanSliderQualities.forEach(q => {
+      if (q.size) {
+        const upper = q.size.trim().toUpperCase();
         if (upper && !currentSizes.includes(upper)) {
           currentSizes.push(upper);
         }
@@ -753,6 +874,7 @@ export default function CategoriesView({
       fabricQualities: cleanFabricQualities.length > 0 ? cleanFabricQualities : null,
       zipperQualities: cleanZipperQualities.length > 0 ? cleanZipperQualities : null,
       threadQualities: cleanThreadQualities.length > 0 ? cleanThreadQualities : null,
+      sliderQualities: cleanSliderQualities.length > 0 ? cleanSliderQualities : null,
     };
 
     setIsSavingCustoms(true);
@@ -1457,8 +1579,8 @@ export default function CategoriesView({
           </div>
         </header>
 
-        {/* ── Design Library — Zipper / Slider / Puller / Print Taffeta 190T ── */}
-        {currentCategoryObj && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('SLIDER') || (selectedCategory || '').toUpperCase().includes('PULLER') || (selectedCategory || '').toUpperCase().includes('PRINT TAFFETA 190T')) && (
+        {/* ── Design Library — Zipper / Print Taffeta 190T (Slider & Puller unified in Qualités Fixes) ── */}
+        {currentCategoryObj && !isSliderCat && (isTechnicalZipper(selectedCategory) || (selectedCategory || '').toUpperCase().includes('PRINT TAFFETA 190T')) && (
           <div className="bg-white rounded-[1.5rem] shadow-xl border border-stone-100 overflow-hidden p-6">
             <DesignLibrary
               categoryId={currentCategoryObj.id}
@@ -2180,6 +2302,182 @@ export default function CategoriesView({
                         <TableRow>
                           <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
                             Aucune qualité définie — ouvrez Config & Douane pour en ajouter
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* ── Slider & Puller: Types de Produit / Qualités Fixes & Catalogue Designs Combinés ── */}
+        {isSliderCat && (() => {
+          const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
+          const rawQualities: any[] = [
+            ...(Array.isArray(currentCategoryObj?.sliderQualities) ? currentCategoryObj.sliderQualities : []),
+            ...(Array.isArray(genCat?.sliderQualities) ? genCat!.sliderQualities! : [])
+          ];
+
+          // Synergy: include designs from category subcollection that might not be in sliderQualities yet
+          categoryDesigns.forEach(d => {
+            const alreadyIn = rawQualities.some(q => 
+              (q.label && d.ref && q.label.toLowerCase() === d.ref.toLowerCase()) || 
+              (q.imageUrl && d.imageUrl && q.imageUrl === d.imageUrl)
+            );
+            if (!alreadyIn) {
+              rawQualities.push({
+                label: d.ref,
+                nameFR: d.description,
+                imageUrl: d.imageUrl,
+                size: d.size,
+                sliderWeightG: d.sliderWeightG,
+                pcsPerBag: d.pcsPerBag,
+                bagsPerCarton: d.bagsPerCarton,
+              });
+            }
+          });
+
+          // Deduplicate
+          const qualities = rawQualities.filter((q, idx, arr) => 
+            arr.findIndex(x => (x.label && x.label === q.label) || (x.imageUrl && x.imageUrl === q.imageUrl)) === idx
+          );
+
+          // Compute order stats per quality
+          const qualityStats = qualities.map(q => {
+            const matchingArticles = currentArticles.filter((a: any) => {
+              if (a.quality && q.label && a.quality.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityLabel && q.label && a.qualityLabel.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.design && q.label && a.design.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.designRef && q.label && a.designRef.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.slider && q.label && a.slider.trim().toLowerCase().includes(q.label.trim().toLowerCase())) return true;
+              if (a.qualityBreakdown && Array.isArray(a.qualityBreakdown)) {
+                if (a.qualityBreakdown.some((qb: any) => (qb.quality && q.label && qb.quality.trim().toLowerCase() === q.label.trim().toLowerCase()) || (qb.design && q.label && qb.design.trim().toLowerCase() === q.label.trim().toLowerCase()))) return true;
+              }
+              if (q.size) {
+                const qSz = q.size.trim().toLowerCase().replace(/#/g, '');
+                const aSz = (a.size || '').trim().toLowerCase().replace(/#/g, '');
+                const aSpecs = (a.specs || '').trim().toLowerCase();
+                if (aSz && aSz === qSz) return true;
+                if (aSpecs.includes('#' + qSz) || aSpecs.includes('no' + qSz) || aSpecs.includes('no.' + qSz)) return true;
+              }
+              return false;
+            });
+            return {
+              ...q,
+              count: matchingArticles.length,
+              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
+              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
+            };
+          });
+
+          return (
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <div className="h-1.5 w-full bg-blue-600" />
+              <CardHeader className="py-4 border-b border-stone-50 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                  <Factory className="w-3 h-3 text-blue-600" /> Types de Produit — Qualités Fixes & Designs
+                  <span className="text-[8px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{qualities.length} modèles</span>
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[9px] font-black border-blue-200 text-blue-700 hover:bg-blue-50 rounded-xl"
+                  onClick={() => setIsCustomsModalOpen(true)}
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Configurer Qualités / Designs
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-stone-50/50">
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Désignation</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Photos des designs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Taille</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Grammage curseur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb de pcs/bag</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb de bags/ctn</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {qualityStats.map((pt, idx) => (
+                        <TableRow key={idx} className="hover:bg-blue-50/30 transition-colors">
+                          <TableCell className="py-3">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-stone-800 uppercase tracking-tighter">{pt.label}</span>
+                              {pt.nameFR && <span className="text-[8px] font-bold text-blue-600 uppercase mt-0.5">{pt.nameFR}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center py-2">
+                            {pt.imageUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewImage({ url: pt.imageUrl, title: `${pt.label}${pt.size ? ` · Taille ${pt.size}` : ''}` })}
+                                className="group relative inline-block focus:outline-none"
+                                title="Agrandir la photo"
+                              >
+                                <img
+                                  src={pt.imageUrl}
+                                  alt={pt.label}
+                                  className="w-12 h-12 object-cover rounded-xl border border-stone-200 bg-stone-50 shadow-sm group-hover:scale-110 group-hover:shadow-md transition-all duration-200 mx-auto"
+                                />
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity flex items-center justify-center text-white">
+                                  <Maximize className="w-3 h-3 drop-shadow" />
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl border border-dashed border-stone-200 bg-stone-50 flex items-center justify-center mx-auto text-stone-300">
+                                <ImagePlus className="w-4 h-4" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.size ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-wide">
+                                {pt.size}
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.sliderWeightG ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-orange-100 text-orange-800 text-[10px] font-black">
+                                {pt.sliderWeightG} g/pc
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.pcsPerBag ? (
+                              <span className="text-[10px] font-black text-teal-700">{pt.pcsPerBag} pcs/bag</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.bagsPerCarton ? (
+                              <span className="text-[10px] font-black text-indigo-700">{pt.bagsPerCarton} bags/ctn</span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
+                          </TableCell>
+                          <TableCell className="text-right text-[10px] font-black text-stone-800">
+                            {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {qualities.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                            Aucune qualité ni design défini — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
                       )}
@@ -2932,6 +3230,240 @@ export default function CategoriesView({
               </div>
             )}
 
+            {/* ── Slider & Puller: Qualités et Designs pré-définis ── */}
+            {isSliderCat && (
+              <div className="space-y-4 p-4 rounded-2xl bg-blue-50/50 border border-blue-100">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black text-blue-800 uppercase tracking-widest flex items-center gap-1.5">
+                    <Settings2 className="w-3.5 h-3.5" /> Qualités Slider & Puller / Catalogue Designs
+                  </p>
+                  <span className="text-[8px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                    {customsForm.sliderQualities.length} modèles
+                  </span>
+                </div>
+
+                {/* Existing qualities */}
+                {customsForm.sliderQualities.length > 0 && (
+                  <div className="space-y-2">
+                    {customsForm.sliderQualities.map((q, idx) => (
+                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl bg-white border border-blue-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          {q.imageUrl ? (
+                            <img
+                              src={q.imageUrl}
+                              alt={q.label}
+                              className="w-10 h-10 object-cover rounded-lg border border-stone-200 bg-stone-50 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg border border-dashed border-stone-200 bg-stone-50 flex items-center justify-center shrink-0 text-stone-300">
+                              <ImagePlus className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[10px] font-black text-stone-800 uppercase block truncate">{q.label}</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {q.size && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[8px] font-black">Taille {q.size}</span>}
+                              {q.sliderWeightG && <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 text-[8px] font-black">{q.sliderWeightG}g/pc</span>}
+                              {q.pcsPerBag && <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 text-[8px] font-black">{q.pcsPerBag} pcs/bag</span>}
+                              {q.bagsPerCarton && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[8px] font-black">{q.bagsPerCarton} bags/ctn</span>}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-stone-300 hover:text-red-500 transition-colors p-1"
+                            onClick={() => setCustomsForm(p => ({ ...p, sliderQualities: p.sliderQualities.filter((_, i) => i !== idx) }))}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1 border-t border-blue-50">
+                          <span className="text-[8px] font-black uppercase text-blue-700 shrink-0">Nom Vente (FR) :</span>
+                          <Input
+                            placeholder="Ex: Curseur métal #5 (nom vente / catalogue)"
+                            value={q.nameFR || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setCustomsForm(p => ({
+                                ...p,
+                                sliderQualities: p.sliderQualities.map((item, i) => i === idx ? { ...item, nameFR: val } : item)
+                              }));
+                            }}
+                            className="h-7 text-[10px] font-bold border-blue-200 rounded-lg flex-1 bg-blue-50/30"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {customsForm.sliderQualities.length === 0 && (
+                  <p className="text-[8px] font-bold text-stone-400 uppercase italic">Aucune qualité slider définie</p>
+                )}
+
+                {/* Add new slider quality form */}
+                <div className="space-y-3 p-3 rounded-xl bg-blue-100/30 border border-blue-200">
+                  <p className="text-[8px] font-black text-blue-800 uppercase tracking-widest">+ Nouveau Modèle / Qualité Slider</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Désignation / Réf Design (ex: D-01, Standard...)"
+                      className="h-8 text-[10px] font-bold border-blue-200 rounded-lg uppercase"
+                      value={newSliderQualityForm.label}
+                      onChange={e => setNewSliderQualityForm(p => ({ ...p, label: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Nom Commercial / FR (ex: Curseur Métal #5 Auto-lock)"
+                      className="h-8 text-[10px] font-bold border-blue-200 rounded-lg bg-white"
+                      value={newSliderQualityForm.nameFR}
+                      onChange={e => setNewSliderQualityForm(p => ({ ...p, nameFR: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* Photo du design upload & preview */}
+                  <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-blue-100">
+                    {newSliderQualityForm.imageUrl ? (
+                      <div className="relative w-12 h-12 shrink-0">
+                        <img
+                          src={newSliderQualityForm.imageUrl}
+                          alt="Aperçu"
+                          className="w-12 h-12 object-cover rounded-lg border border-stone-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setNewSliderQualityForm(p => ({ ...p, imageUrl: '' }))}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg border border-dashed border-stone-300 flex items-center justify-center text-stone-400 shrink-0">
+                        <ImagePlus className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase transition-colors">
+                          {sliderImageUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImagePlus className="w-3 h-3" />}
+                          {sliderImageUploading ? 'Envoi en cours...' : 'Choisir Photo'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={sliderImageUploading}
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (file) handleSliderImageUpload(file);
+                            }}
+                          />
+                        </label>
+                        <span className="text-[8px] text-stone-400 font-bold">ou coller URL :</span>
+                      </div>
+                      <Input
+                        placeholder="https://... (URL image optionnelle)"
+                        className="h-6 text-[9px] font-medium border-stone-200 rounded-lg"
+                        value={newSliderQualityForm.imageUrl}
+                        onChange={e => setNewSliderQualityForm(p => ({ ...p, imageUrl: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div>
+                      <Input
+                        placeholder="Taille (#3, #5, #8...)"
+                        className="h-8 text-[10px] font-bold border-blue-200 rounded-lg uppercase"
+                        value={newSliderQualityForm.size}
+                        onChange={e => setNewSliderQualityForm(p => ({ ...p, size: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="number"
+                        step="any"
+                        placeholder="Grammage curseur (g/pc)"
+                        className="h-8 text-[10px] font-bold border-blue-200 rounded-lg"
+                        value={newSliderQualityForm.sliderWeightG}
+                        onChange={e => setNewSliderQualityForm(p => ({ ...p, sliderWeightG: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="number"
+                        placeholder="Nb de pcs/bag"
+                        className="h-8 text-[10px] font-bold border-blue-200 rounded-lg"
+                        value={newSliderQualityForm.pcsPerBag}
+                        onChange={e => setNewSliderQualityForm(p => ({ ...p, pcsPerBag: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="number"
+                        placeholder="Nb de bags/ctn"
+                        className="h-8 text-[10px] font-bold border-blue-200 rounded-lg"
+                        value={newSliderQualityForm.bagsPerCarton}
+                        onChange={e => setNewSliderQualityForm(p => ({ ...p, bagsPerCarton: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-full border-blue-300 text-blue-700 hover:bg-blue-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                    onClick={() => {
+                      const label = newSliderQualityForm.label.trim();
+                      const nameFR = newSliderQualityForm.nameFR.trim() || undefined;
+                      const imageUrl = newSliderQualityForm.imageUrl.trim() || undefined;
+                      const size = newSliderQualityForm.size.trim().toUpperCase() || undefined;
+                      const sliderWeightG = newSliderQualityForm.sliderWeightG ? (isNaN(Number(newSliderQualityForm.sliderWeightG)) ? newSliderQualityForm.sliderWeightG : Number(newSliderQualityForm.sliderWeightG)) : undefined;
+                      const pcsPerBag = newSliderQualityForm.pcsPerBag ? Number(newSliderQualityForm.pcsPerBag) : undefined;
+                      const bagsPerCarton = newSliderQualityForm.bagsPerCarton ? Number(newSliderQualityForm.bagsPerCarton) : undefined;
+
+                      if (!label && !nameFR && !imageUrl && !size && !sliderWeightG && !pcsPerBag && !bagsPerCarton) return;
+
+                      const autoLabel = [
+                        size ? `Taille ${size}` : null,
+                        sliderWeightG ? `${sliderWeightG}g/pc` : null,
+                        pcsPerBag ? `${pcsPerBag}pcs/bag` : null,
+                        bagsPerCarton ? `${bagsPerCarton}bags/ctn` : null,
+                      ].filter(Boolean).join(' · ');
+
+                      const finalLabel = label || autoLabel || nameFR || 'Slider';
+
+                      const newQuality: any = { label: finalLabel };
+                      if (nameFR) newQuality.nameFR = nameFR;
+                      if (imageUrl) newQuality.imageUrl = imageUrl;
+                      if (size) newQuality.size = size;
+                      if (sliderWeightG !== undefined) newQuality.sliderWeightG = sliderWeightG;
+                      if (pcsPerBag !== undefined && !isNaN(pcsPerBag)) newQuality.pcsPerBag = pcsPerBag;
+                      if (bagsPerCarton !== undefined && !isNaN(bagsPerCarton)) newQuality.bagsPerCarton = bagsPerCarton;
+
+                      setCustomsForm(p => ({
+                        ...p,
+                        sliderQualities: [
+                          ...p.sliderQualities,
+                          newQuality
+                        ]
+                      }));
+
+                      setNewSliderQualityForm({
+                        label: '',
+                        nameFR: '',
+                        imageUrl: '',
+                        size: '',
+                        sliderWeightG: '',
+                        pcsPerBag: '',
+                        bagsPerCarton: '',
+                      });
+                    }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Ajouter Qualité Slider & Puller
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="p-6 bg-stone-50 gap-3">
               <Button variant="ghost" disabled={isSavingCustoms} onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
               <Button disabled={isSavingCustoms} onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">
@@ -2988,7 +3520,12 @@ export default function CategoriesView({
                       setRenameGenCatName(parent.name || '');
                       setRenameGenCatNameFR(parent.nameFR || '');
                       setRenameGenCatLine(parent.line || '');
-                      const autoSpec = (parent as any).specType || (parent.line?.toLowerCase() === 'fabric' ? 'fabric' : parent.line?.toLowerCase() === 'zipper' ? 'zipper' : parent.line?.toLowerCase() === 'thread' ? 'thread' : 'none');
+                      const autoSpec = (parent as any).specType || (
+                        (parent.line || '').toLowerCase().includes('slider') || (parent.line || '').toLowerCase().includes('puller') || (parent.line || '').toLowerCase().includes('curseur') ? 'slider' :
+                        parent.line?.toLowerCase() === 'fabric' ? 'fabric' :
+                        parent.line?.toLowerCase() === 'zipper' ? 'zipper' :
+                        parent.line?.toLowerCase() === 'thread' ? 'thread' : 'none'
+                      );
                       setRenameGenCatSpecType(autoSpec);
                     }
                   }}
@@ -3015,6 +3552,11 @@ export default function CategoriesView({
                 {isThreadLineOrCategory(parent?.name, parent) && (
                   <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200 flex items-center gap-1">
                     🪡 Spécifications Thread (Cône, Fil, Longueur...)
+                  </span>
+                )}
+                {isSliderLineOrCategory(parent?.name, parent) && (
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 flex items-center gap-1">
+                    🎛️ Spécifications Slider & Puller (Designs, Taille, Pcs/ctn...)
                   </span>
                 )}
               </div>
@@ -3532,7 +4074,12 @@ export default function CategoriesView({
                               setRenameGenCatName(catObj.name || '');
                               setRenameGenCatNameFR(catObj.nameFR || '');
                               setRenameGenCatLine(catObj.line || '');
-                              const autoSpec = (catObj as any).specType || (catObj.line?.toLowerCase() === 'fabric' ? 'fabric' : catObj.line?.toLowerCase() === 'zipper' ? 'zipper' : 'none');
+                              const autoSpec = (catObj as any).specType || (
+                                (catObj.line || '').toLowerCase().includes('slider') || (catObj.line || '').toLowerCase().includes('puller') || (catObj.line || '').toLowerCase().includes('curseur') ? 'slider' :
+                                catObj.line?.toLowerCase() === 'fabric' ? 'fabric' :
+                                catObj.line?.toLowerCase() === 'zipper' ? 'zipper' :
+                                catObj.line?.toLowerCase() === 'thread' ? 'thread' : 'none'
+                              );
                               setRenameGenCatSpecType(autoSpec);
                             }
                           }}
@@ -3597,7 +4144,8 @@ export default function CategoriesView({
               <Select value={renameGenCatLine} onValueChange={(val) => {
                 setRenameGenCatLine(val);
                 const l = val.toLowerCase();
-                if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setRenameGenCatSpecType('fabric');
+                if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setRenameGenCatSpecType('slider');
+                else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setRenameGenCatSpecType('fabric');
                 else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setRenameGenCatSpecType('zipper');
                 else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setRenameGenCatSpecType('thread');
                 else setRenameGenCatSpecType('none');
@@ -3615,7 +4163,7 @@ export default function CategoriesView({
 
             <div className="space-y-1.5 pt-1">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <button
                   type="button"
                   onClick={() => setRenameGenCatSpecType('fabric')}
@@ -3654,6 +4202,18 @@ export default function CategoriesView({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setRenameGenCatSpecType('slider')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    renameGenCatSpecType === 'slider'
+                      ? 'border-blue-600 bg-blue-50 text-blue-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🎛️ Slider</span>
+                  <span className="text-[7px] text-stone-400 block">Design, Ctn</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setRenameGenCatSpecType('none')}
                   className={`p-2 rounded-xl border-2 text-center transition-all ${
                     renameGenCatSpecType === 'none'
@@ -3676,6 +4236,32 @@ export default function CategoriesView({
                 Enregistrer
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal Lightbox Preview Design Image ── */}
+      <Dialog open={!!previewImage} onOpenChange={open => { if (!open) setPreviewImage(null); }}>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-black/95 border-none shadow-2xl rounded-3xl text-white">
+          <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all z-10"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+            {previewImage?.title && (
+              <h4 className="font-black text-sm uppercase tracking-wider mb-4 text-center text-white">
+                {previewImage.title}
+              </h4>
+            )}
+            {previewImage?.url && (
+              <img
+                src={previewImage.url}
+                alt={previewImage.title || 'Design'}
+                className="max-h-[70vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

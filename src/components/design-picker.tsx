@@ -28,12 +28,13 @@ export default function DesignPicker({ categoryName, subCategories, value, onCha
   const { user } = useUser();
   const firestore = useFirestore();
 
-  // Resolve category ID from name
-  const categoryId = useMemo(() => {
+  // Resolve category doc from name
+  const currentCategory = useMemo(() => {
     const name = (categoryName || '').trim().toLowerCase();
-    const cat = (subCategories || []).find((c: any) => (c.name || '').trim().toLowerCase() === name);
-    return cat?.id || null;
+    return (subCategories || []).find((c: any) => (c.name || '').trim().toLowerCase() === name) || null;
   }, [categoryName, subCategories]);
+
+  const categoryId = currentCategory?.id || null;
 
   // Load designs for this category
   const designsRef = useMemoFirebase(
@@ -44,7 +45,28 @@ export default function DesignPicker({ categoryName, subCategories, value, onCha
   );
 
   const { data: rawDesigns } = useCollection(designsRef);
-  const designs: Design[] = (rawDesigns || []) as Design[];
+
+  const designs = useMemo(() => {
+    const list: Design[] = [...((rawDesigns || []) as Design[])];
+    if (currentCategory && Array.isArray(currentCategory.sliderQualities)) {
+      currentCategory.sliderQualities.forEach((sq: any, idx: number) => {
+        const alreadyIn = list.some(d => (d.ref && sq.label && d.ref.toLowerCase() === sq.label.toLowerCase()) || (d.imageUrl && sq.imageUrl && d.imageUrl === sq.imageUrl));
+        if (!alreadyIn && (sq.label || sq.imageUrl)) {
+          list.push({
+            id: `sq_${idx}`,
+            ref: sq.label || `MODÈLE-${idx + 1}`,
+            description: sq.nameFR,
+            imageUrl: sq.imageUrl,
+            size: sq.size,
+            sliderWeightG: sq.sliderWeightG,
+            pcsPerBag: sq.pcsPerBag,
+            bagsPerCarton: sq.bagsPerCarton,
+          });
+        }
+      });
+    }
+    return list;
+  }, [rawDesigns, currentCategory]);
 
   if (!categoryName || !categoryId) return null;
 

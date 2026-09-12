@@ -57,7 +57,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
-  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'none'>('fabric');
+  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'none'>('fabric');
   const [newSubName, setNewSubName] = useState('');
   const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
@@ -73,7 +73,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [editPoleName, setEditPoleName] = useState('');
   const [editPoleNameFR, setEditPoleNameFR] = useState('');
   const [editPoleLine, setEditPoleLine] = useState('');
-  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'none'>('fabric');
+  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'none'>('fabric');
 
   const now = new Date();
 
@@ -205,7 +205,9 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     let finalSpec = newCatSpecType;
     const lineLower = newCatLine.toLowerCase();
     const nameLower = newCatName.toLowerCase();
-    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
+    if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur') || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
+      if (finalSpec !== 'none') finalSpec = 'slider';
+    } else if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
       if (finalSpec !== 'none') finalSpec = 'zipper';
     } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
       if (finalSpec !== 'none') finalSpec = 'fabric';
@@ -261,7 +263,9 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     let finalSpec = editPoleSpecType;
     const lineLower = (editPoleLine || '').toLowerCase();
     const nameLower = newName.toLowerCase();
-    if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
+    if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur') || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
+      if (finalSpec !== 'none') finalSpec = 'slider';
+    } else if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
       if (finalSpec !== 'none') finalSpec = 'zipper';
     } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
       if (finalSpec !== 'none') finalSpec = 'fabric';
@@ -411,7 +415,12 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                   setEditPoleName(gc.name || '');
                                   setEditPoleNameFR(gc.nameFR || '');
                                   setEditPoleLine((gc as any).line || '');
-                                  const autoSpec = (gc as any).specType || ((gc as any).line?.toLowerCase() === 'fabric' ? 'fabric' : (gc as any).line?.toLowerCase() === 'zipper' ? 'zipper' : (gc as any).line?.toLowerCase() === 'thread' ? 'thread' : 'none');
+                                  const autoSpec = (gc as any).specType || (
+                                    (gc as any).line?.toLowerCase().includes('slider') || (gc as any).line?.toLowerCase().includes('puller') || (gc as any).line?.toLowerCase().includes('curseur') ? 'slider' :
+                                    (gc as any).line?.toLowerCase() === 'fabric' ? 'fabric' :
+                                    (gc as any).line?.toLowerCase() === 'zipper' ? 'zipper' :
+                                    (gc as any).line?.toLowerCase() === 'thread' ? 'thread' : 'none'
+                                  );
                                   setEditPoleSpecType(autoSpec);
                                 }}
                               >
@@ -451,6 +460,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                               {gc.specType === 'fabric' && <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[8px] font-black uppercase">🧵 Spé Fabric</span>}
                               {gc.specType === 'zipper' && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black uppercase">⚡ Spé Zipper</span>}
                               {gc.specType === 'thread' && <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 text-[8px] font-black uppercase">🪡 Spé Thread</span>}
+                              {gc.specType === 'slider' && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black uppercase">🎛️ Spé Slider</span>}
                             </div>
                           </div>
 
@@ -527,7 +537,10 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   const val = e.target.value;
                   setNewCatName(val);
                   const lower = val.toLowerCase();
-                  if (lower.includes('zipper') || lower.includes('fermeture') || lower.includes('plastic') || lower.includes('zip') || lower.includes('resine')) {
+                  if (lower.includes('slider') || lower.includes('puller') || lower.includes('curseur')) {
+                    setNewCatSpecType('slider');
+                    if (!newCatLine) setNewCatLine('Slider & Puller');
+                  } else if (lower.includes('zipper') || lower.includes('fermeture') || lower.includes('plastic') || lower.includes('zip') || lower.includes('resine')) {
                     setNewCatSpecType('zipper');
                     if (!newCatLine) setNewCatLine('Zipper');
                   } else if (lower.includes('fabric') || lower.includes('popeline') || lower.includes('tissu') || lower.includes('interlining')) {
@@ -538,7 +551,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                     if (!newCatLine) setNewCatLine('Thread');
                   }
                 }}
-                placeholder="EX: TEXTILES, ZIPPER, FIL..."
+                placeholder="EX: TEXTILES, ZIPPER, FIL, SLIDER..."
                 className="h-12 uppercase font-black border-stone-200 rounded-xl focus:ring-stone-900 text-base"
                 autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleAddGeneralCategory()}
@@ -551,7 +564,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               <Input
                 value={newCatNameFR}
                 onChange={e => setNewCatNameFR(e.target.value)}
-                placeholder="EX: TISSUS, FERMETURES ÉCLAIR, FILS..."
+                placeholder="EX: TISSUS, FERMETURES ÉCLAIR, FILS, CURSEURS..."
                 className="h-10 uppercase font-bold border-amber-200 bg-amber-50/40 rounded-xl focus:ring-amber-600 text-xs"
               />
             </div>
@@ -567,7 +580,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                       onClick={() => {
                         setNewCatLine(line);
                         const l = line.toLowerCase();
-                        if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
+                        if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setNewCatSpecType('slider');
+                        else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
                         else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
                         else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setNewCatSpecType('thread');
                         else setNewCatSpecType('none');
@@ -590,7 +604,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                     const v = e.target.value;
                     setNewCatLine(v);
                     const l = v.toLowerCase();
-                    if (l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
+                    if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setNewCatSpecType('slider');
+                    else if (l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
                     else if (l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
                     else if (l.includes('thread') || l.includes('fil')) setNewCatSpecType('thread');
                   }}
@@ -603,7 +618,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 <label className="text-[9px] font-black text-stone-600 uppercase tracking-widest block">
                   Spécifications Qualités à donner
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewCatSpecType('fabric')}
@@ -639,6 +654,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   >
                     <span className="text-[10px] block uppercase font-black">🪡 Thread</span>
                     <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Cône, Fil, Lg...</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCatSpecType('slider')}
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
+                      newCatSpecType === 'slider'
+                        ? 'border-blue-600 bg-blue-50 text-blue-900 font-black shadow-sm'
+                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                    }`}
+                  >
+                    <span className="text-[10px] block uppercase font-black">🎛️ Slider</span>
+                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Design, Pcs/ctn</span>
                   </button>
                   <button
                     type="button"
@@ -832,7 +859,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
               <Select value={editPoleLine} onValueChange={(val) => {
                 setEditPoleLine(val);
                 const l = val.toLowerCase();
-                if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setEditPoleSpecType('fabric');
+                if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setEditPoleSpecType('slider');
+                else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setEditPoleSpecType('fabric');
                 else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setEditPoleSpecType('zipper');
                 else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setEditPoleSpecType('thread');
                 else setEditPoleSpecType('none');
@@ -850,7 +878,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
             <div className="space-y-1.5 pt-1">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <button
                   type="button"
                   onClick={() => setEditPoleSpecType('fabric')}
@@ -886,6 +914,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 >
                   <span className="text-[9px] block uppercase font-black">🪡 Thread</span>
                   <span className="text-[7px] text-stone-400 block">Cône, Fil, Lg</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPoleSpecType('slider')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    editPoleSpecType === 'slider'
+                      ? 'border-blue-600 bg-blue-50 text-blue-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🎛️ Slider</span>
+                  <span className="text-[7px] text-stone-400 block">Design, Ctn</span>
                 </button>
                 <button
                   type="button"

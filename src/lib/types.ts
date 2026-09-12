@@ -17,7 +17,7 @@ export type GeneralCategory = {
   name: string;
   nameFR?: string;
   line?: string;
-  specType?: 'fabric' | 'zipper' | 'thread' | 'none';
+  specType?: 'fabric' | 'zipper' | 'thread' | 'slider' | 'none';
   fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   zipperQualities?: {
     label: string;
@@ -38,6 +38,15 @@ export type GeneralCategory = {
     threadWeightG?: number | string;
     lengthPerPiece?: number | string;
     lengthUnit?: string;
+    pcsPerBag?: number;
+    bagsPerCarton?: number;
+  }[];
+  sliderQualities?: {
+    label: string;
+    nameFR?: string;
+    imageUrl?: string;
+    size?: string;
+    sliderWeightG?: number | string;
     pcsPerBag?: number;
     bagsPerCarton?: number;
   }[];
@@ -82,6 +91,16 @@ export type Category = {
     pcsPerBag?: number;        // Nombre de pcs/bag
     bagsPerCarton?: number;    // Nombre de bags/ctn
   }[];
+  // Slider config
+  sliderQualities?: {
+    label: string;
+    nameFR?: string;           // Nom commercial / français pour la vente
+    imageUrl?: string;        // Photo du design
+    size?: string;            // Taille (#3, #5, etc.)
+    sliderWeightG?: number | string; // Grammage curseur (g/pc)
+    pcsPerBag?: number;       // Nombre de pcs/bag
+    bagsPerCarton?: number;   // Nombre de bags/ctn
+  }[];
 };
 
 export interface QualityBreakdownRow {
@@ -109,6 +128,8 @@ export interface QualityBreakdownRow {
   threadWeightG?: number | string;
   lengthPerPiece?: number | string;
   lengthUnit?: string;
+  // Attributs Slider / Design
+  imageUrl?: string;
 }
 
 export type Order = {

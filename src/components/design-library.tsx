@@ -25,6 +25,10 @@ export interface Design {
   ref: string;
   description?: string;
   imageUrl?: string;
+  size?: string;
+  sliderWeightG?: number | string;
+  pcsPerBag?: number;
+  bagsPerCarton?: number;
   createdAt?: any;
 }
 

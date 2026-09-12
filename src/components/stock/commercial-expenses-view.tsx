@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -115,6 +115,8 @@ export default function CommercialExpensesView({
   const [selectedLengthUnit, setSelectedLengthUnit] = useState<'m' | 'yds'>('m');
   const [selectedPcsPerBag, setSelectedPcsPerBag] = useState<string>('');
   const [selectedBagsPerCarton, setSelectedBagsPerCarton] = useState<string>('');
+  const [selectedSliderWeightG, setSelectedSliderWeightG] = useState<string>('');
+  const [selectedDesignImageUrl, setSelectedDesignImageUrl] = useState<string>('');
   const [isManualArticle, setIsManualArticle] = useState(false);
   const [newArticleName, setNewArticleName] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
@@ -202,6 +204,16 @@ export default function CommercialExpensesView({
     return isThreadLineOrCategory(selectedCategoryName, genCat);
   }, [selectedGenCatId, generalCategories, selectedCategoryName, categories]);
 
+  const isSlider = useMemo(() => {
+    let genCatId = selectedGenCatId;
+    if (!genCatId && selectedCategoryName) {
+      const cat = (categories || []).find((sc: any) => sc.name === selectedCategoryName);
+      if (cat) genCatId = cat.generalCategoryId;
+    }
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isSliderLineOrCategory(selectedCategoryName, genCat);
+  }, [selectedGenCatId, generalCategories, selectedCategoryName, categories]);
+
   const selectedSubCat = useMemo(() => {
     return (categories || []).find((sc: any) => sc.name === selectedCategoryName);
   }, [categories, selectedCategoryName]);
@@ -216,6 +228,10 @@ export default function CommercialExpensesView({
 
   const threadQualities = useMemo(() => {
     return Array.isArray(selectedSubCat?.threadQualities) ? selectedSubCat.threadQualities : [];
+  }, [selectedSubCat]);
+
+  const sliderQualities = useMemo(() => {
+    return Array.isArray(selectedSubCat?.sliderQualities) ? selectedSubCat.sliderQualities : [];
   }, [selectedSubCat]);
 
   const availableSizes = useMemo(() => {
@@ -458,6 +474,10 @@ export default function CommercialExpensesView({
           gsm: selectedGsm ? Number(selectedGsm) : undefined,
           fabricWidth: selectedFabricWidth ? Number(selectedFabricWidth) : undefined,
           rollLength: selectedRollLength ? Number(selectedRollLength) : undefined,
+          sliderWeightG: selectedSliderWeightG ? Number(selectedSliderWeightG) : undefined,
+          pcsPerBag: selectedPcsPerBag ? Number(selectedPcsPerBag) : undefined,
+          bagsPerCarton: selectedBagsPerCarton ? Number(selectedBagsPerCarton) : undefined,
+          designImageUrl: selectedDesignImageUrl || undefined,
           quantity: newQuantity ? parseFloat(newQuantity) : undefined,
           unitPrice: newUnitPrice ? parseFloat(newUnitPrice) : (newQuantity ? amt / parseFloat(newQuantity) : undefined),
           unitOfMeasure: newUnitOfMeasure || 'pcs',
@@ -1199,6 +1219,88 @@ export default function CommercialExpensesView({
                                     ))}
                                   </SelectContent>
                                 </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ) : isSlider ? (
+                          /* CAS SLIDER */
+                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-orange-200">
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Qualité / Modèle Slider */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-orange-900 uppercase tracking-wider flex items-center gap-1">
+                                  <span className="text-xs">🎛️</span> Qualité / Modèle Slider
+                                </Label>
+                                {sliderQualities.length > 0 ? (
+                                  <Select onValueChange={v => {
+                                    const q = sliderQualities[Number(v)];
+                                    if (q) {
+                                      setSelectedSize(q.size || '');
+                                      setSelectedSliderWeightG(q.sliderWeightG ? String(q.sliderWeightG) : '');
+                                      setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
+                                      setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
+                                      setSelectedDesignImageUrl(q.imageUrl || '');
+                                    }
+                                  }}>
+                                    <SelectTrigger className="h-9 border-orange-200 bg-white font-bold rounded-xl text-xs text-orange-900">
+                                      <SelectValue placeholder="Choisir un modèle..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {sliderQualities.map((q: any, i: number) => (
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">
+                                          <div className="flex items-center gap-2">
+                                            {q.imageUrl && <img src={q.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />}
+                                            <span>{q.label}</span>
+                                            {q.size && <span className="text-orange-600 font-bold">({q.size})</span>}
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                      placeholder="Taille (ex: #3)"
+                                      value={selectedSize}
+                                      onChange={e => setSelectedSize(e.target.value)}
+                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                    />
+                                    <Input
+                                      placeholder="Poids curseur (ex: 2.5g)"
+                                      value={selectedSliderWeightG}
+                                      onChange={e => setSelectedSliderWeightG(e.target.value)}
+                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Couleur */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-stone-400 uppercase tracking-wider">Couleur</Label>
+                                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                  <SelectTrigger className="h-9 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-60">
+                                    {COLORS.map(c => (
+                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {/* Aperçu Photo & Badges */}
+                            <div className="flex items-center gap-3">
+                              {selectedDesignImageUrl && (
+                                <img src={selectedDesignImageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-orange-200 shrink-0" />
+                              )}
+                              <div className="flex flex-wrap gap-1.5">
+                                {selectedSize && <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[10px] font-black">{selectedSize}</span>}
+                                {selectedSliderWeightG && <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">{selectedSliderWeightG}g/pc</span>}
+                                {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-black">{selectedPcsPerBag} pcs/bag</span>}
+                                {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-black">{selectedBagsPerCarton} bags/ctn</span>}
                               </div>
                             </div>
                           </div>
