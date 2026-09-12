@@ -10,6 +10,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { cleanUndefined } from '@/lib/utils';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   SelectGroup, SelectLabel
@@ -280,7 +281,11 @@ export function AddOrderForm({
 
   const fabricQualities = useMemo(() => {
     if (!formData.categoryId && !selectedGenCatId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData.categoryId || 
+      sc.id === formData.categoryId ||
+      (sc.name && formData.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
     const genCatId = selectedGenCatId || cat?.generalCategoryId;
     const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
     const raw = [
@@ -292,7 +297,11 @@ export function AddOrderForm({
 
   const zipperQualities = useMemo(() => {
     if (!formData.categoryId && !selectedGenCatId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData.categoryId || 
+      sc.id === formData.categoryId ||
+      (sc.name && formData.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
     const genCatId = selectedGenCatId || cat?.generalCategoryId;
     const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
     const raw = [
@@ -361,7 +370,7 @@ export function AddOrderForm({
       tvaRate: selectedSubCat?.tvaRate ?? null,
       pcsPerCtn: selectedSubCat?.defaultPcsPerCtn ?? null,
       // Fabric fields — convert to numbers, null if empty
-      gsm: formData.gsm ? Number(formData.gsm) : null,
+      gsm: (formData.gsm !== '' && formData.gsm != null) ? (isNaN(Number(formData.gsm)) ? String(formData.gsm).trim() : Number(formData.gsm)) : null,
       fabricWidth: formData.fabricWidth ? Number(formData.fabricWidth) : null,
       rollLength: formData.rollLength ? Number(formData.rollLength) : null,
       rollLengthUnit: formData.rollLength ? formData.rollLengthUnit : null,
@@ -412,18 +421,18 @@ export function AddOrderForm({
 
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          {
+          cleanUndefined({
             ...basePayload,
             ...rowSpecs,
             id,
             purchasePricePerUnit: price,
             quantity: groupQty,
-            qualityBreakdown: rows,
+            qualityBreakdown: rows.length > 1 ? rows : null,
             colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
             sizeBreakdown: null,
             designBreakdown: null,
             ...extraPayload
-          },
+          }),
           { merge: true }
         );
       });
@@ -442,7 +451,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload },
+          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, designBreakdown: rows, colorBreakdown: null, sizeBreakdown: null, qualityBreakdown: null, ...extraPayload }),
           { merge: true }
         );
       });
@@ -461,7 +470,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
+          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, colorBreakdown: rows, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload }),
           { merge: true }
         );
       });
@@ -480,7 +489,7 @@ export function AddOrderForm({
         const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: groupQty } } : {};
         setDocumentNonBlocking(
           doc(firestore, 'users', effectiveUid, 'articles', id),
-          { ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
+          cleanUndefined({ ...basePayload, id, purchasePricePerUnit: price, quantity: groupQty, sizeBreakdown: rows, colorBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload }),
           { merge: true }
         );
       });
@@ -489,7 +498,7 @@ export function AddOrderForm({
       const extraPayload = isInventoryMode ? { initialQtyByStore: { [activeStore || 'CHRIFA']: Number(formData.quantity) || 0 } } : {};
       setDocumentNonBlocking(
         doc(firestore, 'users', effectiveUid, 'articles', id),
-        { ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload },
+        cleanUndefined({ ...basePayload, id, colorBreakdown: null, sizeBreakdown: null, designBreakdown: null, qualityBreakdown: null, ...extraPayload }),
         { merge: true }
       );
     }
@@ -686,6 +695,9 @@ export function AddOrderForm({
                         <SelectValue placeholder="Choisir une qualité..." />
                       </SelectTrigger>
                       <SelectContent>
+                        {formData.quality && !fabricQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
                         {fabricQualities.map((q: any, i: number) => (
                           <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                         ))}
@@ -741,7 +753,7 @@ export function AddOrderForm({
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">GSM (g/m²)</Label>
-                    <Input type="number" placeholder="Ex: 225" className="h-11 border-stone-200 font-bold rounded-xl"
+                    <Input type="text" placeholder="Ex: 225 ou 25+7" className="h-11 border-stone-200 font-bold rounded-xl"
                       value={formData.gsm || ''} onChange={e => setFormData((p: any) => ({ ...p, gsm: e.target.value }))} />
                   </div>
                   <div className="space-y-1.5">
@@ -809,6 +821,9 @@ export function AddOrderForm({
                         <SelectValue placeholder="Choisir une qualité..." />
                       </SelectTrigger>
                       <SelectContent>
+                        {formData.quality && !zipperQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
                         {zipperQualities.map((q: any, i: number) => (
                           <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                         ))}

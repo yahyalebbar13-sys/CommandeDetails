@@ -422,9 +422,9 @@ export default function CategoriesView({
     tvaRate: '',
     defaultPcsPerCtn: '',
     availableSizes: [] as string[],
-    availableGsm: [] as number[],
+    availableGsm: [] as (number | string)[],
     availableWidths: [] as number[],
-    fabricQualities: [] as { label: string; nameFR?: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[],
+    fabricQualities: [] as { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[],
     zipperQualities: [] as {
       label: string;
       nameFR?: string;
@@ -521,27 +521,30 @@ export default function CategoriesView({
 
     // Check if user has uncommitted pending fabric quality
     let currentFabricQualities = [...customsForm.fabricQualities];
-    const fabGsm = newQualityForm.gsm ? Number(newQualityForm.gsm) : null;
+    const fabGsmRaw = newQualityForm.gsm.trim();
+    const fabGsm = fabGsmRaw ? (isNaN(Number(fabGsmRaw)) ? fabGsmRaw : Number(fabGsmRaw)) : null;
     const fabWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : null;
     const fabRoll = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : null;
     const fabBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : null;
-    if (fabGsm || fabWidth) {
+    const fabNameFR = newQualityForm.nameFR?.trim() || undefined;
+    if (fabGsm || fabWidth || fabNameFR || newQualityForm.label.trim()) {
       const autoLabel = [
         fabGsm ? `${fabGsm}gsm` : null,
         fabWidth ? `${fabWidth}cm` : null,
         fabRoll ? `${fabRoll}${newQualityForm.rollLengthUnit}/rlx` : null,
         fabBag ? `${fabBag}rlx/sac` : null,
       ].filter(Boolean).join(' · ');
-      const label = newQualityForm.label.trim() || autoLabel || 'Qualité';
+      const label = newQualityForm.label.trim() || autoLabel || fabNameFR || 'Qualité';
       currentFabricQualities.push({
         label,
+        nameFR: fabNameFR,
         gsm: fabGsm ?? undefined,
         fabricWidth: fabWidth ?? undefined,
         rollLength: fabRoll ?? undefined,
         rollLengthUnit: newQualityForm.rollLengthUnit,
         packagingPerBag: fabBag ?? undefined,
       });
-      setNewQualityForm({ label: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
+      setNewQualityForm({ label: '', nameFR: '', gsm: '', fabricWidth: '', rollLength: '', rollLengthUnit: 'm', packagingPerBag: '' });
     }
 
     // Check if user has uncommitted pending zipper quality
@@ -596,7 +599,9 @@ export default function CategoriesView({
     const cleanFabricQualities = currentFabricQualities.map(q => {
       const item: Record<string, any> = { label: q.label || 'Qualité' };
       if (q.nameFR?.trim()) item.nameFR = q.nameFR.trim();
-      if (q.gsm != null && !isNaN(Number(q.gsm))) item.gsm = Number(q.gsm);
+      if (q.gsm != null && String(q.gsm).trim() !== '') {
+        item.gsm = isNaN(Number(q.gsm)) ? String(q.gsm).trim() : Number(q.gsm);
+      }
       if (q.fabricWidth != null && !isNaN(Number(q.fabricWidth))) item.fabricWidth = Number(q.fabricWidth);
       if (q.rollLength != null && !isNaN(Number(q.rollLength))) item.rollLength = Number(q.rollLength);
       if (q.rollLengthUnit) item.rollLengthUnit = q.rollLengthUnit;
@@ -1705,7 +1710,7 @@ export default function CategoriesView({
               if (a.qualityBreakdown && Array.isArray(a.qualityBreakdown)) {
                 if (a.qualityBreakdown.some((qb: any) => qb.quality && q.label && qb.quality.trim().toLowerCase() === q.label.trim().toLowerCase())) return true;
               }
-              if (q.gsm && Number(a.gsm) !== q.gsm) return false;
+              if (q.gsm && String(a.gsm || '').trim().toLowerCase() !== String(q.gsm).trim().toLowerCase()) return false;
               if (q.fabricWidth && Number(a.fabricWidth) !== q.fabricWidth) return false;
               if (!q.gsm && !q.fabricWidth) return false;
               return true;
@@ -2368,7 +2373,7 @@ export default function CategoriesView({
                       value={newQualityForm.nameFR} onChange={e => setNewQualityForm(p => ({ ...p, nameFR: e.target.value }))} />
                   </div>
                   <div className="grid grid-cols-5 gap-2">
-                    <Input type="number" placeholder="GSM" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
+                    <Input type="text" placeholder="GSM (ex: 25+7)" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
                       value={newQualityForm.gsm} onChange={e => setNewQualityForm(p => ({ ...p, gsm: e.target.value }))} />
                     <Input type="number" placeholder="Larg. cm" className="h-8 text-[10px] font-bold border-violet-200 rounded-lg"
                       value={newQualityForm.fabricWidth} onChange={e => setNewQualityForm(p => ({ ...p, fabricWidth: e.target.value }))} />
@@ -2385,7 +2390,8 @@ export default function CategoriesView({
                   <Button type="button" variant="outline" size="sm"
                     className="h-8 w-full border-violet-300 text-violet-600 hover:bg-violet-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
                     onClick={() => {
-                      const gsm = newQualityForm.gsm ? Number(newQualityForm.gsm) : null;
+                      const gsmRaw = newQualityForm.gsm.trim();
+                      const gsm = gsmRaw ? (isNaN(Number(gsmRaw)) ? gsmRaw : Number(gsmRaw)) : null;
                       const fabricWidth = newQualityForm.fabricWidth ? Number(newQualityForm.fabricWidth) : null;
                       const rollLength = newQualityForm.rollLength ? Number(newQualityForm.rollLength) : null;
                       const packagingPerBag = newQualityForm.packagingPerBag ? Number(newQualityForm.packagingPerBag) : null;

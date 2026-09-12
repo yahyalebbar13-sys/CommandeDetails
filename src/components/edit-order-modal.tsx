@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Sparkles, Loader2, Layers, Package, Save, Palette, Ruler, ClipboardList, Maximize, Settings2, MousePointer2, Scissors, UserCircle2, Copy, Clock, ImagePlus, X as XIcon } from 'lucide-react';
 import { suggestArticleSpecifications } from '@/ai/flows/suggest-article-specifications-flow';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, setDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { cleanUndefined } from '@/lib/utils';
 import { sendStatusNotification } from '@/lib/send-status-notification';
 import { computeEffectiveStatus } from '@/lib/status-utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
@@ -149,16 +150,27 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   useEffect(() => {
     if (article) {
       const catName = article.categoryId || article.name || '';
-      const foundCat = (subCategories || []).find((sc: any) => sc.name === catName || sc.id === article.categoryId);
+      const foundCat = (subCategories || []).find((sc: any) => 
+        (article.categoryId && (sc.id === article.categoryId || sc.name.toLowerCase() === article.categoryId.toLowerCase())) ||
+        (article.name && sc.name.toLowerCase() === article.name.toLowerCase())
+      );
       const resolvedGenCatId = article.generalCategoryId || foundCat?.generalCategoryId || '';
+
+      const singleRowQuality = (Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length === 1)
+        ? article.qualityBreakdown[0].quality
+        : '';
+      const resolvedQuality = (article.quality || article.qualityLabel || singleRowQuality || '').trim();
+      const resolvedQualityBreakdown = (Array.isArray(article.qualityBreakdown) && article.qualityBreakdown.length > 1)
+        ? article.qualityBreakdown
+        : null;
 
       setFormData({
         ...article,
-        categoryId: catName,
+        categoryId: foundCat?.name || catName,
         generalCategoryId: resolvedGenCatId,
-        quality: article.quality || article.qualityLabel || '',
-        qualityLabel: article.quality || article.qualityLabel || '',
-        specs: article.specs || article.quality || '',
+        quality: resolvedQuality,
+        qualityLabel: resolvedQuality,
+        specs: article.specs || resolvedQuality || '',
         status: article.rawStatus || article.status,
         factureId: article.factureId || 'NONE',
         size: article.size || '',
@@ -186,7 +198,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       setColorBreakdown(article.colorBreakdown || null);
       setSizeBreakdown(Array.isArray(article.sizeBreakdown) ? article.sizeBreakdown : null);
       setDesignBreakdown(article.designBreakdown || null);
-      setQualityBreakdown(Array.isArray(article.qualityBreakdown) ? article.qualityBreakdown : null);
+      setQualityBreakdown(resolvedQualityBreakdown);
     } else {
       setFormData(null);
       setColorBreakdown(null);
@@ -194,7 +206,21 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       setDesignBreakdown(null);
       setQualityBreakdown(null);
     }
-  }, [article, subCategories]);
+  }, [article?.id]);
+
+  useEffect(() => {
+    if (!formData?.generalCategoryId && subCategories?.length > 0 && formData?.categoryId) {
+      const foundCat = subCategories.find((sc: any) => 
+        sc.name === formData.categoryId || 
+        sc.id === formData.categoryId || 
+        sc.name.toLowerCase() === formData.categoryId.toLowerCase()
+      );
+      if (foundCat?.generalCategoryId) {
+        setSelectedGenCatId(foundCat.generalCategoryId);
+        setFormData((p: any) => p ? ({ ...p, generalCategoryId: foundCat.generalCategoryId }) : p);
+      }
+    }
+  }, [subCategories, formData?.categoryId, formData?.generalCategoryId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -276,14 +302,15 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   }, [selectedGenCatId, subCategories]);
 
   const isZipper = useMemo(() => {
-    let genCatId = selectedGenCatId;
-    if (!genCatId && formData?.categoryId) {
-      const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-      if (cat) genCatId = cat.generalCategoryId;
-    }
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
     const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
     return isZipperLineOrCategory(formData?.categoryId, genCat);
-  }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
+  }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
 
   const isSlider = useMemo(() => {
     const upper = formData?.categoryId?.toUpperCase() || '';
@@ -297,49 +324,68 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
 
   const availableSizes = useMemo(() => {
     if (!formData?.categoryId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData.categoryId || 
+      sc.id === formData.categoryId ||
+      (sc.name && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
     return Array.isArray(cat?.availableSizes) && cat.availableSizes.length > 0 ? cat.availableSizes : [];
   }, [formData?.categoryId, subCategories]);
 
   // ── Fabric detection — check pôle line, specType, keywords ──
   const isFabric = useMemo(() => {
-    let genCatId = selectedGenCatId;
-    if (!genCatId && formData?.categoryId) {
-      const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-      if (cat) genCatId = cat.generalCategoryId;
-    }
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
     const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
     return isFabricLineOrCategory(formData?.categoryId, genCat);
-  }, [selectedGenCatId, formData?.categoryId, generalCategories, subCategories]);
+  }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
 
   const availableGsm = useMemo(() => {
     if (!formData?.categoryId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData.categoryId || 
+      sc.id === formData.categoryId ||
+      (sc.name && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
     return Array.isArray(cat?.availableGsm) && cat.availableGsm.length > 0 ? cat.availableGsm.map(String) : [];
   }, [formData?.categoryId, subCategories]);
 
   const availableWidths = useMemo(() => {
     if (!formData?.categoryId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData.categoryId || 
+      sc.id === formData.categoryId ||
+      (sc.name && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
     return Array.isArray(cat?.availableWidths) && cat.availableWidths.length > 0 ? cat.availableWidths.map(String) : [];
   }, [formData?.categoryId, subCategories]);
 
   const fabricQualities = useMemo(() => {
-    if (!formData?.categoryId && !selectedGenCatId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-    const genCatId = selectedGenCatId || cat?.generalCategoryId;
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
     const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
     const raw = [
       ...(Array.isArray(cat?.fabricQualities) ? cat.fabricQualities : []),
       ...(Array.isArray(genCat?.fabricQualities) ? genCat.fabricQualities : [])
     ];
     return raw.filter((q, idx, arr) => arr.findIndex(x => (x.label && x.label === q.label) || (x.gsm && x.gsm === q.gsm && x.fabricWidth && x.fabricWidth === q.fabricWidth)) === idx);
-  }, [formData?.categoryId, selectedGenCatId, subCategories, generalCategories]);
+  }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const zipperQualities = useMemo(() => {
-    if (!formData?.categoryId && !selectedGenCatId) return [];
-    const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
-    const genCatId = selectedGenCatId || cat?.generalCategoryId;
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
     const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
     const raw = [
       ...(Array.isArray(cat?.zipperQualities) ? cat.zipperQualities : []),
@@ -348,7 +394,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return raw
       .filter((q: any) => Boolean(q && (q.length || q.slider || q.tapeWeightGsm || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || (q.label && q.label !== 'C/E · (A/L)' && q.label !== 'Qualité Zipper'))))
       .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx);
-  }, [formData?.categoryId, selectedGenCatId, subCategories, generalCategories]);
+  }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const lastOrderInfo = useMemo(() => {
     if (!formData?.categoryId && !article?.name) return null;
@@ -424,18 +470,18 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     const { effectiveStatus: _es, rawStatus: _rs, arrivalDate: _ad, stockEntryDate: _sed, ...rawFormData } = formData;
     const cleanFormData = {
       ...rawFormData,
-      quality: rawFormData.quality || null,
-      qualityLabel: rawFormData.quality || null,
+      quality: rawFormData.quality ? String(rawFormData.quality).trim() : null,
+      qualityLabel: rawFormData.quality ? String(rawFormData.quality).trim() : null,
       specs: rawFormData.specs || rawFormData.quality || null,
-      gsm: (rawFormData.gsm !== '' && rawFormData.gsm != null) ? Number(rawFormData.gsm) : null,
-      fabricWidth: (rawFormData.fabricWidth !== '' && rawFormData.fabricWidth != null) ? Number(rawFormData.fabricWidth) : null,
-      rollLength: (rawFormData.rollLength !== '' && rawFormData.rollLength != null) ? Number(rawFormData.rollLength) : null,
+      gsm: (rawFormData.gsm !== '' && rawFormData.gsm != null) ? (isNaN(Number(rawFormData.gsm)) ? String(rawFormData.gsm).trim() : Number(rawFormData.gsm)) : null,
+      fabricWidth: (rawFormData.fabricWidth !== '' && rawFormData.fabricWidth != null && !isNaN(Number(rawFormData.fabricWidth))) ? Number(rawFormData.fabricWidth) : null,
+      rollLength: (rawFormData.rollLength !== '' && rawFormData.rollLength != null && !isNaN(Number(rawFormData.rollLength))) ? Number(rawFormData.rollLength) : null,
       rollLengthUnit: rawFormData.rollLength ? (rawFormData.rollLengthUnit || 'm') : null,
-      packagingPerBag: (rawFormData.packagingPerBag !== '' && rawFormData.packagingPerBag != null) ? Number(rawFormData.packagingPerBag) : null,
-      tapeWeightGsm: (rawFormData.tapeWeightGsm !== '' && rawFormData.tapeWeightGsm != null) ? Number(rawFormData.tapeWeightGsm) : null,
-      sliderWeightG: (rawFormData.sliderWeightG !== '' && rawFormData.sliderWeightG != null) ? Number(rawFormData.sliderWeightG) : null,
-      pcsPerBag: (rawFormData.pcsPerBag !== '' && rawFormData.pcsPerBag != null) ? Number(rawFormData.pcsPerBag) : null,
-      bagsPerCarton: (rawFormData.bagsPerCarton !== '' && rawFormData.bagsPerCarton != null) ? Number(rawFormData.bagsPerCarton) : null,
+      packagingPerBag: (rawFormData.packagingPerBag !== '' && rawFormData.packagingPerBag != null && !isNaN(Number(rawFormData.packagingPerBag))) ? Number(rawFormData.packagingPerBag) : null,
+      tapeWeightGsm: (rawFormData.tapeWeightGsm !== '' && rawFormData.tapeWeightGsm != null && !isNaN(Number(rawFormData.tapeWeightGsm))) ? Number(rawFormData.tapeWeightGsm) : null,
+      sliderWeightG: (rawFormData.sliderWeightG !== '' && rawFormData.sliderWeightG != null && !isNaN(Number(rawFormData.sliderWeightG))) ? Number(rawFormData.sliderWeightG) : null,
+      pcsPerBag: (rawFormData.pcsPerBag !== '' && rawFormData.pcsPerBag != null && !isNaN(Number(rawFormData.pcsPerBag))) ? Number(rawFormData.pcsPerBag) : null,
+      bagsPerCarton: (rawFormData.bagsPerCarton !== '' && rawFormData.bagsPerCarton != null && !isNaN(Number(rawFormData.bagsPerCarton))) ? Number(rawFormData.bagsPerCarton) : null,
     };
     
     let isSplit = false;
@@ -474,74 +520,80 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       }
     }
 
-    if (groups.size > 1) {
-      isSplit = true;
-      splitCount = groups.size;
-      let isFirst = true;
-      groups.forEach((rows, price) => {
-        const groupQty = rows.reduce((s, r) => s + (Number(r.rolls || r.quantity) || 0), 0);
-        const splitData = {
-          qualityBreakdown: splitType === 'quality' ? rows : (qualityBreakdown && qualityBreakdown.length > 0 ? qualityBreakdown : null),
-          designBreakdown: splitType === 'design' ? rows : (designBreakdown && designBreakdown.length > 0 ? designBreakdown : null),
-          colorBreakdown: splitType === 'color' ? rows : (colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null),
-          sizeBreakdown: splitType === 'size' ? rows : (sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null),
-        };
-        if (isFirst) {
-          const finalData = {
-            ...cleanFormData,
-            name: formData.categoryId || formData.name || article.name,
-            categoryId: formData.categoryId || formData.name || article.categoryId || '',
-            generalCategoryId: selectedGenCatId,
-            quality: formData.quality || null,
-            qualityLabel: formData.quality || null,
-            specs: formData.specs || formData.quality || null,
-            factureId: finalFactureId,
-            status: statusToSave,
-            purchasePricePerUnit: price,
-            quantity: groupQty,
-            ...splitData,
+    try {
+      if (groups.size > 1) {
+        isSplit = true;
+        splitCount = groups.size;
+        let isFirst = true;
+        for (const [price, rows] of groups.entries()) {
+          const groupQty = rows.reduce((s, r) => s + (Number(r.rolls || r.quantity) || 0), 0);
+          const splitData = {
+            qualityBreakdown: splitType === 'quality' ? rows : (qualityBreakdown && qualityBreakdown.length > 1 ? qualityBreakdown : null),
+            designBreakdown: splitType === 'design' ? rows : (designBreakdown && designBreakdown.length > 0 ? designBreakdown : null),
+            colorBreakdown: splitType === 'color' ? rows : (colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null),
+            sizeBreakdown: splitType === 'size' ? rows : (sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null),
           };
-          updateDocumentNonBlocking(docRef, finalData);
-          isFirst = false;
-        } else {
-          const newId = crypto.randomUUID();
-          const newDocRef = doc(firestore, 'users', user.uid, 'articles', newId);
-          const finalData = {
-            ...cleanFormData,
-            id: newId,
-            name: formData.categoryId || formData.name || article.name,
-            categoryId: formData.categoryId || formData.name || article.categoryId || '',
-            generalCategoryId: selectedGenCatId,
-            quality: formData.quality || null,
-            qualityLabel: formData.quality || null,
-            specs: formData.specs || formData.quality || null,
-            factureId: finalFactureId,
-            status: statusToSave,
-            purchasePricePerUnit: price,
-            quantity: groupQty,
-            ...splitData,
-            createdAt: serverTimestamp(),
-          };
-          setDocumentNonBlocking(newDocRef, finalData, { merge: true });
+          if (isFirst) {
+            const finalData = cleanUndefined({
+              ...cleanFormData,
+              name: formData.categoryId || formData.name || article.name,
+              categoryId: formData.categoryId || formData.name || article.categoryId || '',
+              generalCategoryId: selectedGenCatId || article.generalCategoryId || '',
+              quality: formData.quality || null,
+              qualityLabel: formData.quality || null,
+              specs: formData.specs || formData.quality || null,
+              factureId: finalFactureId,
+              status: statusToSave,
+              purchasePricePerUnit: price,
+              quantity: groupQty,
+              ...splitData,
+            });
+            await setDoc(docRef, finalData, { merge: true });
+            isFirst = false;
+          } else {
+            const newId = crypto.randomUUID();
+            const newDocRef = doc(firestore, 'users', user.uid, 'articles', newId);
+            const finalData = cleanUndefined({
+              ...cleanFormData,
+              id: newId,
+              name: formData.categoryId || formData.name || article.name,
+              categoryId: formData.categoryId || formData.name || article.categoryId || '',
+              generalCategoryId: selectedGenCatId || article.generalCategoryId || '',
+              quality: formData.quality || null,
+              qualityLabel: formData.quality || null,
+              specs: formData.specs || formData.quality || null,
+              factureId: finalFactureId,
+              status: statusToSave,
+              purchasePricePerUnit: price,
+              quantity: groupQty,
+              ...splitData,
+              createdAt: serverTimestamp(),
+            });
+            await setDoc(newDocRef, finalData, { merge: true });
+          }
         }
-      });
-    } else {
-      const finalData = {
-        ...cleanFormData,
-        name: formData.categoryId || formData.name || article.name,
-        categoryId: formData.categoryId || formData.name || article.categoryId || '',
-        generalCategoryId: selectedGenCatId,
-        quality: formData.quality || null,
-        qualityLabel: formData.quality || null,
-        specs: formData.specs || formData.quality || null,
-        factureId: finalFactureId,
-        status: statusToSave,
-        qualityBreakdown: qualityBreakdown && qualityBreakdown.length > 0 ? qualityBreakdown : null,
-        designBreakdown: designBreakdown && designBreakdown.length > 0 ? designBreakdown : null,
-        colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
-        sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
-      };
-      updateDocumentNonBlocking(docRef, finalData);
+      } else {
+        const finalData = cleanUndefined({
+          ...cleanFormData,
+          name: formData.categoryId || formData.name || article.name,
+          categoryId: formData.categoryId || formData.name || article.categoryId || '',
+          generalCategoryId: selectedGenCatId || article.generalCategoryId || '',
+          quality: formData.quality || null,
+          qualityLabel: formData.quality || null,
+          specs: formData.specs || formData.quality || null,
+          factureId: finalFactureId,
+          status: statusToSave,
+          qualityBreakdown: qualityBreakdown && qualityBreakdown.length > 1 ? qualityBreakdown : null,
+          designBreakdown: designBreakdown && designBreakdown.length > 0 ? designBreakdown : null,
+          colorBreakdown: colorBreakdown && colorBreakdown.length > 0 ? colorBreakdown : null,
+          sizeBreakdown: sizeBreakdown && sizeBreakdown.length > 0 ? sizeBreakdown : null,
+        });
+        await setDoc(docRef, finalData, { merge: true });
+      }
+    } catch (saveErr: any) {
+      console.error('Erreur lors de la sauvegarde:', saveErr);
+      toast({ variant: 'destructive', title: 'Erreur de sauvegarde', description: saveErr?.message || 'Impossible d\'enregistrer les modifications.' });
+      return;
     }
 
     const storedOldStatus = article.rawStatus || article.status;
@@ -914,6 +966,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                             bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
                             nameFR: q.nameFR || p.nameFR,
                           }));
+                        } else {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: v,
+                            qualityLabel: v,
+                            specs: p.specs ? p.specs : v,
+                          }));
                         }
                       }}
                     >
@@ -921,6 +980,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                         <SelectValue placeholder="Choisir une qualité Zipper..." />
                       </SelectTrigger>
                       <SelectContent>
+                        {formData.quality && !zipperQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
                         {zipperQualities.map((q: any, i: number) => (
                           <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                         ))}
@@ -1070,25 +1132,37 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                         value={formData.quality || ''}
                         onValueChange={v => {
                           const q = fabricQualities.find((x: any) => x.label === v) || fabricQualities[Number(v)];
-                          if (q) setFormData((p: any) => ({
-                            ...p,
-                            quality: q.label,
-                            qualityLabel: q.label,
-                            specs: p.specs ? p.specs : q.label,
-                            size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size,
-                            gsm: q.gsm || '',
-                            fabricWidth: q.fabricWidth || '',
-                            rollLength: q.rollLength || '',
-                            rollLengthUnit: q.rollLengthUnit || 'm',
-                            packagingPerBag: q.packagingPerBag || '',
-                            nameFR: q.nameFR || p.nameFR
-                          }));
+                          if (q) {
+                            setFormData((p: any) => ({
+                              ...p,
+                              quality: q.label,
+                              qualityLabel: q.label,
+                              specs: p.specs ? p.specs : q.label,
+                              size: q.fabricWidth ? `${q.fabricWidth}cm` : p.size,
+                              gsm: q.gsm || '',
+                              fabricWidth: q.fabricWidth || '',
+                              rollLength: q.rollLength || '',
+                              rollLengthUnit: q.rollLengthUnit || 'm',
+                              packagingPerBag: q.packagingPerBag || '',
+                              nameFR: q.nameFR || p.nameFR
+                            }));
+                          } else {
+                            setFormData((p: any) => ({
+                              ...p,
+                              quality: v,
+                              qualityLabel: v,
+                              specs: p.specs ? p.specs : v,
+                            }));
+                          }
                         }}
                       >
                         <SelectTrigger className="h-11 border-violet-200 bg-white font-bold rounded-xl text-violet-700">
                           <SelectValue placeholder="Choisir une qualité..." />
                         </SelectTrigger>
                         <SelectContent>
+                          {formData.quality && !fabricQualities.some((q: any) => q.label === formData.quality) && (
+                            <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                          )}
                           {fabricQualities.map((q: any, i: number) => (
                             <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
                           ))}
@@ -1109,7 +1183,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">GSM (g/m²)</Label>
-                      <Input type="number" placeholder="Ex: 225" className="h-11 border-stone-200 font-bold rounded-xl"
+                      <Input type="text" placeholder="Ex: 225 ou 25+7" className="h-11 border-stone-200 font-bold rounded-xl"
                         value={formData.gsm || ''} onChange={e => setFormData((p: any) => ({ ...p, gsm: e.target.value }))} />
                     </div>
                     <div className="space-y-1.5">

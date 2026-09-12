@@ -18,7 +18,7 @@ export type GeneralCategory = {
   nameFR?: string;
   line?: string;
   specType?: 'fabric' | 'zipper' | 'none';
-  fabricQualities?: { label: string; nameFR?: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
+  fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   zipperQualities?: {
     label: string;
     nameFR?: string;
@@ -45,9 +45,9 @@ export type Category = {
   tvaRate?: number;
   availableSizes?: string[];
   // Fabric config
-  availableGsm?: number[];     // GSM pré-définis (ex: [30, 40, 225])
+  availableGsm?: (number | string)[];     // GSM pré-définis (ex: [30, 40, 225, "25+7"])
   availableWidths?: number[];  // Largeurs pré-définies en cm (ex: [100, 150, 160])
-  fabricQualities?: { label: string; nameFR?: string; gsm?: number; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
+  fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   // Zipper config
   zipperQualities?: {
     label: string;
@@ -69,7 +69,7 @@ export interface QualityBreakdownRow {
   quantity: number;            // Quantité (rouleaux, pièces, etc.)
   priceOverride?: string | number; // Prix d'achat optionnel
   // Attributs Fabric
-  gsm?: number;
+  gsm?: number | string;
   fabricWidth?: number;
   rollLength?: number;
   rollLengthUnit?: string;
@@ -116,7 +116,7 @@ export type Order = {
   sizeBreakdown?: any[] | null;
   qualityBreakdown?: QualityBreakdownRow[] | null;
   // Fabric-specific fields
-  gsm?: number;              // Grammage g/m²
+  gsm?: number | string;              // Grammage g/m²
   fabricWidth?: number;       // Largeur rouleau cm
   rollLength?: number;        // Longueur rouleau
   rollLengthUnit?: 'm' | 'yds'; // Unité longueur
@@ -170,7 +170,7 @@ export type StockMovement = {
   color?: string;
   size?: string;
   quality?: string;
-  gsm?: number;
+  gsm?: number | string;
   fabricWidth?: number;
   rollLength?: number;
   rollLengthUnit?: string;
@@ -200,7 +200,7 @@ export type StockItem = {
   color?: string;
   size?: string;
   quality?: string;
-  gsm?: number;
+  gsm?: number | string;
   fabricWidth?: number;
   rollLength?: number;
   rollLengthUnit?: string;
