@@ -86,6 +86,7 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
   const [colorOpen, setColorOpen] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const [previewSliderImage, setPreviewSliderImage] = useState<{ url: string; title?: string } | null>(null);
 
   const handleColorBreakdownChange = (rows: ColorBreakdownRow[] | null, total: number) => {
     if (rows && rows.length === 1) {
@@ -1515,13 +1516,21 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                 {!qualityBreakdown && (
                   <div className="flex items-center gap-3 pt-1">
                     {formData.designImageUrl && (
-                      <div className="relative group shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewSliderImage({ url: formData.designImageUrl, title: formData.quality || formData.designRef || 'Curseur' })}
+                        className="relative group shrink-0 rounded-xl overflow-hidden focus:outline-none ring-2 ring-orange-200 hover:ring-orange-500 transition-all cursor-pointer"
+                        title="Cliquer pour agrandir la photo"
+                      >
                         <img
                           src={formData.designImageUrl}
                           alt="Aperçu design"
-                          className="w-12 h-12 rounded-xl object-cover border-2 border-orange-200 shadow-sm bg-white"
+                          className="w-12 h-12 rounded-xl object-cover bg-white group-hover:scale-110 transition-transform"
                         />
-                      </div>
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white pointer-events-none">
+                          <Maximize className="w-3.5 h-3.5 drop-shadow" />
+                        </div>
+                      </button>
                     )}
                     <div className="flex-1 flex flex-wrap gap-1.5">
                       {formData.size && <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-800 text-[10px] font-black">Taille: {formData.size}</span>}
@@ -1609,16 +1618,33 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             </div>
 
-            {/*  Design Picker  zipper & slider (if not slider with predefined designs)  */}
-            {isDesignCategory && formData.categoryId && !isSlider && (
+            {/*  Design Picker  zipper & slider (catalogue designs / modèles)  */}
+            {isDesignCategory && formData.categoryId && (
               <div className="md:col-span-2">
                 <DesignPicker
                   categoryName={formData.categoryId}
                   subCategories={subCategories || []}
-                  value={formData.designRef}
-                  onChange={(ref, imageUrl) =>
-                    setFormData((prev: any) => ({ ...prev, designRef: ref, designImageUrl: imageUrl || '' }))
-                  }
+                  value={formData.designRef || formData.quality}
+                  onChange={(ref, imageUrl) => {
+                    const matchedSq = isSlider
+                      ? sliderQualities.find((sq: any) => sq.label?.toLowerCase() === ref?.toLowerCase() || (imageUrl && sq.imageUrl === imageUrl))
+                      : null;
+                    setFormData((prev: any) => ({
+                      ...prev,
+                      designRef: ref,
+                      designImageUrl: imageUrl || '',
+                      ...(matchedSq ? {
+                        quality: matchedSq.label,
+                        qualityLabel: matchedSq.label,
+                        specs: prev.specs ? prev.specs : matchedSq.label,
+                        size: matchedSq.size || prev.size,
+                        sliderWeightG: matchedSq.sliderWeightG ?? prev.sliderWeightG,
+                        pcsPerBag: matchedSq.pcsPerBag ?? prev.pcsPerBag,
+                        bagsPerCarton: matchedSq.bagsPerCarton ?? prev.bagsPerCarton,
+                        nameFR: matchedSq.nameFR || prev.nameFR,
+                      } : {})
+                    }));
+                  }}
                 />
               </div>
             )}
@@ -2096,6 +2122,36 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
             </Button>
           </div>
         </form>
+
+        {/* ── Modal Lightbox Preview Slider/Design Image ── */}
+        <Dialog open={!!previewSliderImage} onOpenChange={open => { if (!open) setPreviewSliderImage(null); }}>
+          <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
+            <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
+              <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
+                {previewSliderImage?.title || 'Aperçu du modèle / curseur'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-6 flex flex-col items-center justify-center min-h-[250px]">
+              {previewSliderImage?.url && (
+                <img
+                  src={previewSliderImage.url}
+                  alt={previewSliderImage.title || 'Curseur'}
+                  className="max-h-[60vh] max-w-full object-contain rounded-2xl shadow-2xl"
+                />
+              )}
+              {previewSliderImage?.url && (
+                <a
+                  href={previewSliderImage.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+                >
+                  Ouvrir en taille réelle ↗
+                </a>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

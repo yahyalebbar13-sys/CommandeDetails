@@ -11,10 +11,11 @@
  *   onChange       — (ref, imageUrl) => void
  */
 
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import { BookImage, CheckCircle2, X as XIcon } from 'lucide-react';
+import { BookImage, CheckCircle2, X as XIcon, Maximize } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Design } from './design-library';
 
 interface DesignPickerProps {
@@ -27,6 +28,7 @@ interface DesignPickerProps {
 export default function DesignPicker({ categoryName, subCategories, value, onChange }: DesignPickerProps) {
   const { user } = useUser();
   const firestore = useFirestore();
+  const [previewDesignImage, setPreviewDesignImage] = useState<{ url: string; title?: string } | null>(null);
 
   // Resolve category doc from name
   const currentCategory = useMemo(() => {
@@ -120,9 +122,22 @@ export default function DesignPicker({ categoryName, subCategories, value, onCha
               style={{ minWidth: 64 }}
             >
               {/* Image or placeholder */}
-              <div className="w-14 h-14 rounded-lg overflow-hidden bg-stone-50 flex items-center justify-center">
+              <div className="relative group/img w-14 h-14 rounded-lg overflow-hidden bg-stone-50 flex items-center justify-center">
                 {design.imageUrl ? (
-                  <img src={design.imageUrl} alt={design.ref} className="w-full h-full object-contain" />
+                  <>
+                    <img src={design.imageUrl} alt={design.ref} className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewDesignImage({ url: design.imageUrl!, title: design.ref });
+                      }}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white"
+                      title="Agrandir la photo"
+                    >
+                      <Maximize className="w-3.5 h-3.5 drop-shadow" />
+                    </button>
+                  </>
                 ) : (
                   <BookImage className="w-6 h-6 text-stone-200" />
                 )}
@@ -151,6 +166,36 @@ export default function DesignPicker({ categoryName, subCategories, value, onCha
           <CheckCircle2 className="w-3 h-3" /> Design sélectionné : {value}
         </p>
       )}
+
+      {/* ── Modal Lightbox Preview Design ── */}
+      <Dialog open={!!previewDesignImage} onOpenChange={open => { if (!open) setPreviewDesignImage(null); }}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
+          <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
+            <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
+              {previewDesignImage?.title || 'Aperçu du design'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 flex flex-col items-center justify-center min-h-[250px]">
+            {previewDesignImage?.url && (
+              <img
+                src={previewDesignImage.url}
+                alt={previewDesignImage.title || 'Design'}
+                className="max-h-[60vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              />
+            )}
+            {previewDesignImage?.url && (
+              <a
+                href={previewDesignImage.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+              >
+                Ouvrir en taille réelle ↗
+              </a>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

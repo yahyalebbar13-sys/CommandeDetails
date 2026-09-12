@@ -612,6 +612,58 @@ export default function CategoriesView({
     }
   };
 
+  const [directUploadingQuality, setDirectUploadingQuality] = useState<string | null>(null);
+
+  const handleDirectQualityImageUpload = async (qualityItem: any, file: File) => {
+    if (!user || !firestore || !currentCategoryObj) return;
+    const catId = currentCategoryObj.id;
+    setDirectUploadingQuality(qualityItem.label);
+    try {
+      toast({ title: 'Téléchargement de la photo...' });
+      const storage = getStorage(getApp());
+      const path = `users/${user.uid}/categories/${catId}/designs/slider_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const imgRef = storageRef(storage, path);
+      const task = uploadBytesResumable(imgRef, file);
+      await new Promise<void>((resolve, reject) => {
+        task.on('state_changed', null, reject, async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          
+          const existingSQ = Array.isArray(currentCategoryObj.sliderQualities) ? [...currentCategoryObj.sliderQualities] : [];
+          const idx = existingSQ.findIndex((q: any) => q.label === qualityItem.label || (q.size === qualityItem.size && q.sliderWeightG === qualityItem.sliderWeightG));
+          if (idx >= 0) {
+            existingSQ[idx] = { ...existingSQ[idx], imageUrl: url };
+          } else {
+            existingSQ.push({
+              label: qualityItem.label,
+              nameFR: qualityItem.nameFR,
+              imageUrl: url,
+              size: qualityItem.size,
+              sliderWeightG: qualityItem.sliderWeightG,
+              pcsPerBag: qualityItem.pcsPerBag,
+              bagsPerCarton: qualityItem.bagsPerCarton,
+            });
+          }
+
+          await updateDoc(doc(firestore, 'users', user.uid, 'categories', catId), {
+            sliderQualities: existingSQ
+          });
+
+          setCustomsForm(p => ({
+            ...p,
+            sliderQualities: existingSQ
+          }));
+
+          toast({ title: '✅ Photo enregistrée pour ' + qualityItem.label });
+          resolve();
+        });
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur upload photo', description: err.message });
+    } finally {
+      setDirectUploadingQuality(null);
+    }
+  };
+
   const [isSavingCustoms, setIsSavingCustoms] = useState(false);
 
   const handleUpdateCustoms = async () => {
@@ -2418,25 +2470,71 @@ export default function CategoriesView({
                           </TableCell>
                           <TableCell className="text-center py-2">
                             {pt.imageUrl ? (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewImage({ url: pt.imageUrl, title: `${pt.label}${pt.size ? ` · Taille ${pt.size}` : ''}` })}
-                                className="group relative inline-block focus:outline-none"
-                                title="Agrandir la photo"
-                              >
-                                <img
-                                  src={pt.imageUrl}
-                                  alt={pt.label}
-                                  className="w-12 h-12 object-cover rounded-xl border border-stone-200 bg-stone-50 shadow-sm group-hover:scale-110 group-hover:shadow-md transition-all duration-200 mx-auto"
-                                />
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity flex items-center justify-center text-white">
-                                  <Maximize className="w-3 h-3 drop-shadow" />
-                                </div>
-                              </button>
-                            ) : (
-                              <div className="w-12 h-12 rounded-xl border border-dashed border-stone-200 bg-stone-50 flex items-center justify-center mx-auto text-stone-300">
-                                <ImagePlus className="w-4 h-4" />
+                              <div className="relative inline-block mx-auto group">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewImage({ url: pt.imageUrl, title: `${pt.label}${pt.size ? ` · Taille ${pt.size}` : ''}` })}
+                                  className="block focus:outline-none cursor-pointer"
+                                  title="Cliquer pour agrandir"
+                                >
+                                  <img
+                                    src={pt.imageUrl}
+                                    alt={pt.label}
+                                    className="w-12 h-12 object-cover rounded-xl border border-stone-200 bg-stone-50 shadow-sm group-hover:scale-105 group-hover:shadow-md transition-all duration-200 mx-auto"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity flex items-center justify-center text-white pointer-events-none">
+                                    <Maximize className="w-3.5 h-3.5 drop-shadow" />
+                                  </div>
+                                </button>
+                                <label
+                                  className="absolute -bottom-1 -right-1 p-1 bg-white hover:bg-stone-100 border border-stone-200 rounded-full shadow cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                  title="Changer la photo"
+                                >
+                                  {directUploadingQuality === pt.label ? (
+                                    <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-600" />
+                                  ) : (
+                                    <Pencil className="w-2.5 h-2.5 text-stone-600" />
+                                  )}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    disabled={directUploadingQuality === pt.label}
+                                    onChange={e => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleDirectQualityImageUpload(pt, file);
+                                    }}
+                                  />
+                                </label>
                               </div>
+                            ) : (
+                              <label
+                                className={`w-12 h-12 rounded-xl border border-dashed flex flex-col items-center justify-center mx-auto cursor-pointer transition-all ${
+                                  directUploadingQuality === pt.label
+                                    ? 'border-blue-400 bg-blue-50 text-blue-600'
+                                    : 'border-stone-300 hover:border-blue-500 bg-stone-50 hover:bg-blue-50/50 text-stone-400 hover:text-blue-600 shadow-sm'
+                                }`}
+                                title="Cliquer pour ajouter une photo"
+                              >
+                                {directUploadingQuality === pt.label ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                ) : (
+                                  <>
+                                    <ImagePlus className="w-4 h-4" />
+                                    <span className="text-[7px] font-black uppercase mt-0.5">+ Photo</span>
+                                  </>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={directUploadingQuality === pt.label}
+                                  onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleDirectQualityImageUpload(pt, file);
+                                  }}
+                                />
+                              </label>
                             )}
                           </TableCell>
                           <TableCell className="text-center">
@@ -3249,15 +3347,45 @@ export default function CategoriesView({
                       <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl bg-white border border-blue-100 shadow-sm">
                         <div className="flex items-center gap-3">
                           {q.imageUrl ? (
-                            <img
-                              src={q.imageUrl}
-                              alt={q.label}
-                              className="w-10 h-10 object-cover rounded-lg border border-stone-200 bg-stone-50 shrink-0"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage({ url: q.imageUrl, title: `${q.label}${q.size ? ` · Taille ${q.size}` : ''}` })}
+                              className="relative group shrink-0 rounded-lg overflow-hidden focus:outline-none cursor-pointer"
+                              title="Cliquer pour agrandir la photo"
+                            >
+                              <img
+                                src={q.imageUrl}
+                                alt={q.label}
+                                className="w-10 h-10 object-cover rounded-lg border border-stone-200 bg-stone-50 group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Maximize className="w-3 h-3 drop-shadow" />
+                              </div>
+                            </button>
                           ) : (
-                            <div className="w-10 h-10 rounded-lg border border-dashed border-stone-200 bg-stone-50 flex items-center justify-center shrink-0 text-stone-300">
-                              <ImagePlus className="w-3.5 h-3.5" />
-                            </div>
+                            <label
+                              className="w-10 h-10 rounded-lg border border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-100/50 flex flex-col items-center justify-center shrink-0 text-blue-600 cursor-pointer transition-all"
+                              title="Cliquer pour ajouter une photo"
+                            >
+                              {directUploadingQuality === q.label ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <>
+                                  <ImagePlus className="w-3.5 h-3.5" />
+                                  <span className="text-[6px] font-black uppercase">+ Photo</span>
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={directUploadingQuality === q.label}
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleDirectQualityImageUpload(q, file);
+                                }}
+                              />
+                            </label>
                           )}
                           <div className="flex-1 min-w-0">
                             <span className="text-[10px] font-black text-stone-800 uppercase block truncate">{q.label}</span>
@@ -4242,25 +4370,30 @@ export default function CategoriesView({
 
       {/* ── Modal Lightbox Preview Design Image ── */}
       <Dialog open={!!previewImage} onOpenChange={open => { if (!open) setPreviewImage(null); }}>
-        <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-black/95 border-none shadow-2xl rounded-3xl text-white">
+        <DialogContent className="sm:max-w-xl p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[100]">
+          <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
+            <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              {previewImage?.title || 'Aperçu du modèle / curseur'}
+            </DialogTitle>
+          </DialogHeader>
           <div className="relative p-6 flex flex-col items-center justify-center min-h-[300px]">
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all z-10"
-            >
-              <XIcon className="w-4 h-4" />
-            </button>
-            {previewImage?.title && (
-              <h4 className="font-black text-sm uppercase tracking-wider mb-4 text-center text-white">
-                {previewImage.title}
-              </h4>
-            )}
             {previewImage?.url && (
               <img
                 src={previewImage.url}
                 alt={previewImage.title || 'Design'}
                 className="max-h-[70vh] max-w-full object-contain rounded-2xl shadow-2xl"
               />
+            )}
+            {previewImage?.url && (
+              <a
+                href={previewImage.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+              >
+                Ouvrir en taille réelle ↗
+              </a>
             )}
           </div>
         </DialogContent>

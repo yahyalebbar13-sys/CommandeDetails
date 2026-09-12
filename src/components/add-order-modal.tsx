@@ -111,6 +111,7 @@ export function AddOrderForm({
   const [designBreakdown, setDesignBreakdown] = useState<DesignBreakdownRow[] | null>(null);
   const [isFullContainer, setIsFullContainer] = useState(false);
   const [formData, setFormData] = useState<any>({ ...EMPTY_FORM });
+  const [previewSliderImage, setPreviewSliderImage] = useState<{ url: string; title?: string } | null>(null);
 
   // Derive unique supplier list from past articles for autocomplete
   const knownSuppliers = useMemo(() => {
@@ -1233,13 +1234,21 @@ export function AddOrderForm({
               {/* Aperçu Photo + Badges résumant la qualité choisie */}
               <div className="flex items-center gap-3 pt-1">
                 {formData.designImageUrl && (
-                  <div className="relative group shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSliderImage({ url: formData.designImageUrl, title: formData.quality || formData.designRef || 'Curseur' })}
+                    className="relative group shrink-0 rounded-xl overflow-hidden focus:outline-none ring-2 ring-orange-200 hover:ring-orange-500 transition-all cursor-pointer"
+                    title="Cliquer pour agrandir la photo"
+                  >
                     <img
                       src={formData.designImageUrl}
                       alt="Aperçu design"
-                      className="w-12 h-12 rounded-xl object-cover border-2 border-orange-200 shadow-sm bg-white"
+                      className="w-12 h-12 rounded-xl object-cover bg-white group-hover:scale-110 transition-transform"
                     />
-                  </div>
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white pointer-events-none">
+                      <Maximize className="w-3.5 h-3.5 drop-shadow" />
+                    </div>
+                  </button>
                 )}
                 <div className="flex-1">
                   {qualityBreakdown && qualityBreakdown.length > 0 ? (
@@ -1359,15 +1368,32 @@ export function AddOrderForm({
             />
           </div>
 
-          {/* ── Design Picker — zipper & slider (if not already picked or custom) ── */}
-          {isDesignCategory && formData.categoryId && !isSlider && (
+          {/* ── Design Picker — zipper & slider (catalogue designs / modèles) ── */}
+          {isDesignCategory && formData.categoryId && (
             <DesignPicker
               categoryName={formData.categoryId}
               subCategories={subCategories || []}
-              value={formData.designRef}
-              onChange={(ref, imageUrl) =>
-                setFormData((p: any) => ({ ...p, designRef: ref, designImageUrl: imageUrl || '' }))
-              }
+              value={formData.designRef || formData.quality}
+              onChange={(ref, imageUrl) => {
+                const matchedSq = isSlider
+                  ? sliderQualities.find((sq: any) => sq.label?.toLowerCase() === ref?.toLowerCase() || (imageUrl && sq.imageUrl === imageUrl))
+                  : null;
+                setFormData((p: any) => ({
+                  ...p,
+                  designRef: ref,
+                  designImageUrl: imageUrl || '',
+                  ...(matchedSq ? {
+                    quality: matchedSq.label,
+                    qualityLabel: matchedSq.label,
+                    specs: p.specs ? p.specs : matchedSq.label,
+                    size: matchedSq.size || p.size,
+                    sliderWeightG: matchedSq.sliderWeightG ?? p.sliderWeightG,
+                    pcsPerBag: matchedSq.pcsPerBag ?? p.pcsPerBag,
+                    bagsPerCarton: matchedSq.bagsPerCarton ?? p.bagsPerCarton,
+                    nameFR: matchedSq.nameFR || p.nameFR,
+                  } : {})
+                }));
+              }}
             />
           )}
 
@@ -1629,12 +1655,37 @@ export function AddOrderForm({
             {isValid && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
           </Button>
 
-          {!isValid && (
-            <p className="text-[9px] text-red-400 font-bold uppercase text-center -mt-3">
-              Complète les champs requis pour continuer
-            </p>
-          )}
         </form>
+
+      {/* ── Modal Lightbox Preview Slider/Design Image ── */}
+      <Dialog open={!!previewSliderImage} onOpenChange={open => { if (!open) setPreviewSliderImage(null); }}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black/95 border border-white/10 shadow-2xl rounded-3xl text-white z-[9999]">
+          <DialogHeader className="p-4 border-b border-white/10 flex flex-row items-center justify-between">
+            <DialogTitle className="text-xs font-black uppercase tracking-wider text-stone-100 flex items-center gap-2">
+              {previewSliderImage?.title || 'Aperçu du modèle / curseur'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 flex flex-col items-center justify-center min-h-[250px]">
+            {previewSliderImage?.url && (
+              <img
+                src={previewSliderImage.url}
+                alt={previewSliderImage.title || 'Curseur'}
+                className="max-h-[60vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              />
+            )}
+            {previewSliderImage?.url && (
+              <a
+                href={previewSliderImage.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+              >
+                Ouvrir en taille réelle ↗
+              </a>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
