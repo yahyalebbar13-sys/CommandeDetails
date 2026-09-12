@@ -17,7 +17,7 @@ export type GeneralCategory = {
   name: string;
   nameFR?: string;
   line?: string;
-  specType?: 'fabric' | 'zipper' | 'thread' | 'slider' | 'none';
+  specType?: 'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none';
   fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   zipperQualities?: {
     label: string;
@@ -49,6 +49,15 @@ export type GeneralCategory = {
     sliderWeightG?: number | string;
     pcsPerBag?: number;
     bagsPerCarton?: number;
+  }[];
+  tapeQualities?: {
+    label: string;
+    nameFR?: string;
+    width?: string | number;
+    weightPerM?: number | string;
+    rollLength?: number | string;
+    rollsPerShrink?: number | string;
+    rollsPerCarton?: number | string;
   }[];
 };
 
@@ -101,6 +110,16 @@ export type Category = {
     pcsPerBag?: number;       // Nombre de pcs/bag
     bagsPerCarton?: number;   // Nombre de bags/ctn
   }[];
+  // Tape / Ruban config
+  tapeQualities?: {
+    label: string;
+    nameFR?: string;           // Nom commercial / français pour la vente
+    width?: string | number;   // Largeur (taille) (ex: "25mm", "38mm", 25)
+    weightPerM?: number | string; // Poids/m (g/m)
+    rollLength?: number | string; // Longueur/roll (m/rouleau)
+    rollsPerShrink?: number | string; // Roll/shrink (rouleaux par paquet)
+    rollsPerCarton?: number | string; // Rolls/ctn (rouleaux par carton)
+  }[];
 };
 
 export interface QualityBreakdownRow {
@@ -130,6 +149,11 @@ export interface QualityBreakdownRow {
   lengthUnit?: string;
   // Attributs Slider / Design
   imageUrl?: string;
+  // Attributs Tape / Ruban
+  width?: string;
+  weightPerM?: number | string;
+  rollsPerShrink?: number | string;
+  rollsPerCarton?: number | string;
 }
 
 export type Order = {
@@ -178,6 +202,10 @@ export type Order = {
   threadWeightG?: number | string;   // Grammage fil (g)
   lengthPerPiece?: number | string;  // Longueur par pièce
   lengthUnit?: string;               // Unité de longueur ('m', 'yds')
+  // Tape-specific fields
+  weightPerM?: number | string;      // Poids/m (g/m)
+  rollsPerShrink?: number | string;  // Roll/shrink
+  rollsPerCarton?: number | string;  // Rolls/ctn
 };
 
 export type Facture = {
@@ -237,6 +265,10 @@ export type StockMovement = {
   lengthUnit?: string;
   pcsPerBag?: number;
   bagsPerCarton?: number;
+  // Tape attributes
+  weightPerM?: number | string;
+  rollsPerShrink?: number | string;
+  rollsPerCarton?: number | string;
   type: StockMovementType;
   reason: StockMovementReason;
   storeId?: StoreLocation;
@@ -276,6 +308,10 @@ export type StockItem = {
   threadWeightG?: number | string;
   lengthPerPiece?: number | string;
   lengthUnit?: string;
+  // Tape attributes
+  weightPerM?: number | string;
+  rollsPerShrink?: number | string;
+  rollsPerCarton?: number | string;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
   hasTTCCost?: boolean;           // true si coût de revient TTC calculé, false si FOB estimé

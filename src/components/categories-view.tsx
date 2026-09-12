@@ -69,7 +69,7 @@ import { doc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firesto
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
-import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
+import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory } from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
@@ -320,7 +320,7 @@ export default function CategoriesView({
   const [renameGenCatName, setRenameGenCatName] = useState('');
   const [renameGenCatNameFR, setRenameGenCatNameFR] = useState('');
   const [renameGenCatLine, setRenameGenCatLine] = useState('');
-  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'none'>('fabric');
+  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none'>('fabric');
 
   const handleSaveRenameSubCat = () => {
     if (!user || !firestore || !editingSubCategory) return;
@@ -370,6 +370,8 @@ export default function CategoriesView({
       if (finalSpec !== 'none') finalSpec = 'fabric';
     } else if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil') || nameLower.includes('thread') || nameLower.includes('fil')) {
       if (finalSpec !== 'none') finalSpec = 'thread';
+    } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
+      if (finalSpec !== 'none') finalSpec = 'tape';
     }
     updatePayload.specType = finalSpec;
 
@@ -463,6 +465,15 @@ export default function CategoriesView({
       pcsPerBag?: number;
       bagsPerCarton?: number;
     }[],
+    tapeQualities: [] as {
+      label: string;
+      nameFR?: string;
+      width?: string | number;
+      weightPerM?: number | string;
+      rollLength?: number | string;
+      rollsPerShrink?: number | string;
+      rollsPerCarton?: number | string;
+    }[],
   });
   const [newSizeInput, setNewSizeInput] = useState('');
   const [newGsmInput, setNewGsmInput] = useState('');
@@ -499,6 +510,15 @@ export default function CategoriesView({
     pcsPerBag: '',
     bagsPerCarton: '',
   });
+  const [newTapeQualityForm, setNewTapeQualityForm] = useState({
+    label: '',
+    nameFR: '',
+    width: '',
+    weightPerM: '',
+    rollLength: '',
+    rollsPerShrink: '',
+    rollsPerCarton: '',
+  });
   const [sliderImageUploading, setSliderImageUploading] = useState(false);
 
   useEffect(() => {
@@ -522,6 +542,8 @@ export default function CategoriesView({
           .filter(q => Boolean(q.label || q.coneWeightG || q.threadWeightG || q.lengthPerPiece || q.pcsPerBag || q.bagsPerCarton || q.nameFR)),
         sliderQualities: (Array.isArray(currentCategoryObj.sliderQualities) ? currentCategoryObj.sliderQualities : [])
           .filter(q => Boolean(q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || q.imageUrl)),
+        tapeQualities: (Array.isArray(currentCategoryObj.tapeQualities) ? currentCategoryObj.tapeQualities : [])
+          .filter(q => Boolean(q.label || q.width || q.weightPerM || q.rollLength || q.rollsPerShrink || q.rollsPerCarton || q.nameFR)),
       });
       setNewSizeInput('');
       setNewGsmInput('');
@@ -558,6 +580,15 @@ export default function CategoriesView({
         pcsPerBag: '',
         bagsPerCarton: '',
       });
+      setNewTapeQualityForm({
+        label: '',
+        nameFR: '',
+        width: '',
+        weightPerM: '',
+        rollLength: '',
+        rollsPerShrink: '',
+        rollsPerCarton: '',
+      });
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
@@ -587,6 +618,13 @@ export default function CategoriesView({
     const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
     const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
     return isSliderLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
+  }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
+
+  // Detect if current category is in the Tape / Ruban pôle or line
+  const isTapeCat = useMemo(() => {
+    const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
+    const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
+    return isTapeLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
   }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
 
   const handleSliderImageUpload = async (file: File) => {
@@ -667,7 +705,7 @@ export default function CategoriesView({
   // ── Individual Quality Editing (from tables) ──
   const [editingQualityModal, setEditingQualityModal] = useState<{
     open: boolean;
-    type: 'slider' | 'thread' | 'zipper' | 'fabric';
+    type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape';
     originalQuality: any;
     form: any;
     imageUploading: boolean;
@@ -679,7 +717,7 @@ export default function CategoriesView({
     imageUploading: false,
   });
 
-  const handleOpenEditQuality = (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric') => {
+  const handleOpenEditQuality = (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape') => {
     setEditingQualityModal({
       open: true,
       type,
@@ -724,6 +762,7 @@ export default function CategoriesView({
     if (type === 'thread') fieldKey = 'threadQualities';
     else if (type === 'zipper') fieldKey = 'zipperQualities';
     else if (type === 'fabric') fieldKey = 'fabricQualities';
+    else if (type === 'tape') fieldKey = 'tapeQualities';
 
     const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
       ? [...(currentCategoryObj as any)[fieldKey]]
@@ -736,6 +775,7 @@ export default function CategoriesView({
       if (type === 'thread' && q.coneWeightG === originalQuality.coneWeightG && q.threadWeightG === originalQuality.threadWeightG && q.lengthPerPiece === originalQuality.lengthPerPiece) return true;
       if (type === 'zipper' && q.length === originalQuality.length && q.zipperType === originalQuality.zipperType && q.slider === originalQuality.slider) return true;
       if (type === 'fabric' && q.gsm === originalQuality.gsm && q.fabricWidth === originalQuality.fabricWidth) return true;
+      if (type === 'tape' && q.width === originalQuality.width && q.weightPerM === originalQuality.weightPerM && q.rollLength === originalQuality.rollLength) return true;
       return false;
     });
 
@@ -788,7 +828,7 @@ export default function CategoriesView({
     }
   };
 
-  const handleDeleteQualityFromTable = async (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric') => {
+  const handleDeleteQualityFromTable = async (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape') => {
     if (!user || !firestore || !currentCategoryObj) return;
     const catId = currentCategoryObj.id;
 
@@ -796,6 +836,7 @@ export default function CategoriesView({
     if (type === 'thread') fieldKey = 'threadQualities';
     else if (type === 'zipper') fieldKey = 'zipperQualities';
     else if (type === 'fabric') fieldKey = 'fabricQualities';
+    else if (type === 'tape') fieldKey = 'tapeQualities';
 
     const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
       ? [...(currentCategoryObj as any)[fieldKey]]
@@ -808,6 +849,7 @@ export default function CategoriesView({
       if (type === 'thread' && q.coneWeightG === quality.coneWeightG && q.threadWeightG === quality.threadWeightG && q.lengthPerPiece === quality.lengthPerPiece) return false;
       if (type === 'zipper' && q.length === quality.length && q.zipperType === quality.zipperType && q.slider === quality.slider) return false;
       if (type === 'fabric' && q.gsm === quality.gsm && q.fabricWidth === quality.fabricWidth) return false;
+      if (type === 'tape' && q.width === quality.width && q.weightPerM === quality.weightPerM && q.rollLength === quality.rollLength) return false;
       return true;
     });
 
@@ -1005,6 +1047,37 @@ export default function CategoriesView({
       setNewSliderQualityForm({ label: '', nameFR: '', imageUrl: '', size: '', sliderWeightG: '', pcsPerBag: '', bagsPerCarton: '' });
     }
 
+    // Check if user has uncommitted pending tape quality
+    let currentTapeQualities = [...(customsForm.tapeQualities || [])];
+    const tpWidth = newTapeQualityForm.width.trim();
+    const tpWeight = newTapeQualityForm.weightPerM ? (isNaN(Number(newTapeQualityForm.weightPerM)) ? newTapeQualityForm.weightPerM.trim() : Number(newTapeQualityForm.weightPerM)) : null;
+    const tpRoll = newTapeQualityForm.rollLength ? (isNaN(Number(newTapeQualityForm.rollLength)) ? newTapeQualityForm.rollLength.trim() : Number(newTapeQualityForm.rollLength)) : null;
+    const tpShrink = newTapeQualityForm.rollsPerShrink ? Number(newTapeQualityForm.rollsPerShrink) : null;
+    const tpCtn = newTapeQualityForm.rollsPerCarton ? Number(newTapeQualityForm.rollsPerCarton) : null;
+    const tpNameFR = newTapeQualityForm.nameFR.trim() || undefined;
+    const tpLabel = newTapeQualityForm.label.trim();
+    const hasTpInput = Boolean(tpLabel || tpWidth || tpWeight || tpRoll || tpShrink || tpCtn || tpNameFR);
+    if (hasTpInput) {
+      const autoLabel = [
+        tpWidth || null,
+        tpWeight ? `${tpWeight}g/m` : null,
+        tpRoll ? `${tpRoll}m/rlx` : null,
+        tpShrink ? `${tpShrink}rlx/shrink` : null,
+        tpCtn ? `${tpCtn}rlx/ctn` : null,
+      ].filter(Boolean).join(' · ');
+      const label = tpLabel || autoLabel || tpNameFR || 'Ruban';
+      currentTapeQualities.push({
+        label,
+        nameFR: tpNameFR,
+        width: tpWidth || undefined,
+        weightPerM: tpWeight ?? undefined,
+        rollLength: tpRoll ?? undefined,
+        rollsPerShrink: tpShrink ?? undefined,
+        rollsPerCarton: tpCtn ?? undefined,
+      });
+      setNewTapeQualityForm({ label: '', nameFR: '', width: '', weightPerM: '', rollLength: '', rollsPerShrink: '', rollsPerCarton: '' });
+    }
+
     // Sanitize arrays to guarantee NO undefined fields inside array items for Firestore
     const cleanFabricQualities = currentFabricQualities.map(q => {
       const item: Record<string, any> = { label: q.label || 'Qualité' };
@@ -1088,6 +1161,32 @@ export default function CategoriesView({
       }
     });
 
+    const cleanTapeQualities = currentTapeQualities
+      .filter(q => Boolean(q.label || q.width || q.weightPerM || q.rollLength || q.rollsPerShrink || q.rollsPerCarton || q.nameFR))
+      .map(q => {
+        const item: Record<string, any> = { label: q.label || 'Ruban' };
+        if (q.nameFR?.trim()) item.nameFR = q.nameFR.trim();
+        if (q.width != null && String(q.width).trim() !== '') item.width = String(q.width).trim().toUpperCase();
+        if (q.weightPerM != null && String(q.weightPerM).trim() !== '') {
+          item.weightPerM = isNaN(Number(q.weightPerM)) ? String(q.weightPerM).trim() : Number(q.weightPerM);
+        }
+        if (q.rollLength != null && String(q.rollLength).trim() !== '') {
+          item.rollLength = isNaN(Number(q.rollLength)) ? String(q.rollLength).trim() : Number(q.rollLength);
+        }
+        if (q.rollsPerShrink != null && !isNaN(Number(q.rollsPerShrink))) item.rollsPerShrink = Number(q.rollsPerShrink);
+        if (q.rollsPerCarton != null && !isNaN(Number(q.rollsPerCarton))) item.rollsPerCarton = Number(q.rollsPerCarton);
+        return item;
+      });
+
+    cleanTapeQualities.forEach(q => {
+      if (q.width) {
+        const upper = String(q.width).trim().toUpperCase();
+        if (upper && !currentSizes.includes(upper)) {
+          currentSizes.push(upper);
+        }
+      }
+    });
+
     const payload: Record<string, any> = {
       nameFR: customsForm.nameFR?.trim() ? customsForm.nameFR.trim().toUpperCase() : null,
       hsCode: customsForm.hsCode || null,
@@ -1104,6 +1203,7 @@ export default function CategoriesView({
       zipperQualities: cleanZipperQualities.length > 0 ? cleanZipperQualities : null,
       threadQualities: cleanThreadQualities.length > 0 ? cleanThreadQualities : null,
       sliderQualities: cleanSliderQualities.length > 0 ? cleanSliderQualities : null,
+      tapeQualities: cleanTapeQualities.length > 0 ? cleanTapeQualities : null,
     };
 
     setIsSavingCustoms(true);
@@ -2856,6 +2956,176 @@ export default function CategoriesView({
           );
         })()}
 
+        {/* ── Tape / Ruban: Types de Produit — Qualités Fixes ── */}
+        {isTapeCat && (() => {
+          const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
+          const rawQualities: any[] = [
+            ...(Array.isArray(currentCategoryObj?.tapeQualities) ? currentCategoryObj.tapeQualities : []),
+            ...(Array.isArray(genCat?.tapeQualities) ? genCat!.tapeQualities! : [])
+          ];
+
+          // Deduplicate
+          const qualities = rawQualities.filter((q, idx, arr) => 
+            arr.findIndex(x => (x.label && x.label === q.label) || (x.width && x.width === q.width && x.weightPerM && x.weightPerM === q.weightPerM)) === idx
+          );
+
+          // Compute order stats per quality
+          const qualityStats = qualities.map(q => {
+            const matchingArticles = currentArticles.filter((a: any) => {
+              if (a.quality && q.label && a.quality.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityLabel && q.label && a.qualityLabel.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityBreakdown && Array.isArray(a.qualityBreakdown)) {
+                if (a.qualityBreakdown.some((qb: any) => qb.quality && q.label && qb.quality.trim().toLowerCase() === q.label.trim().toLowerCase())) return true;
+              }
+              if (q.width) {
+                const qW = String(q.width).trim().toLowerCase().replace(/mm/g, '');
+                const aSz = String(a.size || '').trim().toLowerCase().replace(/mm/g, '');
+                const aSpecs = String(a.specs || '').trim().toLowerCase();
+                if (aSz && aSz === qW) return true;
+                if (aSpecs.includes(qW + 'mm') || aSpecs.includes(qW + ' mm')) return true;
+              }
+              if (q.weightPerM && a.tapeWeightGsm && Number(a.tapeWeightGsm) === Number(q.weightPerM)) return true;
+              return false;
+            });
+            return {
+              ...q,
+              count: matchingArticles.length,
+              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
+              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
+            };
+          });
+
+          return (
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <div className="h-1.5 w-full bg-indigo-600" />
+              <CardHeader className="py-4 border-b border-stone-50 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                  <Factory className="w-3 h-3 text-indigo-600" /> Types de Produit — Qualités Fixes
+                  <span className="text-[8px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{qualities.length} qualités</span>
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[9px] font-black border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl"
+                  onClick={() => setIsCustomsModalOpen(true)}
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Configurer Qualités Ruban
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-stone-50/50">
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Désignation</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Largeur (taille)</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Poids/m</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Longueur/roll</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Roll/shrink</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Rolls/ctn</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {qualityStats.map((pt, idx) => (
+                        <TableRow key={idx} className="hover:bg-indigo-50/30 transition-colors">
+                          <TableCell className="py-3">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-stone-800 uppercase tracking-tighter">{pt.label}</span>
+                              {pt.nameFR && <span className="text-[8px] font-bold text-indigo-600 uppercase mt-0.5">{pt.nameFR}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.width ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase tracking-wide">
+                                {pt.width}
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.weightPerM ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                                {pt.weightPerM} g/m
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.rollLength ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 text-[10px] font-black">
+                                {pt.rollLength} m
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.rollsPerShrink ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-800 text-[10px] font-black">
+                                {pt.rollsPerShrink} rlx/shrink
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.rollsPerCarton ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-stone-100 text-stone-700 text-[10px] font-black">
+                                {pt.rollsPerCarton} rlx/ctn
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
+                          </TableCell>
+                          <TableCell className="text-right font-black text-[10px] text-stone-900">
+                            {pt.totalValue > 0 ? `${(pt.totalValue / 1000).toFixed(1)}k $` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-stone-400 hover:text-stone-800 hover:bg-stone-100 rounded-lg"
+                                title="Modifier cette qualité"
+                                onClick={() => handleOpenEditQuality(pt, 'tape')}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                title="Supprimer cette qualité"
+                                onClick={() => {
+                                  if (confirm(`Supprimer la qualité ${pt.label || pt.nameFR} ?`)) {
+                                    handleDeleteQualityFromTable(pt, 'tape');
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {qualities.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={10} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                            Aucune qualité ruban définie — ouvrez Config & Douane pour en ajouter
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* ── Analytics Charts ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
@@ -3861,6 +4131,179 @@ export default function CategoriesView({
               </div>
             )}
 
+            {/* ── Tape: Qualités pré-définies ── */}
+            {isTapeCat && (
+              <div className="space-y-4 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <Settings2 className="w-3.5 h-3.5" /> Qualités Ruban / Tape Pré-définies
+                  </p>
+                  <span className="text-[8px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                    {customsForm.tapeQualities.length} qualités
+                  </span>
+                </div>
+
+                {/* Existing tape qualities */}
+                {customsForm.tapeQualities.length > 0 && (
+                  <div className="space-y-2">
+                    {customsForm.tapeQualities.map((q, idx) => (
+                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl bg-white border border-indigo-100 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
+                          <div className="flex flex-wrap gap-1">
+                            {q.width && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">Largeur: {q.width}</span>}
+                            {q.weightPerM && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{q.weightPerM} g/m</span>}
+                            {q.rollLength && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{q.rollLength} m/rlx</span>}
+                            {q.rollsPerShrink && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[8px] font-black">{q.rollsPerShrink} rlx/shrink</span>}
+                            {q.rollsPerCarton && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 text-[8px] font-black">{q.rollsPerCarton} rlx/ctn</span>}
+                          </div>
+                          <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
+                            onClick={() => setCustomsForm(p => ({ ...p, tapeQualities: p.tapeQualities.filter((_, i) => i !== idx) }))}>×</button>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1 border-t border-indigo-50">
+                          <span className="text-[8px] font-black uppercase text-indigo-700 shrink-0">Nom Vente (FR) :</span>
+                          <Input
+                            placeholder="Ex: Ruban Satin Double Face 25mm"
+                            value={q.nameFR || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setCustomsForm(p => ({
+                                ...p,
+                                tapeQualities: p.tapeQualities.map((item, i) => i === idx ? { ...item, nameFR: val } : item)
+                              }));
+                            }}
+                            className="h-7 text-[10px] font-bold border-indigo-200 rounded-lg flex-1 bg-indigo-50/30"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {customsForm.tapeQualities.length === 0 && (
+                  <p className="text-[8px] font-bold text-stone-400 uppercase italic">Aucune qualité définie</p>
+                )}
+
+                {/* Add new tape quality form */}
+                <div className="space-y-2 p-3 rounded-xl bg-indigo-100/30 border border-indigo-200">
+                  <p className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">+ Nouvelle Qualité Ruban</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Label technique (auto si vide)"
+                      className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg"
+                      value={newTapeQualityForm.label}
+                      onChange={e => setNewTapeQualityForm(p => ({ ...p, label: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Nom FR / Vente (ex: Ruban Satin 25mm)"
+                      className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg bg-white"
+                      value={newTapeQualityForm.nameFR}
+                      onChange={e => setNewTapeQualityForm(p => ({ ...p, nameFR: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    <div>
+                      <Input
+                        list="tape-sizes-datalist"
+                        placeholder="Largeur (taille) ex: 25mm"
+                        className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg w-full"
+                        value={newTapeQualityForm.width}
+                        onChange={e => setNewTapeQualityForm(p => ({ ...p, width: e.target.value }))}
+                      />
+                      <datalist id="tape-sizes-datalist">
+                        {customsForm.availableSizes.map((sz, i) => (
+                          <option key={i} value={sz} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="Poids/m (g/m)"
+                      className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg"
+                      value={newTapeQualityForm.weightPerM}
+                      onChange={e => setNewTapeQualityForm(p => ({ ...p, weightPerM: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="Longueur/roll (m)"
+                      className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg"
+                      value={newTapeQualityForm.rollLength}
+                      onChange={e => setNewTapeQualityForm(p => ({ ...p, rollLength: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Roll/shrink"
+                      className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg"
+                      value={newTapeQualityForm.rollsPerShrink}
+                      onChange={e => setNewTapeQualityForm(p => ({ ...p, rollsPerShrink: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Rolls/ctn"
+                      className="h-8 text-[10px] font-bold border-indigo-200 rounded-lg"
+                      value={newTapeQualityForm.rollsPerCarton}
+                      onChange={e => setNewTapeQualityForm(p => ({ ...p, rollsPerCarton: e.target.value }))}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-full border-indigo-300 text-indigo-700 hover:bg-indigo-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                    onClick={() => {
+                      const width = newTapeQualityForm.width.trim();
+                      const weightPerM = newTapeQualityForm.weightPerM ? (isNaN(Number(newTapeQualityForm.weightPerM)) ? newTapeQualityForm.weightPerM : Number(newTapeQualityForm.weightPerM)) : undefined;
+                      const rollLength = newTapeQualityForm.rollLength ? (isNaN(Number(newTapeQualityForm.rollLength)) ? newTapeQualityForm.rollLength : Number(newTapeQualityForm.rollLength)) : undefined;
+                      const rollsPerShrink = newTapeQualityForm.rollsPerShrink ? Number(newTapeQualityForm.rollsPerShrink) : undefined;
+                      const rollsPerCarton = newTapeQualityForm.rollsPerCarton ? Number(newTapeQualityForm.rollsPerCarton) : undefined;
+                      const nameFR = newTapeQualityForm.nameFR.trim() || undefined;
+
+                      if (!newTapeQualityForm.label.trim() && !width && !weightPerM && !rollLength && !rollsPerShrink && !rollsPerCarton && !nameFR) return;
+
+                      const autoLabel = [
+                        width ? `Larg. ${width}` : null,
+                        weightPerM ? `${weightPerM}g/m` : null,
+                        rollLength ? `${rollLength}m/rlx` : null,
+                        rollsPerShrink ? `${rollsPerShrink}rlx/shrink` : null,
+                        rollsPerCarton ? `${rollsPerCarton}rlx/ctn` : null,
+                      ].filter(Boolean).join(' · ');
+
+                      const label = newTapeQualityForm.label.trim() || autoLabel || nameFR || 'Ruban';
+
+                      setCustomsForm(p => ({
+                        ...p,
+                        tapeQualities: [
+                          ...p.tapeQualities,
+                          {
+                            label,
+                            nameFR,
+                            width: width || undefined,
+                            weightPerM,
+                            rollLength,
+                            rollsPerShrink,
+                            rollsPerCarton
+                          }
+                        ]
+                      }));
+
+                      setNewTapeQualityForm({
+                        label: '',
+                        nameFR: '',
+                        width: '',
+                        weightPerM: '',
+                        rollLength: '',
+                        rollsPerShrink: '',
+                        rollsPerCarton: '',
+                      });
+                    }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Ajouter Qualité Ruban
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="p-6 bg-stone-50 gap-3">
               <Button variant="ghost" disabled={isSavingCustoms} onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
               <Button disabled={isSavingCustoms} onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">
@@ -4545,13 +4988,14 @@ export default function CategoriesView({
                 else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setRenameGenCatSpecType('fabric');
                 else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setRenameGenCatSpecType('zipper');
                 else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setRenameGenCatSpecType('thread');
+                else if (l.includes('ruban') || l.includes('tape') || l.includes('sangle') || l.includes('ribbon')) setRenameGenCatSpecType('tape');
                 else setRenameGenCatSpecType('none');
               }}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
                   <SelectValue placeholder="Choisir une ligne..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {['Fabric', 'Slider et puller', 'Zipper', 'Thread', 'Bouton', 'Reste'].map(line => (
+                  {['Fabric', 'Slider et puller', 'Zipper', 'Thread', 'Ruban', 'Bouton', 'Reste'].map(line => (
                     <SelectItem key={line} value={line} className="font-bold uppercase text-xs">{line}</SelectItem>
                   ))}
                 </SelectContent>
@@ -4560,7 +5004,7 @@ export default function CategoriesView({
 
             <div className="space-y-1.5 pt-1">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                 <button
                   type="button"
                   onClick={() => setRenameGenCatSpecType('fabric')}
@@ -4608,6 +5052,18 @@ export default function CategoriesView({
                 >
                   <span className="text-[9px] block uppercase font-black">🎛️ Slider</span>
                   <span className="text-[7px] text-stone-400 block">Design, Ctn</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenameGenCatSpecType('tape')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    renameGenCatSpecType === 'tape'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🎗️ Ruban</span>
+                  <span className="text-[7px] text-stone-400 block">Larg, Poids/m</span>
                 </button>
                 <button
                   type="button"
@@ -5097,6 +5553,79 @@ export default function CategoriesView({
                     value={editingQualityModal.form.packagingPerBag ?? ''}
                     onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, packagingPerBag: e.target.value === '' ? '' : Number(e.target.value) } }))}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Tape Specific Fields */}
+            {editingQualityModal.type === 'tape' && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Largeur (taille) (ex: 25mm, 38mm)
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 25mm"
+                      value={editingQualityModal.form.width || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, width: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Poids/m (g/m)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 12.5"
+                      value={editingQualityModal.form.weightPerM ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, weightPerM: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                    Longueur / roll (m)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                    placeholder="ex: 50"
+                    value={editingQualityModal.form.rollLength ?? ''}
+                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollLength: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Roll / shrink
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 5"
+                      value={editingQualityModal.form.rollsPerShrink ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerShrink: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Rolls / ctn (carton)
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 50"
+                      value={editingQualityModal.form.rollsPerCarton ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
                 </div>
               </div>
             )}

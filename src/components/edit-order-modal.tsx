@@ -27,7 +27,7 @@ import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-inp
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -332,6 +332,17 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return isSliderLineOrCategory(formData?.categoryId, genCat);
   }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
 
+  const isTape = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isTapeLineOrCategory(formData?.categoryId, genCat);
+  }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
+
   const isDesignCategory = useMemo(() => {
     const upper = (formData?.categoryId || '').toUpperCase();
     return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
@@ -456,6 +467,23 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.size === q.size && x.sliderWeightG === q.sliderWeightG && x.imageUrl === q.imageUrl)) === idx);
   }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
+  const tapeQualities = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    const raw = [
+      ...(Array.isArray(cat?.tapeQualities) ? cat.tapeQualities : []),
+      ...(Array.isArray(genCat?.tapeQualities) ? genCat.tapeQualities : [])
+    ];
+    return raw
+      .filter((q: any) => Boolean(q && (q.label || q.width || q.weightPerM || q.rollLength || q.rollsPerShrink || q.rollsPerCarton || q.nameFR)))
+      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.width === q.width && x.weightPerM === q.weightPerM && x.rollLength === q.rollLength)) === idx);
+  }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
+
   const lastOrderInfo = useMemo(() => {
     if (!formData?.categoryId && !article?.name) return null;
     return findLastOrderPrice(
@@ -552,6 +580,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       threadWeightG: (rawFormData.threadWeightG !== '' && rawFormData.threadWeightG != null) ? (isNaN(Number(rawFormData.threadWeightG)) ? String(rawFormData.threadWeightG).trim() : Number(rawFormData.threadWeightG)) : null,
       lengthPerPiece: (rawFormData.lengthPerPiece !== '' && rawFormData.lengthPerPiece != null) ? (isNaN(Number(rawFormData.lengthPerPiece)) ? String(rawFormData.lengthPerPiece).trim() : Number(rawFormData.lengthPerPiece)) : null,
       lengthUnit: rawFormData.lengthPerPiece ? (rawFormData.lengthUnit || 'm') : null,
+      // Tape fields
+      weightPerM: (rawFormData.weightPerM !== '' && rawFormData.weightPerM != null) ? (isNaN(Number(rawFormData.weightPerM)) ? String(rawFormData.weightPerM).trim() : Number(rawFormData.weightPerM)) : (rawFormData.tapeWeightGsm ? Number(rawFormData.tapeWeightGsm) : null),
+      rollsPerShrink: (rawFormData.rollsPerShrink !== '' && rawFormData.rollsPerShrink != null) ? (isNaN(Number(rawFormData.rollsPerShrink)) ? String(rawFormData.rollsPerShrink).trim() : Number(rawFormData.rollsPerShrink)) : (rawFormData.pcsPerBag ? Number(rawFormData.pcsPerBag) : null),
+      rollsPerCarton: (rawFormData.rollsPerCarton !== '' && rawFormData.rollsPerCarton != null) ? (isNaN(Number(rawFormData.rollsPerCarton)) ? String(rawFormData.rollsPerCarton).trim() : Number(rawFormData.rollsPerCarton)) : (rawFormData.bagsPerCarton ? Number(rawFormData.bagsPerCarton) : null),
     };
     
     let isSplit = false;
@@ -1593,18 +1625,167 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             )}
 
+            {/* ── Tape fields & qualities ── */}
+            {isTape && (
+              <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 md:col-span-2">
+                <p className="text-[9px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="text-xs">🎗️</span> Spécifications Ruban / Tape
+                </p>
+                {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <Settings2 className="w-3 h-3" /> Qualité Ruban
+                    </Label>
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'rolls'})
+                      </span>
+                    </div>
+                  </div>
+                ) : tapeQualities.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Qualité Ruban Fixe</Label>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = tapeQualities.find((x: any) => x.label === v) || tapeQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            size: q.width || p.size,
+                            tapeWeightGsm: q.weightPerM ?? p.tapeWeightGsm,
+                            weightPerM: q.weightPerM ?? p.weightPerM,
+                            rollLength: q.rollLength ?? p.rollLength,
+                            rollsPerShrink: q.rollsPerShrink ?? p.rollsPerShrink,
+                            rollsPerCarton: q.rollsPerCarton ?? p.rollsPerCarton,
+                            pcsPerBag: q.rollsPerShrink ?? p.pcsPerBag,
+                            bagsPerCarton: q.rollsPerCarton ?? p.bagsPerCarton,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        } else {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: v,
+                            qualityLabel: v,
+                            specs: p.specs ? p.specs : v,
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 border-indigo-200 bg-white font-bold rounded-xl text-indigo-800">
+                        <SelectValue placeholder="Choisir une qualité Ruban..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.quality && !tapeQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
+                        {tapeQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">
+                            <div className="flex items-center gap-2">
+                              <span>{q.label}</span>
+                              {q.width && <span className="text-[10px] text-indigo-600 font-bold">({q.width})</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
+                {/* Show current values as badges */}
+                {!qualityBreakdown && (formData.size || formData.weightPerM || formData.tapeWeightGsm || formData.rollLength || formData.rollsPerShrink || formData.rollsPerCarton) && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {formData.size && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-[10px] font-black">Largeur: {formData.size}</span>}
+                    {(formData.weightPerM || formData.tapeWeightGsm) && <span className="px-2 py-1 rounded-lg bg-teal-100 text-teal-800 text-[10px] font-black">Poids/m: {formData.weightPerM || formData.tapeWeightGsm}g/m</span>}
+                    {formData.rollLength && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-800 text-[10px] font-black">Longueur: {formData.rollLength}m/roll</span>}
+                    {(formData.rollsPerShrink || formData.pcsPerBag) && <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-800 text-[10px] font-black">{formData.rollsPerShrink || formData.pcsPerBag} rlx/shrink</span>}
+                    {(formData.rollsPerCarton || formData.bagsPerCarton) && <span className="px-2 py-1 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-black">{formData.rollsPerCarton || formData.bagsPerCarton} rlx/ctn</span>}
+                  </div>
+                )}
+
+                {/* Fallback uniquement si aucune qualité n'est pré-définie */}
+                {tapeQualities.length === 0 && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Largeur (taille)</Label>
+                        <Input
+                          placeholder="Ex: 25mm, 38mm"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.size || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids/m (g/m)</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 12.5"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.weightPerM || formData.tapeWeightGsm || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, weightPerM: e.target.value, tapeWeightGsm: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur / roll (m)</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 50"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.rollLength || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, rollLength: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Roll / shrink</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 5"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.rollsPerShrink || formData.pcsPerBag || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, rollsPerShrink: e.target.value, pcsPerBag: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Rolls / ctn</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 50"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.rollsPerCarton || formData.bagsPerCarton || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, rollsPerCarton: e.target.value, bagsPerCarton: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread || isSlider ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
+                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread || isSlider || isTape ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
               </Label>
               <div className="flex gap-2">
                 <Input
                   value={formData.specs || ''}
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))}
                   className="h-12 border-stone-200 font-bold rounded-xl"
-                  placeholder={isZipper || isThread || isSlider ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
+                  placeholder={isZipper || isThread || isSlider || isTape ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
                 />
-                {!isZipper && !isThread && !isSlider && (
+                {!isZipper && !isThread && !isSlider && !isTape && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1833,11 +2014,12 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   value={qualityBreakdown}
                   onChange={handleQualityBreakdownChange}
                   unit={formData?.unitOfMeasure}
-                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : []}
+                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : isTape ? tapeQualities : []}
                   isFabric={isFabric}
                   isZipper={isZipper}
                   isThread={isThread}
                   isSlider={isSlider}
+                  isTape={isTape}
                 />
                 <ColorBreakdownInput
                   categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}

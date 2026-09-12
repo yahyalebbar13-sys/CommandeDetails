@@ -20,6 +20,7 @@ interface QualityBreakdownInputProps {
   isZipper?: boolean;
   isThread?: boolean;
   isSlider?: boolean;
+  isTape?: boolean;
 }
 
 /**
@@ -64,17 +65,21 @@ function parsePastedQualities(raw: string, availableQualities?: any[]): QualityB
       ...(matched?.fabricWidth ? { fabricWidth: matched.fabricWidth } : {}),
       ...(matched?.rollLength ? { rollLength: matched.rollLength, rollLengthUnit: matched.rollLengthUnit || 'm' } : {}),
       ...(matched?.packagingPerBag ? { packagingPerBag: matched.packagingPerBag } : {}),
-      ...(matched?.size ? { size: matched.size } : matched?.length ? { size: matched.length } : {}),
+      ...(matched?.size ? { size: matched.size } : matched?.length ? { size: matched.length } : matched?.width ? { size: matched.width } : {}),
       ...(matched?.zipperType ? { zipperType: matched.zipperType } : {}),
       ...(matched?.slider ? { slider: matched.slider } : {}),
       ...(matched?.sliderType ? { sliderType: matched.sliderType } : {}),
-      ...(matched?.tapeWeightGsm ? { tapeWeightGsm: matched.tapeWeightGsm } : {}),
+      ...(matched?.tapeWeightGsm ? { tapeWeightGsm: matched.tapeWeightGsm } : matched?.weightPerM ? { tapeWeightGsm: Number(matched.weightPerM) || undefined } : {}),
       ...(matched?.sliderWeightG ? { sliderWeightG: matched.sliderWeightG } : {}),
-      ...(matched?.pcsPerBag ? { pcsPerBag: matched.pcsPerBag } : {}),
-      ...(matched?.bagsPerCarton ? { bagsPerCarton: matched.bagsPerCarton } : {}),
+      ...(matched?.pcsPerBag ? { pcsPerBag: matched.pcsPerBag } : matched?.rollsPerShrink ? { pcsPerBag: Number(matched.rollsPerShrink) || undefined } : {}),
+      ...(matched?.bagsPerCarton ? { bagsPerCarton: matched.bagsPerCarton } : matched?.rollsPerCarton ? { bagsPerCarton: Number(matched.rollsPerCarton) || undefined } : {}),
       ...(matched?.coneWeightG ? { coneWeightG: matched.coneWeightG } : {}),
       ...(matched?.threadWeightG ? { threadWeightG: matched.threadWeightG } : {}),
       ...(matched?.lengthPerPiece ? { lengthPerPiece: matched.lengthPerPiece, lengthUnit: matched.lengthUnit || 'm' } : {}),
+      ...(matched?.width ? { width: matched.width } : {}),
+      ...(matched?.weightPerM ? { weightPerM: matched.weightPerM } : {}),
+      ...(matched?.rollsPerShrink ? { rollsPerShrink: matched.rollsPerShrink } : {}),
+      ...(matched?.rollsPerCarton ? { rollsPerCarton: matched.rollsPerCarton } : {}),
     };
 
     rows.push(row);
@@ -92,6 +97,7 @@ export default function QualityBreakdownInput({
   isZipper,
   isThread,
   isSlider,
+  isTape,
 }: QualityBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<QualityBreakdownRow[]>(value || []);
@@ -138,14 +144,18 @@ export default function QualityBreakdownInput({
         ...(initialQuality.fabricWidth ? { fabricWidth: initialQuality.fabricWidth } : {}),
         ...(initialQuality.rollLength ? { rollLength: initialQuality.rollLength, rollLengthUnit: initialQuality.rollLengthUnit || 'm' } : {}),
         ...(initialQuality.packagingPerBag ? { packagingPerBag: initialQuality.packagingPerBag } : {}),
-        ...(initialQuality.size ? { size: initialQuality.size } : initialQuality.length ? { size: initialQuality.length } : {}),
+        ...(initialQuality.size ? { size: initialQuality.size } : initialQuality.length ? { size: initialQuality.length } : initialQuality.width ? { size: initialQuality.width } : {}),
         ...(initialQuality.zipperType ? { zipperType: initialQuality.zipperType } : {}),
         ...(initialQuality.slider ? { slider: initialQuality.slider } : {}),
         ...(initialQuality.sliderType ? { sliderType: initialQuality.sliderType } : {}),
-        ...(initialQuality.tapeWeightGsm ? { tapeWeightGsm: initialQuality.tapeWeightGsm } : {}),
+        ...(initialQuality.tapeWeightGsm ? { tapeWeightGsm: initialQuality.tapeWeightGsm } : initialQuality.weightPerM ? { tapeWeightGsm: Number(initialQuality.weightPerM) || undefined } : {}),
         ...(initialQuality.sliderWeightG ? { sliderWeightG: initialQuality.sliderWeightG } : {}),
-        ...(initialQuality.pcsPerBag ? { pcsPerBag: initialQuality.pcsPerBag } : {}),
-        ...(initialQuality.bagsPerCarton ? { bagsPerCarton: initialQuality.bagsPerCarton } : {}),
+        ...(initialQuality.pcsPerBag ? { pcsPerBag: initialQuality.pcsPerBag } : initialQuality.rollsPerShrink ? { pcsPerBag: Number(initialQuality.rollsPerShrink) || undefined } : {}),
+        ...(initialQuality.bagsPerCarton ? { bagsPerCarton: initialQuality.bagsPerCarton } : initialQuality.rollsPerCarton ? { bagsPerCarton: Number(initialQuality.rollsPerCarton) || undefined } : {}),
+        ...(initialQuality.width ? { width: initialQuality.width } : {}),
+        ...(initialQuality.weightPerM ? { weightPerM: initialQuality.weightPerM } : {}),
+        ...(initialQuality.rollsPerShrink ? { rollsPerShrink: initialQuality.rollsPerShrink } : {}),
+        ...(initialQuality.rollsPerCarton ? { rollsPerCarton: initialQuality.rollsPerCarton } : {}),
       } : { quality: '', quantity: 0, priceOverride: '' };
 
       const next = [initialRow];
@@ -184,19 +194,24 @@ export default function QualityBreakdownInput({
         rollLengthUnit: qObj.rollLengthUnit || 'm',
         packagingPerBag: qObj.packagingPerBag || undefined,
         // Zipper / Slider attributes
-        size: qObj.size || qObj.length || undefined,
+        size: qObj.size || qObj.length || qObj.width || undefined,
         zipperType: qObj.zipperType || undefined,
         slider: qObj.slider || undefined,
         sliderType: qObj.sliderType || undefined,
-        tapeWeightGsm: qObj.tapeWeightGsm || undefined,
+        tapeWeightGsm: qObj.tapeWeightGsm || (qObj.weightPerM ? Number(qObj.weightPerM) : undefined),
         sliderWeightG: qObj.sliderWeightG || undefined,
-        pcsPerBag: qObj.pcsPerBag || undefined,
-        bagsPerCarton: qObj.bagsPerCarton || undefined,
+        pcsPerBag: qObj.pcsPerBag || (qObj.rollsPerShrink ? Number(qObj.rollsPerShrink) : undefined),
+        bagsPerCarton: qObj.bagsPerCarton || (qObj.rollsPerCarton ? Number(qObj.rollsPerCarton) : undefined),
         // Thread attributes
         coneWeightG: qObj.coneWeightG || undefined,
         threadWeightG: qObj.threadWeightG || undefined,
         lengthPerPiece: qObj.lengthPerPiece || undefined,
         lengthUnit: qObj.lengthUnit || 'm',
+        // Tape attributes
+        width: qObj.width || undefined,
+        weightPerM: qObj.weightPerM || undefined,
+        rollsPerShrink: qObj.rollsPerShrink || undefined,
+        rollsPerCarton: qObj.rollsPerCarton || undefined,
       };
     });
     setRows(next);
@@ -250,17 +265,21 @@ export default function QualityBreakdownInput({
       ...(nextUnused.fabricWidth ? { fabricWidth: nextUnused.fabricWidth } : {}),
       ...(nextUnused.rollLength ? { rollLength: nextUnused.rollLength, rollLengthUnit: nextUnused.rollLengthUnit || 'm' } : {}),
       ...(nextUnused.packagingPerBag ? { packagingPerBag: nextUnused.packagingPerBag } : {}),
-      ...(nextUnused.length ? { size: nextUnused.length } : {}),
+      ...(nextUnused.length ? { size: nextUnused.length } : nextUnused.width ? { size: nextUnused.width } : {}),
       ...(nextUnused.zipperType ? { zipperType: nextUnused.zipperType } : {}),
       ...(nextUnused.slider ? { slider: nextUnused.slider } : {}),
       ...(nextUnused.sliderType ? { sliderType: nextUnused.sliderType } : {}),
-      ...(nextUnused.tapeWeightGsm ? { tapeWeightGsm: nextUnused.tapeWeightGsm } : {}),
+      ...(nextUnused.tapeWeightGsm ? { tapeWeightGsm: nextUnused.tapeWeightGsm } : nextUnused.weightPerM ? { tapeWeightGsm: Number(nextUnused.weightPerM) || undefined } : {}),
       ...(nextUnused.sliderWeightG ? { sliderWeightG: nextUnused.sliderWeightG } : {}),
-      ...(nextUnused.pcsPerBag ? { pcsPerBag: nextUnused.pcsPerBag } : {}),
-      ...(nextUnused.bagsPerCarton ? { bagsPerCarton: nextUnused.bagsPerCarton } : {}),
+      ...(nextUnused.pcsPerBag ? { pcsPerBag: nextUnused.pcsPerBag } : nextUnused.rollsPerShrink ? { pcsPerBag: Number(nextUnused.rollsPerShrink) || undefined } : {}),
+      ...(nextUnused.bagsPerCarton ? { bagsPerCarton: nextUnused.bagsPerCarton } : nextUnused.rollsPerCarton ? { bagsPerCarton: Number(nextUnused.rollsPerCarton) || undefined } : {}),
       ...(nextUnused.coneWeightG ? { coneWeightG: nextUnused.coneWeightG } : {}),
       ...(nextUnused.threadWeightG ? { threadWeightG: nextUnused.threadWeightG } : {}),
       ...(nextUnused.lengthPerPiece ? { lengthPerPiece: nextUnused.lengthPerPiece, lengthUnit: nextUnused.lengthUnit || 'm' } : {}),
+      ...(nextUnused.width ? { width: nextUnused.width } : {}),
+      ...(nextUnused.weightPerM ? { weightPerM: nextUnused.weightPerM } : {}),
+      ...(nextUnused.rollsPerShrink ? { rollsPerShrink: nextUnused.rollsPerShrink } : {}),
+      ...(nextUnused.rollsPerCarton ? { rollsPerCarton: nextUnused.rollsPerCarton } : {}),
     } : { quality: '', quantity: 0, priceOverride: '' };
 
     const next = [...rows, newRow];
@@ -440,6 +459,9 @@ export default function QualityBreakdownInput({
                           {row.coneWeightG && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">Cône: {row.coneWeightG}g</span>}
                           {row.threadWeightG && <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">Fil: {row.threadWeightG}g</span>}
                           {row.lengthPerPiece && <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{row.lengthPerPiece}{row.lengthUnit || 'm'}/pc</span>}
+                          {row.weightPerM && <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{row.weightPerM}g/m</span>}
+                          {row.rollsPerShrink && <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{row.rollsPerShrink} rlx/shrink</span>}
+                          {row.rollsPerCarton && <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{row.rollsPerCarton} rlx/ctn</span>}
                         </div>
                       </div>
 

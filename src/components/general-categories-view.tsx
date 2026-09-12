@@ -57,7 +57,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
-  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'none'>('fabric');
+  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none'>('fabric');
   const [newSubName, setNewSubName] = useState('');
   const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
@@ -73,7 +73,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [editPoleName, setEditPoleName] = useState('');
   const [editPoleNameFR, setEditPoleNameFR] = useState('');
   const [editPoleLine, setEditPoleLine] = useState('');
-  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'none'>('fabric');
+  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none'>('fabric');
 
   const now = new Date();
 
@@ -213,6 +213,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       if (finalSpec !== 'none') finalSpec = 'fabric';
     } else if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil') || nameLower.includes('thread') || nameLower.includes('fil')) {
       if (finalSpec !== 'none') finalSpec = 'thread';
+    } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
+      if (finalSpec !== 'none') finalSpec = 'tape';
     }
     data.specType = finalSpec;
 
@@ -271,6 +273,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       if (finalSpec !== 'none') finalSpec = 'fabric';
     } else if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil') || nameLower.includes('thread') || nameLower.includes('fil')) {
       if (finalSpec !== 'none') finalSpec = 'thread';
+    } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
+      if (finalSpec !== 'none') finalSpec = 'tape';
     }
     updateData.specType = finalSpec;
 
@@ -618,7 +622,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 <label className="text-[9px] font-black text-stone-600 uppercase tracking-widest block">
                   Spécifications Qualités à donner
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewCatSpecType('fabric')}
@@ -666,6 +670,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   >
                     <span className="text-[10px] block uppercase font-black">🎛️ Slider</span>
                     <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Design, Pcs/ctn</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCatSpecType('tape')}
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
+                      newCatSpecType === 'tape'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-black shadow-sm'
+                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                    }`}
+                  >
+                    <span className="text-[10px] block uppercase font-black">🎗️ Ruban</span>
+                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Largeur, Poids/m</span>
                   </button>
                   <button
                     type="button"
@@ -863,6 +879,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setEditPoleSpecType('fabric');
                 else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setEditPoleSpecType('zipper');
                 else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setEditPoleSpecType('thread');
+                else if (l === 'tape' || l.includes('tape') || l.includes('ruban') || l.includes('sangle') || l.includes('ribbon')) setEditPoleSpecType('tape');
                 else setEditPoleSpecType('none');
               }}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
@@ -878,7 +895,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
             <div className="space-y-1.5 pt-1">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                 <button
                   type="button"
                   onClick={() => setEditPoleSpecType('fabric')}
@@ -926,6 +943,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 >
                   <span className="text-[9px] block uppercase font-black">🎛️ Slider</span>
                   <span className="text-[7px] text-stone-400 block">Design, Ctn</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPoleSpecType('tape')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    editPoleSpecType === 'tape'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🎗️ Ruban</span>
+                  <span className="text-[7px] text-stone-400 block">Largeur, Poids/m</span>
                 </button>
                 <button
                   type="button"
