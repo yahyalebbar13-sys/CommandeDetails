@@ -65,7 +65,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { doc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
@@ -661,6 +661,183 @@ export default function CategoriesView({
       toast({ variant: 'destructive', title: 'Erreur upload photo', description: err.message });
     } finally {
       setDirectUploadingQuality(null);
+    }
+  };
+
+  // ── Individual Quality Editing (from tables) ──
+  const [editingQualityModal, setEditingQualityModal] = useState<{
+    open: boolean;
+    type: 'slider' | 'thread' | 'zipper' | 'fabric';
+    originalQuality: any;
+    form: any;
+    imageUploading: boolean;
+  }>({
+    open: false,
+    type: 'slider',
+    originalQuality: null,
+    form: {},
+    imageUploading: false,
+  });
+
+  const handleOpenEditQuality = (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric') => {
+    setEditingQualityModal({
+      open: true,
+      type,
+      originalQuality: quality,
+      form: { ...quality },
+      imageUploading: false,
+    });
+  };
+
+  const handleEditQualityImageUpload = async (file: File) => {
+    if (!user || !currentCategoryObj) return;
+    setEditingQualityModal(p => ({ ...p, imageUploading: true }));
+    try {
+      const storage = getStorage(getApp());
+      const path = `users/${user.uid}/categories/${currentCategoryObj.id}/designs/slider_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const imgRef = storageRef(storage, path);
+      const task = uploadBytesResumable(imgRef, file);
+      await new Promise<void>((resolve, reject) => {
+        task.on('state_changed', null, reject, async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          setEditingQualityModal(p => ({
+            ...p,
+            form: { ...p.form, imageUrl: url },
+            imageUploading: false,
+          }));
+          toast({ title: '✅ Photo chargée' });
+          resolve();
+        });
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur upload', description: err.message });
+      setEditingQualityModal(p => ({ ...p, imageUploading: false }));
+    }
+  };
+
+  const handleSaveEditedQuality = async () => {
+    if (!user || !firestore || !currentCategoryObj || !editingQualityModal.originalQuality) return;
+    const { type, originalQuality, form } = editingQualityModal;
+    const catId = currentCategoryObj.id;
+
+    let fieldKey = 'sliderQualities';
+    if (type === 'thread') fieldKey = 'threadQualities';
+    else if (type === 'zipper') fieldKey = 'zipperQualities';
+    else if (type === 'fabric') fieldKey = 'fabricQualities';
+
+    const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
+      ? [...(currentCategoryObj as any)[fieldKey]]
+      : [];
+
+    const idx = existingList.findIndex((q: any) => {
+      if (q === originalQuality) return true;
+      if (q.label && originalQuality.label && q.label.toLowerCase() === originalQuality.label.toLowerCase()) return true;
+      if (type === 'slider' && q.size === originalQuality.size && q.sliderWeightG === originalQuality.sliderWeightG) return true;
+      if (type === 'thread' && q.coneWeightG === originalQuality.coneWeightG && q.threadWeightG === originalQuality.threadWeightG && q.lengthPerPiece === originalQuality.lengthPerPiece) return true;
+      if (type === 'zipper' && q.length === originalQuality.length && q.zipperType === originalQuality.zipperType && q.slider === originalQuality.slider) return true;
+      if (type === 'fabric' && q.gsm === originalQuality.gsm && q.fabricWidth === originalQuality.fabricWidth) return true;
+      return false;
+    });
+
+    const cleanedQuality = { ...form };
+    delete cleanedQuality.count;
+    delete cleanedQuality.totalQty;
+    delete cleanedQuality.totalValue;
+    delete cleanedQuality.suppliers;
+
+    if (idx >= 0) {
+      existingList[idx] = cleanedQuality;
+    } else {
+      existingList.push(cleanedQuality);
+    }
+
+    try {
+      await updateDoc(doc(firestore, 'users', user.uid, 'categories', catId), {
+        [fieldKey]: existingList
+      });
+
+      setCustomsForm(p => ({
+        ...p,
+        [fieldKey]: existingList
+      }));
+
+      // If slider and there's a matching subcollection design, keep it in sync
+      if (type === 'slider') {
+        const matchingDesign = categoryDesigns.find(d => 
+          (d.ref && originalQuality.label && d.ref.toLowerCase() === originalQuality.label.toLowerCase()) ||
+          (d.imageUrl && originalQuality.imageUrl && d.imageUrl === originalQuality.imageUrl)
+        );
+        if (matchingDesign) {
+          const dRef = doc(firestore, 'users', user.uid, 'categories', catId, 'designs', matchingDesign.id);
+          updateDocumentNonBlocking(dRef, {
+            ref: cleanedQuality.label,
+            description: cleanedQuality.nameFR || '',
+            imageUrl: cleanedQuality.imageUrl || null,
+            size: cleanedQuality.size || null,
+            sliderWeightG: cleanedQuality.sliderWeightG || null,
+            pcsPerBag: cleanedQuality.pcsPerBag || null,
+            bagsPerCarton: cleanedQuality.bagsPerCarton || null,
+          });
+        }
+      }
+
+      toast({ title: '✅ Qualité modifiée avec succès', description: cleanedQuality.label || cleanedQuality.nameFR });
+      setEditingQualityModal({ open: false, type: 'slider', originalQuality: null, form: {}, imageUploading: false });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    }
+  };
+
+  const handleDeleteQualityFromTable = async (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric') => {
+    if (!user || !firestore || !currentCategoryObj) return;
+    const catId = currentCategoryObj.id;
+
+    let fieldKey = 'sliderQualities';
+    if (type === 'thread') fieldKey = 'threadQualities';
+    else if (type === 'zipper') fieldKey = 'zipperQualities';
+    else if (type === 'fabric') fieldKey = 'fabricQualities';
+
+    const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
+      ? [...(currentCategoryObj as any)[fieldKey]]
+      : [];
+
+    const updatedList = existingList.filter((q: any) => {
+      if (q === quality) return false;
+      if (q.label && quality.label && q.label.toLowerCase() === quality.label.toLowerCase()) return false;
+      if (type === 'slider' && q.size === quality.size && q.sliderWeightG === quality.sliderWeightG && q.imageUrl === quality.imageUrl) return false;
+      if (type === 'thread' && q.coneWeightG === quality.coneWeightG && q.threadWeightG === quality.threadWeightG && q.lengthPerPiece === quality.lengthPerPiece) return false;
+      if (type === 'zipper' && q.length === quality.length && q.zipperType === quality.zipperType && q.slider === quality.slider) return false;
+      if (type === 'fabric' && q.gsm === quality.gsm && q.fabricWidth === quality.fabricWidth) return false;
+      return true;
+    });
+
+    try {
+      await updateDoc(doc(firestore, 'users', user.uid, 'categories', catId), {
+        [fieldKey]: updatedList
+      });
+
+      setCustomsForm(p => ({
+        ...p,
+        [fieldKey]: updatedList
+      }));
+
+      // If slider and matching design exists in subcollection, remove it as well
+      if (type === 'slider') {
+        const matchingDesign = categoryDesigns.find(d => 
+          (d.ref && quality.label && d.ref.toLowerCase() === quality.label.toLowerCase()) ||
+          (d.imageUrl && quality.imageUrl && d.imageUrl === quality.imageUrl)
+        );
+        if (matchingDesign) {
+          deleteDoc(doc(firestore, 'users', user.uid, 'categories', catId, 'designs', matchingDesign.id)).catch(() => {});
+        }
+      }
+
+      toast({ title: 'Qualité supprimée', description: quality.label || quality.nameFR });
+      if (editingQualityModal.open) {
+        setEditingQualityModal({ open: false, type: 'slider', originalQuality: null, form: {}, imageUploading: false });
+      }
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erreur suppression', description: err.message });
     }
   };
 
@@ -2025,6 +2202,7 @@ export default function CategoriesView({
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2060,11 +2238,33 @@ export default function CategoriesView({
                           <TableCell className="text-right text-[10px] font-black text-stone-800">
                             {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
                           </TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                                title="Modifier cette qualité"
+                                onClick={() => handleOpenEditQuality(pt, 'fabric')}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Supprimer cette qualité"
+                                onClick={() => handleDeleteQualityFromTable(pt, 'fabric')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {qualities.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                          <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
                             Aucune qualité définie — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
@@ -2174,6 +2374,7 @@ export default function CategoriesView({
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2229,11 +2430,33 @@ export default function CategoriesView({
                           <TableCell className="text-right text-[10px] font-black text-stone-800">
                             {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
                           </TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                                title="Modifier cette qualité"
+                                onClick={() => handleOpenEditQuality(pt, 'zipper')}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Supprimer cette qualité"
+                                onClick={() => handleDeleteQualityFromTable(pt, 'zipper')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {qualities.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={12} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                          <TableCell colSpan={13} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
                             Aucune qualité définie — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
@@ -2303,6 +2526,7 @@ export default function CategoriesView({
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2348,11 +2572,33 @@ export default function CategoriesView({
                           <TableCell className="text-right text-[10px] font-black text-stone-800">
                             {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
                           </TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-teal-600 hover:bg-teal-50 transition-colors"
+                                title="Modifier cette qualité"
+                                onClick={() => handleOpenEditQuality(pt, 'thread')}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Supprimer cette qualité"
+                                onClick={() => handleDeleteQualityFromTable(pt, 'thread')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {qualities.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                          <TableCell colSpan={10} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
                             Aucune qualité définie — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
@@ -2457,6 +2703,7 @@ export default function CategoriesView({
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
                         <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2570,11 +2817,33 @@ export default function CategoriesView({
                           <TableCell className="text-right text-[10px] font-black text-stone-800">
                             {pt.totalValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} $
                           </TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                title="Modifier cette qualité"
+                                onClick={() => handleOpenEditQuality(pt, 'slider')}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Supprimer cette qualité"
+                                onClick={() => handleDeleteQualityFromTable(pt, 'slider')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {qualities.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                          <TableCell colSpan={10} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
                             Aucune qualité ni design défini — ouvrez Config & Douane pour en ajouter
                           </TableCell>
                         </TableRow>
@@ -4361,6 +4630,515 @@ export default function CategoriesView({
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
                 onClick={handleSaveRenameGenCat}
               >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal Modifier une Qualité Individuelle ── */}
+      <Dialog 
+        open={editingQualityModal.open} 
+        onOpenChange={(open) => {
+          if (!open) setEditingQualityModal(p => ({ ...p, open: false }));
+        }}
+      >
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-white border border-stone-200 shadow-2xl rounded-3xl z-[100]">
+          <DialogHeader className="p-6 pb-4 border-b border-stone-100 bg-stone-50/50">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
+                <Pencil className="w-4 h-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-black text-stone-900 uppercase tracking-wider">
+                  Modifier la qualité / modèle
+                </DialogTitle>
+                <p className="text-[10px] font-bold text-stone-400 mt-0.5">
+                  Ligne : <span className="uppercase text-amber-600 font-black">{editingQualityModal.type}</span> — Mise à jour directe
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            {/* Common Top Fields: Label & NameFR */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                  {editingQualityModal.type === 'slider' ? 'Référence / Modèle' : 'Qualité / Référence'}
+                </Label>
+                <Input
+                  className="h-9 text-xs font-bold rounded-xl border-stone-200 focus:border-stone-400"
+                  placeholder="ex: Modèle A, 40/2..."
+                  value={editingQualityModal.form.label || ''}
+                  onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, label: e.target.value } }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                  Désignation FR
+                </Label>
+                <Input
+                  className="h-9 text-xs font-bold rounded-xl border-stone-200 focus:border-stone-400"
+                  placeholder="ex: Curseur métal, Fil à coudre..."
+                  value={editingQualityModal.form.nameFR || ''}
+                  onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, nameFR: e.target.value } }))}
+                />
+              </div>
+            </div>
+
+            {/* Slider Specific Fields */}
+            {editingQualityModal.type === 'slider' && (
+              <div className="space-y-4 pt-1">
+                {/* Photo design upload & preview */}
+                <div className="space-y-1.5 p-3 rounded-2xl bg-stone-50 border border-stone-100">
+                  <Label className="text-[10px] font-black uppercase text-stone-600 tracking-wider flex items-center justify-between">
+                    <span>Photo du modèle / curseur</span>
+                    {editingQualityModal.imageUploading && (
+                      <span className="text-amber-600 flex items-center gap-1 text-[9px] lowercase font-semibold">
+                        <Loader2 className="w-3 h-3 animate-spin" /> chargement...
+                      </span>
+                    )}
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    {editingQualityModal.form.imageUrl ? (
+                      <div className="relative group w-14 h-14 rounded-xl border border-stone-200 overflow-hidden bg-white shadow-sm flex-shrink-0">
+                        <img
+                          src={editingQualityModal.form.imageUrl}
+                          alt="Design"
+                          className="w-full h-full object-contain p-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingQualityModal(p => ({ ...p, form: { ...p.form, imageUrl: '' } }))}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[9px] font-bold transition-opacity"
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center text-stone-400 flex-shrink-0 bg-white">
+                        <ImagePlus className="w-4 h-4" />
+                        <span className="text-[8px] font-bold uppercase mt-0.5">Photo</span>
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-[10px] font-black uppercase tracking-wider shadow-sm transition-colors">
+                          <ImagePlus className="w-3.5 h-3.5" />
+                          Choisir un fichier
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleEditQualityImageUpload(f);
+                            }}
+                          />
+                        </label>
+                        {editingQualityModal.form.imageUrl && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[10px] text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => setEditingQualityModal(p => ({ ...p, form: { ...p.form, imageUrl: '' } }))}
+                          >
+                            Supprimer la photo
+                          </Button>
+                        )}
+                      </div>
+                      <Input
+                        className="h-7 text-[10px] font-mono rounded-lg border-stone-200"
+                        placeholder="Ou coller une URL d'image..."
+                        value={editingQualityModal.form.imageUrl || ''}
+                        onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, imageUrl: e.target.value } }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Taille (ex: 3#, 5#...)
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 5#"
+                      value={editingQualityModal.form.size || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, size: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Grammage curseur (g)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 2.35"
+                      value={editingQualityModal.form.sliderWeightG ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, sliderWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Pcs / Sachet
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 2000"
+                      value={editingQualityModal.form.pcsPerBag ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, pcsPerBag: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Sachets / Carton
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 10"
+                      value={editingQualityModal.form.bagsPerCarton ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, bagsPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Thread Specific Fields */}
+            {editingQualityModal.type === 'thread' && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Poids cône (g)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 10"
+                      value={editingQualityModal.form.coneWeightG ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, coneWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Poids fil (g)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 140"
+                      value={editingQualityModal.form.threadWeightG ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, threadWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Longueur / pièce
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 5000"
+                      value={editingQualityModal.form.lengthPerPiece ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, lengthPerPiece: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Unité
+                    </Label>
+                    <Select
+                      value={editingQualityModal.form.lengthUnit || 'm'}
+                      onValueChange={v => setEditingQualityModal(p => ({ ...p, form: { ...p.form, lengthUnit: v } }))}
+                    >
+                      <SelectTrigger className="h-9 text-xs font-bold rounded-xl border-stone-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="m">Mètres (m)</SelectItem>
+                        <SelectItem value="y">Yards (y)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Cônes / Sachet
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 12"
+                      value={editingQualityModal.form.pcsPerBag ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, pcsPerBag: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Sachets / Carton
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 10"
+                      value={editingQualityModal.form.bagsPerCarton ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, bagsPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Zipper Specific Fields */}
+            {editingQualityModal.type === 'zipper' && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Longueur (ex: 20cm, 50cm)
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 20cm"
+                      value={editingQualityModal.form.length || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, length: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Type de chaîne
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: Nylon, Métal, Plastique..."
+                      value={editingQualityModal.form.zipperType || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, zipperType: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Modèle curseur
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: Curseur standard"
+                      value={editingQualityModal.form.slider || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, slider: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Type curseur
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: Auto-lock, Non-lock..."
+                      value={editingQualityModal.form.sliderType || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, sliderType: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Poids ruban (g/m)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 15"
+                      value={editingQualityModal.form.tapeWeightGsm ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, tapeWeightGsm: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Poids curseur (g)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 2.5"
+                      value={editingQualityModal.form.sliderWeightG ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, sliderWeightG: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Pcs / Sachet
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 100"
+                      value={editingQualityModal.form.pcsPerBag ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, pcsPerBag: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Sachets / Carton
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 20"
+                      value={editingQualityModal.form.bagsPerCarton ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, bagsPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Fabric Specific Fields */}
+            {editingQualityModal.type === 'fabric' && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Grammage (g/m²)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 180"
+                      value={editingQualityModal.form.gsm ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, gsm: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Laize / Largeur (cm)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 150"
+                      value={editingQualityModal.form.fabricWidth ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, fabricWidth: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Longueur du rouleau
+                    </Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 100"
+                      value={editingQualityModal.form.rollLength ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollLength: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Unité
+                    </Label>
+                    <Select
+                      value={editingQualityModal.form.rollLengthUnit || 'm'}
+                      onValueChange={v => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollLengthUnit: v } }))}
+                    >
+                      <SelectTrigger className="h-9 text-xs font-bold rounded-xl border-stone-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="m">Mètres (m)</SelectItem>
+                        <SelectItem value="y">Yards (y)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                    Rouleaux / Sachet ou Conditionnement
+                  </Label>
+                  <Input
+                    type="number"
+                    className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                    placeholder="ex: 1"
+                    value={editingQualityModal.form.packagingPerBag ?? ''}
+                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, packagingPerBag: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-stone-100 bg-stone-50/50 flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 font-bold text-xs gap-1.5 rounded-xl"
+              onClick={() => {
+                if (confirm('Voulez-vous vraiment supprimer cette qualité ?')) {
+                  handleDeleteQualityFromTable(editingQualityModal.originalQuality, editingQualityModal.type);
+                }
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Supprimer
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 text-xs font-bold rounded-xl text-stone-600 hover:bg-stone-100"
+                onClick={() => setEditingQualityModal(p => ({ ...p, open: false }))}
+              >
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-9 px-5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md gap-1.5"
+                onClick={handleSaveEditedQuality}
+                disabled={editingQualityModal.imageUploading}
+              >
+                {editingQualityModal.imageUploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                )}
                 Enregistrer
               </Button>
             </div>
