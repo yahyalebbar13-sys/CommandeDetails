@@ -109,7 +109,7 @@ export function getArticleFrenchName(
     matchedPrefixCategoryName = category.name || '';
   }
 
-  // 3. Quality match (zipper or fabric)
+  // 3. Quality match (zipper, fabric, or thread)
   const artQuality = (article.quality || '').trim().toLowerCase();
   const matchedZipperQ = category?.zipperQualities?.find(
     (q: any) =>
@@ -119,7 +119,13 @@ export function getArticleFrenchName(
   const matchedFabricQ = category?.fabricQualities?.find(
     (q: any) => artQuality && q.label?.toLowerCase() === artQuality
   );
-  const qualityNameFR = matchedZipperQ?.nameFR || matchedFabricQ?.nameFR;
+  const matchedThreadQ = category?.threadQualities?.find(
+    (q: any) =>
+      (artQuality && q.label?.toLowerCase() === artQuality) ||
+      (q.coneWeightG && article.coneWeightG && String(q.coneWeightG) === String(article.coneWeightG) &&
+       q.threadWeightG && article.threadWeightG && String(q.threadWeightG) === String(article.threadWeightG))
+  );
+  const qualityNameFR = matchedZipperQ?.nameFR || matchedFabricQ?.nameFR || matchedThreadQ?.nameFR;
 
   if (qualityNameFR && typeof qualityNameFR === 'string' && qualityNameFR.trim()) {
     return qualityNameFR.trim();

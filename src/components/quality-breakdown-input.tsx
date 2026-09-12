@@ -18,6 +18,7 @@ interface QualityBreakdownInputProps {
   availableQualities?: any[];
   isFabric?: boolean;
   isZipper?: boolean;
+  isThread?: boolean;
 }
 
 /**
@@ -69,6 +70,9 @@ function parsePastedQualities(raw: string, availableQualities?: any[]): QualityB
       ...(matched?.sliderWeightG ? { sliderWeightG: matched.sliderWeightG } : {}),
       ...(matched?.pcsPerBag ? { pcsPerBag: matched.pcsPerBag } : {}),
       ...(matched?.bagsPerCarton ? { bagsPerCarton: matched.bagsPerCarton } : {}),
+      ...(matched?.coneWeightG ? { coneWeightG: matched.coneWeightG } : {}),
+      ...(matched?.threadWeightG ? { threadWeightG: matched.threadWeightG } : {}),
+      ...(matched?.lengthPerPiece ? { lengthPerPiece: matched.lengthPerPiece, lengthUnit: matched.lengthUnit || 'm' } : {}),
     };
 
     rows.push(row);
@@ -182,6 +186,11 @@ export default function QualityBreakdownInput({
         sliderWeightG: qObj.sliderWeightG || undefined,
         pcsPerBag: qObj.pcsPerBag || undefined,
         bagsPerCarton: qObj.bagsPerCarton || undefined,
+        // Thread attributes
+        coneWeightG: qObj.coneWeightG || undefined,
+        threadWeightG: qObj.threadWeightG || undefined,
+        lengthPerPiece: qObj.lengthPerPiece || undefined,
+        lengthUnit: qObj.lengthUnit || 'm',
       };
     });
     setRows(next);
@@ -243,6 +252,9 @@ export default function QualityBreakdownInput({
       ...(nextUnused.sliderWeightG ? { sliderWeightG: nextUnused.sliderWeightG } : {}),
       ...(nextUnused.pcsPerBag ? { pcsPerBag: nextUnused.pcsPerBag } : {}),
       ...(nextUnused.bagsPerCarton ? { bagsPerCarton: nextUnused.bagsPerCarton } : {}),
+      ...(nextUnused.coneWeightG ? { coneWeightG: nextUnused.coneWeightG } : {}),
+      ...(nextUnused.threadWeightG ? { threadWeightG: nextUnused.threadWeightG } : {}),
+      ...(nextUnused.lengthPerPiece ? { lengthPerPiece: nextUnused.lengthPerPiece, lengthUnit: nextUnused.lengthUnit || 'm' } : {}),
     } : { quality: '', quantity: 0, priceOverride: '' };
 
     const next = [...rows, newRow];
@@ -405,6 +417,9 @@ export default function QualityBreakdownInput({
                           {row.sliderWeightG && <span className="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[8px] font-black">{row.sliderWeightG}g/pc</span>}
                           {row.pcsPerBag && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">{row.pcsPerBag} pcs/bag</span>}
                           {row.bagsPerCarton && <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{row.bagsPerCarton} bags/ctn</span>}
+                          {row.coneWeightG && <span className="px-1.5 py-0.2 rounded bg-teal-100 text-teal-700 text-[8px] font-black">Cône: {row.coneWeightG}g</span>}
+                          {row.threadWeightG && <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">Fil: {row.threadWeightG}g</span>}
+                          {row.lengthPerPiece && <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{row.lengthPerPiece}{row.lengthUnit || 'm'}/pc</span>}
                         </div>
                       </div>
 

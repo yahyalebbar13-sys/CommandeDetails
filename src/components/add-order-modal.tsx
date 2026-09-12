@@ -27,7 +27,7 @@ import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-inp
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -70,6 +70,11 @@ const EMPTY_FORM = {
   sliderWeightG: '' as string | number,
   pcsPerBag: '' as string | number,
   bagsPerCarton: '' as string | number,
+  // Thread fields
+  coneWeightG: '' as string | number,
+  threadWeightG: '' as string | number,
+  lengthPerPiece: '' as string | number,
+  lengthUnit: 'm' as 'm' | 'yds',
 };
 
 export function AddOrderForm({ 
@@ -131,6 +136,9 @@ export function AddOrderForm({
         fabricWidth: formData.fabricWidth,
         tapeWeightGsm: formData.tapeWeightGsm,
         sliderWeightG: formData.sliderWeightG,
+        coneWeightG: formData.coneWeightG,
+        threadWeightG: formData.threadWeightG,
+        lengthPerPiece: formData.lengthPerPiece,
       },
       allArticles || []
     );
@@ -146,6 +154,9 @@ export function AddOrderForm({
     formData.fabricWidth,
     formData.tapeWeightGsm,
     formData.sliderWeightG,
+    formData.coneWeightG,
+    formData.threadWeightG,
+    formData.lengthPerPiece,
     allArticles
   ]);
 
@@ -201,6 +212,9 @@ export function AddOrderForm({
         ...(q.sliderWeightG ? { sliderWeightG: q.sliderWeightG } : {}),
         ...(q.pcsPerBag ? { pcsPerBag: q.pcsPerBag } : {}),
         ...(q.bagsPerCarton ? { bagsPerCarton: q.bagsPerCarton } : {}),
+        ...(q.coneWeightG ? { coneWeightG: q.coneWeightG } : {}),
+        ...(q.threadWeightG ? { threadWeightG: q.threadWeightG } : {}),
+        ...(q.lengthPerPiece ? { lengthPerPiece: q.lengthPerPiece, lengthUnit: q.lengthUnit || 'm' } : {}),
       }));
     } else if (rows && rows.length > 1) {
       setFormData((p: any) => ({ ...p, quantity: total, quality: 'VARIOUS' }));
@@ -313,6 +327,35 @@ export function AddOrderForm({
       .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx);
   }, [formData.categoryId, selectedGenCatId, subCategories, generalCategories]);
 
+  // ── Thread detection — check pôle line, specType, keywords ──
+  const isThread = useMemo(() => {
+    let genCatId = selectedGenCatId;
+    if (!genCatId && formData.categoryId) {
+      const cat = (subCategories || []).find((sc: any) => sc.name === formData.categoryId);
+      if (cat) genCatId = cat.generalCategoryId;
+    }
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isThreadLineOrCategory(formData.categoryId, genCat);
+  }, [selectedGenCatId, generalCategories, formData.categoryId, subCategories]);
+
+  const threadQualities = useMemo(() => {
+    if (!formData.categoryId && !selectedGenCatId) return [];
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData.categoryId || 
+      sc.id === formData.categoryId ||
+      (sc.name && formData.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || cat?.generalCategoryId;
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
+    const raw = [
+      ...(Array.isArray(cat?.threadQualities) ? cat.threadQualities : []),
+      ...(Array.isArray(genCat?.threadQualities) ? genCat.threadQualities : [])
+    ];
+    return raw
+      .filter((q: any) => Boolean(q && (q.label || q.coneWeightG || q.threadWeightG || q.lengthPerPiece || q.pcsPerBag || q.bagsPerCarton || q.nameFR)))
+      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.coneWeightG === q.coneWeightG && x.threadWeightG === q.threadWeightG && x.lengthPerPiece === q.lengthPerPiece)) === idx);
+  }, [formData.categoryId, selectedGenCatId, subCategories, generalCategories]);
+
   // Validation
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -380,6 +423,11 @@ export function AddOrderForm({
       sliderWeightG: formData.sliderWeightG ? Number(formData.sliderWeightG) : null,
       pcsPerBag: formData.pcsPerBag ? Number(formData.pcsPerBag) : null,
       bagsPerCarton: formData.bagsPerCarton ? Number(formData.bagsPerCarton) : null,
+      // Thread fields — numbers or strings, null if empty
+      coneWeightG: (formData.coneWeightG !== '' && formData.coneWeightG != null) ? (isNaN(Number(formData.coneWeightG)) ? String(formData.coneWeightG).trim() : Number(formData.coneWeightG)) : null,
+      threadWeightG: (formData.threadWeightG !== '' && formData.threadWeightG != null) ? (isNaN(Number(formData.threadWeightG)) ? String(formData.threadWeightG).trim() : Number(formData.threadWeightG)) : null,
+      lengthPerPiece: (formData.lengthPerPiece !== '' && formData.lengthPerPiece != null) ? (isNaN(Number(formData.lengthPerPiece)) ? String(formData.lengthPerPiece).trim() : Number(formData.lengthPerPiece)) : null,
+      lengthUnit: formData.lengthPerPiece ? (formData.lengthUnit || 'm') : null,
     };
 
     if (isInventoryMode) {
@@ -417,6 +465,9 @@ export function AddOrderForm({
           ...(firstRow.sliderWeightG ? { sliderWeightG: firstRow.sliderWeightG } : {}),
           ...(firstRow.pcsPerBag ? { pcsPerBag: firstRow.pcsPerBag } : {}),
           ...(firstRow.bagsPerCarton ? { bagsPerCarton: firstRow.bagsPerCarton } : {}),
+          ...(firstRow.coneWeightG ? { coneWeightG: firstRow.coneWeightG } : {}),
+          ...(firstRow.threadWeightG ? { threadWeightG: firstRow.threadWeightG } : {}),
+          ...(firstRow.lengthPerPiece ? { lengthPerPiece: firstRow.lengthPerPiece, lengthUnit: firstRow.lengthUnit || 'm' } : {}),
         } : {};
 
         setDocumentNonBlocking(
@@ -936,8 +987,142 @@ export function AddOrderForm({
                 </div>
               )}
             </div>
+          ) : isThread ? (
+            /* CAS 3: Pôle Thread */
+            <div className="space-y-3 p-4 rounded-2xl bg-teal-50/50 border border-teal-100">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Qualité Thread */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-teal-700 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="text-xs">🪡</span> Qualité Thread
+                  </Label>
+                  {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                  ) : threadQualities.length > 0 ? (
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = threadQualities.find((x: any) => x.label === v) || threadQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            coneWeightG: q.coneWeightG ?? p.coneWeightG,
+                            threadWeightG: q.threadWeightG ?? p.threadWeightG,
+                            lengthPerPiece: q.lengthPerPiece ?? p.lengthPerPiece,
+                            lengthUnit: q.lengthUnit || p.lengthUnit || 'm',
+                            pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                            bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 border-teal-200 bg-white font-bold rounded-xl text-teal-800">
+                        <SelectValue placeholder="Choisir une qualité..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.quality && !threadQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
+                        {threadQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-[9px] font-bold text-stone-400 italic py-2">
+                      Aucune qualité définie dans Config & Douane
+                    </p>
+                  )}
+                </div>
+
+                {/* Couleur Thread */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
+                    <Palette className="w-3 h-3" /> Couleur
+                  </Label>
+                  {colorBreakdown && colorBreakdown.length > 0 ? (
+                    <div className="h-11 border border-violet-200 bg-violet-50 rounded-xl flex items-center px-3">
+                      <span className="text-[9px] font-black text-violet-700 uppercase">VARIOUS</span>
+                    </div>
+                  ) : (
+                    <Select value={formData.color} onValueChange={v => setFormData((p: any) => ({ ...p, color: v }))}>
+                      <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLORS.map(c => <SelectItem key={c} value={c} className="font-bold uppercase">{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+
+              {/* Badges résumant la qualité choisie */}
+              {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                    {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                  </span>
+                </div>
+              ) : (formData.coneWeightG || formData.threadWeightG || formData.lengthPerPiece || formData.pcsPerBag || formData.bagsPerCarton) && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {formData.coneWeightG && <span className="px-2 py-1 rounded-lg bg-teal-100 text-teal-800 text-[10px] font-black">Cône: {formData.coneWeightG}g</span>}
+                  {formData.threadWeightG && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">Fil: {formData.threadWeightG}g</span>}
+                  {formData.lengthPerPiece && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Longueur: {formData.lengthPerPiece}{formData.lengthUnit || 'm'}/pc</span>}
+                  {formData.pcsPerBag && <span className="px-2 py-1 rounded-lg bg-cyan-100 text-cyan-800 text-[10px] font-black">{formData.pcsPerBag} pcs/bag</span>}
+                  {formData.bagsPerCarton && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black">{formData.bagsPerCarton} bags/ctn</span>}
+                </div>
+              )}
+
+              {/* Fallback uniquement si aucune qualité définie */}
+              {threadQualities.length === 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Cône (g)</Label>
+                      <Input placeholder="Ex: 10g" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.coneWeightG || ''} onChange={e => setFormData((p: any) => ({ ...p, coneWeightG: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Fil (g)</Label>
+                      <Input placeholder="Ex: 40/2 ou 100g" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.threadWeightG || ''} onChange={e => setFormData((p: any) => ({ ...p, threadWeightG: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur / pcs</Label>
+                      <div className="flex gap-1">
+                        <Input placeholder="Ex: 5000" className="h-11 border-stone-200 font-bold rounded-xl flex-1"
+                          value={formData.lengthPerPiece || ''} onChange={e => setFormData((p: any) => ({ ...p, lengthPerPiece: e.target.value }))} />
+                        <Select value={formData.lengthUnit || 'm'} onValueChange={v => setFormData((p: any) => ({ ...p, lengthUnit: v }))}>
+                          <SelectTrigger className="w-[65px] h-11 border-stone-200 bg-stone-50 font-bold rounded-xl px-2"><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="m" className="font-bold">m</SelectItem><SelectItem value="yds" className="font-bold">yds</SelectItem></SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pcs par Bag</Label>
+                      <Input type="number" step="any" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.pcsPerBag || ''} onChange={e => setFormData((p: any) => ({ ...p, pcsPerBag: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Bags par Carton</Label>
+                      <Input type="number" step="any" placeholder="Ex: 10" className="h-11 border-stone-200 font-bold rounded-xl"
+                        value={formData.bagsPerCarton || ''} onChange={e => setFormData((p: any) => ({ ...p, bagsPerCarton: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
-            /* CAS 3: Autres pôles (standard) */
+            /* CAS 4: Autres pôles (standard) */
             <div className="grid grid-cols-2 gap-3">
               {/* Taille */}
               <div className="space-y-1.5">
@@ -1023,9 +1208,10 @@ export function AddOrderForm({
             value={qualityBreakdown}
             onChange={handleQualityBreakdownChange}
             unit={formData.unitOfMeasure}
-            availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : []}
+            availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : []}
             isFabric={isFabric}
             isZipper={isZipper}
+            isThread={isThread}
           />
 
           {/* ── Section 3b: Tailles Multi ──────────────────────────────────── */}

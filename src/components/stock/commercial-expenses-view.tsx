@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@/lib/types';
 import { exportReportPDF } from '@/lib/pdf-export-reports';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory } from '@/lib/constants';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -109,6 +109,12 @@ export default function CommercialExpensesView({
   const [selectedRollLength, setSelectedRollLength] = useState<string>('');
   const [selectedRollLengthUnit, setSelectedRollLengthUnit] = useState<'m' | 'yds'>('m');
   const [selectedPackagingPerBag, setSelectedPackagingPerBag] = useState<string>('');
+  const [selectedConeWeightG, setSelectedConeWeightG] = useState<string>('');
+  const [selectedThreadWeightG, setSelectedThreadWeightG] = useState<string>('');
+  const [selectedLengthPerPiece, setSelectedLengthPerPiece] = useState<string>('');
+  const [selectedLengthUnit, setSelectedLengthUnit] = useState<'m' | 'yds'>('m');
+  const [selectedPcsPerBag, setSelectedPcsPerBag] = useState<string>('');
+  const [selectedBagsPerCarton, setSelectedBagsPerCarton] = useState<string>('');
   const [isManualArticle, setIsManualArticle] = useState(false);
   const [newArticleName, setNewArticleName] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
@@ -186,6 +192,16 @@ export default function CommercialExpensesView({
     return isFabricLineOrCategory(selectedCategoryName, genCat);
   }, [selectedGenCatId, generalCategories, selectedCategoryName, categories]);
 
+  const isThread = useMemo(() => {
+    let genCatId = selectedGenCatId;
+    if (!genCatId && selectedCategoryName) {
+      const cat = (categories || []).find((sc: any) => sc.name === selectedCategoryName);
+      if (cat) genCatId = cat.generalCategoryId;
+    }
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isThreadLineOrCategory(selectedCategoryName, genCat);
+  }, [selectedGenCatId, generalCategories, selectedCategoryName, categories]);
+
   const selectedSubCat = useMemo(() => {
     return (categories || []).find((sc: any) => sc.name === selectedCategoryName);
   }, [categories, selectedCategoryName]);
@@ -196,6 +212,10 @@ export default function CommercialExpensesView({
 
   const zipperQualities = useMemo(() => {
     return Array.isArray(selectedSubCat?.zipperQualities) ? selectedSubCat.zipperQualities : [];
+  }, [selectedSubCat]);
+
+  const threadQualities = useMemo(() => {
+    return Array.isArray(selectedSubCat?.threadQualities) ? selectedSubCat.threadQualities : [];
   }, [selectedSubCat]);
 
   const availableSizes = useMemo(() => {
@@ -241,13 +261,17 @@ export default function CommercialExpensesView({
       if (selectedSize) parts.push(selectedSize);
       if (selectedZipperType) parts.push(selectedZipperType);
       if (selectedSlider) parts.push(`Curseur ${selectedSlider}`);
+    } else if (isThread) {
+      if (selectedConeWeightG) parts.push(`Cône ${selectedConeWeightG}g`);
+      if (selectedThreadWeightG) parts.push(`Fil ${selectedThreadWeightG}g`);
+      if (selectedLengthPerPiece) parts.push(`${selectedLengthPerPiece}${selectedLengthUnit || 'm'}`);
     } else {
       if (selectedSize) parts.push(selectedSize);
       if (selectedSpecs) parts.push(selectedSpecs);
     }
     if (selectedColor && selectedColor !== 'various') parts.push(selectedColor.toUpperCase());
     return parts.join(' · ');
-  }, [isManualArticle, newArticleName, selectedCategoryName, isFabric, isZipper, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedSpecs, selectedColor]);
+  }, [isManualArticle, newArticleName, selectedCategoryName, isFabric, isZipper, isThread, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedConeWeightG, selectedThreadWeightG, selectedLengthPerPiece, selectedLengthUnit, selectedSpecs, selectedColor]);
 
   // Handler de sélection d'une sous-catégorie
   const handleSelectSubCategory = (catName: string) => {
@@ -1101,6 +1125,72 @@ export default function CommercialExpensesView({
                                 </Label>
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
                                   <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-60">
+                                    {COLORS.map(c => (
+                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </div>
+                        ) : isThread ? (
+                          /* CAS THREAD */
+                          <div className="space-y-3 p-3.5 rounded-2xl bg-white/80 border border-teal-200">
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Qualité Thread */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-teal-900 uppercase tracking-wider flex items-center gap-1">
+                                  <span className="text-xs">🪡</span> Qualité Thread
+                                </Label>
+                                {threadQualities.length > 0 ? (
+                                  <Select onValueChange={v => {
+                                    const q = threadQualities[Number(v)];
+                                    if (q) {
+                                      setSelectedConeWeightG(q.coneWeightG ? String(q.coneWeightG) : '');
+                                      setSelectedThreadWeightG(q.threadWeightG ? String(q.threadWeightG) : '');
+                                      setSelectedLengthPerPiece(q.lengthPerPiece ? String(q.lengthPerPiece) : '');
+                                      setSelectedLengthUnit(q.lengthUnit || 'm');
+                                      setSelectedPcsPerBag(q.pcsPerBag ? String(q.pcsPerBag) : '');
+                                      setSelectedBagsPerCarton(q.bagsPerCarton ? String(q.bagsPerCarton) : '');
+                                    }
+                                  }}>
+                                    <SelectTrigger className="h-9 border-teal-200 bg-white font-bold rounded-xl text-xs text-teal-900">
+                                      <SelectValue placeholder="Choisir une qualité..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {threadQualities.map((q: any, i: number) => (
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <Input
+                                      placeholder="Cône (ex: 10g)"
+                                      value={selectedConeWeightG}
+                                      onChange={e => setSelectedConeWeightG(e.target.value)}
+                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                    />
+                                    <Input
+                                      placeholder="Fil (ex: 100g)"
+                                      value={selectedThreadWeightG}
+                                      onChange={e => setSelectedThreadWeightG(e.target.value)}
+                                      className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Couleur Thread */}
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-black text-teal-900 uppercase tracking-wider flex items-center gap-1">
+                                  <Palette className="w-3 h-3 text-teal-600" /> Couleur
+                                </Label>
+                                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                                  <SelectTrigger className="h-9 border-teal-200 bg-white font-bold rounded-xl text-xs uppercase">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">

@@ -17,7 +17,7 @@ export type GeneralCategory = {
   name: string;
   nameFR?: string;
   line?: string;
-  specType?: 'fabric' | 'zipper' | 'none';
+  specType?: 'fabric' | 'zipper' | 'thread' | 'none';
   fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   zipperQualities?: {
     label: string;
@@ -28,6 +28,16 @@ export type GeneralCategory = {
     sliderType?: string;
     tapeWeightGsm?: number;
     sliderWeightG?: number;
+    pcsPerBag?: number;
+    bagsPerCarton?: number;
+  }[];
+  threadQualities?: {
+    label: string;
+    nameFR?: string;
+    coneWeightG?: number | string;
+    threadWeightG?: number | string;
+    lengthPerPiece?: number | string;
+    lengthUnit?: string;
     pcsPerBag?: number;
     bagsPerCarton?: number;
   }[];
@@ -61,6 +71,17 @@ export type Category = {
     pcsPerBag?: number;        // Nombre de pcs/bag
     bagsPerCarton?: number;    // Nombre de bags/ctn
   }[];
+  // Thread config
+  threadQualities?: {
+    label: string;
+    nameFR?: string;           // Nom commercial / français pour la vente
+    coneWeightG?: number | string;  // Grammage cône (g)
+    threadWeightG?: number | string; // Grammage fil (g)
+    lengthPerPiece?: number | string; // Longueur par pièce
+    lengthUnit?: string;       // Unité de longueur ('m', 'yds')
+    pcsPerBag?: number;        // Nombre de pcs/bag
+    bagsPerCarton?: number;    // Nombre de bags/ctn
+  }[];
 };
 
 export interface QualityBreakdownRow {
@@ -83,6 +104,11 @@ export interface QualityBreakdownRow {
   sliderWeightG?: number;
   pcsPerBag?: number;
   bagsPerCarton?: number;
+  // Attributs Thread
+  coneWeightG?: number | string;
+  threadWeightG?: number | string;
+  lengthPerPiece?: number | string;
+  lengthUnit?: string;
 }
 
 export type Order = {
@@ -126,6 +152,11 @@ export type Order = {
   sliderWeightG?: number;     // Poids du curseur/pcs
   pcsPerBag?: number;         // Nombre de pcs/bag
   bagsPerCarton?: number;     // Nombre de bags/ctn
+  // Thread-specific fields
+  coneWeightG?: number | string;     // Grammage cône (g)
+  threadWeightG?: number | string;   // Grammage fil (g)
+  lengthPerPiece?: number | string;  // Longueur par pièce
+  lengthUnit?: string;               // Unité de longueur ('m', 'yds')
 };
 
 export type Facture = {
@@ -178,6 +209,13 @@ export type StockMovement = {
   zipperType?: string;
   slider?: string;
   unitOfMeasure: string;
+  // Thread attributes
+  coneWeightG?: number | string;
+  threadWeightG?: number | string;
+  lengthPerPiece?: number | string;
+  lengthUnit?: string;
+  pcsPerBag?: number;
+  bagsPerCarton?: number;
   type: StockMovementType;
   reason: StockMovementReason;
   storeId?: StoreLocation;
@@ -212,6 +250,11 @@ export type StockItem = {
   sliderWeightG?: number;
   pcsPerBag?: number;
   bagsPerCarton?: number;
+  // Thread attributes
+  coneWeightG?: number | string;
+  threadWeightG?: number | string;
+  lengthPerPiece?: number | string;
+  lengthUnit?: string;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
   hasTTCCost?: boolean;           // true si coût de revient TTC calculé, false si FOB estimé

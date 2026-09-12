@@ -27,7 +27,7 @@ import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-inp
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -141,6 +141,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         ...(q.sliderWeightG ? { sliderWeightG: q.sliderWeightG } : {}),
         ...(q.pcsPerBag ? { pcsPerBag: q.pcsPerBag } : {}),
         ...(q.bagsPerCarton ? { bagsPerCarton: q.bagsPerCarton } : {}),
+        ...(q.coneWeightG ? { coneWeightG: q.coneWeightG } : {}),
+        ...(q.threadWeightG ? { threadWeightG: q.threadWeightG } : {}),
+        ...(q.lengthPerPiece ? { lengthPerPiece: q.lengthPerPiece, lengthUnit: q.lengthUnit || 'm' } : {}),
       } : p);
     } else if (rows && rows.length > 1) {
       setFormData((p: any) => p ? { ...p, quantity: total, quality: 'VARIOUS' } : p);
@@ -181,6 +184,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         sliderWeightG: article.sliderWeightG ?? '',
         pcsPerBag: article.pcsPerBag ?? '',
         bagsPerCarton: article.bagsPerCarton ?? '',
+        coneWeightG: article.coneWeightG ?? '',
+        threadWeightG: article.threadWeightG ?? '',
+        lengthPerPiece: article.lengthPerPiece ?? '',
+        lengthUnit: article.lengthUnit || 'm',
         gsm: article.gsm ?? '',
         fabricWidth: article.fabricWidth ?? '',
         rollLength: article.rollLength ?? '',
@@ -396,6 +403,34 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.length === q.length && x.zipperType === q.zipperType && x.slider === q.slider)) === idx);
   }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
+  const isThread = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isThreadLineOrCategory(formData?.categoryId, genCat);
+  }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
+
+  const threadQualities = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = (generalCategories || []).find((gc: any) => gc.id === genCatId);
+    const raw = [
+      ...(Array.isArray(cat?.threadQualities) ? cat.threadQualities : []),
+      ...(Array.isArray(genCat?.threadQualities) ? genCat.threadQualities : [])
+    ];
+    return raw
+      .filter((q: any) => Boolean(q && (q.label || q.coneWeightG || q.threadWeightG || q.lengthPerPiece || q.pcsPerBag || q.bagsPerCarton || q.nameFR)))
+      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.coneWeightG === q.coneWeightG && x.threadWeightG === q.threadWeightG && x.lengthPerPiece === q.lengthPerPiece)) === idx);
+  }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
+
   const lastOrderInfo = useMemo(() => {
     if (!formData?.categoryId && !article?.name) return null;
     return findLastOrderPrice(
@@ -415,6 +450,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         sliderWeightG: formData?.sliderWeightG,
         pcsPerBag: formData?.pcsPerBag,
         bagsPerCarton: formData?.bagsPerCarton,
+        coneWeightG: formData?.coneWeightG,
+        threadWeightG: formData?.threadWeightG,
+        lengthPerPiece: formData?.lengthPerPiece,
       },
       allArticles || []
     );
@@ -435,6 +473,9 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     formData?.sliderWeightG,
     formData?.pcsPerBag,
     formData?.bagsPerCarton,
+    formData?.coneWeightG,
+    formData?.threadWeightG,
+    formData?.lengthPerPiece,
     allArticles
   ]);
 
@@ -482,6 +523,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       sliderWeightG: (rawFormData.sliderWeightG !== '' && rawFormData.sliderWeightG != null && !isNaN(Number(rawFormData.sliderWeightG))) ? Number(rawFormData.sliderWeightG) : null,
       pcsPerBag: (rawFormData.pcsPerBag !== '' && rawFormData.pcsPerBag != null && !isNaN(Number(rawFormData.pcsPerBag))) ? Number(rawFormData.pcsPerBag) : null,
       bagsPerCarton: (rawFormData.bagsPerCarton !== '' && rawFormData.bagsPerCarton != null && !isNaN(Number(rawFormData.bagsPerCarton))) ? Number(rawFormData.bagsPerCarton) : null,
+      coneWeightG: (rawFormData.coneWeightG !== '' && rawFormData.coneWeightG != null) ? (isNaN(Number(rawFormData.coneWeightG)) ? String(rawFormData.coneWeightG).trim() : Number(rawFormData.coneWeightG)) : null,
+      threadWeightG: (rawFormData.threadWeightG !== '' && rawFormData.threadWeightG != null) ? (isNaN(Number(rawFormData.threadWeightG)) ? String(rawFormData.threadWeightG).trim() : Number(rawFormData.threadWeightG)) : null,
+      lengthPerPiece: (rawFormData.lengthPerPiece !== '' && rawFormData.lengthPerPiece != null) ? (isNaN(Number(rawFormData.lengthPerPiece)) ? String(rawFormData.lengthPerPiece).trim() : Number(rawFormData.lengthPerPiece)) : null,
+      lengthUnit: rawFormData.lengthPerPiece ? (rawFormData.lengthUnit || 'm') : null,
     };
     
     let isSplit = false;
@@ -1217,18 +1262,167 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             )}
 
+            {/* ── Thread fields & qualities ── */}
+            {isThread && (
+              <div className="space-y-3 p-4 rounded-2xl bg-teal-50/50 border border-teal-100 md:col-span-2">
+                <p className="text-[9px] font-black text-teal-700 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="text-xs">🪡</span> Spécifications Thread (Fil)
+                </p>
+                {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-teal-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <Settings2 className="w-3 h-3" /> Qualité Thread
+                    </Label>
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pcs'})
+                      </span>
+                    </div>
+                  </div>
+                ) : threadQualities.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-teal-700 uppercase tracking-widest">Qualité Thread Fixe</Label>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = threadQualities.find((x: any) => x.label === v) || threadQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            coneWeightG: q.coneWeightG ?? p.coneWeightG,
+                            threadWeightG: q.threadWeightG ?? p.threadWeightG,
+                            lengthPerPiece: q.lengthPerPiece ?? p.lengthPerPiece,
+                            lengthUnit: q.lengthUnit || p.lengthUnit || 'm',
+                            pcsPerBag: q.pcsPerBag ?? p.pcsPerBag,
+                            bagsPerCarton: q.bagsPerCarton ?? p.bagsPerCarton,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        } else {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: v,
+                            qualityLabel: v,
+                            specs: p.specs ? p.specs : v,
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 border-teal-200 bg-white font-bold rounded-xl text-teal-800">
+                        <SelectValue placeholder="Choisir une qualité Thread..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.quality && !threadQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
+                        {threadQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">{q.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
+                {/* Show current values as badges */}
+                {!qualityBreakdown && (formData.coneWeightG || formData.threadWeightG || formData.lengthPerPiece || formData.pcsPerBag || formData.bagsPerCarton) && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {formData.coneWeightG && <span className="px-2 py-1 rounded-lg bg-teal-100 text-teal-800 text-[10px] font-black">Cône: {formData.coneWeightG}g</span>}
+                    {formData.threadWeightG && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">Fil: {formData.threadWeightG}g</span>}
+                    {formData.lengthPerPiece && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-700 text-[10px] font-black">Longueur: {formData.lengthPerPiece}{formData.lengthUnit || 'm'}/pc</span>}
+                    {formData.pcsPerBag && <span className="px-2 py-1 rounded-lg bg-cyan-100 text-cyan-800 text-[10px] font-black">{formData.pcsPerBag} pcs/bag</span>}
+                    {formData.bagsPerCarton && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black">{formData.bagsPerCarton} bags/ctn</span>}
+                  </div>
+                )}
+
+                {/* Fallback uniquement si aucune qualité n'est pré-définie */}
+                {threadQualities.length === 0 && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Cône (g)</Label>
+                        <Input
+                          placeholder="Ex: 10g"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.coneWeightG || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, coneWeightG: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grammage Fil (g)</Label>
+                        <Input
+                          placeholder="Ex: 40/2 ou 100g"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.threadWeightG || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, threadWeightG: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Longueur / pcs</Label>
+                        <div className="flex gap-1">
+                          <Input
+                            placeholder="Ex: 5000"
+                            className="h-11 border-stone-200 font-bold rounded-xl bg-white flex-1"
+                            value={formData.lengthPerPiece || ''}
+                            onChange={e => setFormData((p: any) => ({ ...p, lengthPerPiece: e.target.value }))}
+                          />
+                          <Select value={formData.lengthUnit || 'm'} onValueChange={v => setFormData((p: any) => ({ ...p, lengthUnit: v }))}>
+                            <SelectTrigger className="w-[65px] h-11 border-stone-200 bg-stone-50 font-bold rounded-xl px-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="m" className="font-bold">m</SelectItem>
+                              <SelectItem value="yds" className="font-bold">yds</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pcs par Bag</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 10"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.pcsPerBag || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, pcsPerBag: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Bags par Carton</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 10"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.bagsPerCarton || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, bagsPerCarton: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : 'Dtails Techniques / Spcifications'}
+                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
               </Label>
               <div className="flex gap-2">
                 <Input
                   value={formData.specs || ''}
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))}
                   className="h-12 border-stone-200 font-bold rounded-xl"
-                  placeholder={isZipper ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
+                  placeholder={isZipper || isThread ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
                 />
-                {!isZipper && (
+                {!isZipper && !isThread && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1440,9 +1634,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   value={qualityBreakdown}
                   onChange={handleQualityBreakdownChange}
                   unit={formData?.unitOfMeasure}
-                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : []}
+                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : []}
                   isFabric={isFabric}
                   isZipper={isZipper}
+                  isThread={isThread}
                 />
                 <ColorBreakdownInput
                   categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
