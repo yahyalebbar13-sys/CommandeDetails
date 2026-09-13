@@ -21,6 +21,7 @@ interface QualityBreakdownInputProps {
   isThread?: boolean;
   isSlider?: boolean;
   isTape?: boolean;
+  isAccessory?: boolean;
 }
 
 /**
@@ -80,6 +81,10 @@ function parsePastedQualities(raw: string, availableQualities?: any[]): QualityB
       ...(matched?.weightPerM ? { weightPerM: matched.weightPerM } : {}),
       ...(matched?.rollsPerShrink ? { rollsPerShrink: matched.rollsPerShrink } : {}),
       ...(matched?.rollsPerCarton ? { rollsPerCarton: matched.rollsPerCarton } : {}),
+      ...(matched?.thickness ? { thickness: matched.thickness } : {}),
+      ...(matched?.weightPerPiece ? { weightPerPiece: matched.weightPerPiece } : {}),
+      ...(matched?.pcsPerBox ? { pcsPerBox: matched.pcsPerBox } : {}),
+      ...(matched?.boxPerCarton ? { boxPerCarton: matched.boxPerCarton } : {}),
     };
 
     rows.push(row);
@@ -98,6 +103,7 @@ export default function QualityBreakdownInput({
   isThread,
   isSlider,
   isTape,
+  isAccessory,
 }: QualityBreakdownInputProps) {
   const [enabled, setEnabled] = useState<boolean>(!!value && value.length > 0);
   const [rows, setRows] = useState<QualityBreakdownRow[]>(value || []);
@@ -156,6 +162,10 @@ export default function QualityBreakdownInput({
         ...(initialQuality.weightPerM ? { weightPerM: initialQuality.weightPerM } : {}),
         ...(initialQuality.rollsPerShrink ? { rollsPerShrink: initialQuality.rollsPerShrink } : {}),
         ...(initialQuality.rollsPerCarton ? { rollsPerCarton: initialQuality.rollsPerCarton } : {}),
+        ...(initialQuality.thickness ? { thickness: initialQuality.thickness } : {}),
+        ...(initialQuality.weightPerPiece ? { weightPerPiece: initialQuality.weightPerPiece } : {}),
+        ...(initialQuality.pcsPerBox ? { pcsPerBox: initialQuality.pcsPerBox } : {}),
+        ...(initialQuality.boxPerCarton ? { boxPerCarton: initialQuality.boxPerCarton } : {}),
       } : { quality: '', quantity: 0, priceOverride: '' };
 
       const next = [initialRow];
@@ -212,6 +222,11 @@ export default function QualityBreakdownInput({
         weightPerM: qObj.weightPerM || undefined,
         rollsPerShrink: qObj.rollsPerShrink || undefined,
         rollsPerCarton: qObj.rollsPerCarton || undefined,
+        // Accessory attributes
+        thickness: qObj.thickness || undefined,
+        weightPerPiece: qObj.weightPerPiece || undefined,
+        pcsPerBox: qObj.pcsPerBox || undefined,
+        boxPerCarton: qObj.boxPerCarton || undefined,
       };
     });
     setRows(next);
@@ -280,6 +295,10 @@ export default function QualityBreakdownInput({
       ...(nextUnused.weightPerM ? { weightPerM: nextUnused.weightPerM } : {}),
       ...(nextUnused.rollsPerShrink ? { rollsPerShrink: nextUnused.rollsPerShrink } : {}),
       ...(nextUnused.rollsPerCarton ? { rollsPerCarton: nextUnused.rollsPerCarton } : {}),
+      ...(nextUnused.thickness ? { thickness: nextUnused.thickness } : {}),
+      ...(nextUnused.weightPerPiece ? { weightPerPiece: nextUnused.weightPerPiece } : {}),
+      ...(nextUnused.pcsPerBox ? { pcsPerBox: nextUnused.pcsPerBox } : {}),
+      ...(nextUnused.boxPerCarton ? { boxPerCarton: nextUnused.boxPerCarton } : {}),
     } : { quality: '', quantity: 0, priceOverride: '' };
 
     const next = [...rows, newRow];
@@ -462,6 +481,10 @@ export default function QualityBreakdownInput({
                           {row.weightPerM && <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">{row.weightPerM}g/m</span>}
                           {row.rollsPerShrink && <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{row.rollsPerShrink} rlx/shrink</span>}
                           {row.rollsPerCarton && <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 text-[8px] font-black">{row.rollsPerCarton} rlx/ctn</span>}
+                          {row.thickness && <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">Ép: {row.thickness}</span>}
+                          {row.weightPerPiece && <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{row.weightPerPiece}g/pc</span>}
+                          {row.pcsPerBox && <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{row.pcsPerBox} pcs/box</span>}
+                          {row.boxPerCarton && <span className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-700 text-[8px] font-black">{row.boxPerCarton} box/ctn</span>}
                         </div>
                       </div>
 

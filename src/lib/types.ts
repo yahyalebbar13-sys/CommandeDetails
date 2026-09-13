@@ -17,7 +17,7 @@ export type GeneralCategory = {
   name: string;
   nameFR?: string;
   line?: string;
-  specType?: 'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none';
+  specType?: 'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none';
   fabricQualities?: { label: string; nameFR?: string; gsm?: number | string; fabricWidth?: number; rollLength?: number; rollLengthUnit?: string; packagingPerBag?: number }[];
   zipperQualities?: {
     label: string;
@@ -58,6 +58,15 @@ export type GeneralCategory = {
     rollLength?: number | string;
     rollsPerShrink?: number | string;
     rollsPerCarton?: number | string;
+  }[];
+  accessoryQualities?: {
+    label: string;
+    nameFR?: string;
+    size?: string;
+    thickness?: string | number;
+    weightPerPiece?: number | string;
+    pcsPerBox?: number | string;
+    boxPerCarton?: number | string;
   }[];
 };
 
@@ -120,6 +129,16 @@ export type Category = {
     rollsPerShrink?: number | string; // Roll/shrink (rouleaux par paquet)
     rollsPerCarton?: number | string; // Rolls/ctn (rouleaux par carton)
   }[];
+  // Accessoires config
+  accessoryQualities?: {
+    label: string;
+    nameFR?: string;           // Nom commercial / français pour la vente
+    size?: string;             // Taille (ex: "40mm", "20mm", "No.5")
+    thickness?: string | number; // Épaisseur (ex: "2mm", "1.5mm")
+    weightPerPiece?: number | string; // Poids/pc (g)
+    pcsPerBox?: number | string; // Pcs/box
+    boxPerCarton?: number | string; // Box/ctn
+  }[];
 };
 
 export interface QualityBreakdownRow {
@@ -154,6 +173,11 @@ export interface QualityBreakdownRow {
   weightPerM?: number | string;
   rollsPerShrink?: number | string;
   rollsPerCarton?: number | string;
+  // Attributs Accessoires
+  thickness?: string | number;
+  weightPerPiece?: number | string;
+  pcsPerBox?: number | string;
+  boxPerCarton?: number | string;
 }
 
 export type Order = {
@@ -206,6 +230,11 @@ export type Order = {
   weightPerM?: number | string;      // Poids/m (g/m)
   rollsPerShrink?: number | string;  // Roll/shrink
   rollsPerCarton?: number | string;  // Rolls/ctn
+  // Accessory-specific fields
+  thickness?: string | number;       // Épaisseur
+  weightPerPiece?: number | string;  // Poids/pc (g)
+  pcsPerBox?: number | string;       // Pcs/box
+  boxPerCarton?: number | string;    // Box/ctn
 };
 
 export type Facture = {
@@ -269,6 +298,11 @@ export type StockMovement = {
   weightPerM?: number | string;
   rollsPerShrink?: number | string;
   rollsPerCarton?: number | string;
+  // Accessory attributes
+  thickness?: string | number;
+  weightPerPiece?: number | string;
+  pcsPerBox?: number | string;
+  boxPerCarton?: number | string;
   type: StockMovementType;
   reason: StockMovementReason;
   storeId?: StoreLocation;
@@ -312,6 +346,11 @@ export type StockItem = {
   weightPerM?: number | string;
   rollsPerShrink?: number | string;
   rollsPerCarton?: number | string;
+  // Accessory attributes
+  thickness?: string | number;
+  weightPerPiece?: number | string;
+  pcsPerBox?: number | string;
+  boxPerCarton?: number | string;
   unitOfMeasure: string;
   purchasePricePerUnit: number;
   hasTTCCost?: boolean;           // true si coût de revient TTC calculé, false si FOB estimé

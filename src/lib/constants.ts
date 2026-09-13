@@ -58,6 +58,13 @@ export const TAPE_KEYWORDS = [
   'bias', 'binding', 'bande'
 ];
 
+export const ACCESSORY_KEYWORDS = [
+  'accessoire', 'accessoires', 'accessory', 'accessories', 'boucle', 'buckle',
+  'bouton', 'button', 'rivet', 'oeillet', 'eyelet', 'crochet', 'hook',
+  'anneau', 'ring', 'snap', 'stopper', 'cord lock', 'cordon', 'embout',
+  'fermoir', 'clasp', 'mousqueton', 'carabiner', 'broche', 'pin'
+];
+
 /**
  * Détecte si un nom de catégorie appartient au pôle Fabric
  */
@@ -95,6 +102,15 @@ export function isTapeCategory(catName: string | undefined): boolean {
 }
 
 /**
+ * Détecte si un nom de catégorie appartient au pôle Accessoires
+ */
+export function isAccessoryCategory(catName: string | undefined): boolean {
+  if (!catName) return false;
+  const lower = catName.toLowerCase().trim();
+  return ACCESSORY_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+/**
  * Détecte si un contexte (Ligne, Pôle ou Famille) relève des spécifications Fabric.
  * Vérifie le nom de la catégorie en direct, le specType du pôle, la ligne du pôle, puis les mots-clés.
  */
@@ -111,7 +127,7 @@ export function isFabricLineOrCategory(
   // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'fabric') return true;
-    if (genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'slider' || genCat.specType === 'tape') return false;
+    if (genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'slider' || genCat.specType === 'tape' || genCat.specType === 'accessory') return false;
 
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu')) return true;
@@ -119,6 +135,7 @@ export function isFabricLineOrCategory(
     if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil')) return false;
     if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur')) return false;
     if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('sangle') || lineLower.includes('ribbon')) return false;
+    if (lineLower === 'accessory' || lineLower.includes('accessoire') || lineLower.includes('accessory')) return false;
 
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (FABRIC_KEYWORDS.some(kw => nameLower.includes(kw)) && !nameLower.includes('slider') && !nameLower.includes('puller')) return true;
@@ -146,7 +163,7 @@ export function isZipperLineOrCategory(
   // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'zipper') return true;
-    if (genCat.specType === 'fabric' || genCat.specType === 'thread' || genCat.specType === 'slider' || genCat.specType === 'tape') return false;
+    if (genCat.specType === 'fabric' || genCat.specType === 'thread' || genCat.specType === 'slider' || genCat.specType === 'tape' || genCat.specType === 'accessory') return false;
 
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture')) return true;
@@ -154,6 +171,7 @@ export function isZipperLineOrCategory(
     if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil')) return false;
     if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur')) return false;
     if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('sangle') || lineLower.includes('ribbon')) return false;
+    if (lineLower === 'accessory' || lineLower.includes('accessoire') || lineLower.includes('accessory')) return false;
 
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (ZIPPER_KEYWORDS.some(kw => nameLower.includes(kw)) && !nameLower.includes('slider') && !nameLower.includes('puller')) return true;
@@ -179,7 +197,7 @@ export function isThreadLineOrCategory(
   // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'thread') return true;
-    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'slider' || genCat.specType === 'tape') return false;
+    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'slider' || genCat.specType === 'tape' || genCat.specType === 'accessory') return false;
 
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil')) return true;
@@ -187,6 +205,7 @@ export function isThreadLineOrCategory(
     if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture')) return false;
     if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur')) return false;
     if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('sangle') || lineLower.includes('ribbon')) return false;
+    if (lineLower === 'accessory' || lineLower.includes('accessoire') || lineLower.includes('accessory')) return false;
 
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (THREAD_KEYWORDS.some(kw => nameLower.includes(kw))) return true;
@@ -212,11 +231,12 @@ export function isSliderLineOrCategory(
   // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'slider') return true;
-    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'tape') return false;
+    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'tape' || genCat.specType === 'accessory') return false;
 
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur')) return true;
     if (lineLower === 'fabric' || lineLower === 'zipper' || lineLower === 'thread' || lineLower.includes('ruban') || lineLower.includes('sangle')) return false;
+    if (lineLower === 'accessory' || lineLower.includes('accessoire') || lineLower.includes('accessory')) return false;
 
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (SLIDER_KEYWORDS.some(kw => nameLower.includes(kw))) return true;
@@ -246,14 +266,47 @@ export function isTapeLineOrCategory(
   // 2. Pôle checks
   if (genCat) {
     if (genCat.specType === 'tape') return true;
-    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'slider') return false;
+    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'slider' || genCat.specType === 'accessory') return false;
 
     const lineLower = (genCat.line || '').toLowerCase().trim();
     if (lineLower === 'tape' || lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || lineLower.includes('biais')) return true;
     if (lineLower === 'fabric' || lineLower === 'zipper' || lineLower === 'thread' || lineLower.includes('slider') || lineLower.includes('puller')) return false;
+    if (lineLower === 'accessory' || lineLower.includes('accessoire') || lineLower.includes('accessory')) return false;
 
     const nameLower = (genCat.name || '').toLowerCase().trim();
     if (TAPE_KEYWORDS.some(kw => nameLower.includes(kw)) && !nameLower.includes('slider') && !nameLower.includes('puller')) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Détecte si un contexte (Ligne, Pôle ou Famille) relève des spécifications Accessoires.
+ * Vérifie le nom de la catégorie en direct, le specType du pôle, la ligne du pôle, puis les mots-clés.
+ */
+export function isAccessoryLineOrCategory(
+  catName?: string | null,
+  genCat?: any
+): boolean {
+  // 1. Direct category name check
+  if (catName) {
+    const lower = catName.toLowerCase().trim();
+    if (ACCESSORY_KEYWORDS.some(kw => lower.includes(kw)) && !lower.includes('slider') && !lower.includes('puller') && !lower.includes('zipper')) {
+      return true;
+    }
+  }
+
+  // 2. Pôle checks
+  if (genCat) {
+    if (genCat.specType === 'accessory') return true;
+    if (genCat.specType === 'fabric' || genCat.specType === 'zipper' || genCat.specType === 'thread' || genCat.specType === 'slider' || genCat.specType === 'tape') return false;
+
+    const lineLower = (genCat.line || '').toLowerCase().trim();
+    if (lineLower === 'accessory' || lineLower.includes('accessoire') || lineLower.includes('accessory')) return true;
+    if (lineLower === 'fabric' || lineLower === 'zipper' || lineLower === 'thread' || lineLower === 'tape' || lineLower.includes('slider') || lineLower.includes('puller')) return false;
+
+    const nameLower = (genCat.name || '').toLowerCase().trim();
+    if (ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw)) && !nameLower.includes('slider') && !nameLower.includes('puller') && !nameLower.includes('zipper')) return true;
   }
 
   return false;

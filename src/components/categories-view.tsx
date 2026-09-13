@@ -69,7 +69,7 @@ import { doc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firesto
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
-import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory } from '@/lib/constants';
+import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory, isAccessoryLineOrCategory } from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
@@ -320,7 +320,7 @@ export default function CategoriesView({
   const [renameGenCatName, setRenameGenCatName] = useState('');
   const [renameGenCatNameFR, setRenameGenCatNameFR] = useState('');
   const [renameGenCatLine, setRenameGenCatLine] = useState('');
-  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none'>('fabric');
+  const [renameGenCatSpecType, setRenameGenCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('fabric');
 
   const handleSaveRenameSubCat = () => {
     if (!user || !firestore || !editingSubCategory) return;
@@ -372,6 +372,8 @@ export default function CategoriesView({
       if (finalSpec !== 'none') finalSpec = 'thread';
     } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
       if (finalSpec !== 'none') finalSpec = 'tape';
+    } else if (lineLower.includes('accessoire') || lineLower.includes('accessory') || nameLower.includes('accessoire') || nameLower.includes('accessory') || nameLower.includes('boucle') || nameLower.includes('buckle') || nameLower.includes('rivet')) {
+      if (finalSpec !== 'none') finalSpec = 'accessory';
     }
     updatePayload.specType = finalSpec;
 
@@ -474,6 +476,15 @@ export default function CategoriesView({
       rollsPerShrink?: number | string;
       rollsPerCarton?: number | string;
     }[],
+    accessoryQualities: [] as {
+      label: string;
+      nameFR?: string;
+      size?: string;
+      thickness?: string | number;
+      weightPerPiece?: number | string;
+      pcsPerBox?: number | string;
+      boxPerCarton?: number | string;
+    }[],
   });
   const [newSizeInput, setNewSizeInput] = useState('');
   const [newGsmInput, setNewGsmInput] = useState('');
@@ -519,6 +530,15 @@ export default function CategoriesView({
     rollsPerShrink: '',
     rollsPerCarton: '',
   });
+  const [newAccessoryQualityForm, setNewAccessoryQualityForm] = useState({
+    label: '',
+    nameFR: '',
+    size: '',
+    thickness: '',
+    weightPerPiece: '',
+    pcsPerBox: '',
+    boxPerCarton: '',
+  });
   const [sliderImageUploading, setSliderImageUploading] = useState(false);
 
   useEffect(() => {
@@ -544,6 +564,8 @@ export default function CategoriesView({
           .filter(q => Boolean(q.label || q.size || q.sliderWeightG || q.pcsPerBag || q.bagsPerCarton || q.nameFR || q.imageUrl)),
         tapeQualities: (Array.isArray(currentCategoryObj.tapeQualities) ? currentCategoryObj.tapeQualities : [])
           .filter(q => Boolean(q.label || q.width || q.weightPerM || q.rollLength || q.rollsPerShrink || q.rollsPerCarton || q.nameFR)),
+        accessoryQualities: (Array.isArray(currentCategoryObj.accessoryQualities) ? currentCategoryObj.accessoryQualities : [])
+          .filter(q => Boolean(q.label || q.size || q.thickness || q.weightPerPiece || q.pcsPerBox || q.boxPerCarton || q.nameFR)),
       });
       setNewSizeInput('');
       setNewGsmInput('');
@@ -589,6 +611,15 @@ export default function CategoriesView({
         rollsPerShrink: '',
         rollsPerCarton: '',
       });
+      setNewAccessoryQualityForm({
+        label: '',
+        nameFR: '',
+        size: '',
+        thickness: '',
+        weightPerPiece: '',
+        pcsPerBox: '',
+        boxPerCarton: '',
+      });
     }
   }, [currentCategoryObj, isCustomsModalOpen]);
 
@@ -625,6 +656,13 @@ export default function CategoriesView({
     const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
     const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
     return isTapeLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
+  }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
+
+  // Detect if current category is in the Accessory pôle or line
+  const isAccessoryCat = useMemo(() => {
+    const genCatId = selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId;
+    const genCat = genCatId ? generalCategories.find(g => g.id === genCatId) : null;
+    return isAccessoryLineOrCategory(selectedCategory || currentCategoryObj?.name, genCat);
   }, [selectedGeneralCategoryId, currentCategoryObj, generalCategories, selectedCategory]);
 
   const handleSliderImageUpload = async (file: File) => {
@@ -705,7 +743,7 @@ export default function CategoriesView({
   // ── Individual Quality Editing (from tables) ──
   const [editingQualityModal, setEditingQualityModal] = useState<{
     open: boolean;
-    type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape';
+    type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape' | 'accessory';
     originalQuality: any;
     form: any;
     imageUploading: boolean;
@@ -717,7 +755,7 @@ export default function CategoriesView({
     imageUploading: false,
   });
 
-  const handleOpenEditQuality = (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape') => {
+  const handleOpenEditQuality = (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape' | 'accessory') => {
     setEditingQualityModal({
       open: true,
       type,
@@ -763,6 +801,7 @@ export default function CategoriesView({
     else if (type === 'zipper') fieldKey = 'zipperQualities';
     else if (type === 'fabric') fieldKey = 'fabricQualities';
     else if (type === 'tape') fieldKey = 'tapeQualities';
+    else if (type === 'accessory') fieldKey = 'accessoryQualities';
 
     const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
       ? [...(currentCategoryObj as any)[fieldKey]]
@@ -776,6 +815,7 @@ export default function CategoriesView({
       if (type === 'zipper' && q.length === originalQuality.length && q.zipperType === originalQuality.zipperType && q.slider === originalQuality.slider) return true;
       if (type === 'fabric' && q.gsm === originalQuality.gsm && q.fabricWidth === originalQuality.fabricWidth) return true;
       if (type === 'tape' && q.width === originalQuality.width && q.weightPerM === originalQuality.weightPerM && q.rollLength === originalQuality.rollLength) return true;
+      if (type === 'accessory' && q.size === originalQuality.size && q.thickness === originalQuality.thickness && q.weightPerPiece === originalQuality.weightPerPiece) return true;
       return false;
     });
 
@@ -828,7 +868,7 @@ export default function CategoriesView({
     }
   };
 
-  const handleDeleteQualityFromTable = async (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape') => {
+  const handleDeleteQualityFromTable = async (quality: any, type: 'slider' | 'thread' | 'zipper' | 'fabric' | 'tape' | 'accessory') => {
     if (!user || !firestore || !currentCategoryObj) return;
     const catId = currentCategoryObj.id;
 
@@ -837,6 +877,7 @@ export default function CategoriesView({
     else if (type === 'zipper') fieldKey = 'zipperQualities';
     else if (type === 'fabric') fieldKey = 'fabricQualities';
     else if (type === 'tape') fieldKey = 'tapeQualities';
+    else if (type === 'accessory') fieldKey = 'accessoryQualities';
 
     const existingList: any[] = Array.isArray((currentCategoryObj as any)[fieldKey])
       ? [...(currentCategoryObj as any)[fieldKey]]
@@ -850,6 +891,7 @@ export default function CategoriesView({
       if (type === 'zipper' && q.length === quality.length && q.zipperType === quality.zipperType && q.slider === quality.slider) return false;
       if (type === 'fabric' && q.gsm === quality.gsm && q.fabricWidth === quality.fabricWidth) return false;
       if (type === 'tape' && q.width === quality.width && q.weightPerM === quality.weightPerM && q.rollLength === quality.rollLength) return false;
+      if (type === 'accessory' && q.size === quality.size && q.thickness === quality.thickness && q.weightPerPiece === quality.weightPerPiece) return false;
       return true;
     });
 
@@ -1078,6 +1120,38 @@ export default function CategoriesView({
       setNewTapeQualityForm({ label: '', nameFR: '', width: '', weightPerM: '', rollLength: '', rollsPerShrink: '', rollsPerCarton: '' });
     }
 
+    // Check if user has uncommitted pending accessory quality
+    let currentAccessoryQualities = [...(customsForm.accessoryQualities || [])];
+    const acSize = newAccessoryQualityForm.size.trim().toUpperCase();
+    const acThickness = newAccessoryQualityForm.thickness.trim();
+    const acWeightRaw = newAccessoryQualityForm.weightPerPiece.trim();
+    const acWeight = acWeightRaw ? (isNaN(Number(acWeightRaw)) ? acWeightRaw : Number(acWeightRaw)) : null;
+    const acPcs = newAccessoryQualityForm.pcsPerBox ? Number(newAccessoryQualityForm.pcsPerBox) : null;
+    const acBox = newAccessoryQualityForm.boxPerCarton ? Number(newAccessoryQualityForm.boxPerCarton) : null;
+    const acNameFR = newAccessoryQualityForm.nameFR.trim() || undefined;
+    const acLabel = newAccessoryQualityForm.label.trim();
+    const hasAcInput = Boolean(acLabel || acSize || acThickness || acWeight || acPcs || acBox || acNameFR);
+    if (hasAcInput) {
+      const autoLabel = [
+        acSize ? `Taille ${acSize}` : null,
+        acThickness ? `Ép. ${acThickness}` : null,
+        acWeight ? `${acWeight}g/pc` : null,
+        acPcs ? `${acPcs}pcs/box` : null,
+        acBox ? `${acBox}box/ctn` : null,
+      ].filter(Boolean).join(' · ');
+      const label = acLabel || autoLabel || acNameFR || 'Accessoire';
+      currentAccessoryQualities.push({
+        label,
+        nameFR: acNameFR,
+        size: acSize || undefined,
+        thickness: acThickness || undefined,
+        weightPerPiece: acWeight ?? undefined,
+        pcsPerBox: acPcs ?? undefined,
+        boxPerCarton: acBox ?? undefined,
+      });
+      setNewAccessoryQualityForm({ label: '', nameFR: '', size: '', thickness: '', weightPerPiece: '', pcsPerBox: '', boxPerCarton: '' });
+    }
+
     // Sanitize arrays to guarantee NO undefined fields inside array items for Firestore
     const cleanFabricQualities = currentFabricQualities.map(q => {
       const item: Record<string, any> = { label: q.label || 'Qualité' };
@@ -1187,6 +1261,30 @@ export default function CategoriesView({
       }
     });
 
+    const cleanAccessoryQualities = currentAccessoryQualities
+      .filter(q => Boolean(q.label || q.size || q.thickness || q.weightPerPiece || q.pcsPerBox || q.boxPerCarton || q.nameFR))
+      .map(q => {
+        const item: Record<string, any> = { label: q.label || 'Accessoire' };
+        if (q.nameFR?.trim()) item.nameFR = q.nameFR.trim();
+        if (q.size?.trim()) item.size = q.size.trim().toUpperCase();
+        if (q.thickness != null && String(q.thickness).trim() !== '') item.thickness = String(q.thickness).trim();
+        if (q.weightPerPiece != null && String(q.weightPerPiece).trim() !== '') {
+          item.weightPerPiece = isNaN(Number(q.weightPerPiece)) ? String(q.weightPerPiece).trim() : Number(q.weightPerPiece);
+        }
+        if (q.pcsPerBox != null && !isNaN(Number(q.pcsPerBox))) item.pcsPerBox = Number(q.pcsPerBox);
+        if (q.boxPerCarton != null && !isNaN(Number(q.boxPerCarton))) item.boxPerCarton = Number(q.boxPerCarton);
+        return item;
+      });
+
+    cleanAccessoryQualities.forEach(q => {
+      if (q.size) {
+        const upper = String(q.size).trim().toUpperCase();
+        if (upper && !currentSizes.includes(upper)) {
+          currentSizes.push(upper);
+        }
+      }
+    });
+
     const payload: Record<string, any> = {
       nameFR: customsForm.nameFR?.trim() ? customsForm.nameFR.trim().toUpperCase() : null,
       hsCode: customsForm.hsCode || null,
@@ -1204,6 +1302,7 @@ export default function CategoriesView({
       threadQualities: cleanThreadQualities.length > 0 ? cleanThreadQualities : null,
       sliderQualities: cleanSliderQualities.length > 0 ? cleanSliderQualities : null,
       tapeQualities: cleanTapeQualities.length > 0 ? cleanTapeQualities : null,
+      accessoryQualities: cleanAccessoryQualities.length > 0 ? cleanAccessoryQualities : null,
     };
 
     setIsSavingCustoms(true);
@@ -3126,6 +3225,175 @@ export default function CategoriesView({
           );
         })()}
 
+        {/* ── Accessory / Accessoire: Types de Produit — Qualités Fixes ── */}
+        {isAccessoryCat && (() => {
+          const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
+          const rawQualities: any[] = [
+            ...(Array.isArray(currentCategoryObj?.accessoryQualities) ? currentCategoryObj.accessoryQualities : []),
+            ...(Array.isArray(genCat?.accessoryQualities) ? genCat!.accessoryQualities! : [])
+          ];
+
+          // Deduplicate
+          const qualities = rawQualities.filter((q, idx, arr) => 
+            arr.findIndex(x => (x.label && x.label === q.label) || (x.size && x.size === q.size && x.thickness && x.thickness === q.thickness && x.weightPerPiece && x.weightPerPiece === q.weightPerPiece)) === idx
+          );
+
+          // Compute order stats per quality
+          const qualityStats = qualities.map(q => {
+            const matchingArticles = currentArticles.filter((a: any) => {
+              if (a.quality && q.label && a.quality.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityLabel && q.label && a.qualityLabel.trim().toLowerCase() === q.label.trim().toLowerCase()) return true;
+              if (a.qualityBreakdown && Array.isArray(a.qualityBreakdown)) {
+                if (a.qualityBreakdown.some((qb: any) => qb.quality && q.label && qb.quality.trim().toLowerCase() === q.label.trim().toLowerCase())) return true;
+              }
+              if (q.size) {
+                const qS = String(q.size).trim().toLowerCase();
+                const aSz = String(a.size || '').trim().toLowerCase();
+                const aSpecs = String(a.specs || '').trim().toLowerCase();
+                if (aSz && aSz === qS) return true;
+                if (aSpecs.includes(qS)) return true;
+              }
+              return false;
+            });
+            return {
+              ...q,
+              count: matchingArticles.length,
+              totalQty: matchingArticles.reduce((s: number, a: any) => s + (Number(a.quantity) || 0), 0),
+              totalValue: matchingArticles.reduce((s: number, a: any) => s + ((Number(a.purchasePricePerUnit) || 0) * (Number(a.quantity) || 0)), 0),
+              suppliers: [...new Set(matchingArticles.map((a: any) => a.supplierId).filter(Boolean))],
+            };
+          });
+
+          return (
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <div className="h-1.5 w-full bg-rose-600" />
+              <CardHeader className="py-4 border-b border-stone-50 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase text-stone-400 tracking-widest flex items-center gap-2">
+                  <Factory className="w-3 h-3 text-rose-600" /> Types de Produit — Qualités Fixes
+                  <span className="text-[8px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">{qualities.length} qualités</span>
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[9px] font-black border-rose-200 text-rose-700 hover:bg-rose-50 rounded-xl"
+                  onClick={() => setIsCustomsModalOpen(true)}
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Configurer Qualités Accessoires
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-stone-50/50">
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3">Désignation</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Taille</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Épaisseur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Poids/pc</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Pcs/box</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Box/ctn</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Fournisseurs</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-center">Nb cmd</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Valeur</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase tracking-widest text-stone-400 py-3 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {qualityStats.map((pt, idx) => (
+                        <TableRow key={idx} className="hover:bg-rose-50/30 transition-colors">
+                          <TableCell className="py-3">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-stone-800 uppercase tracking-tighter">{pt.label}</span>
+                              {pt.nameFR && <span className="text-[8px] font-bold text-rose-600 uppercase mt-0.5">{pt.nameFR}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.size ? (
+                              <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 text-[10px] font-black uppercase tracking-wide">
+                                {pt.size}
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.thickness ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-800 text-[10px] font-black">
+                                {pt.thickness}
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.weightPerPiece ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                                {pt.weightPerPiece} g/pc
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.pcsPerBox ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 text-[10px] font-black">
+                                {pt.pcsPerBox} pcs/box
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {pt.boxPerCarton ? (
+                              <span className="px-2 py-0.5 rounded-lg bg-stone-100 text-stone-700 text-[10px] font-black">
+                                {pt.boxPerCarton} box/ctn
+                              </span>
+                            ) : <span className="text-stone-200 text-[9px]">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-[9px] font-bold text-stone-500">{pt.suppliers.length > 0 ? pt.suppliers.join(', ') : '—'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 text-[9px] font-black">{pt.count}</span>
+                          </TableCell>
+                          <TableCell className="text-right font-black text-[10px] text-stone-900">
+                            {pt.totalValue > 0 ? `${(pt.totalValue / 1000).toFixed(1)}k $` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-stone-400 hover:text-stone-800 hover:bg-stone-100 rounded-lg"
+                                title="Modifier cette qualité"
+                                onClick={() => handleOpenEditQuality(pt, 'accessory')}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                title="Supprimer cette qualité"
+                                onClick={() => {
+                                  if (confirm(`Supprimer la qualité ${pt.label || pt.nameFR} ?`)) {
+                                    handleDeleteQualityFromTable(pt, 'accessory');
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {qualities.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={10} className="text-center py-8 text-stone-300 text-[10px] font-black uppercase tracking-widest">
+                            Aucune qualité accessoire définie — ouvrez Config & Douane pour en ajouter
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* ── Analytics Charts ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
@@ -4304,6 +4572,177 @@ export default function CategoriesView({
               </div>
             )}
 
+            {/* ── Accessory: Qualités pré-définies ── */}
+            {isAccessoryCat && (
+              <div className="space-y-4 p-4 rounded-2xl bg-rose-50/50 border border-rose-100">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <Settings2 className="w-3.5 h-3.5" /> Qualités Accessoires Pré-définies
+                  </p>
+                  <span className="text-[8px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
+                    {(customsForm.accessoryQualities || []).length} qualités
+                  </span>
+                </div>
+
+                {/* Existing accessory qualities */}
+                {(customsForm.accessoryQualities || []).length > 0 && (
+                  <div className="space-y-2">
+                    {customsForm.accessoryQualities.map((q, idx) => (
+                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl bg-white border border-rose-100 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-stone-800 flex-1 uppercase">{q.label}</span>
+                          <div className="flex flex-wrap gap-1">
+                            {q.size && <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[8px] font-black">Taille: {q.size}</span>}
+                            {q.thickness && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[8px] font-black">Épais: {q.thickness}</span>}
+                            {q.weightPerPiece && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">{q.weightPerPiece} g/pc</span>}
+                            {q.pcsPerBox && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[8px] font-black">{q.pcsPerBox} pcs/box</span>}
+                            {q.boxPerCarton && <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 text-[8px] font-black">{q.boxPerCarton} box/ctn</span>}
+                          </div>
+                          <button type="button" className="text-stone-300 hover:text-red-500 transition-colors"
+                            onClick={() => setCustomsForm(p => ({ ...p, accessoryQualities: p.accessoryQualities.filter((_, i) => i !== idx) }))}>×</button>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1 border-t border-rose-50">
+                          <span className="text-[8px] font-black uppercase text-rose-700 shrink-0">Nom Vente (FR) :</span>
+                          <Input
+                            placeholder="Ex: Boucle Métal 40mm ZAMAK"
+                            value={q.nameFR || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setCustomsForm(p => ({
+                                ...p,
+                                accessoryQualities: p.accessoryQualities.map((item, i) => i === idx ? { ...item, nameFR: val } : item)
+                              }));
+                            }}
+                            className="h-7 text-[10px] font-bold border-rose-200 rounded-lg flex-1 bg-rose-50/30"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(!customsForm.accessoryQualities || customsForm.accessoryQualities.length === 0) && (
+                  <p className="text-[8px] font-bold text-stone-400 uppercase italic">Aucune qualité définie</p>
+                )}
+
+                {/* Add new accessory quality form */}
+                <div className="space-y-2 p-3 rounded-xl bg-rose-100/30 border border-rose-200">
+                  <p className="text-[8px] font-black text-rose-600 uppercase tracking-widest">+ Nouvelle Qualité Accessoire</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Label / Réf technique (auto si vide)"
+                      className="h-8 text-[10px] font-bold border-rose-200 rounded-lg"
+                      value={newAccessoryQualityForm.label}
+                      onChange={e => setNewAccessoryQualityForm(p => ({ ...p, label: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Nom FR / Vente (ex: Boucle Zamak 40mm)"
+                      className="h-8 text-[10px] font-bold border-rose-200 rounded-lg bg-white"
+                      value={newAccessoryQualityForm.nameFR}
+                      onChange={e => setNewAccessoryQualityForm(p => ({ ...p, nameFR: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    <div>
+                      <Input
+                        list="accessory-sizes-datalist"
+                        placeholder="Taille (ex: 40mm, 20mm)"
+                        className="h-8 text-[10px] font-bold border-rose-200 rounded-lg w-full"
+                        value={newAccessoryQualityForm.size}
+                        onChange={e => setNewAccessoryQualityForm(p => ({ ...p, size: e.target.value }))}
+                      />
+                      <datalist id="accessory-sizes-datalist">
+                        {customsForm.availableSizes.map((sz, i) => (
+                          <option key={i} value={sz} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <Input
+                      placeholder="Épaisseur (ex: 2mm, 1.5mm)"
+                      className="h-8 text-[10px] font-bold border-rose-200 rounded-lg"
+                      value={newAccessoryQualityForm.thickness}
+                      onChange={e => setNewAccessoryQualityForm(p => ({ ...p, thickness: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="Poids/pc (g)"
+                      className="h-8 text-[10px] font-bold border-rose-200 rounded-lg"
+                      value={newAccessoryQualityForm.weightPerPiece}
+                      onChange={e => setNewAccessoryQualityForm(p => ({ ...p, weightPerPiece: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Pcs/box"
+                      className="h-8 text-[10px] font-bold border-rose-200 rounded-lg"
+                      value={newAccessoryQualityForm.pcsPerBox}
+                      onChange={e => setNewAccessoryQualityForm(p => ({ ...p, pcsPerBox: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Box/ctn"
+                      className="h-8 text-[10px] font-bold border-rose-200 rounded-lg"
+                      value={newAccessoryQualityForm.boxPerCarton}
+                      onChange={e => setNewAccessoryQualityForm(p => ({ ...p, boxPerCarton: e.target.value }))}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-full border-rose-300 text-rose-700 hover:bg-rose-100 font-black text-[9px] uppercase tracking-widest rounded-lg"
+                    onClick={() => {
+                      const size = newAccessoryQualityForm.size.trim();
+                      const thickness = newAccessoryQualityForm.thickness.trim();
+                      const weightPerPiece = newAccessoryQualityForm.weightPerPiece ? (isNaN(Number(newAccessoryQualityForm.weightPerPiece)) ? newAccessoryQualityForm.weightPerPiece : Number(newAccessoryQualityForm.weightPerPiece)) : undefined;
+                      const pcsPerBox = newAccessoryQualityForm.pcsPerBox ? Number(newAccessoryQualityForm.pcsPerBox) : undefined;
+                      const boxPerCarton = newAccessoryQualityForm.boxPerCarton ? Number(newAccessoryQualityForm.boxPerCarton) : undefined;
+                      const nameFR = newAccessoryQualityForm.nameFR.trim() || undefined;
+
+                      if (!newAccessoryQualityForm.label.trim() && !size && !thickness && !weightPerPiece && !pcsPerBox && !boxPerCarton && !nameFR) return;
+
+                      const autoLabel = [
+                        size ? `Taille ${size}` : null,
+                        thickness ? `Épais. ${thickness}` : null,
+                        weightPerPiece ? `${weightPerPiece}g/pc` : null,
+                        pcsPerBox ? `${pcsPerBox}pcs/box` : null,
+                        boxPerCarton ? `${boxPerCarton}box/ctn` : null,
+                      ].filter(Boolean).join(' · ');
+
+                      const label = newAccessoryQualityForm.label.trim() || autoLabel || nameFR || 'Accessoire';
+
+                      setCustomsForm(p => ({
+                        ...p,
+                        accessoryQualities: [
+                          ...(p.accessoryQualities || []),
+                          {
+                            label,
+                            nameFR,
+                            size: size || undefined,
+                            thickness: thickness || undefined,
+                            weightPerPiece,
+                            pcsPerBox,
+                            boxPerCarton
+                          }
+                        ]
+                      }));
+
+                      setNewAccessoryQualityForm({
+                        label: '',
+                        nameFR: '',
+                        size: '',
+                        thickness: '',
+                        weightPerPiece: '',
+                        pcsPerBox: '',
+                        boxPerCarton: '',
+                      });
+                    }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Ajouter Qualité Accessoire
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="p-6 bg-stone-50 gap-3">
               <Button variant="ghost" disabled={isSavingCustoms} onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
               <Button disabled={isSavingCustoms} onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">
@@ -4916,6 +5355,8 @@ export default function CategoriesView({
                               setRenameGenCatLine(catObj.line || '');
                               const autoSpec = (catObj as any).specType || (
                                 (catObj.line || '').toLowerCase().includes('slider') || (catObj.line || '').toLowerCase().includes('puller') || (catObj.line || '').toLowerCase().includes('curseur') ? 'slider' :
+                                (catObj.line || '').toLowerCase().includes('accessoire') || (catObj.line || '').toLowerCase().includes('accessory') || (catObj.line || '').toLowerCase().includes('bouton') ? 'accessory' :
+                                (catObj.line || '').toLowerCase().includes('ruban') || (catObj.line || '').toLowerCase().includes('tape') || (catObj.line || '').toLowerCase().includes('sangle') || (catObj.line || '').toLowerCase().includes('ribbon') ? 'tape' :
                                 catObj.line?.toLowerCase() === 'fabric' ? 'fabric' :
                                 catObj.line?.toLowerCase() === 'zipper' ? 'zipper' :
                                 catObj.line?.toLowerCase() === 'thread' ? 'thread' : 'none'
@@ -4985,17 +5426,18 @@ export default function CategoriesView({
                 setRenameGenCatLine(val);
                 const l = val.toLowerCase();
                 if (l.includes('slider') || l.includes('puller') || l.includes('curseur')) setRenameGenCatSpecType('slider');
+                else if (l.includes('accessoire') || l.includes('accessory') || l.includes('bouton')) setRenameGenCatSpecType('accessory');
+                else if (l.includes('ruban') || l.includes('tape') || l.includes('sangle') || l.includes('ribbon')) setRenameGenCatSpecType('tape');
                 else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setRenameGenCatSpecType('fabric');
                 else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setRenameGenCatSpecType('zipper');
                 else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setRenameGenCatSpecType('thread');
-                else if (l.includes('ruban') || l.includes('tape') || l.includes('sangle') || l.includes('ribbon')) setRenameGenCatSpecType('tape');
                 else setRenameGenCatSpecType('none');
               }}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
                   <SelectValue placeholder="Choisir une ligne..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {['Fabric', 'Slider et puller', 'Zipper', 'Thread', 'Ruban', 'Bouton', 'Reste'].map(line => (
+                  {['Fabric', 'Slider et puller', 'Zipper', 'Thread', 'Ruban', 'Accessoires', 'Bouton', 'Reste'].map(line => (
                     <SelectItem key={line} value={line} className="font-bold uppercase text-xs">{line}</SelectItem>
                   ))}
                 </SelectContent>
@@ -5004,7 +5446,7 @@ export default function CategoriesView({
 
             <div className="space-y-1.5 pt-1">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
                 <button
                   type="button"
                   onClick={() => setRenameGenCatSpecType('fabric')}
@@ -5064,6 +5506,18 @@ export default function CategoriesView({
                 >
                   <span className="text-[9px] block uppercase font-black">🎗️ Ruban</span>
                   <span className="text-[7px] text-stone-400 block">Larg, Poids/m</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenameGenCatSpecType('accessory')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    renameGenCatSpecType === 'accessory'
+                      ? 'border-rose-600 bg-rose-50 text-rose-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🧷 Accessoire</span>
+                  <span className="text-[7px] text-stone-400 block">Taille, Poids</span>
                 </button>
                 <button
                   type="button"
@@ -5624,6 +6078,77 @@ export default function CategoriesView({
                       placeholder="ex: 50"
                       value={editingQualityModal.form.rollsPerCarton ?? ''}
                       onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, rollsPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Accessory Specific Fields */}
+            {editingQualityModal.type === 'accessory' && (
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Taille (ex: 40mm, 20mm)
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 40mm"
+                      value={editingQualityModal.form.size || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, size: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Épaisseur (ex: 2mm, 1.5mm)
+                    </Label>
+                    <Input
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 2mm"
+                      value={editingQualityModal.form.thickness || ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, thickness: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                    Poids / pc (g)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                    placeholder="ex: 12.5"
+                    value={editingQualityModal.form.weightPerPiece ?? ''}
+                    onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, weightPerPiece: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Pcs / box (boîte / sachet)
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 100"
+                      value={editingQualityModal.form.pcsPerBox ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, pcsPerBox: e.target.value === '' ? '' : Number(e.target.value) } }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-stone-500 tracking-wider">
+                      Box / ctn (boîtes par carton)
+                    </Label>
+                    <Input
+                      type="number"
+                      className="h-9 text-xs font-bold rounded-xl border-stone-200"
+                      placeholder="ex: 10"
+                      value={editingQualityModal.form.boxPerCarton ?? ''}
+                      onChange={e => setEditingQualityModal(p => ({ ...p, form: { ...p.form, boxPerCarton: e.target.value === '' ? '' : Number(e.target.value) } }))}
                     />
                   </div>
                 </div>

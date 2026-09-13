@@ -31,6 +31,7 @@ const LINE_COLORS: Record<string, string> = {
   'Zipper':          '#F59E0B',
   'Thread':          '#0D9488',
   'Bouton':          '#10B981',
+  'Accessoire':      '#E11D48',
   'Reste':           '#6B7280',
 };
 
@@ -42,6 +43,7 @@ const GROUPS_ORDER = [
   { title: 'Zipper',           keywords: ['zipper','plastic zipper','nylon zipper','metal zipper','zipper long chain','nylon zipper long chain'] },
   { title: 'Thread',           keywords: ['thread','sewing thread','fil','fil à coudre','cone','cône','yarn','elastic thread','spun polyester'] },
   { title: 'Bouton',           keywords: ['covered mould button','snap button','button'] },
+  { title: 'Accessoire',       keywords: ['accessoire','accessoires','accessory','accessories','boucle','buckle','bouton','button','rivet','oeillet','eyelet','crochet','hook','anneau','ring','snap'] },
   { title: 'Reste',            keywords: ['ruban','tape','rope','tack pin','hook and loop','divers','opp bag'], isFallback: true },
 ];
 
@@ -57,7 +59,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
-  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none'>('fabric');
+  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('fabric');
   const [newSubName, setNewSubName] = useState('');
   const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
@@ -73,7 +75,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [editPoleName, setEditPoleName] = useState('');
   const [editPoleNameFR, setEditPoleNameFR] = useState('');
   const [editPoleLine, setEditPoleLine] = useState('');
-  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'none'>('fabric');
+  const [editPoleSpecType, setEditPoleSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('fabric');
 
   const now = new Date();
 
@@ -215,6 +217,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       if (finalSpec !== 'none') finalSpec = 'thread';
     } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
       if (finalSpec !== 'none') finalSpec = 'tape';
+    } else if (lineLower.includes('accessoire') || lineLower.includes('accessory') || nameLower.includes('accessoire') || nameLower.includes('accessory') || nameLower.includes('boucle') || nameLower.includes('buckle') || nameLower.includes('rivet')) {
+      if (finalSpec !== 'none') finalSpec = 'accessory';
     }
     data.specType = finalSpec;
 
@@ -275,6 +279,8 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       if (finalSpec !== 'none') finalSpec = 'thread';
     } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
       if (finalSpec !== 'none') finalSpec = 'tape';
+    } else if (lineLower.includes('accessoire') || lineLower.includes('accessory') || nameLower.includes('accessoire') || nameLower.includes('accessory') || nameLower.includes('boucle') || nameLower.includes('buckle') || nameLower.includes('rivet')) {
+      if (finalSpec !== 'none') finalSpec = 'accessory';
     }
     updateData.specType = finalSpec;
 
@@ -553,6 +559,9 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   } else if (lower.includes('thread') || lower.includes('fil') || lower.includes('coudre') || lower.includes('cone') || lower.includes('cône') || lower.includes('yarn')) {
                     setNewCatSpecType('thread');
                     if (!newCatLine) setNewCatLine('Thread');
+                  } else if (lower.includes('accessoire') || lower.includes('accessory') || lower.includes('boucle') || lower.includes('buckle') || lower.includes('rivet')) {
+                    setNewCatSpecType('accessory');
+                    if (!newCatLine) setNewCatLine('Accessoire');
                   }
                 }}
                 placeholder="EX: TEXTILES, ZIPPER, FIL, SLIDER..."
@@ -588,6 +597,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                         else if (l === 'fabric' || l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
                         else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
                         else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setNewCatSpecType('thread');
+                        else if (l === 'accessoire' || l.includes('accessoire') || l.includes('accessory')) setNewCatSpecType('accessory');
                         else setNewCatSpecType('none');
                       }}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${newCatLine === line ? 'border-stone-900 bg-stone-50' : 'border-stone-100 hover:border-stone-200'}`}
@@ -612,6 +622,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                     else if (l.includes('fabric') || l.includes('tissu')) setNewCatSpecType('fabric');
                     else if (l.includes('zipper') || l.includes('fermeture')) setNewCatSpecType('zipper');
                     else if (l.includes('thread') || l.includes('fil')) setNewCatSpecType('thread');
+                    else if (l.includes('accessoire') || l.includes('accessory')) setNewCatSpecType('accessory');
                   }}
                   className="h-10 uppercase font-bold border-stone-200 rounded-xl focus:ring-stone-900 text-xs"
                 />
@@ -622,7 +633,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 <label className="text-[9px] font-black text-stone-600 uppercase tracking-widest block">
                   Spécifications Qualités à donner
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewCatSpecType('fabric')}
@@ -682,6 +693,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                   >
                     <span className="text-[10px] block uppercase font-black">🎗️ Ruban</span>
                     <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Largeur, Poids/m</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCatSpecType('accessory')}
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${
+                      newCatSpecType === 'accessory'
+                        ? 'border-rose-600 bg-rose-50 text-rose-900 font-black shadow-sm'
+                        : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                    }`}
+                  >
+                    <span className="text-[10px] block uppercase font-black">🧷 Accessoire</span>
+                    <span className="text-[7.5px] text-stone-400 block font-bold leading-tight mt-0.5">Taille, Poids/pc...</span>
                   </button>
                   <button
                     type="button"
@@ -880,6 +903,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 else if (l === 'zipper' || l.includes('zipper') || l.includes('fermeture')) setEditPoleSpecType('zipper');
                 else if (l === 'thread' || l.includes('thread') || l.includes('fil')) setEditPoleSpecType('thread');
                 else if (l === 'tape' || l.includes('tape') || l.includes('ruban') || l.includes('sangle') || l.includes('ribbon')) setEditPoleSpecType('tape');
+                else if (l === 'accessoire' || l.includes('accessoire') || l.includes('accessory')) setEditPoleSpecType('accessory');
                 else setEditPoleSpecType('none');
               }}>
                 <SelectTrigger className="h-11 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
@@ -895,7 +919,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
             <div className="space-y-1.5 pt-1">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
                 <button
                   type="button"
                   onClick={() => setEditPoleSpecType('fabric')}
@@ -955,6 +979,18 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                 >
                   <span className="text-[9px] block uppercase font-black">🎗️ Ruban</span>
                   <span className="text-[7px] text-stone-400 block">Largeur, Poids/m</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPoleSpecType('accessory')}
+                  className={`p-2 rounded-xl border-2 text-center transition-all ${
+                    editPoleSpecType === 'accessory'
+                      ? 'border-rose-600 bg-rose-50 text-rose-900 font-black'
+                      : 'border-stone-100 hover:border-stone-200 text-stone-500 font-bold bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] block uppercase font-black">🧷 Accessoire</span>
+                  <span className="text-[7px] text-stone-400 block">Taille, Poids/pc</span>
                 </button>
                 <button
                   type="button"

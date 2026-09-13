@@ -27,7 +27,7 @@ import DesignBreakdownInput, { DesignBreakdownRow } from './design-breakdown-inp
 import QualityBreakdownInput, { QualityBreakdownRow } from './quality-breakdown-input';
 import DesignPicker from './design-picker';
 import { findLastOrderPrice } from '@/lib/order-utils';
-import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory } from '@/lib/constants';
+import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory, isAccessoryLineOrCategory } from '@/lib/constants';
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
@@ -146,6 +146,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         ...(q.coneWeightG ? { coneWeightG: q.coneWeightG } : {}),
         ...(q.threadWeightG ? { threadWeightG: q.threadWeightG } : {}),
         ...(q.lengthPerPiece ? { lengthPerPiece: q.lengthPerPiece, lengthUnit: q.lengthUnit || 'm' } : {}),
+        ...(q.thickness ? { thickness: q.thickness } : {}),
+        ...(q.weightPerPiece ? { weightPerPiece: q.weightPerPiece } : {}),
+        ...(q.pcsPerBox ? { pcsPerBox: q.pcsPerBox } : {}),
+        ...(q.boxPerCarton ? { boxPerCarton: q.boxPerCarton } : {}),
       } : p);
     } else if (rows && rows.length > 1) {
       setFormData((p: any) => p ? { ...p, quantity: total, quality: 'VARIOUS' } : p);
@@ -195,6 +199,10 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
         rollLength: article.rollLength ?? '',
         rollLengthUnit: article.rollLengthUnit || 'm',
         packagingPerBag: article.packagingPerBag ?? '',
+        thickness: article.thickness ?? '',
+        weightPerPiece: article.weightPerPiece ?? '',
+        pcsPerBox: article.pcsPerBox ?? '',
+        boxPerCarton: article.boxPerCarton ?? '',
         priority: article.priority || 'todo',
         isPreorder: article.isPreorder || false,
         clientName: article.clientName || '',
@@ -343,6 +351,17 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     return isTapeLineOrCategory(formData?.categoryId, genCat);
   }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
 
+  const isAccessory = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    return isAccessoryLineOrCategory(formData?.categoryId, genCat);
+  }, [selectedGenCatId, formData?.categoryId, formData?.generalCategoryId, generalCategories, subCategories]);
+
   const isDesignCategory = useMemo(() => {
     const upper = (formData?.categoryId || '').toUpperCase();
     return isZipper || isSlider || upper.includes('PRINT') || upper.includes('DESIGN') || upper.includes('PATTERN');
@@ -484,6 +503,23 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.width === q.width && x.weightPerM === q.weightPerM && x.rollLength === q.rollLength)) === idx);
   }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
+  const accessoryQualities = useMemo(() => {
+    const cat = (subCategories || []).find((sc: any) => 
+      sc.name === formData?.categoryId || 
+      sc.id === formData?.categoryId ||
+      (sc.name && formData?.categoryId && sc.name.toLowerCase() === formData.categoryId.toLowerCase())
+    );
+    const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
+    const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+    const raw = [
+      ...(Array.isArray(cat?.accessoryQualities) ? cat.accessoryQualities : []),
+      ...(Array.isArray(genCat?.accessoryQualities) ? genCat.accessoryQualities : [])
+    ];
+    return raw
+      .filter((q: any) => Boolean(q && (q.label || q.size || q.thickness || q.weightPerPiece || q.pcsPerBox || q.boxPerCarton || q.nameFR)))
+      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.size === q.size && x.thickness === q.thickness && x.weightPerPiece === q.weightPerPiece)) === idx);
+  }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
+
   const lastOrderInfo = useMemo(() => {
     if (!formData?.categoryId && !article?.name) return null;
     return findLastOrderPrice(
@@ -584,6 +620,11 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
       weightPerM: (rawFormData.weightPerM !== '' && rawFormData.weightPerM != null) ? (isNaN(Number(rawFormData.weightPerM)) ? String(rawFormData.weightPerM).trim() : Number(rawFormData.weightPerM)) : (rawFormData.tapeWeightGsm ? Number(rawFormData.tapeWeightGsm) : null),
       rollsPerShrink: (rawFormData.rollsPerShrink !== '' && rawFormData.rollsPerShrink != null) ? (isNaN(Number(rawFormData.rollsPerShrink)) ? String(rawFormData.rollsPerShrink).trim() : Number(rawFormData.rollsPerShrink)) : (rawFormData.pcsPerBag ? Number(rawFormData.pcsPerBag) : null),
       rollsPerCarton: (rawFormData.rollsPerCarton !== '' && rawFormData.rollsPerCarton != null) ? (isNaN(Number(rawFormData.rollsPerCarton)) ? String(rawFormData.rollsPerCarton).trim() : Number(rawFormData.rollsPerCarton)) : (rawFormData.bagsPerCarton ? Number(rawFormData.bagsPerCarton) : null),
+      // Accessory fields
+      thickness: (rawFormData.thickness !== '' && rawFormData.thickness != null) ? String(rawFormData.thickness).trim() : null,
+      weightPerPiece: (rawFormData.weightPerPiece !== '' && rawFormData.weightPerPiece != null) ? (isNaN(Number(rawFormData.weightPerPiece)) ? String(rawFormData.weightPerPiece).trim() : Number(rawFormData.weightPerPiece)) : null,
+      pcsPerBox: (rawFormData.pcsPerBox !== '' && rawFormData.pcsPerBox != null) ? (isNaN(Number(rawFormData.pcsPerBox)) ? String(rawFormData.pcsPerBox).trim() : Number(rawFormData.pcsPerBox)) : null,
+      boxPerCarton: (rawFormData.boxPerCarton !== '' && rawFormData.boxPerCarton != null) ? (isNaN(Number(rawFormData.boxPerCarton)) ? String(rawFormData.boxPerCarton).trim() : Number(rawFormData.boxPerCarton)) : null,
     };
     
     let isSplit = false;
@@ -1774,18 +1815,162 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
               </div>
             )}
 
+            {/* ── Accessory fields & qualities ── */}
+            {isAccessory && (
+              <div className="space-y-3 p-4 rounded-2xl bg-rose-50/50 border border-rose-100 md:col-span-2">
+                <p className="text-[9px] font-black text-rose-700 uppercase tracking-widest flex items-center gap-1.5">
+                  <span className="text-xs">🧷</span> Spécifications Accessoires
+                </p>
+                {qualityBreakdown && qualityBreakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-rose-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <Settings2 className="w-3 h-3" /> Qualité Accessoire
+                    </Label>
+                    <div className="h-11 border border-fuchsia-200 bg-fuchsia-50 rounded-xl flex items-center px-3">
+                      <span className="text-[10px] font-black text-fuchsia-700 uppercase">VARIOUS (multi-qualités)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-1 rounded-lg bg-fuchsia-100 text-fuchsia-700 text-[10px] font-black">
+                        {qualityBreakdown.length} qualités sélectionnées ({qualityBreakdown.reduce((s, r) => s + (Number(r.quantity) || 0), 0).toLocaleString()} {formData.unitOfMeasure || 'pièces'})
+                      </span>
+                    </div>
+                  </div>
+                ) : accessoryQualities.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Qualité Accessoire Fixe</Label>
+                    <Select
+                      value={formData.quality || ''}
+                      onValueChange={v => {
+                        const q = accessoryQualities.find((x: any) => x.label === v) || accessoryQualities[Number(v)];
+                        if (q) {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: q.label,
+                            qualityLabel: q.label,
+                            specs: p.specs ? p.specs : q.label,
+                            size: q.size || p.size,
+                            thickness: q.thickness ?? p.thickness,
+                            weightPerPiece: q.weightPerPiece ?? p.weightPerPiece,
+                            pcsPerBox: q.pcsPerBox ?? p.pcsPerBox,
+                            boxPerCarton: q.boxPerCarton ?? p.boxPerCarton,
+                            nameFR: q.nameFR || p.nameFR,
+                          }));
+                        } else {
+                          setFormData((p: any) => ({
+                            ...p,
+                            quality: v,
+                            qualityLabel: v,
+                            specs: p.specs ? p.specs : v,
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 border-rose-200 bg-white font-bold rounded-xl text-rose-800">
+                        <SelectValue placeholder="Choisir une qualité Accessoire..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.quality && !accessoryQualities.some((q: any) => q.label === formData.quality) && (
+                          <SelectItem value={formData.quality} className="font-bold text-[11px]">{formData.quality}</SelectItem>
+                        )}
+                        {accessoryQualities.map((q: any, i: number) => (
+                          <SelectItem key={i} value={q.label} className="font-bold text-[11px]">
+                            <div className="flex items-center gap-2">
+                              <span>{q.label}</span>
+                              {q.size && <span className="text-[10px] text-rose-600 font-bold">({q.size})</span>}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
+                {/* Show current values as badges */}
+                {!qualityBreakdown && (formData.size || formData.thickness || formData.weightPerPiece || formData.pcsPerBox || formData.boxPerCarton) && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {formData.size && <span className="px-2 py-1 rounded-lg bg-rose-100 text-rose-800 text-[10px] font-black">Taille: {formData.size}</span>}
+                    {formData.thickness && <span className="px-2 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-[10px] font-black">Épaisseur: {formData.thickness}</span>}
+                    {formData.weightPerPiece && <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">Poids/pc: {formData.weightPerPiece}g</span>}
+                    {formData.pcsPerBox && <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-800 text-[10px] font-black">{formData.pcsPerBox} pcs/box</span>}
+                    {formData.boxPerCarton && <span className="px-2 py-1 rounded-lg bg-stone-100 text-stone-700 text-[10px] font-black">{formData.boxPerCarton} box/ctn</span>}
+                  </div>
+                )}
+
+                {/* Fallback uniquement si aucune qualité n'est pré-définie */}
+                {accessoryQualities.length === 0 && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Taille</Label>
+                        <Input
+                          placeholder="Ex: 40mm, 20mm"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.size || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, size: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Épaisseur</Label>
+                        <Input
+                          placeholder="Ex: 2mm, 1.5mm"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.thickness || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, thickness: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Poids / pc (g)</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 12.5"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.weightPerPiece || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, weightPerPiece: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Pcs / box</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 100"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.pcsPerBox || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, pcsPerBox: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Box / ctn</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="Ex: 10"
+                          className="h-11 border-stone-200 font-bold rounded-xl bg-white"
+                          value={formData.boxPerCarton || ''}
+                          onChange={e => setFormData((p: any) => ({ ...p, boxPerCarton: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-[10px] font-black text-stone-400 uppercase tracking-widest flex items-center gap-1">
-                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread || isSlider || isTape ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
+                <ClipboardList className="w-3 h-3" /> {isZipper ? 'Notes Additionnelles' : isThread || isSlider || isTape || isAccessory ? 'Notes / Spécifications' : 'Détails Techniques / Spécifications'}
               </Label>
               <div className="flex gap-2">
                 <Input
                   value={formData.specs || ''}
                   onChange={e => setFormData((prev: any) => ({ ...prev, specs: e.target.value }))}
                   className="h-12 border-stone-200 font-bold rounded-xl"
-                  placeholder={isZipper || isThread || isSlider || isTape ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
+                  placeholder={isZipper || isThread || isSlider || isTape || isAccessory ? "Notes..." : "Ex: Semi-Auto, 50m/roll..."}
                 />
-                {!isZipper && !isThread && !isSlider && !isTape && (
+                {!isZipper && !isThread && !isSlider && !isTape && !isAccessory && (
                   <Button
                     type="button"
                     variant="outline"
@@ -2014,12 +2199,13 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
                   value={qualityBreakdown}
                   onChange={handleQualityBreakdownChange}
                   unit={formData?.unitOfMeasure}
-                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : isTape ? tapeQualities : []}
+                  availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : isTape ? tapeQualities : isAccessory ? accessoryQualities : []}
                   isFabric={isFabric}
                   isZipper={isZipper}
                   isThread={isThread}
                   isSlider={isSlider}
                   isTape={isTape}
+                  isAccessory={isAccessory}
                 />
                 <ColorBreakdownInput
                   categoryId={(subCategories || []).find((sc: any) => sc.name === formData?.categoryId)?.id}
