@@ -17,6 +17,7 @@ import type {
   CheckRemittance, RemittanceStatus, CheckRemittanceItem, TransferOrder
 } from '@/lib/types';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
+import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
 import StockAlerts      from './stock-alerts';
@@ -530,7 +531,7 @@ export default function StockApp() {
   const checkAccess = useCallback(async () => {
     if (!user?.email || !firestore) return;
     
-    if (user.email === 'yahya.lebbar13@gmail.com') {
+    if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
       setUserRole('ADMIN');
       setActiveStore('ALL');
       setAdminUid(user.uid);
@@ -923,7 +924,9 @@ export default function StockApp() {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
     const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
-    const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
+    const batch = writeBatch(firestore);
+    const invRef = doc(collection(firestore, 'users', effectiveUid, 'invoices'));
+    batch.set(invRef, {
       clientId: order.clientId,
       clientName: order.clientName,
       orderId: order.id,
@@ -934,12 +937,14 @@ export default function StockApp() {
       paidAmount: 0,
       remainingBalance: order.totalAfterDiscount,
       status: 'UNPAID',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       notes: order.notes,
       storeId: order.storeId || ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore),
       createdAt: serverTimestamp(),
     });
-    await updateDoc(doc(firestore, 'users', effectiveUid, 'saleOrders', order.id), { status: 'INVOICED' });
+    const orderRef = doc(firestore, 'users', effectiveUid, 'saleOrders', order.id);
+    batch.update(orderRef, { status: 'INVOICED' });
+    await batch.commit();
     toast({ title: '✅ Facture créée', description: `BC converti en facture` });
     setActiveView('invoices');
   }, [user, firestore, toast, activeStore, adminUid, stores]);
