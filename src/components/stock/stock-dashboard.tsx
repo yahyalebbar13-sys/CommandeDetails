@@ -422,28 +422,65 @@ export default function StockDashboard({
 
   // ── 4. STOCKS EFFECTIFS SELON MAGASIN SÉLECTIONNÉ ─────────────────────────
   const displayStockItems = useMemo(() => {
-    if (effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN') {
-      return stockItems;
-    }
-    return stockItems.map(item => {
-      const storeQty = item.qtyByStore ? (item.qtyByStore[effectiveStoreId] ?? 0) : item.currentQty;
-      const totalVal = storeQty * (item.purchasePricePerUnit || 0);
-      const totalSell = item.sellingPrice ? storeQty * item.sellingPrice : undefined;
+    const rawList = (effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN')
+      ? stockItems
+      : stockItems.map(item => {
+          const storeQty = item.qtyByStore ? (item.qtyByStore[effectiveStoreId] ?? 0) : item.currentQty;
+          return {
+            ...item,
+            currentQty: storeQty,
+          };
+        }).filter(i => i.currentQty !== 0 || (i.minThreshold && i.minThreshold > 0));
+
+    return rawList.map(item => {
+      const currentQty = Number(item.currentQty) || 0;
+      const cost = Number(item.purchasePricePerUnit) || 0;
+      const sell = Number(item.sellingPrice) || 0;
+      const positiveQty = Math.max(0, currentQty);
+      const totalValue = positiveQty * cost;
+      const totalSellingValue = sell > 0 ? positiveQty * sell : undefined;
+
       return {
         ...item,
-        currentQty: storeQty,
-        totalValue: totalVal,
-        totalSellingValue: totalSell,
+        currentQty,
+        totalValue: isNaN(totalValue) ? 0 : totalValue,
+        totalSellingValue: totalSellingValue != null && !isNaN(totalSellingValue) ? totalSellingValue : undefined,
       };
-    }).filter(i => i.currentQty !== 0 || (i.minThreshold && i.minThreshold > 0));
+    });
   }, [stockItems, effectiveStoreId]);
 
   // ── 5. CALCUL DES KPIS GLOBAUX & FINANCIERS ──────────────────────────────
-  const totalStockValue = useMemo(() => displayStockItems.reduce((s, i) => s + i.totalValue, 0), [displayStockItems]);
-  const totalSellingValue = useMemo(() => displayStockItems.reduce((s, i) => s + (i.totalSellingValue || 0), 0), [displayStockItems]);
-  const totalStockQty = useMemo(() => displayStockItems.reduce((s, i) => s + i.currentQty, 0), [displayStockItems]);
-  const totalRefs = displayStockItems.length;
-  const alertCount = useMemo(() => displayStockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length, [displayStockItems]);
+  const inStockItems = useMemo(() =>
+    displayStockItems.filter(i => (Number(i.currentQty) || 0) > 0),
+    [displayStockItems]
+  );
+
+  const negativeStockItems = useMemo(() =>
+    displayStockItems.filter(i => (Number(i.currentQty) || 0) < 0),
+    [displayStockItems]
+  );
+
+  const totalStockValue = useMemo(() =>
+    inStockItems.reduce((s, i) => s + (Number(i.totalValue) || 0), 0),
+    [inStockItems]
+  );
+
+  const totalSellingValue = useMemo(() =>
+    inStockItems.reduce((s, i) => s + (Number(i.totalSellingValue) || 0), 0),
+    [inStockItems]
+  );
+
+  const totalStockQty = useMemo(() =>
+    inStockItems.reduce((s, i) => s + (Number(i.currentQty) || 0), 0),
+    [inStockItems]
+  );
+
+  const totalRefs = inStockItems.length;
+
+  const alertCount = useMemo(() =>
+    displayStockItems.filter(i => i.minThreshold != null && (Number(i.currentQty) || 0) <= i.minThreshold).length,
+    [displayStockItems]
+  );
 
   // Ventes du jour
   const todaySales = useMemo(() =>
@@ -842,6 +879,31 @@ export default function StockDashboard({
         </div>
       </div>
 
+      {/* ── BANNIÈRE D'ALERTE STOCK NÉGATIF ── */}
+      {negativeStockItems.length > 0 && activeTab === 'overview' && (
+        <div className="bg-gradient-to-r from-amber-50 to-red-50 border border-amber-300 rounded-3xl p-5 flex items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-amber-100 rounded-2xl shrink-0">
+              <AlertCircle className="w-6 h-6 text-amber-700" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-amber-950 uppercase tracking-tight">
+                {negativeStockItems.length} article{negativeStockItems.length > 1 ? 's' : ''} en stock négatif à régulariser
+              </p>
+              <p className="text-xs font-bold text-amber-800">
+                Des ventes ont été enregistrées sans entrée physique préalable. Entrez le stock réel pour régulariser.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => onNavigate('inventory')}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-wider px-5 h-10 rounded-2xl shrink-0 gap-1.5 shadow-md shadow-amber-500/20"
+          >
+            Fiches Stock <ArrowRight className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
+
       {/* ── BANNIÈRE D'ALERTE STOCK ── */}
       {alertCount > 0 && activeTab === 'overview' && (
         <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-3xl p-5 flex items-center justify-between gap-4 shadow-sm">
@@ -887,7 +949,12 @@ export default function StockDashboard({
                   </div>
                   <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(totalStockValue)}</p>
                   <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Valeur Totale Stock</p>
-                  <p className="text-[10px] font-bold text-stone-500 mt-1">{totalRefs} références · {fmtN(totalStockQty)} unités</p>
+                  <p className="text-[10px] font-bold text-stone-500 mt-1">
+                    {totalRefs} référence{totalRefs > 1 ? 's' : ''} en stock · {fmtN(totalStockQty)} unités
+                    {negativeStockItems.length > 0 && (
+                      <span className="text-amber-600 font-black ml-1.5">({negativeStockItems.length} négatif)</span>
+                    )}
+                  </p>
                 </CardContent>
               </Card>
             ) : (

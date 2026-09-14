@@ -916,10 +916,15 @@ export default function StockFiches({
     return Array.from(new Set(organizedLines.map(g => g.title)));
   }, [organizedLines]);
 
-  const totalRefs  = stockItems.length;
-  const totalStock = stockItems.reduce((s, i) => s + i.currentQty, 0);
-  const totalVal   = stockItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
-  const alertCount = stockItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
+  const totalRefs  = stockItems.filter(i => (Number(i.currentQty) || 0) > 0).length;
+  const totalStock = stockItems.reduce((s, i) => s + Math.max(0, Number(i.currentQty) || 0), 0);
+  const totalVal   = stockItems.reduce((s, i) => {
+    const q = Math.max(0, Number(i.currentQty) || 0);
+    const p = Number(i.purchasePricePerUnit) || 0;
+    const v = Math.round(q * p);
+    return s + (isNaN(v) ? 0 : v);
+  }, 0);
+  const alertCount = stockItems.filter(i => i.minThreshold != null && (Number(i.currentQty) || 0) <= i.minThreshold).length;
 
   const warehouseSelectorElement = isInventoryView && userRole === 'ADMIN' && stores && stores.length > 0 ? (
     <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-wrap items-center justify-between gap-4">

@@ -6,7 +6,10 @@ function getFirebaseAdminApp() {
   if (!getApps().length) {
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'studio-9506506653-9b525';
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY
+      ?.replace(/\\n/g, '\n')
+      ?.replace(/\\\//g, '/')
+      ?.replace(/\\U/g, 'U');
 
     if (!clientEmail || !privateKey) {
       throw new Error(`Missing env vars. email=${!!clientEmail}, key=${!!privateKey}`);
@@ -48,6 +51,7 @@ export async function POST(req: Request) {
       deletedStores: 0,
       cleanedArticlesStock: 0,
       deletedLocalTestArticles: 0,
+      cleanedFacturesStock: 0,
     };
 
     // 1. Supprimer tous les mouvements de stock (/stock uniquement)
@@ -134,6 +138,18 @@ export async function POST(req: Request) {
           initialQtyByStore: FieldValue.delete(),
         });
         report.cleanedArticlesStock++;
+      }
+    }
+
+    // 8. Nettoyer la date de passage en stock sur les factures pour permettre de retester
+    const facturesSnap = await db.collection('users').doc(adminUid).collection('factures').get();
+    for (const facDoc of facturesSnap.docs) {
+      const data = facDoc.data();
+      if (data.stockEntryDate) {
+        await facDoc.ref.update({
+          stockEntryDate: FieldValue.delete(),
+        });
+        report.cleanedFacturesStock++;
       }
     }
 

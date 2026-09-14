@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock
+  Calendar, Clock, Filter, Lock, RotateCcw
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -570,6 +570,43 @@ export default function StockApp() {
   const [adminUid, setAdminUid] = useState<string | null>(null);
   const [userStoreId, setUserStoreId] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetStockSimulation = async () => {
+    const targetUid = adminUid || user?.uid;
+    if (!targetUid) return;
+    setIsResetting(true);
+    try {
+      const res = await fetch('/api/admin/reset-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUid: targetUid }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: 'Stock réinitialisé à 0 !',
+          description: 'Toutes les données de test ont été effacées avec succès. Votre simulation peut démarrer.',
+        });
+        setResetConfirmOpen(false);
+      } else {
+        toast({
+          title: 'Erreur',
+          description: data.error || 'Impossible de réinitialiser le stock.',
+          variant: 'destructive',
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Erreur réseau',
+        description: e?.message || 'Erreur lors de la réinitialisation.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const checkAccess = useCallback(async () => {
     if (!user?.email || !firestore) return;
@@ -1695,6 +1732,13 @@ export default function StockApp() {
             <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 text-[9px] font-black text-stone-500 hover:bg-stone-100 uppercase tracking-wider transition-colors">
               ← StockVue
             </a>
+            {userRole === 'ADMIN' && (
+              <Button variant="ghost" size="sm" onClick={() => setResetConfirmOpen(true)}
+                title="Remettre le stock à 0 pour démarrer une nouvelle simulation"
+                className="hidden sm:flex items-center gap-1.5 text-[9px] font-black text-rose-700 hover:text-rose-900 hover:bg-rose-50 h-9 px-3 rounded-xl border border-rose-200 uppercase tracking-wider">
+                <RotateCcw className="w-3.5 h-3.5" /> Reset Stock (0)
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={handleBackup}
               title="Télécharger une sauvegarde complète de toutes vos données"
               className="hidden sm:flex items-center gap-1.5 text-[9px] font-black text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 h-9 px-3 rounded-xl border border-emerald-200 uppercase tracking-wider">
@@ -2424,6 +2468,63 @@ export default function StockApp() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Modal de Confirmation Réinitialisation Stock (Mode Simulation) */}
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+              <RotateCcw className="w-5 h-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-black text-stone-900 uppercase">
+                Réinitialiser le Stock à 0
+              </DialogTitle>
+              <DialogDescription className="text-xs text-stone-500 font-bold">
+                Prêt pour une nouvelle simulation
+              </DialogDescription>
+            </div>
+          </div>
+
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 my-2 text-xs text-rose-900 space-y-1.5">
+            <p className="font-bold">Cette action va :</p>
+            <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-800">
+              <li>Supprimer tous les mouvements de stock (/stock)</li>
+              <li>Supprimer les ventes, factures de caisse et paiements (/stock)</li>
+              <li>Remettre toutes les quantités physiques en stock à 0</li>
+              <li>Réactiver les arrivages récents pour retester « Passer au stock »</li>
+            </ul>
+            <p className="font-black text-emerald-800 text-[11px] pt-1">
+              ✓ Vos 495 articles et 46 factures dans /gestion restent 100% INTACTS.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setResetConfirmOpen(false)}
+              disabled={isResetting}
+              className="rounded-xl text-xs font-bold"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleResetStockSimulation}
+              disabled={isResetting}
+              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider gap-1.5 shadow-md shadow-rose-600/20"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Réinitialisation...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5" /> Confirmer le Reset à 0
+                </>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
