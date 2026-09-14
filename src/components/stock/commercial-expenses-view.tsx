@@ -37,7 +37,36 @@ interface CommercialExpensesViewProps {
 }
 
 const UNITS = ["pièces", "doz", "gross (144p)", "m", "rolls", "kg", "bag", "yds"];
+const UNIT_MAP_FR: Record<string, string> = {
+  "pièces": "Pièces (pcs)",
+  "doz": "Douzaines (12 pcs)",
+  "gross (144p)": "Gross (144 pcs)",
+  "m": "Mètres (m)",
+  "rolls": "Rouleaux (rolls)",
+  "kg": "Kilogrammes (kg)",
+  "bag": "Sacs / Paquets (bags)",
+  "yds": "Yards (yds)",
+  "pcs": "Pièces (pcs)",
+};
+
 const COLORS = ["white", "black", "raw black", "raw white", "various", "various x black", "various x white", "nickel", "various x black x white", "silver", "gold", "black x white", "beige", "black nickel", "transparent"];
+const COLOR_MAP_FR: Record<string, string> = {
+  "white": "Blanc",
+  "black": "Noir",
+  "raw black": "Noir brut",
+  "raw white": "Blanc brut / Écru",
+  "various": "Divers / Couleurs variées",
+  "various x black": "Divers x Noir",
+  "various x white": "Divers x Blanc",
+  "nickel": "Nickel",
+  "various x black x white": "Divers x Noir x Blanc",
+  "silver": "Argenté",
+  "gold": "Doré",
+  "black x white": "Noir x Blanc",
+  "beige": "Beige",
+  "black nickel": "Nickel noir",
+  "transparent": "Transparent",
+};
 const ZIPPER_TYPES = ["O/E", "C/E"];
 const SLIDER_TYPES = ["A/L", "P/L", "N/L", "SEMI A/L"];
 
@@ -155,12 +184,12 @@ export default function CommercialExpensesView({
     if (!selectedGenCatId) return [];
     const filtered = (categories || []).filter((sc: any) => sc.generalCategoryId === selectedGenCatId);
 
-    const getGroupIndex = (name: string) => {
-      const n = (name || '').toLowerCase().trim();
-      const fabricKw   = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
-      const sliderKw   = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
-      const zipperKw   = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
-      const buttonKw   = ["covered mould button", "snap button", "button"];
+    const getGroupIndex = (sc: any) => {
+      const n = `${sc.name || ''} ${sc.nameFR || ''}`.toLowerCase().trim();
+      const fabricKw   = ["fabric", "tissu", "toile", "non woven", "non-tissé", "t/c fabric", "popeline", "poplin", "leather", "cuir", "felt", "feutre", "polyester", "taffeta", "taffetas", "interlining", "entoilage"];
+      const sliderKw   = ["puller", "tirette", "slider", "curseur"];
+      const zipperKw   = ["zipper", "fermeture", "fermeture à glissière", "plastic zipper", "nylon zipper", "metal zipper", "long chain"];
+      const buttonKw   = ["covered mould button", "snap button", "button", "bouton"];
       if (fabricKw.some(k => n.includes(k)))  return 1;
       if (sliderKw.some(k => n.includes(k)))  return 2;
       if (zipperKw.some(k => n.includes(k)))  return 3;
@@ -169,8 +198,10 @@ export default function CommercialExpensesView({
     };
 
     return filtered.sort((a: any, b: any) => {
-      const diff = getGroupIndex(a.name) - getGroupIndex(b.name);
-      return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '');
+      const diff = getGroupIndex(a) - getGroupIndex(b);
+      const nameA = a.nameFR || a.name || '';
+      const nameB = b.nameFR || b.name || '';
+      return diff !== 0 ? diff : nameA.localeCompare(nameB, 'fr');
     });
   }, [selectedGenCatId, categories]);
 
@@ -218,21 +249,39 @@ export default function CommercialExpensesView({
     return (categories || []).find((sc: any) => sc.name === selectedCategoryName);
   }, [categories, selectedCategoryName]);
 
+  const selectedGenCat = useMemo(() => {
+    let genCatId = selectedGenCatId;
+    if (!genCatId && selectedSubCat) genCatId = selectedSubCat.generalCategoryId;
+    return (generalCategories || []).find((gc: any) => gc.id === genCatId);
+  }, [selectedGenCatId, selectedSubCat, generalCategories]);
+
   const fabricQualities = useMemo(() => {
-    return Array.isArray(selectedSubCat?.fabricQualities) ? selectedSubCat.fabricQualities : [];
-  }, [selectedSubCat]);
+    return [
+      ...(Array.isArray(selectedSubCat?.fabricQualities) ? selectedSubCat.fabricQualities : []),
+      ...(Array.isArray(selectedGenCat?.fabricQualities) ? selectedGenCat.fabricQualities : [])
+    ];
+  }, [selectedSubCat, selectedGenCat]);
 
   const zipperQualities = useMemo(() => {
-    return Array.isArray(selectedSubCat?.zipperQualities) ? selectedSubCat.zipperQualities : [];
-  }, [selectedSubCat]);
+    return [
+      ...(Array.isArray(selectedSubCat?.zipperQualities) ? selectedSubCat.zipperQualities : []),
+      ...(Array.isArray(selectedGenCat?.zipperQualities) ? selectedGenCat.zipperQualities : [])
+    ];
+  }, [selectedSubCat, selectedGenCat]);
 
   const threadQualities = useMemo(() => {
-    return Array.isArray(selectedSubCat?.threadQualities) ? selectedSubCat.threadQualities : [];
-  }, [selectedSubCat]);
+    return [
+      ...(Array.isArray(selectedSubCat?.threadQualities) ? selectedSubCat.threadQualities : []),
+      ...(Array.isArray(selectedGenCat?.threadQualities) ? selectedGenCat.threadQualities : [])
+    ];
+  }, [selectedSubCat, selectedGenCat]);
 
   const sliderQualities = useMemo(() => {
-    return Array.isArray(selectedSubCat?.sliderQualities) ? selectedSubCat.sliderQualities : [];
-  }, [selectedSubCat]);
+    return [
+      ...(Array.isArray(selectedSubCat?.sliderQualities) ? selectedSubCat.sliderQualities : []),
+      ...(Array.isArray(selectedGenCat?.sliderQualities) ? selectedGenCat.sliderQualities : [])
+    ];
+  }, [selectedSubCat, selectedGenCat]);
 
   const availableSizes = useMemo(() => {
     return Array.isArray(selectedSubCat?.availableSizes) && selectedSubCat.availableSizes.length > 0 ? selectedSubCat.availableSizes : [];
@@ -265,11 +314,12 @@ export default function CommercialExpensesView({
     );
   }, [selectedCategoryName, selectedSize, selectedColor, selectedSpecs, selectedZipperType, selectedSlider, selectedSliderType, selectedGsm, selectedFabricWidth, articles]);
 
-  // Nom complet reconstitué de l'article pour le stock et l'affichage
+  // Nom complet reconstitué de l'article pour le stock et l'affichage (avec libellés en français)
   const computedArticleName = useMemo(() => {
     if (isManualArticle) return newArticleName.trim();
     if (!selectedCategoryName) return '';
-    const parts: string[] = [selectedCategoryName];
+    const baseName = selectedSubCat?.nameFR || selectedCategoryName;
+    const parts: string[] = [baseName];
     if (isFabric) {
       if (selectedGsm) parts.push(`${selectedGsm}g`);
       if (selectedFabricWidth) parts.push(`${selectedFabricWidth}cm`);
@@ -285,9 +335,12 @@ export default function CommercialExpensesView({
       if (selectedSize) parts.push(selectedSize);
       if (selectedSpecs) parts.push(selectedSpecs);
     }
-    if (selectedColor && selectedColor !== 'various') parts.push(selectedColor.toUpperCase());
+    if (selectedColor && selectedColor !== 'various') {
+      const colorFr = COLOR_MAP_FR[selectedColor] || selectedColor.toUpperCase();
+      parts.push(colorFr.toUpperCase());
+    }
     return parts.join(' · ');
-  }, [isManualArticle, newArticleName, selectedCategoryName, isFabric, isZipper, isThread, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedConeWeightG, selectedThreadWeightG, selectedLengthPerPiece, selectedLengthUnit, selectedSpecs, selectedColor]);
+  }, [isManualArticle, newArticleName, selectedCategoryName, selectedSubCat, isFabric, isZipper, isThread, selectedGsm, selectedFabricWidth, selectedSize, selectedZipperType, selectedSlider, selectedConeWeightG, selectedThreadWeightG, selectedLengthPerPiece, selectedLengthUnit, selectedSpecs, selectedColor]);
 
   // Handler de sélection d'une sous-catégorie
   const handleSelectSubCategory = (catName: string) => {
@@ -315,19 +368,22 @@ export default function CommercialExpensesView({
     }
   };
 
-  // Helper GroupedCategorySelect identique à AddOrderModal
+  // Helper GroupedCategorySelect avec libellés et noms en français
   const GroupedCategorySelect = () => {
     const LABEL_MAP: Record<string, string> = {
-      'Fabric': 'Fabric', 'Slider et puller': 'Slider / Puller',
-      'Zipper': 'Zipper', 'Bouton': 'Bouton', 'Reste': 'Reste'
+      'Fabric': 'Tissus & Toiles',
+      'Slider et puller': 'Curseurs & Tirettes',
+      'Zipper': 'Fermetures à Glissière',
+      'Bouton': 'Boutons & Accessoires',
+      'Reste': 'Autres Articles'
     };
     const groups: Record<string, any[]> = {};
     (filteredSubCategories || []).forEach((sc: any) => {
-      const n = (sc.name || '').toLowerCase().trim();
-      const fabricKw = ["fabric", "non woven", "t/c fabric", "popeline", "leather", "felt fabric", "polyester fabric", "taffeta fabric", "woven interlining"];
-      const sliderKw = ["puller", "slider for nylon zipper", "slider for plastic zipper", "slider for metal zipper"];
-      const zipperKw = ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"];
-      const buttonKw = ["covered mould button", "snap button", "button"];
+      const n = `${sc.name || ''} ${sc.nameFR || ''}`.toLowerCase().trim();
+      const fabricKw = ["fabric", "tissu", "toile", "non woven", "non-tissé", "t/c fabric", "popeline", "poplin", "leather", "cuir", "felt", "feutre", "polyester", "taffeta", "taffetas", "interlining", "entoilage"];
+      const sliderKw = ["puller", "tirette", "slider", "curseur"];
+      const zipperKw = ["zipper", "fermeture", "fermeture à glissière", "plastic zipper", "nylon zipper", "metal zipper", "long chain"];
+      const buttonKw = ["covered mould button", "snap button", "button", "bouton"];
       let label = 'Reste';
       if (fabricKw.some(k => n.includes(k)))  label = 'Fabric';
       else if (sliderKw.some(k => n.includes(k))) label = 'Slider et puller';
@@ -340,11 +396,18 @@ export default function CommercialExpensesView({
       <>
         {Object.entries(LABEL_MAP).map(([key, display]) => {
           if (!groups[key]?.length) return null;
+          const sorted = [...groups[key]].sort((a: any, b: any) => {
+            const nameA = a.nameFR || a.name || '';
+            const nameB = b.nameFR || b.name || '';
+            return nameA.localeCompare(nameB, 'fr');
+          });
           return (
             <SelectGroup key={key}>
               <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1.5">{display}</SelectLabel>
-              {groups[key].map((sc: any) => (
-                <SelectItem key={sc.id || sc.name} value={sc.name} className="font-bold pl-6 text-[11px]">{sc.name}</SelectItem>
+              {sorted.map((sc: any) => (
+                <SelectItem key={sc.id || sc.name} value={sc.name} className="font-bold pl-6 text-[11px]">
+                  {sc.nameFR || sc.name}
+                </SelectItem>
               ))}
             </SelectGroup>
           );
@@ -936,7 +999,7 @@ export default function CommercialExpensesView({
                   <div className="flex items-center gap-2">
                     <ShoppingBag className="w-4 h-4 text-indigo-700" />
                     <span className="text-xs font-black uppercase text-indigo-950 tracking-wider">
-                      Sélection du Produit Achete au Marché
+                      Sélection du Produit Acheté au Marché
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 bg-white/80 p-1 rounded-xl border border-indigo-200 text-[10px] font-bold">
@@ -984,22 +1047,32 @@ export default function CommercialExpensesView({
                           }}
                         >
                           <SelectTrigger className="h-10 font-bold rounded-xl border-stone-200 bg-white text-xs">
-                            <SelectValue placeholder="Choisir le pôle..." />
+                            <SelectValue placeholder="Choisir le pôle...">
+                              {(() => {
+                                const gc = (generalCategories || []).find((g: any) => g.id === selectedGenCatId);
+                                return gc ? (gc.nameFR || gc.name) : undefined;
+                              })()}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="max-h-72">
                             {(() => {
-                              const sorted = [...(generalCategories || [])].sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'fr'));
+                              const sorted = [...(generalCategories || [])].sort((a: any, b: any) => {
+                                const nameA = a.nameFR || a.name || '';
+                                const nameB = b.nameFR || b.name || '';
+                                return nameA.localeCompare(nameB, 'fr');
+                              });
                               const grouped: Record<string, any[]> = {};
                               sorted.forEach((gc: any) => {
-                                const letter = (gc.name || '?')[0].toUpperCase();
+                                const displayName = gc.nameFR || gc.name || '?';
+                                const letter = displayName[0].toUpperCase();
                                 if (!grouped[letter]) grouped[letter] = [];
-                                grouped[letter].push(gc);
+                                grouped[letter].push({ ...gc, displayName });
                               });
                               return Object.entries(grouped).map(([letter, items]) => (
                                 <SelectGroup key={letter}>
                                   <SelectLabel className="text-[9px] text-stone-400 font-black uppercase tracking-widest bg-stone-50 py-1">{letter}</SelectLabel>
                                   {items.map((gc: any) => (
-                                    <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-xs">{gc.name}</SelectItem>
+                                    <SelectItem key={gc.id} value={gc.id} className="font-bold pl-6 text-xs">{gc.displayName}</SelectItem>
                                   ))}
                                 </SelectGroup>
                               ));
@@ -1019,7 +1092,9 @@ export default function CommercialExpensesView({
                           onValueChange={handleSelectSubCategory}
                         >
                           <SelectTrigger className={`h-10 font-bold rounded-xl border text-xs ${!selectedGenCatId ? 'opacity-50' : 'border-stone-200 bg-white'}`}>
-                            <SelectValue placeholder={selectedGenCatId ? "Choisir le produit..." : "← Pôle d'abord"} />
+                            <SelectValue placeholder={selectedGenCatId ? "Choisir le produit..." : "← Pôle d'abord"}>
+                              {selectedSubCat ? (selectedSubCat.nameFR || selectedSubCat.name) : undefined}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="max-h-72">
                             <GroupedCategorySelect />
@@ -1058,7 +1133,7 @@ export default function CommercialExpensesView({
                                     </SelectTrigger>
                                     <SelectContent>
                                       {fabricQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.label}</SelectItem>
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -1088,12 +1163,12 @@ export default function CommercialExpensesView({
                                   <Palette className="w-3 h-3 text-indigo-600" /> Couleur
                                 </Label>
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
-                                    <SelectValue />
+                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
+                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
                                     {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -1124,13 +1199,13 @@ export default function CommercialExpensesView({
                                     </SelectTrigger>
                                     <SelectContent>
                                       {zipperQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.label}</SelectItem>
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
                                 ) : (
                                   <Input
-                                    placeholder="Ex: 20cm, 50cm, Long Chain..."
+                                    placeholder="Ex: 20cm, 50cm, Chaîne continue..."
                                     value={selectedSize}
                                     onChange={e => setSelectedSize(e.target.value)}
                                     className="h-9 border-stone-200 bg-white rounded-xl text-xs font-bold"
@@ -1144,12 +1219,12 @@ export default function CommercialExpensesView({
                                   <Palette className="w-3 h-3 text-indigo-600" /> Couleur
                                 </Label>
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
-                                    <SelectValue />
+                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
+                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
                                     {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -1163,7 +1238,7 @@ export default function CommercialExpensesView({
                               {/* Qualité Thread */}
                               <div className="space-y-1">
                                 <Label className="text-[10px] font-black text-teal-900 uppercase tracking-wider flex items-center gap-1">
-                                  <span className="text-xs">🪡</span> Qualité Thread
+                                  <span className="text-xs">🪡</span> Qualité Fil à coudre
                                 </Label>
                                 {threadQualities.length > 0 ? (
                                   <Select onValueChange={v => {
@@ -1182,7 +1257,7 @@ export default function CommercialExpensesView({
                                     </SelectTrigger>
                                     <SelectContent>
                                       {threadQualities.map((q: any, i: number) => (
-                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.label}</SelectItem>
+                                        <SelectItem key={i} value={String(i)} className="font-bold text-xs">{q.nameFR || q.label}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -1210,12 +1285,12 @@ export default function CommercialExpensesView({
                                   <Palette className="w-3 h-3 text-teal-600" /> Couleur
                                 </Label>
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-teal-200 bg-white font-bold rounded-xl text-xs uppercase">
-                                    <SelectValue />
+                                  <SelectTrigger className="h-9 border-teal-200 bg-white font-bold rounded-xl text-xs">
+                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
                                     {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -1229,7 +1304,7 @@ export default function CommercialExpensesView({
                               {/* Qualité / Modèle Slider */}
                               <div className="space-y-1">
                                 <Label className="text-[10px] font-black text-orange-900 uppercase tracking-wider flex items-center gap-1">
-                                  <span className="text-xs">🎛️</span> Qualité / Modèle Slider
+                                  <span className="text-xs">🎛️</span> Qualité / Modèle Curseur
                                 </Label>
                                 {sliderQualities.length > 0 ? (
                                   <Select onValueChange={v => {
@@ -1250,7 +1325,7 @@ export default function CommercialExpensesView({
                                         <SelectItem key={i} value={String(i)} className="font-bold text-xs">
                                           <div className="flex items-center gap-2">
                                             {q.imageUrl && <img src={q.imageUrl} alt="" className="w-4 h-4 rounded object-cover" />}
-                                            <span>{q.label}</span>
+                                            <span>{q.nameFR || q.label}</span>
                                             {q.size && <span className="text-orange-600 font-bold">({q.size})</span>}
                                           </div>
                                         </SelectItem>
@@ -1279,12 +1354,12 @@ export default function CommercialExpensesView({
                               <div className="space-y-1">
                                 <Label className="text-[10px] font-black text-stone-400 uppercase tracking-wider">Couleur</Label>
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-stone-200 bg-white font-bold rounded-xl text-xs uppercase">
-                                    <SelectValue />
+                                  <SelectTrigger className="h-9 border-stone-200 bg-white font-bold rounded-xl text-xs">
+                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
                                     {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -1299,8 +1374,8 @@ export default function CommercialExpensesView({
                               <div className="flex flex-wrap gap-1.5">
                                 {selectedSize && <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[10px] font-black">{selectedSize}</span>}
                                 {selectedSliderWeightG && <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">{selectedSliderWeightG}g/pc</span>}
-                                {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-black">{selectedPcsPerBag} pcs/bag</span>}
-                                {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-black">{selectedBagsPerCarton} bags/ctn</span>}
+                                {selectedPcsPerBag && <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-black">{selectedPcsPerBag} pcs/sachet</span>}
+                                {selectedBagsPerCarton && <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-black">{selectedBagsPerCarton} sachets/ctn</span>}
                               </div>
                             </div>
                           </div>
@@ -1334,12 +1409,12 @@ export default function CommercialExpensesView({
                               <div className="space-y-1">
                                 <Label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Couleur</Label>
                                 <Select value={selectedColor} onValueChange={setSelectedColor}>
-                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs uppercase">
-                                    <SelectValue />
+                                  <SelectTrigger className="h-9 border-indigo-200 bg-white font-bold rounded-xl text-xs">
+                                    <SelectValue>{COLOR_MAP_FR[selectedColor] || selectedColor}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
                                     {COLORS.map(c => (
-                                      <SelectItem key={c} value={c} className="font-bold uppercase text-xs">{c}</SelectItem>
+                                      <SelectItem key={c} value={c} className="font-bold text-xs">{COLOR_MAP_FR[c] || c}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -1404,11 +1479,11 @@ export default function CommercialExpensesView({
                       <Label className="text-[10px] font-black uppercase text-indigo-900">Unité</Label>
                       <Select value={newUnitOfMeasure} onValueChange={setNewUnitOfMeasure}>
                         <SelectTrigger className="rounded-xl h-9 text-xs font-bold bg-white border-indigo-200">
-                          <SelectValue />
+                          <SelectValue>{UNIT_MAP_FR[newUnitOfMeasure] || newUnitOfMeasure}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {UNITS.map(u => (
-                            <SelectItem key={u} value={u} className="text-xs font-bold">{u}</SelectItem>
+                            <SelectItem key={u} value={u} className="text-xs font-bold">{UNIT_MAP_FR[u] || u}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
