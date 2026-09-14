@@ -40,13 +40,12 @@ import StoresView       from './stores-view';
 import StockWarehouses  from './stock-warehouses';
 import TreasuryDashboard from './treasury-dashboard';
 import BankReconciliationView from './bank-reconciliation-view';
-import BlindInventory from './blind-inventory';
 import AuditLogView from './audit-log-view';
 import ChequesImpayesView from './cheques-impayes-view';
 import CommercialExpensesView from './commercial-expenses-view';
 import { Landmark } from 'lucide-react';
 
-type StockView = 'dashboard' | 'sale' | 'stock' | 'inventory' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'blind-inventory' | 'audit';
+type StockView = 'dashboard' | 'sale' | 'stock' | 'analytics' | 'clients' | 'orders' | 'invoices' | 'cheques-impayes' | 'expenses' | 'movements' | 'alerts' | 'arrivals' | 'transfers' | 'stores' | 'warehouses' | 'treasury' | 'reconciliation' | 'audit';
 
 // ─── Calcul du stock courant ─────────────────────────────────────────────────
 
@@ -742,17 +741,6 @@ export default function StockApp() {
   // Tous les mouvements de stock réels
   const movements = allMovements;
 
-  const warehouses = useMemo(() => stores.filter(s => s.type === 'WAREHOUSE'), [stores]);
-  const [inventoryWarehouseId, setInventoryWarehouseId] = useState<string>('');
-  
-  useEffect(() => {
-    if (warehouses.length > 0 && (!inventoryWarehouseId || !warehouses.some(w => w.id === inventoryWarehouseId))) {
-      setInventoryWarehouseId(warehouses[0]?.id || '');
-    } else if (warehouses.length === 0 && stores.length > 0 && (!inventoryWarehouseId || !stores.some(s => s.id === inventoryWarehouseId))) {
-      setInventoryWarehouseId(stores[0]?.id || 'CHRIFA');
-    }
-  }, [warehouses, stores, inventoryWarehouseId]);
-
   const defaultSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : 'CHRIFA';
   const [saleStoreId, setSaleStoreId] = useState<string>(defaultSaleStoreId);
 
@@ -775,16 +763,6 @@ export default function StockApp() {
   const allStockItemsGlobal = useMemo(() =>
     computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
     [articles, movements, categories, userRole, stores, userStoreId, generalCategories, factures]
-  );
-
-  const isCurrentStoreWarehouse = stores.some(s => s.id === activeStore && s.type === 'WAREHOUSE');
-  const effectiveInventoryStoreId = isCurrentStoreWarehouse 
-    ? activeStore 
-    : (userRole === 'ADMIN' && inventoryWarehouseId ? inventoryWarehouseId : activeStore);
-
-  const inventoryStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
-    [articles, movements, categories, effectiveInventoryStoreId, userRole, stores, userStoreId, generalCategories, factures]
   );
 
   const effectiveSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : saleStoreId;
@@ -1508,7 +1486,6 @@ export default function StockApp() {
     { id: 'arrivals',  label: 'Arrivages',     category: 'logistique', icon: Anchor,          badge: pendingArrivals, color: 'amber', adminOrMainOnly: true },
     { id: 'movements', label: 'Mouvements',    category: 'logistique', icon: ArrowLeftRight },
     { id: 'transfers', label: 'Transferts',    category: 'logistique', icon: Truck,           color: 'blue' },
-    { id: 'inventory', label: 'Inventaire',    category: 'logistique', icon: Boxes },
 
     { id: 'treasury',  label: 'Trésorerie',    category: 'finance', icon: Landmark,        badge: urgent7DaysEffects.length > 0 ? urgent7DaysEffects.length : undefined, color: 'emerald', adminOnly: true },
     { id: 'reconciliation', label: 'Rappro. Bancaire', category: 'finance', icon: ArrowLeftRight, color: 'blue', adminOnly: true },
@@ -1524,11 +1501,13 @@ export default function StockApp() {
     // Règle pour les entrepôts :
     if (isWarehouse) {
       return navItemsRaw.filter(item => 
-        item.id === 'inventory' || item.id === 'movements'
+        item.id === 'stock' || item.id === 'movements'
       );
     }
 
     return navItemsRaw.filter(item => {
+      // Pour ADMIN : supprimer totalement Caisse et Frais & Dépenses
+      if (userRole === 'ADMIN' && (item.id === 'sale' || item.id === 'expenses')) return false;
       if (item.adminOnly && userRole !== 'ADMIN') return false;
       if (item.commercialOnly && userRole === 'ADMIN') return false;
       if (item.adminOrMainOnly && !isChrifaOrAdmin) return false;
@@ -1539,10 +1518,14 @@ export default function StockApp() {
   // Si on est sur une vue cachée par le changement de magasin (ex: WAREHOUSE), on switch
   useEffect(() => {
     if (isWarehouse) {
-      if (!['inventory', 'movements'].includes(activeView)) {
-        setActiveView('inventory');
+      if (!['stock', 'movements'].includes(activeView)) {
+        setActiveView('stock');
       }
     } else {
+      if (userRole === 'ADMIN' && (activeView === 'sale' || activeView === 'expenses')) {
+        setActiveView('dashboard');
+        return;
+      }
       if (!navItems.find(n => n.id === activeView)) {
         if (userRole === 'ADMIN') setActiveView('dashboard');
         else setActiveView('stock');
@@ -1650,9 +1633,8 @@ export default function StockApp() {
 
               <div className="flex items-center gap-1.5">
                 {[
-                  { id: 'inventory', label: 'Inventaire', icon: Boxes },
-                  { id: 'movements', label: 'Mouvements', icon: ArrowLeftRight },
-                  { id: 'blind-inventory', label: 'Inv. Aveugle', icon: Boxes, color: 'amber' }
+                  { id: 'stock', label: 'Stock par Groupes', icon: Package },
+                  { id: 'movements', label: 'Mouvements', icon: ArrowLeftRight }
                 ].map(tab => {
                   const isActive = activeView === tab.id;
                   return (
@@ -1661,9 +1643,7 @@ export default function StockApp() {
                       onClick={() => setActiveView(tab.id as StockView)}
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                         isActive
-                          ? tab.color === 'amber'
-                            ? 'bg-amber-500 text-white shadow-md'
-                            : 'bg-stone-900 text-white shadow-md'
+                          ? 'bg-stone-900 text-white shadow-md'
                           : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                       }`}
                     >
@@ -1934,27 +1914,6 @@ export default function StockApp() {
                 onAddMovement={handleAddMovement}
               />
             )}
-            {activeView === 'inventory' && (
-              <StockFiches
-                isInventoryView={true}
-                userRole={userRole}
-                adminUid={adminUid}
-                activeStore={effectiveInventoryStoreId}
-                stores={stores}
-                selectedWarehouseId={effectiveInventoryStoreId}
-                onWarehouseChange={(id) => {
-                  setInventoryWarehouseId(id);
-                  setActiveStore(id as any);
-                }}
-                stockItems={inventoryStockItems}
-                allStockItems={inventoryStockItems}
-                movements={movements}
-                categories={categories}
-                generalCategories={generalCategories}
-                factures={factures}
-                onAddMovement={handleAddMovement}
-              />
-            )}
             {activeView === 'treasury' && (
               <TreasuryDashboard 
                 payments={payments} 
@@ -2000,8 +1959,7 @@ export default function StockApp() {
                 adminUid={adminUid}
                 onSelectStore={(storeId, view) => {
                   setActiveStore(storeId as any);
-                  setInventoryWarehouseId(storeId);
-                  setActiveView(view || 'inventory');
+                  setActiveView(view || 'stock');
                 }}
               />
             )}

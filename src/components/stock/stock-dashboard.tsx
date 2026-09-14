@@ -42,7 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { StockMovement, StockItem, Sale, StoreLocation, Store, ClientPayment, Invoice } from '@/lib/types';
 
-type StockView = 'dashboard' | 'pos' | 'inventory' | 'sales' | 'movements' | 'alerts';
+type StockView = 'dashboard' | 'pos' | 'stock' | 'sales' | 'movements' | 'alerts';
 
 interface StockDashboardProps {
   stockItems: StockItem[];
@@ -896,7 +896,7 @@ export default function StockDashboard({
             </div>
           </div>
           <Button
-            onClick={() => onNavigate('inventory')}
+            onClick={() => onNavigate('stock')}
             className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-wider px-5 h-10 rounded-2xl shrink-0 gap-1.5 shadow-md shadow-amber-500/20"
           >
             Fiches Stock <ArrowRight className="w-3.5 h-3.5" />
@@ -940,7 +940,7 @@ export default function StockDashboard({
 
             {/* KPI 1 : Valeur du stock (Admin) ou CA Jour (Commercial) */}
             {userRole === 'ADMIN' ? (
-              <Card onClick={() => onNavigate('inventory')} className="border-none shadow-xl rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-0.5 transition-all">
+              <Card onClick={() => onNavigate('stock')} className="border-none shadow-xl rounded-3xl overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-0.5 transition-all">
                 <div className="h-1.5 bg-emerald-500" />
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">

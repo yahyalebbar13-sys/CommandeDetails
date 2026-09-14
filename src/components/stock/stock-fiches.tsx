@@ -124,11 +124,9 @@ function StockHeader({
 
 // ── Fiche complète d'un produit (niveau 4) ───────────────────────────────────
 function ProductFiche({
-  article, variants, movements, factures, onBack, color, inline = false, userRole = 'COMMERCIAL',
-  inventoryMode = false, countedQuantities = {}, setCountedQuantities
+  article, variants, movements, factures, onBack, color, inline = false, userRole = 'COMMERCIAL'
 }: {
   article: any; variants: any[]; movements: any[]; factures: any[]; onBack: () => void; color: string; inline?: boolean; userRole?: string;
-  inventoryMode?: boolean; countedQuantities?: Record<string, string>; setCountedQuantities?: any;
 }) {
   const artMovs = useMemo(() =>
     movements.filter(m => variants.some(v => m.articleId === v.articleId))
@@ -373,18 +371,7 @@ function ProductFiche({
                       <td className="px-6 py-4 text-right font-bold text-emerald-600">+{fmt(v.totalIn)}</td>
                       <td className="px-6 py-4 text-right font-bold text-rose-600">-{fmt(v.totalOut)}</td>
                       <td className="px-6 py-4 text-right font-black text-sm text-stone-900">
-                        {inventoryMode ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            placeholder={String(v.currentQty)}
-                            value={countedQuantities?.[v.articleId] || ''}
-                            onChange={(e) => setCountedQuantities && setCountedQuantities((prev: any) => ({ ...prev, [v.articleId]: e.target.value }))}
-                            className="w-20 text-right h-8 font-black bg-white"
-                          />
-                        ) : (
-                          fmt(v.currentQty)
-                        )}
+                        {fmt(v.currentQty)}
                       </td>
                       <td className="px-6 py-4 text-left">
                         {v.qtyByStore && Object.entries(v.qtyByStore).some(([_, q]: any) => q > 0) ? (
@@ -487,12 +474,10 @@ function ProductFiche({
 
 // ── Tableau niveau 3 : produits d'une sous-catégorie ─────────────────────────
 function ProductsTable({
-  items, subCatName, movements, factures, onBack, headerProp, userRole = 'COMMERCIAL',
-  inventoryMode = false, countedQuantities = {}, setCountedQuantities
+  items, subCatName, movements, factures, onBack, headerProp, userRole = 'COMMERCIAL'
 }: {
   items: any[]; subCatName: string; movements: any[]; factures: any[];
   onBack: () => void; headerProp?: React.ReactNode; userRole?: string;
-  inventoryMode?: boolean; countedQuantities?: Record<string, string>; setCountedQuantities?: any;
 }) {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
 
@@ -526,9 +511,6 @@ function ProductsTable({
           onBack={onBack}
           inline={false}
           userRole={userRole}
-          inventoryMode={inventoryMode}
-          countedQuantities={countedQuantities}
-          setCountedQuantities={setCountedQuantities}
         />
       </div>
     );
@@ -546,9 +528,6 @@ function ProductsTable({
           onBack={() => setSelectedArticle(null)}
           inline={false}
           userRole={userRole}
-          inventoryMode={inventoryMode}
-          countedQuantities={countedQuantities}
-          setCountedQuantities={setCountedQuantities}
         />
       </div>
     );
@@ -713,80 +692,31 @@ function ProductsTable({
 // ── Vue principale — navigation 3 niveaux ────────────────────────────────────
 export default function StockFiches({
   stockItems: rawStockItems, allStockItems, movements, categories, generalCategories, factures, userRole = 'COMMERCIAL',
-  isInventoryView = false, activeStore = 'ALL', adminUid, onAddMovement,
-  stores = [], selectedWarehouseId, onWarehouseChange
+  activeStore = 'ALL', adminUid, onAddMovement,
+  stores = []
 }: {
   stockItems: any[]; allStockItems?: any[]; movements: any[]; categories: any[];
   generalCategories: any[]; factures: any[]; userRole?: string;
-  isInventoryView?: boolean; activeStore?: string; adminUid?: string | null; onAddMovement?: any;
-  stores?: any[]; selectedWarehouseId?: string; onWarehouseChange?: (id: string) => void;
+  activeStore?: string; adminUid?: string | null; onAddMovement?: any;
+  stores?: any[];
 }) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [inventoryMode, setInventoryMode] = useState(isInventoryView);
-  const [countedQuantities, setCountedQuantities] = useState<Record<string, string>>({});
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
 
-  // Si on est en mode inventaire actif ou dans la vue inventaire, on affiche tous les articles pour pouvoir les compter (y compris 0). Sinon on masque les 0.
+  const isWarehouse = stores.some(s => s.id === activeStore && s.type === 'WAREHOUSE') || activeStore === 'ENTREPOT';
+
+  // Si on est dans un entrepôt ou si allStockItems est disponible, on permet d'afficher les fiches
   const stockItems = useMemo(() => {
-    if (inventoryMode || isInventoryView) {
+    if (isWarehouse) {
       return (allStockItems && allStockItems.length > 0) ? allStockItems : rawStockItems;
     }
     return rawStockItems.filter(i => i.currentQty > 0);
-  }, [rawStockItems, allStockItems, inventoryMode, isInventoryView]);
+  }, [rawStockItems, allStockItems, isWarehouse]);
 
-  const targetStore = (isInventoryView && userRole === 'ADMIN' && selectedWarehouseId) ? selectedWarehouseId : (activeStore === 'ALL' ? (stores?.[0]?.id || 'CHRIFA') : activeStore);
-
-  const handleValidateInventory = async () => {
-    if (!user || !firestore) return;
-    if (targetStore === 'ALL') {
-      toast({ title: 'Erreur', description: 'Veuillez sélectionner un entrepôt ou magasin spécifique pour l\'inventaire', variant: 'destructive' });
-      return;
-    }
-
-    let diffCount = 0;
-    for (const item of stockItems) {
-      const countedStr = countedQuantities[item.articleId];
-      if (countedStr === undefined || countedStr === '') continue;
-      const counted = parseFloat(countedStr);
-      if (isNaN(counted)) continue;
-
-      const diff = counted - item.currentQty;
-      if (diff !== 0) {
-        diffCount++;
-        const type = diff > 0 ? 'IN' : 'OUT';
-        const absDiff = Math.abs(diff);
-
-        if (onAddMovement) {
-          await onAddMovement({
-            articleId: item.articleId,
-            type,
-            quantity: absDiff,
-            reason: 'INVENTAIRE',
-            date: new Date().toISOString().split('T')[0],
-            storeId: targetStore,
-            productName: item.productName,
-            categoryId: item.categoryId,
-            color: item.color,
-            size: item.size,
-            quality: item.quality,
-            gsm: item.gsm,
-            fabricWidth: item.fabricWidth,
-            rollLength: item.rollLength,
-            rollLengthUnit: item.rollLengthUnit,
-            unitOfMeasure: item.unitOfMeasure,
-            purchasePriceMAD: item.purchasePricePerUnit,
-          });
-        }
-      }
-    }
-
-    toast({ title: 'Inventaire validé', description: `${diffCount} mouvement(s) de régularisation généré(s).` });
-    setInventoryMode(false);
-    setCountedQuantities({});
-  };
+  const targetStore = activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores?.[0]?.id || 'CHRIFA') : activeStore;
 
   const [selGenCat, setSelGenCat] = useState<string | null>(null);
   const [selSubCat, setSelSubCat] = useState<string | null>(null);
@@ -812,7 +742,7 @@ export default function StockFiches({
     return map;
   }, [stockItems, categories]);
 
-  const inventoryActionBar = (
+  const actionBar = (
     <div className="flex flex-wrap items-center justify-end gap-3">
       <Button
         onClick={() => setIsNewProductModalOpen(true)}
@@ -821,23 +751,11 @@ export default function StockFiches({
         <Plus className="w-4 h-4 text-emerald-400" />
         Nouveau Produit
       </Button>
-      {isInventoryView && (
-        inventoryMode ? (
-          <>
-            <Button onClick={() => setInventoryMode(false)} variant="outline" className="bg-white border-red-200 text-red-600 font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-sm hover:bg-red-50">Annuler</Button>
-            <Button onClick={handleValidateInventory} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">Enregistrer l'inventaire</Button>
-          </>
-        ) : (
-          <Button onClick={() => setInventoryMode(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-11 rounded-xl shadow-lg">
-            <Boxes className="w-4 h-4 mr-2" /> Lancer un inventaire
-          </Button>
-        )
-      )}
     </div>
   );
 
   const genCatsWithStock = useMemo(() => {
-    if (isInventoryView || inventoryMode) {
+    if (isWarehouse) {
       return generalCategories;
     }
     const gcIds = new Set<string>();
@@ -846,7 +764,7 @@ export default function StockFiches({
       if (subCat?.generalCategoryId) gcIds.add(subCat.generalCategoryId);
     });
     return generalCategories.filter(gc => gcIds.has(gc.id));
-  }, [generalCategories, stockItems, categories, isInventoryView, inventoryMode]);
+  }, [generalCategories, stockItems, categories, isWarehouse]);
 
   const [selectedLineFilter, setSelectedLineFilter] = useState<string>('ALL');
   const [searchGenCat, setSearchGenCat] = useState<string>('');
@@ -926,36 +844,6 @@ export default function StockFiches({
   }, 0);
   const alertCount = stockItems.filter(i => i.minThreshold != null && (Number(i.currentQty) || 0) <= i.minThreshold).length;
 
-  const warehouseSelectorElement = isInventoryView && userRole === 'ADMIN' && stores && stores.length > 0 ? (
-    <div className="bg-white p-4 rounded-2xl shadow-sm border border-blue-100 flex flex-wrap items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-          <Warehouse className="w-5 h-5" />
-        </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-stone-400">Emplacement à inventorier (Admin)</p>
-          <p className="text-sm font-black text-stone-800">
-            {stores.find(s => s.id === targetStore)?.name || targetStore}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] font-bold text-stone-500">Choisir l'emplacement :</span>
-        <select
-          value={targetStore}
-          onChange={(e) => onWarehouseChange && onWarehouseChange(e.target.value)}
-          className="h-10 px-3 rounded-xl border border-stone-200 bg-stone-50 font-bold text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-        >
-          {stores.map(s => (
-            <option key={s.id} value={s.id}>
-              {s.type === 'WAREHOUSE' ? '📦 Entrepôt' : '🏪 Magasin'} {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
-  ) : null;
-
   // ── Niveau 3 : tableau produits (expansion inline) ───────────────────────
   if (selGenCat && selSubCat) {
     const subCat = categories.find(c => c.id === selSubCat || c.name === selSubCat);
@@ -974,15 +862,11 @@ export default function StockFiches({
           onBack={() => setSelSubCat(null)}
           headerProp={
             <div className="space-y-4 mb-6">
-              {warehouseSelectorElement}
               <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
-              {inventoryActionBar}
+              {actionBar}
             </div>
           }
           userRole={userRole}
-          inventoryMode={inventoryMode}
-          countedQuantities={countedQuantities}
-          setCountedQuantities={setCountedQuantities}
         />
         <AddOrderModal
           open={isNewProductModalOpen}
@@ -999,7 +883,7 @@ export default function StockFiches({
   if (selGenCat) {
     const gc         = generalCategories.find(g => g.id === selGenCat);
     const lineColor  = LINE_COLORS[(gc as any)?.line] || '#6B7280';
-    const subCatsWS  = (isInventoryView || inventoryMode)
+    const subCatsWS  = isWarehouse
       ? categories.filter(c => c.generalCategoryId === selGenCat)
       : categories.filter(c =>
           c.generalCategoryId === selGenCat &&
@@ -1007,9 +891,8 @@ export default function StockFiches({
         );
     return (
       <div className="space-y-6">
-        {warehouseSelectorElement}
         <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
-        {inventoryActionBar}
+        {actionBar}
         <div className="flex items-center gap-2">
           <button onClick={() => setSelGenCat(null)} className="flex items-center gap-1.5 text-[9px] font-black text-stone-500 hover:text-stone-900 uppercase tracking-widest transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" /> Retour
@@ -1098,9 +981,8 @@ export default function StockFiches({
   // ── Niveau 1 : Lignes et Pôles ───────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {warehouseSelectorElement}
       <StockHeader totalRefs={totalRefs} totalStock={totalStock} totalVal={totalVal} alertCount={alertCount} userRole={userRole} />
-      {inventoryActionBar}
+      {actionBar}
 
       {/* ── Toolbar : Recherche & Filtre par Ligne (Fabric, Zipper, Slider, Bouton, Reste...) ── */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-100 shadow-sm">
@@ -1184,7 +1066,7 @@ export default function StockFiches({
               const gcQty = gcItems.reduce((s, i) => s + i.currentQty, 0);
               const gcVal = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
               const gcAlertCount = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
-              const subCount = (isInventoryView || inventoryMode)
+              const subCount = isWarehouse
                 ? gcSubs.length
                 : gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0 || (stockByCategory[s.id]?.length || 0) > 0).length;
 

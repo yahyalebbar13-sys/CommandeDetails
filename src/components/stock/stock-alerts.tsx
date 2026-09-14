@@ -15,7 +15,7 @@ import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
 
-type StockView = 'dashboard' | 'inventory' | 'movements' | 'alerts';
+type StockView = 'dashboard' | 'stock' | 'movements' | 'alerts';
 
 interface StockAlertsProps {
   stockItems: StockItem[];
@@ -129,8 +129,8 @@ export default function StockAlerts({ stockItems, articles, categories, movement
           <p className="text-stone-400 text-sm font-bold text-center max-w-sm">
             Aucune alerte de stock bas ou de rupture. Continuez à surveiller vos niveaux.
           </p>
-          <Button onClick={() => onNavigate('inventory')} variant="outline" className="rounded-xl font-black uppercase text-[10px] tracking-widest gap-2">
-            Voir l'inventaire <ArrowRight className="w-3.5 h-3.5" />
+          <Button onClick={() => onNavigate('stock')} variant="outline" className="rounded-xl font-black uppercase text-[10px] tracking-widest gap-2">
+            Voir le stock <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </div>
       )}

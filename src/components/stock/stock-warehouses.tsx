@@ -24,7 +24,7 @@ interface StockWarehousesProps {
   userRole: string;
   userStoreId: string | null;
   adminUid?: string | null;
-  onSelectStore: (storeId: string, view?: 'inventory' | 'movements' | 'blind-inventory') => void;
+  onSelectStore: (storeId: string, view?: 'stock' | 'movements') => void;
 }
 
 const RESERVED_STORE_IDS = ['CHRIFA', 'DERB_OMAR', 'IDAA'];
@@ -343,13 +343,13 @@ export default function StockWarehouses({
                     Modules Disponibles pour cet Entrepôt
                   </p>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
-                      onClick={() => onSelectStore(w.id, 'inventory')}
+                      onClick={() => onSelectStore(w.id, 'stock')}
                       variant="outline"
                       className="h-10 text-[9px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:bg-stone-900 hover:text-white transition-all flex items-center justify-center gap-1 px-2"
                     >
-                      <Boxes className="w-3.5 h-3.5" /> Inventaire
+                      <Package className="w-3.5 h-3.5 text-emerald-600" /> Stock par Groupes
                     </Button>
 
                     <Button
@@ -357,15 +357,7 @@ export default function StockWarehouses({
                       variant="outline"
                       className="h-10 text-[9px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-1 px-2"
                     >
-                      <ArrowLeftRight className="w-3.5 h-3.5" /> Mouvements
-                    </Button>
-
-                    <Button
-                      onClick={() => onSelectStore(w.id, 'blind-inventory')}
-                      variant="outline"
-                      className="h-10 text-[9px] font-black uppercase tracking-wider rounded-xl border-stone-200 hover:bg-amber-600 hover:text-white transition-all flex items-center justify-center gap-1 px-2"
-                    >
-                      <ClipboardCheck className="w-3.5 h-3.5" /> Inv. Aveugle
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-blue-600" /> Mouvements
                     </Button>
                   </div>
                 </div>
