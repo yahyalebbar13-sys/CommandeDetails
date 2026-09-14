@@ -237,16 +237,16 @@ service cloud.firestore {
     match /shop_orders/{orderId} {
       // Anyone can create an order (guest + logged-in customers)
       allow create: if true;
-      // Logged-in user can read their own order (by customerEmail or id)
-      allow read: if isSignedIn()
-        || (resource.data.customerEmail == request.auth.token.email)
-        || request.auth.token.email == 'yahya.lebbar13@gmail.com';
+      // Single order lookup (confirmation page, tracking)
+      allow get: if true;
+      // Listing: admin can list all, logged-in customer can list their own orders, or limited queries
+      allow list: if (isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com')
+        || (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email)
+        || request.query.limit <= 20;
       // Admin can update (change order status etc.)
       allow update: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
       // Admin can delete
       allow delete: if isSignedIn() && request.auth.token.email == 'yahya.lebbar13@gmail.com';
-      // Allow listing for admin and for tracking by orderNumber
-      allow list: if isSignedIn();
     }
 
     // shop_reviews: public read, authenticated write (one per product per user)
