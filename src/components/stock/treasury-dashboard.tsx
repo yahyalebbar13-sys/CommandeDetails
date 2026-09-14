@@ -5,7 +5,7 @@ import {
   Landmark, CreditCard, TrendingUp, AlertTriangle, CheckCircle2, XCircle, FileText, 
   Image as ImageIcon, Calendar as CalendarIcon, Check, Building2, Printer, Sparkles,
   ArrowRight, ShieldAlert, CheckCheck, HelpCircle, RefreshCw, History, Download,
-  CheckSquare, Square, Eye, Search, Filter, Clock, ChevronUp
+  CheckSquare, Square, Eye, Search, Filter, Clock, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { ClientPayment, Client, Invoice, CashingCompany, CheckRemittance, RemittanceStatus, canDeclareImpaye } from '@/lib/types';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
