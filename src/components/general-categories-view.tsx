@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { isAccessoryLine, isFabricLine, isZipperLine, isThreadLine, isSliderLine, isTapeLine, ACCESSORY_KEYWORDS } from '@/lib/constants';
 
 interface GeneralCategoriesViewProps {
   articles: any[];
@@ -30,8 +31,10 @@ const LINE_COLORS: Record<string, string> = {
   'Slider et puller':'#3B82F6',
   'Zipper':          '#F59E0B',
   'Thread':          '#0D9488',
+  'Ruban':           '#EC4899',
   'Bouton':          '#10B981',
   'Accessoire':      '#E11D48',
+  'Accessoires':     '#E11D48',
   'Reste':           '#6B7280',
 };
 
@@ -42,9 +45,10 @@ const GROUPS_ORDER = [
   { title: 'Slider et puller', keywords: ['puller','slider for nylon zipper','slider for plastic zipper','slider for metal zipper'] },
   { title: 'Zipper',           keywords: ['zipper','plastic zipper','nylon zipper','metal zipper','zipper long chain','nylon zipper long chain'] },
   { title: 'Thread',           keywords: ['thread','sewing thread','fil','fil à coudre','cone','cône','yarn','elastic thread','spun polyester'] },
-  { title: 'Bouton',           keywords: ['covered mould button','snap button','button'] },
-  { title: 'Accessoire',       keywords: ['accessoire','accessoires','accessory','accessories','boucle','buckle','bouton','button','rivet','oeillet','eyelet','crochet','hook','anneau','ring','snap'] },
-  { title: 'Reste',            keywords: ['ruban','tape','rope','tack pin','hook and loop','divers','opp bag'], isFallback: true },
+  { title: 'Ruban',            keywords: ['ruban','tape','ribbon','sangle','biais','elastic tape'] },
+  { title: 'Accessoires',      keywords: ['accessoire','accessoires','accessory','accessories','boucle','buckle','bouton','button','rivet','oeillet','eyelet','crochet','hook','anneau','ring','snap','stopper','cord lock','cordon','embout','fermoir'] },
+  { title: 'Bouton',           keywords: ['covered mould button','snap button','button','bouton'] },
+  { title: 'Reste',            keywords: ['rope','tack pin','hook and loop','divers','opp bag'], isFallback: true },
 ];
 
 export default function GeneralCategoriesView({ articles = [], generalCategories, subCategories, onSelectGeneralCategory }: GeneralCategoriesViewProps) {
@@ -59,7 +63,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
   const [newCatName, setNewCatName] = useState('');
   const [newCatNameFR, setNewCatNameFR] = useState('');
   const [newCatLine, setNewCatLine] = useState('');
-  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('fabric');
+  const [newCatSpecType, setNewCatSpecType] = useState<'fabric' | 'zipper' | 'thread' | 'slider' | 'tape' | 'accessory' | 'none'>('none');
   const [newSubName, setNewSubName] = useState('');
   const [newSubNameFR, setNewSubNameFR] = useState('');
   const [newSubHsCode, setNewSubHsCode] = useState('');
@@ -144,7 +148,15 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
       let matched = false;
 
       if (explicitLine) {
-        const group = result.find(g => g.title === explicitLine);
+        const lineTrimmed = explicitLine.trim().toLowerCase();
+        const group = result.find(g => 
+          g.title.toLowerCase() === lineTrimmed ||
+          (g.title === 'Accessoires' && isAccessoryLine(explicitLine)) ||
+          (g.title === 'Fabric' && isFabricLine(explicitLine)) ||
+          (g.title === 'Zipper' && isZipperLine(explicitLine)) ||
+          (g.title === 'Thread' && isThreadLine(explicitLine)) ||
+          (g.title === 'Ruban' && isTapeLine(explicitLine))
+        );
         if (group) { 
           group.items.push({ gc, stats: groupStats[gc.id] }); 
           matched = true; 
@@ -159,7 +171,7 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
 
       if (!matched) {
         for (const group of result) {
-          if (group.keywords.includes(catName)) {
+          if (group.keywords.some(kw => catName.includes(kw))) {
             group.items.push({ gc, stats: groupStats[gc.id] });
             matched = true;
             break;
@@ -205,20 +217,24 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     if (newCatLine) data.line = newCatLine;
 
     let finalSpec = newCatSpecType;
-    const lineLower = newCatLine.toLowerCase();
     const nameLower = newCatName.toLowerCase();
-    if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur') || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
-      if (finalSpec !== 'none') finalSpec = 'slider';
-    } else if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
-      if (finalSpec !== 'none') finalSpec = 'zipper';
-    } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
-      if (finalSpec !== 'none') finalSpec = 'fabric';
-    } else if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil') || nameLower.includes('thread') || nameLower.includes('fil')) {
-      if (finalSpec !== 'none') finalSpec = 'thread';
-    } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
-      if (finalSpec !== 'none') finalSpec = 'tape';
-    } else if (lineLower.includes('accessoire') || lineLower.includes('accessory') || nameLower.includes('accessoire') || nameLower.includes('accessory') || nameLower.includes('boucle') || nameLower.includes('buckle') || nameLower.includes('rivet')) {
-      if (finalSpec !== 'none') finalSpec = 'accessory';
+    if (finalSpec === 'none') {
+      if (isSliderLine(newCatLine) || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
+        finalSpec = 'slider';
+      } else if (isZipperLine(newCatLine) || nameLower.includes('zipper')) {
+        finalSpec = 'zipper';
+      } else if (isFabricLine(newCatLine) || nameLower.includes('fabric') || nameLower.includes('popeline')) {
+        finalSpec = 'fabric';
+      } else if (isThreadLine(newCatLine) || nameLower.includes('thread') || nameLower.includes('fil')) {
+        finalSpec = 'thread';
+      } else if (isTapeLine(newCatLine) || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
+        finalSpec = 'tape';
+      } else if (isAccessoryLine(newCatLine) || ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw))) {
+        finalSpec = 'accessory';
+      }
+    } else if (isAccessoryLine(newCatLine) && finalSpec === 'fabric') {
+      // Fix historical default
+      finalSpec = 'accessory';
     }
     data.specType = finalSpec;
 
@@ -267,20 +283,24 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
     if (editPoleLine) updateData.line = editPoleLine;
 
     let finalSpec = editPoleSpecType;
-    const lineLower = (editPoleLine || '').toLowerCase();
     const nameLower = newName.toLowerCase();
-    if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur') || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
-      if (finalSpec !== 'none') finalSpec = 'slider';
-    } else if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
-      if (finalSpec !== 'none') finalSpec = 'zipper';
-    } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
-      if (finalSpec !== 'none') finalSpec = 'fabric';
-    } else if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil') || nameLower.includes('thread') || nameLower.includes('fil')) {
-      if (finalSpec !== 'none') finalSpec = 'thread';
-    } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
-      if (finalSpec !== 'none') finalSpec = 'tape';
-    } else if (lineLower.includes('accessoire') || lineLower.includes('accessory') || nameLower.includes('accessoire') || nameLower.includes('accessory') || nameLower.includes('boucle') || nameLower.includes('buckle') || nameLower.includes('rivet')) {
-      if (finalSpec !== 'none') finalSpec = 'accessory';
+    if (finalSpec === 'none') {
+      if (isSliderLine(editPoleLine) || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
+        finalSpec = 'slider';
+      } else if (isZipperLine(editPoleLine) || nameLower.includes('zipper')) {
+        finalSpec = 'zipper';
+      } else if (isFabricLine(editPoleLine) || nameLower.includes('fabric') || nameLower.includes('popeline')) {
+        finalSpec = 'fabric';
+      } else if (isThreadLine(editPoleLine) || nameLower.includes('thread') || nameLower.includes('fil')) {
+        finalSpec = 'thread';
+      } else if (isTapeLine(editPoleLine) || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
+        finalSpec = 'tape';
+      } else if (isAccessoryLine(editPoleLine) || ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw))) {
+        finalSpec = 'accessory';
+      }
+    } else if (isAccessoryLine(editPoleLine) && finalSpec === 'fabric') {
+      // Fix historical default
+      finalSpec = 'accessory';
     }
     updateData.specType = finalSpec;
 
@@ -425,12 +445,16 @@ export default function GeneralCategoriesView({ articles = [], generalCategories
                                   setEditPoleName(gc.name || '');
                                   setEditPoleNameFR(gc.nameFR || '');
                                   setEditPoleLine((gc as any).line || '');
-                                  const autoSpec = (gc as any).specType || (
-                                    (gc as any).line?.toLowerCase().includes('slider') || (gc as any).line?.toLowerCase().includes('puller') || (gc as any).line?.toLowerCase().includes('curseur') ? 'slider' :
-                                    (gc as any).line?.toLowerCase() === 'fabric' ? 'fabric' :
-                                    (gc as any).line?.toLowerCase() === 'zipper' ? 'zipper' :
-                                    (gc as any).line?.toLowerCase() === 'thread' ? 'thread' : 'none'
-                                  );
+                                  const poleLine = (gc as any).line || '';
+                                  const poleSpec = (gc as any).specType;
+                                  const autoSpec = (isAccessoryLine(poleLine) && poleSpec === 'fabric') ? 'accessory' : (poleSpec || (
+                                    isSliderLine(poleLine) ? 'slider' :
+                                    isAccessoryLine(poleLine) || ACCESSORY_KEYWORDS.some(kw => (gc.name || '').toLowerCase().includes(kw)) ? 'accessory' :
+                                    isTapeLine(poleLine) ? 'tape' :
+                                    isFabricLine(poleLine) ? 'fabric' :
+                                    isZipperLine(poleLine) ? 'zipper' :
+                                    isThreadLine(poleLine) ? 'thread' : 'none'
+                                  ));
                                   setEditPoleSpecType(autoSpec);
                                 }}
                               >

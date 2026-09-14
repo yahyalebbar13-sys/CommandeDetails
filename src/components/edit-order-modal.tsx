@@ -511,13 +511,25 @@ export default function EditOrderModal({ article, onOpenChange, factures }: Edit
     );
     const genCatId = selectedGenCatId || formData?.generalCategoryId || cat?.generalCategoryId;
     const genCat = genCatId ? (generalCategories || []).find((gc: any) => gc.id === genCatId) : null;
+
+    // Line-wide accessory poles & subcategories fallback so qualities are shared across all accessory poles
+    const linePolesQualities = (generalCategories || [])
+      .filter((g: any) => isAccessoryLineOrCategory(g.name, g))
+      .flatMap((g: any) => Array.isArray(g.accessoryQualities) ? g.accessoryQualities : []);
+
+    const accessorySubCatsQualities = (subCategories || [])
+      .filter((sc: any) => isAccessoryLineOrCategory(sc.name, null))
+      .flatMap((sc: any) => Array.isArray(sc.accessoryQualities) ? sc.accessoryQualities : []);
+
     const raw = [
       ...(Array.isArray(cat?.accessoryQualities) ? cat.accessoryQualities : []),
-      ...(Array.isArray(genCat?.accessoryQualities) ? genCat.accessoryQualities : [])
+      ...(Array.isArray(genCat?.accessoryQualities) ? genCat.accessoryQualities : []),
+      ...linePolesQualities,
+      ...accessorySubCatsQualities
     ];
     return raw
       .filter((q: any) => Boolean(q && (q.label || q.size || q.thickness || q.weightPerPiece || q.pcsPerBox || q.boxPerCarton || q.nameFR)))
-      .filter((q, idx, arr) => arr.findIndex(x => x.label === q.label || (x.size === q.size && x.thickness === q.thickness && x.weightPerPiece === q.weightPerPiece)) === idx);
+      .filter((q, idx, arr) => arr.findIndex(x => (x.label && x.label === q.label) || (x.size === q.size && x.thickness === q.thickness && x.weightPerPiece === q.weightPerPiece)) === idx);
   }, [formData?.categoryId, formData?.generalCategoryId, selectedGenCatId, subCategories, generalCategories]);
 
   const lastOrderInfo = useMemo(() => {

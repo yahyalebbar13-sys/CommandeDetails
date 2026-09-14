@@ -40,7 +40,8 @@ import {
   Calculator,
   Plus,
   Maximize,
-  Sparkles
+  Sparkles,
+  Share2
 } from 'lucide-react';
 import EditOrderModal from './edit-order-modal';
 import DesignLibrary, { useCategoryDesigns } from './design-library';
@@ -69,7 +70,22 @@ import { doc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firesto
 import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getApp } from 'firebase/app';
 import { useToast } from '@/hooks/use-toast';
-import { isZipperCategory as isTechnicalZipper, isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory, isTapeLineOrCategory, isAccessoryLineOrCategory } from '@/lib/constants';
+import { 
+  isZipperCategory as isTechnicalZipper, 
+  isFabricLineOrCategory, 
+  isZipperLineOrCategory, 
+  isThreadLineOrCategory, 
+  isSliderLineOrCategory, 
+  isTapeLineOrCategory, 
+  isAccessoryLineOrCategory,
+  isAccessoryLine,
+  isFabricLine,
+  isZipperLine,
+  isThreadLine,
+  isSliderLine,
+  isTapeLine,
+  ACCESSORY_KEYWORDS
+} from '@/lib/constants';
 import { computeReorderAlert, formatReorderBadge } from '@/lib/reorder-utils';
 import type { OrderScheduleSeason } from '@/lib/reorder-utils';
 
@@ -360,20 +376,23 @@ export default function CategoriesView({
     if (renameGenCatLine) updatePayload.line = renameGenCatLine;
 
     let finalSpec = renameGenCatSpecType;
-    const lineLower = (renameGenCatLine || '').toLowerCase();
     const nameLower = newName.toLowerCase();
-    if (lineLower.includes('slider') || lineLower.includes('puller') || lineLower.includes('curseur') || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
-      if (finalSpec !== 'none') finalSpec = 'slider';
-    } else if (lineLower === 'zipper' || lineLower.includes('zipper') || lineLower.includes('fermeture') || nameLower.includes('zipper')) {
-      if (finalSpec !== 'none') finalSpec = 'zipper';
-    } else if (lineLower === 'fabric' || lineLower.includes('fabric') || lineLower.includes('tissu') || nameLower.includes('fabric') || nameLower.includes('popeline')) {
-      if (finalSpec !== 'none') finalSpec = 'fabric';
-    } else if (lineLower === 'thread' || lineLower.includes('thread') || lineLower.includes('fil') || nameLower.includes('thread') || nameLower.includes('fil')) {
-      if (finalSpec !== 'none') finalSpec = 'thread';
-    } else if (lineLower.includes('tape') || lineLower.includes('ruban') || lineLower.includes('ribbon') || lineLower.includes('sangle') || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
-      if (finalSpec !== 'none') finalSpec = 'tape';
-    } else if (lineLower.includes('accessoire') || lineLower.includes('accessory') || nameLower.includes('accessoire') || nameLower.includes('accessory') || nameLower.includes('boucle') || nameLower.includes('buckle') || nameLower.includes('rivet')) {
-      if (finalSpec !== 'none') finalSpec = 'accessory';
+    if (finalSpec === 'none') {
+      if (isSliderLine(renameGenCatLine) || nameLower.includes('slider') || nameLower.includes('puller') || nameLower.includes('curseur')) {
+        finalSpec = 'slider';
+      } else if (isZipperLine(renameGenCatLine) || nameLower.includes('zipper')) {
+        finalSpec = 'zipper';
+      } else if (isFabricLine(renameGenCatLine) || nameLower.includes('fabric') || nameLower.includes('popeline')) {
+        finalSpec = 'fabric';
+      } else if (isThreadLine(renameGenCatLine) || nameLower.includes('thread') || nameLower.includes('fil')) {
+        finalSpec = 'thread';
+      } else if (isTapeLine(renameGenCatLine) || nameLower.includes('tape') || nameLower.includes('ruban') || nameLower.includes('sangle')) {
+        finalSpec = 'tape';
+      } else if (isAccessoryLine(renameGenCatLine) || ACCESSORY_KEYWORDS.some(kw => nameLower.includes(kw))) {
+        finalSpec = 'accessory';
+      }
+    } else if (isAccessoryLine(renameGenCatLine) && finalSpec === 'fabric') {
+      finalSpec = 'accessory';
     }
     updatePayload.specType = finalSpec;
 
@@ -540,6 +559,20 @@ export default function CategoriesView({
     boxPerCarton: '',
   });
   const [sliderImageUploading, setSliderImageUploading] = useState(false);
+
+  // ── Qualités fixes au niveau du Pôle (GeneralCategory) ──
+  const [isPoleQualitiesModalOpen, setIsPoleQualitiesModalOpen] = useState(false);
+  const [editingPoleQualities, setEditingPoleQualities] = useState<any>(null);
+  const [poleAccessoryQualitiesForm, setPoleAccessoryQualitiesForm] = useState<any[]>([]);
+  const [newPoleAccessoryQuality, setNewPoleAccessoryQuality] = useState({
+    label: '',
+    nameFR: '',
+    size: '',
+    thickness: '',
+    weightPerPiece: '',
+    pcsPerBox: '',
+    boxPerCarton: '',
+  });
 
   useEffect(() => {
     if (currentCategoryObj && isCustomsModalOpen) {
@@ -927,7 +960,7 @@ export default function CategoriesView({
 
   const [isSavingCustoms, setIsSavingCustoms] = useState(false);
 
-  const handleUpdateCustoms = async () => {
+  const handleUpdateCustoms = async (applyToAllAccessoryPoles = false) => {
     if (!user || !firestore || !currentCategoryObj) return;
 
     // Check if user has uncommitted pending size
@@ -1309,7 +1342,31 @@ export default function CategoriesView({
     try {
       const docRef = doc(firestore, 'users', user.uid, 'categories', currentCategoryObj.id);
       await updateDoc(docRef, payload);
-      toast({ title: 'Configuration & données douanières mises à jour' });
+
+      if (applyToAllAccessoryPoles && cleanAccessoryQualities.length > 0) {
+        const allLinePoles = generalCategories.filter(g => isAccessoryLineOrCategory(g.name, g));
+        for (const p of allLinePoles) {
+          updateDoc(doc(firestore, 'users', user.uid, 'generalCategories', p.id), {
+            specType: 'accessory',
+            accessoryQualities: cleanAccessoryQualities
+          }).catch(console.error);
+        }
+        const allLinePoleIds = new Set(allLinePoles.map(p => p.id));
+        const allLineFamilies = subCategories.filter(sc => allLinePoleIds.has(sc.generalCategoryId) || isAccessoryLineOrCategory(sc.name, null));
+        for (const fam of allLineFamilies) {
+          if (fam.id !== currentCategoryObj.id) {
+            updateDoc(doc(firestore, 'users', user.uid, 'categories', fam.id), {
+              accessoryQualities: cleanAccessoryQualities
+            }).catch(console.error);
+          }
+        }
+      }
+
+      toast({ 
+        title: applyToAllAccessoryPoles 
+          ? '✅ Qualités affectées à tous les pôles et familles Accessoires' 
+          : 'Configuration & données douanières mises à jour' 
+      });
       setIsCustomsModalOpen(false);
     } catch (err: any) {
       console.error('Error updating customs & configuration:', err);
@@ -1320,6 +1377,66 @@ export default function CategoriesView({
       });
     } finally {
       setIsSavingCustoms(false);
+    }
+  };
+
+  // ── Sauvegarde et affectation des qualités fixes au niveau du Pôle ──
+  const [isSavingPoleQualities, setIsSavingPoleQualities] = useState(false);
+  const handleSavePoleQualities = async (applyToAllLinePoles = false, applyToAllPoleFamilies = false) => {
+    if (!user || !firestore || !editingPoleQualities) return;
+    const cleanQualities = poleAccessoryQualitiesForm.filter(q => Boolean(q.label || q.size || q.thickness || q.weightPerPiece || q.pcsPerBox || q.boxPerCarton));
+    setIsSavingPoleQualities(true);
+    try {
+      // 1. Update this pole
+      const poleRef = doc(firestore, 'users', user.uid, 'generalCategories', editingPoleQualities.id);
+      await updateDoc(poleRef, {
+        specType: 'accessory',
+        accessoryQualities: cleanQualities
+      });
+
+      // 2. If applyToAllPoleFamilies
+      if (applyToAllPoleFamilies) {
+        const families = subCategories.filter(sc => sc.generalCategoryId === editingPoleQualities.id);
+        for (const fam of families) {
+          await updateDoc(doc(firestore, 'users', user.uid, 'categories', fam.id), {
+            accessoryQualities: cleanQualities
+          });
+        }
+      }
+
+      // 3. If applyToAllLinePoles
+      if (applyToAllLinePoles) {
+        const allLinePoles = generalCategories.filter(g => isAccessoryLineOrCategory(g.name, g));
+        for (const p of allLinePoles) {
+          await updateDoc(doc(firestore, 'users', user.uid, 'generalCategories', p.id), {
+            specType: 'accessory',
+            accessoryQualities: cleanQualities
+          });
+        }
+        const allLinePoleIds = new Set(allLinePoles.map(p => p.id));
+        const allLineFamilies = subCategories.filter(sc => allLinePoleIds.has(sc.generalCategoryId) || isAccessoryLineOrCategory(sc.name, null));
+        for (const fam of allLineFamilies) {
+          await updateDoc(doc(firestore, 'users', user.uid, 'categories', fam.id), {
+            accessoryQualities: cleanQualities
+          });
+        }
+      }
+
+      toast({ 
+        title: '✅ Qualités enregistrées', 
+        description: applyToAllLinePoles 
+          ? 'Qualités affectées à tous les pôles et familles de la ligne Accessoires'
+          : applyToAllPoleFamilies
+          ? `Qualités affectées à toutes les familles du pôle ${editingPoleQualities.name}`
+          : `Qualités enregistrées sur le pôle ${editingPoleQualities.name}`
+      });
+      setIsPoleQualitiesModalOpen(false);
+      setEditingPoleQualities(null);
+    } catch (err: any) {
+      console.error('Error saving pole qualities:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: err.message });
+    } finally {
+      setIsSavingPoleQualities(false);
     }
   };
 
@@ -1749,12 +1866,24 @@ export default function CategoriesView({
         keywords: ["zipper", "plastic zipper", "nylon zipper", "metal zipper", "zipper long chain", "nylon zipper long chain"],
       },
       {
+        title: "Thread",
+        keywords: ["thread", "sewing thread", "fil", "fil à coudre", "cone", "cône", "yarn", "elastic thread", "spun polyester"],
+      },
+      {
+        title: "Ruban",
+        keywords: ["ruban", "tape", "ribbon", "sangle", "biais", "elastic tape"],
+      },
+      {
+        title: "Accessoires",
+        keywords: ["accessoire", "accessoires", "accessory", "accessories", "boucle", "buckle", "bouton", "button", "rivet", "oeillet", "eyelet", "crochet", "hook", "anneau", "ring", "snap", "stopper", "cord lock", "cordon", "embout", "fermoir"],
+      },
+      {
         title: "Bouton",
-        keywords: ["covered mould button", "snap button", "button"],
+        keywords: ["covered mould button", "snap button", "button", "bouton"],
       },
       {
         title: "Reste",
-        keywords: ["ruban", "tape", "rope", "thread", "elastic thread", "tack pin", "hook and loop", "divers", "opp bag"],
+        keywords: ["rope", "tack pin", "hook and loop", "divers", "opp bag"],
         isFallback: true
       }
     ];
@@ -1767,7 +1896,15 @@ export default function CategoriesView({
       let matched = false;
 
       if (explicitLine) {
-        const group = result.find(g => g.title === explicitLine);
+        const lineTrimmed = explicitLine.trim().toLowerCase();
+        const group = result.find(g => 
+          g.title.toLowerCase() === lineTrimmed ||
+          (g.title === 'Accessoires' && isAccessoryLine(explicitLine)) ||
+          (g.title === 'Fabric' && isFabricLine(explicitLine)) ||
+          (g.title === 'Zipper' && isZipperLine(explicitLine)) ||
+          (g.title === 'Thread' && isThreadLine(explicitLine)) ||
+          (g.title === 'Ruban' && isTapeLine(explicitLine))
+        );
         if (group) {
           group.items.push({ id, stat });
           matched = true;
@@ -1776,7 +1913,7 @@ export default function CategoriesView({
 
       if (!matched) {
         for (const group of result) {
-          if (group.keywords.includes(catName)) {
+          if (group.keywords.some(kw => catName.includes(kw))) {
             group.items.push({ id, stat });
             matched = true;
             break;
@@ -3228,14 +3365,23 @@ export default function CategoriesView({
         {/* ── Accessory / Accessoire: Types de Produit — Qualités Fixes ── */}
         {isAccessoryCat && (() => {
           const genCat = generalCategories.find(g => g.id === (selectedGeneralCategoryId || currentCategoryObj?.generalCategoryId));
+          const accessoryPoles = generalCategories.filter(g => isAccessoryLineOrCategory(g.name, g));
+          const linePolesQualities = accessoryPoles.flatMap(g => Array.isArray(g.accessoryQualities) ? g.accessoryQualities : []);
+          const accessoryPoleIds = new Set(accessoryPoles.map(p => p.id));
+          const accessorySubCats = subCategories.filter(sc => accessoryPoleIds.has(sc.generalCategoryId) || isAccessoryLineOrCategory(sc.name, null));
+          const allAccessoryCatQualities = accessorySubCats.flatMap(sc => Array.isArray(sc.accessoryQualities) ? sc.accessoryQualities : []);
+
           const rawQualities: any[] = [
             ...(Array.isArray(currentCategoryObj?.accessoryQualities) ? currentCategoryObj.accessoryQualities : []),
-            ...(Array.isArray(genCat?.accessoryQualities) ? genCat!.accessoryQualities! : [])
+            ...(Array.isArray(genCat?.accessoryQualities) ? genCat!.accessoryQualities! : []),
+            ...linePolesQualities,
+            ...allAccessoryCatQualities
           ];
 
           // Deduplicate
           const qualities = rawQualities.filter((q, idx, arr) => 
-            arr.findIndex(x => (x.label && x.label === q.label) || (x.size && x.size === q.size && x.thickness && x.thickness === q.thickness && x.weightPerPiece && x.weightPerPiece === q.weightPerPiece)) === idx
+            arr.findIndex(x => (x.label && q.label && x.label.trim().toLowerCase() === q.label.trim().toLowerCase()) || 
+              (x.size && x.size === q.size && x.thickness && x.thickness === q.thickness && x.weightPerPiece === q.weightPerPiece)) === idx
           );
 
           // Compute order stats per quality
@@ -4743,9 +4889,21 @@ export default function CategoriesView({
               </div>
             )}
 
-            <DialogFooter className="p-6 bg-stone-50 gap-3">
+            <DialogFooter className="p-6 bg-stone-50 gap-3 flex-wrap">
               <Button variant="ghost" disabled={isSavingCustoms} onClick={() => setIsCustomsModalOpen(false)} className="h-10 font-black uppercase text-[9px] tracking-widest flex-1">Annuler</Button>
-              <Button disabled={isSavingCustoms} onClick={handleUpdateCustoms} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">
+              {isAccessoryCat && (
+                <Button
+                  disabled={isSavingCustoms}
+                  onClick={() => handleUpdateCustoms(true)}
+                  variant="outline"
+                  className="h-10 border-rose-300 hover:bg-rose-50 text-rose-700 font-black uppercase text-[9px] tracking-widest rounded-xl shadow-sm flex items-center gap-1.5"
+                  title="Appliquer ces qualités accessoires à tous les pôles et sous-catégories de la ligne Accessoires"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-rose-600" />
+                  Affecter à tous les pôles Accessoires
+                </Button>
+              )}
+              <Button disabled={isSavingCustoms} onClick={() => handleUpdateCustoms(false)} className="h-10 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl flex-[1.5] shadow-lg shadow-amber-200">
                 {isSavingCustoms ? (
                   <span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enregistrement...</span>
                 ) : 'Enregistrer'}
@@ -4799,11 +4957,14 @@ export default function CategoriesView({
                       setRenameGenCatName(parent.name || '');
                       setRenameGenCatNameFR(parent.nameFR || '');
                       setRenameGenCatLine(parent.line || '');
-                      const autoSpec = (parent as any).specType || (
+                      const autoSpec = (
+                        isAccessoryLine(parent.line) ? 'accessory' :
+                        isFabricLine(parent.line) ? 'fabric' :
+                        isZipperLine(parent.line) ? 'zipper' :
+                        isThreadLine(parent.line) ? 'thread' :
                         (parent.line || '').toLowerCase().includes('slider') || (parent.line || '').toLowerCase().includes('puller') || (parent.line || '').toLowerCase().includes('curseur') ? 'slider' :
-                        parent.line?.toLowerCase() === 'fabric' ? 'fabric' :
-                        parent.line?.toLowerCase() === 'zipper' ? 'zipper' :
-                        parent.line?.toLowerCase() === 'thread' ? 'thread' : 'none'
+                        isTapeLine(parent.line) ? 'tape' :
+                        (parent as any).specType || 'none'
                       );
                       setRenameGenCatSpecType(autoSpec);
                     }
@@ -4811,11 +4972,32 @@ export default function CategoriesView({
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
+                {isAccessoryLineOrCategory(parent?.name, parent) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 rounded-lg border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-[10px] flex items-center gap-1.5 transition-colors shadow-sm ml-1"
+                    title="Gérer les qualités fixes du pôle Accessoires"
+                    onClick={() => {
+                      setEditingPoleQualities(parent);
+                      setPoleAccessoryQualitiesForm(Array.isArray(parent.accessoryQualities) ? [...parent.accessoryQualities] : []);
+                      setIsPoleQualitiesModalOpen(true);
+                    }}
+                  >
+                    <Settings2 className="w-3 h-3 text-rose-600" />
+                    Qualités Fixes Pôle ({Array.isArray(parent.accessoryQualities) ? parent.accessoryQualities.length : 0})
+                  </Button>
+                )}
               </div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 {parent?.line && (
                   <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
                     Ligne : {parent.line}
+                  </span>
+                )}
+                {isAccessoryLineOrCategory(parent?.name, parent) && (
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                    🧷 Spécifications Accessoires (Taille, Épaisseur, Poids/pc, Pcs/box, Box/ctn)
                   </span>
                 )}
                 {isFabricLineOrCategory(parent?.name, parent) && (
@@ -4838,6 +5020,11 @@ export default function CategoriesView({
                     🎛️ Spécifications Slider & Puller (Designs, Taille, Pcs/ctn...)
                   </span>
                 )}
+                {isTapeLineOrCategory(parent?.name, parent) && (
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 border border-pink-200 flex items-center gap-1">
+                    🎀 Spécifications Ruban (Largeur, Poids/m...)
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -4851,6 +5038,98 @@ export default function CategoriesView({
             />
           </div>
         </div>
+
+        {/* ── CARD QUALITÉS FIXES DU PÔLE ACCESSOIRES ── */}
+        {isAccessoryLineOrCategory(parent?.name, parent) && (() => {
+          const poleQualities: any[] = Array.isArray(parent?.accessoryQualities) ? parent.accessoryQualities : [];
+          const otherLineQualities = generalCategories
+            .filter(g => g.id !== parent?.id && isAccessoryLineOrCategory(g.name, g))
+            .flatMap(g => Array.isArray(g.accessoryQualities) ? g.accessoryQualities : []);
+
+          return (
+            <Card className="border border-rose-200/80 bg-rose-50/20 rounded-[1.4rem] overflow-hidden shadow-sm">
+              <CardHeader className="p-4 pb-3 border-b border-rose-100 bg-white/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm shrink-0">
+                    🧷
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-xs font-black uppercase text-rose-950 tracking-wider">
+                        Types de Produit — Qualités Fixes du Pôle ({parent?.name})
+                      </CardTitle>
+                      <Badge variant="outline" className="bg-rose-100/60 text-rose-700 border-rose-200 text-[9px] font-black uppercase">
+                        {poleQualities.length} qualité{poleQualities.length > 1 ? 's' : ''} configurée{poleQualities.length > 1 ? 's' : ''}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-stone-500 font-medium mt-0.5">
+                      Les qualités fixes (Taille, Épaisseur, Poids/pc, Pcs/box, Box/ctn) définies ici sont partagées avec toutes les familles et commandes de la ligne Accessoires.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-8 bg-rose-600 hover:bg-rose-700 text-white font-black text-[9px] uppercase tracking-wider rounded-xl shadow-md shadow-rose-200 flex items-center gap-1.5"
+                    onClick={() => {
+                      setEditingPoleQualities(parent);
+                      setPoleAccessoryQualitiesForm(poleQualities.length > 0 ? [...poleQualities] : (otherLineQualities.length > 0 ? [...otherLineQualities] : []));
+                      setIsPoleQualitiesModalOpen(true);
+                    }}
+                  >
+                    <Settings2 className="w-3.5 h-3.5" />
+                    Configurer les Qualités Fixes
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4">
+                {poleQualities.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {poleQualities.map((q, idx) => (
+                      <div key={idx} className="p-3 bg-white rounded-xl border border-rose-100 shadow-xs space-y-1.5 hover:border-rose-300 transition-colors">
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="text-[11px] font-black text-stone-900 uppercase truncate" title={q.label}>{q.label}</span>
+                          {q.nameFR && <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded uppercase shrink-0">{q.nameFR}</span>}
+                        </div>
+                        <div className="flex flex-wrap gap-1 text-[9px] font-semibold text-stone-600">
+                          {q.size && <span className="bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">Taille: <b>{q.size}</b></span>}
+                          {q.thickness && <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">Ép.: <b>{q.thickness}</b></span>}
+                          {q.weightPerPiece != null && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100">Poids: <b>{q.weightPerPiece}g/pc</b></span>}
+                          {q.pcsPerBox != null && <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100"><b>{q.pcsPerBox}</b> pcs/box</span>}
+                          {q.boxPerCarton != null && <span className="bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded border border-amber-100"><b>{q.boxPerCarton}</b> box/ctn</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white/80 rounded-xl border border-dashed border-rose-200 text-center sm:text-left">
+                    <div>
+                      <p className="text-[11px] font-black text-rose-950 uppercase">Aucune qualité fixe définie directement sur ce pôle</p>
+                      <p className="text-[10px] text-stone-500 font-medium mt-0.5">
+                        {otherLineQualities.length > 0 
+                          ? `${otherLineQualities.length} qualité(s) existent sur d'autres pôles de la ligne Accessoires. Cliquez pour les importer et les affecter à ce pôle.`
+                          : "Cliquez sur Configurer pour ajouter les qualités fixes (Taille, Épaisseur, Poids/pc, Pcs/box, Box/ctn) et les propager à toutes les familles."}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-rose-300 text-rose-700 hover:bg-rose-50 font-black text-[9px] uppercase tracking-wider rounded-xl shrink-0"
+                      onClick={() => {
+                        setEditingPoleQualities(parent);
+                        setPoleAccessoryQualitiesForm(otherLineQualities.length > 0 ? [...otherLineQualities] : []);
+                        setIsPoleQualitiesModalOpen(true);
+                      }}
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      {otherLineQualities.length > 0 ? 'Importer les Qualités de la Ligne' : 'Ajouter des Qualités Fixes'}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
 
@@ -5160,13 +5439,13 @@ export default function CategoriesView({
       </Dialog>
 
       {/* ── Modal modifier le pôle ── */}
-      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); } }}>
-        <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+      <Dialog open={!!editingGeneralCategory} onOpenChange={open => { if (!open) { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); } }}>
+        <DialogContent className="sm:max-w-md rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
           <div className="bg-stone-900 p-5 text-white shrink-0">
             <DialogTitle className="text-base font-black uppercase tracking-tight">Modifier le Pôle</DialogTitle>
             <p className="text-stone-400 text-[10px] font-bold uppercase tracking-widest mt-1">Vous pouvez inclure des chiffres (ex: PÔLE 1, ZIPPER #5...)</p>
           </div>
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Nom / Titre du Pôle (Gestion)</Label>
               <Input
@@ -5189,8 +5468,74 @@ export default function CategoriesView({
               />
               <p className="text-[9px] text-stone-400 font-medium">Les chiffres sont totalement acceptés dans les deux titres.</p>
             </div>
+
+            {/* Ligne Logistique */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Ligne Logistique</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { value: 'Accessoires', label: '🧷 Accessoires' },
+                  { value: 'Fabric', label: '🧵 Fabric' },
+                  { value: 'Zipper', label: '⚡ Zipper' },
+                  { value: 'Thread', label: '🪡 Thread' },
+                  { value: 'Slider', label: '🎛️ Slider' },
+                  { value: 'Ruban', label: '🎀 Ruban' },
+                ].map(item => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => {
+                      setRenameGenCatLine(item.value);
+                      if (item.value === 'Accessoires') setRenameGenCatSpecType('accessory');
+                      else if (item.value === 'Fabric') setRenameGenCatSpecType('fabric');
+                      else if (item.value === 'Zipper') setRenameGenCatSpecType('zipper');
+                      else if (item.value === 'Thread') setRenameGenCatSpecType('thread');
+                      else if (item.value === 'Slider') setRenameGenCatSpecType('slider');
+                      else if (item.value === 'Ruban') setRenameGenCatSpecType('tape');
+                    }}
+                    className={`h-9 px-2 text-[10px] font-black rounded-xl border transition-all text-center truncate ${
+                      (renameGenCatLine || '').toLowerCase() === item.value.toLowerCase() || (item.value === 'Accessoires' && isAccessoryLine(renameGenCatLine))
+                        ? 'bg-stone-900 text-white border-stone-900 shadow-sm'
+                        : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Modèle Spécifications Qualités */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-stone-600 uppercase tracking-widest">Modèle Spécifications Qualités</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { value: 'accessory', label: '🧷 Accessoire' },
+                  { value: 'fabric', label: '🧵 Tissu' },
+                  { value: 'zipper', label: '⚡ Fermeture' },
+                  { value: 'thread', label: '🪡 Fil' },
+                  { value: 'slider', label: '🎛️ Curseur' },
+                  { value: 'tape', label: '🎀 Ruban' },
+                  { value: 'none', label: 'Standard' },
+                ].map(item => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setRenameGenCatSpecType(item.value as any)}
+                    className={`h-8 px-2 text-[9px] font-black rounded-xl border transition-all text-center truncate ${
+                      renameGenCatSpecType === item.value
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                        : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
-              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); }}>Annuler</Button>
+              <Button variant="ghost" className="flex-1 h-10 font-black text-[9px] uppercase tracking-widest" onClick={() => { setEditingGeneralCategory(null); setRenameGenCatName(''); setRenameGenCatNameFR(''); setRenameGenCatLine(''); }}>Annuler</Button>
               <Button
                 className="flex-[1.5] h-10 bg-stone-900 hover:bg-stone-800 text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg"
                 onClick={handleSaveRenameGenCat}
@@ -5199,6 +5544,263 @@ export default function CategoriesView({
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal Qualités Fixes du Pôle (Accessoires) ── */}
+      <Dialog open={isPoleQualitiesModalOpen} onOpenChange={open => { if (!open) { setIsPoleQualitiesModalOpen(false); setEditingPoleQualities(null); } }}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="bg-rose-950 p-6 text-white shrink-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">🧷</span>
+              <DialogTitle className="text-base font-black uppercase tracking-tight">
+                Qualités Fixes du Pôle : {editingPoleQualities?.name}
+              </DialogTitle>
+            </div>
+            <p className="text-rose-200/80 text-[11px] font-medium leading-relaxed">
+              Configurez les 5 paramètres techniques (Taille, Épaisseur, Poids/pc, Pcs/box, Box/ctn) pour ce pôle ou l'ensemble de la ligne Accessoires.
+            </p>
+          </div>
+
+          <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-stone-50/50">
+            {/* Formulaire ajout d'une qualité */}
+            <div className="p-4 bg-white rounded-2xl border border-rose-100 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-rose-800 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5" /> Nouvelle Qualité Accessoire
+                </span>
+                <span className="text-[9px] font-bold text-stone-400">Qualités enregistrées : {poleAccessoryQualitiesForm.length}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[9px] font-black uppercase text-stone-500 tracking-wider">Libellé / Réf (Gestion)</Label>
+                  <Input
+                    placeholder="Ex: BOUTON 18L, BOUCLE 25MM..."
+                    value={newPoleAccessoryQuality.label}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, label: e.target.value.toUpperCase() }))}
+                    className="h-9 text-xs font-bold uppercase rounded-xl border-stone-200"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[9px] font-black uppercase text-rose-700 tracking-wider">Nom FR (Stock)</Label>
+                  <Input
+                    placeholder="Ex: BOUTONS 18L COROZO..."
+                    value={newPoleAccessoryQuality.nameFR}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, nameFR: e.target.value.toUpperCase() }))}
+                    className="h-9 text-xs font-bold uppercase rounded-xl border-rose-200 bg-rose-50/20"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase text-stone-500 tracking-wider">1. Taille</Label>
+                  <Input
+                    placeholder="Ex: 18L, 25mm"
+                    value={newPoleAccessoryQuality.size}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, size: e.target.value.toUpperCase() }))}
+                    className="h-8 text-[11px] font-bold uppercase rounded-lg border-stone-200"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase text-stone-500 tracking-wider">2. Épaisseur</Label>
+                  <Input
+                    placeholder="Ex: 2mm, 3.5mm"
+                    value={newPoleAccessoryQuality.thickness}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, thickness: e.target.value }))}
+                    className="h-8 text-[11px] font-bold rounded-lg border-stone-200"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase text-stone-500 tracking-wider">3. Poids/pc (g)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ex: 0.85"
+                    value={newPoleAccessoryQuality.weightPerPiece}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, weightPerPiece: e.target.value }))}
+                    className="h-8 text-[11px] font-bold rounded-lg border-stone-200"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase text-stone-500 tracking-wider">4. Pcs/box</Label>
+                  <Input
+                    type="number"
+                    placeholder="Ex: 1000"
+                    value={newPoleAccessoryQuality.pcsPerBox}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, pcsPerBox: e.target.value }))}
+                    className="h-8 text-[11px] font-bold rounded-lg border-stone-200"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase text-stone-500 tracking-wider">5. Box/ctn</Label>
+                  <Input
+                    type="number"
+                    placeholder="Ex: 10"
+                    value={newPoleAccessoryQuality.boxPerCarton}
+                    onChange={e => setNewPoleAccessoryQuality(p => ({ ...p, boxPerCarton: e.target.value }))}
+                    className="h-8 text-[11px] font-bold rounded-lg border-stone-200"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="sm"
+                  className="h-8 bg-rose-600 hover:bg-rose-700 text-white font-black text-[9px] uppercase tracking-wider rounded-xl shadow-sm"
+                  onClick={() => {
+                    const size = newPoleAccessoryQuality.size.trim().toUpperCase();
+                    const thickness = newPoleAccessoryQuality.thickness.trim();
+                    const weightPerPiece = newPoleAccessoryQuality.weightPerPiece ? Number(newPoleAccessoryQuality.weightPerPiece) : undefined;
+                    const pcsPerBox = newPoleAccessoryQuality.pcsPerBox ? Number(newPoleAccessoryQuality.pcsPerBox) : undefined;
+                    const boxPerCarton = newPoleAccessoryQuality.boxPerCarton ? Number(newPoleAccessoryQuality.boxPerCarton) : undefined;
+                    const nameFR = newPoleAccessoryQuality.nameFR.trim() || undefined;
+
+                    if (!newPoleAccessoryQuality.label.trim() && !size && !nameFR) {
+                      toast({ variant: 'destructive', title: 'Veuillez saisir au moins un libellé ou une taille' });
+                      return;
+                    }
+
+                    const autoLabel = [
+                      size ? `Taille ${size}` : null,
+                      thickness ? `Ép. ${thickness}` : null,
+                      weightPerPiece ? `${weightPerPiece}g/pc` : null,
+                      pcsPerBox ? `${pcsPerBox}pcs/box` : null,
+                      boxPerCarton ? `${boxPerCarton}box/ctn` : null,
+                    ].filter(Boolean).join(' · ');
+
+                    const label = newPoleAccessoryQuality.label.trim() || autoLabel || nameFR || 'Accessoire';
+
+                    setPoleAccessoryQualitiesForm(prev => [
+                      ...prev,
+                      {
+                        label,
+                        nameFR,
+                        size: size || undefined,
+                        thickness: thickness || undefined,
+                        weightPerPiece,
+                        pcsPerBox,
+                        boxPerCarton
+                      }
+                    ]);
+
+                    setNewPoleAccessoryQuality({
+                      label: '',
+                      nameFR: '',
+                      size: '',
+                      thickness: '',
+                      weightPerPiece: '',
+                      pcsPerBox: '',
+                      boxPerCarton: '',
+                    });
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Ajouter la Qualité
+                </Button>
+              </div>
+            </div>
+
+            {/* Liste des qualités définies */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-stone-600">
+                  Qualités du pôle ({poleAccessoryQualitiesForm.length})
+                </span>
+                {poleAccessoryQualitiesForm.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[9px] text-red-600 hover:text-red-700 hover:bg-red-50 p-1"
+                    onClick={() => setPoleAccessoryQualitiesForm([])}
+                  >
+                    Vider la liste
+                  </Button>
+                )}
+              </div>
+
+              {poleAccessoryQualitiesForm.length > 0 ? (
+                <div className="divide-y divide-stone-100 bg-white rounded-2xl border border-stone-200 overflow-hidden">
+                  {poleAccessoryQualitiesForm.map((q, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between gap-3 hover:bg-stone-50 transition-colors">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black text-stone-900 uppercase">{q.label}</span>
+                          {q.nameFR && (
+                            <span className="text-[9px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full uppercase">
+                              FR: {q.nameFR}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-stone-500 font-medium flex-wrap">
+                          {q.size && <span className="bg-stone-100 px-1.5 py-0.5 rounded">Taille: <b>{q.size}</b></span>}
+                          {q.thickness && <span className="bg-stone-100 px-1.5 py-0.5 rounded">Ép.: <b>{q.thickness}</b></span>}
+                          {q.weightPerPiece != null && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">Poids: <b>{q.weightPerPiece}g</b></span>}
+                          {q.pcsPerBox != null && <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded"><b>{q.pcsPerBox}</b> pcs/box</span>}
+                          {q.boxPerCarton != null && <span className="bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded"><b>{q.boxPerCarton}</b> box/ctn</span>}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl shrink-0"
+                        onClick={() => setPoleAccessoryQualitiesForm(p => p.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center bg-white rounded-2xl border border-dashed border-stone-200">
+                  <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">Aucune qualité dans la liste</p>
+                  <p className="text-[10px] text-stone-400 mt-1">Remplissez le formulaire ci-dessus pour ajouter des qualités fixes.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-white border-t border-stone-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              disabled={isSavingPoleQualities}
+              onClick={() => { setIsPoleQualitiesModalOpen(false); setEditingPoleQualities(null); }}
+              className="h-10 text-[9px] font-black uppercase tracking-wider"
+            >
+              Annuler
+            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                disabled={isSavingPoleQualities}
+                onClick={() => handleSavePoleQualities(false, false)}
+                className="h-10 border-stone-200 hover:border-stone-400 text-stone-700 text-[9px] font-black uppercase tracking-wider rounded-xl"
+              >
+                Ce pôle uniquement
+              </Button>
+              <Button
+                variant="outline"
+                disabled={isSavingPoleQualities}
+                onClick={() => handleSavePoleQualities(false, true)}
+                className="h-10 border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-800 text-[9px] font-black uppercase tracking-wider rounded-xl"
+              >
+                Toutes les familles du pôle
+              </Button>
+              <Button
+                disabled={isSavingPoleQualities}
+                onClick={() => handleSavePoleQualities(true, true)}
+                className="h-10 bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-rose-200"
+              >
+                {isSavingPoleQualities ? (
+                  <span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Enregistrement...</span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <Share2 className="w-3.5 h-3.5" /> Affecter à TOUS les Pôles Accessoires
+                  </span>
+                )}
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
