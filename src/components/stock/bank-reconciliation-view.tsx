@@ -16,11 +16,10 @@ import * as XLSX from 'xlsx';
 
 const fmt = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ── Comptes Attijariwafa Bank ──
+// ── Comptes Attijariwafa Bank par Société ──
 const ATTIJARI_ACCOUNTS = [
-  { id: 'ALL', name: 'Tous les comptes (Attijariwafa Bank)' },
-  { id: 'LEBTEX', name: 'LEBTEX SARL AU (Compte Attijari)' },
-  { id: 'ROBE IN BOX', name: 'ROBE IN BOX SARL (Compte Attijari)' },
+  { id: 'LEBTEX' as const, name: 'LEBTEX SARL AU', subtitle: 'Compte Bancaire Attijariwafa Bank', color: 'emerald' },
+  { id: 'ROBE IN BOX' as const, name: 'ROBE IN BOX SARL', subtitle: 'Compte Bancaire Attijariwafa Bank', color: 'purple' },
 ];
 
 interface BankReconciliationViewProps {
@@ -29,9 +28,24 @@ interface BankReconciliationViewProps {
 }
 
 export default function BankReconciliationView({ payments, clients }: BankReconciliationViewProps) {
-  // ── State ──
-  const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<'ALL' | 'LEBTEX' | 'ROBE IN BOX'>('ALL');
+  // ── State séparé hermétiquement par Société ──
+  const [selectedCompany, setSelectedCompany] = useState<'LEBTEX' | 'ROBE IN BOX'>('LEBTEX');
+  const [companyTransactions, setCompanyTransactions] = useState<Record<'LEBTEX' | 'ROBE IN BOX', BankTransaction[]>>({
+    'LEBTEX': [],
+    'ROBE IN BOX': [],
+  });
+
+  const bankTransactions = useMemo(() => {
+    return companyTransactions[selectedCompany] || [];
+  }, [companyTransactions, selectedCompany]);
+
+  const setBankTransactions = useCallback((updater: BankTransaction[] | ((prev: BankTransaction[]) => BankTransaction[])) => {
+    setCompanyTransactions(prev => ({
+      ...prev,
+      [selectedCompany]: typeof updater === 'function' ? updater(prev[selectedCompany] || []) : updater,
+    }));
+  }, [selectedCompany]);
+
   const [period, setPeriod] = useState(() => new Date().toISOString().substring(0, 7));
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'matched' | 'unmatched_bank' | 'unmatched_internal'>('all');
@@ -40,16 +54,13 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
   const [matchSearch, setMatchSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Paiements internes filtrés par période et compte société ──
+  // ── Paiements internes filtrés strictement par la société sélectionnée ──
   const internalPayments = useMemo(() => {
     return payments.filter(p => {
       if (period && !p.date?.startsWith(period)) return false;
-      if (selectedAccount !== 'ALL') {
-        return p.cashingCompany === selectedAccount;
-      }
-      return true;
+      return p.cashingCompany === selectedCompany;
     });
-  }, [payments, period, selectedAccount]);
+  }, [payments, period, selectedCompany]);
 
   // ── Paiements non-rapprochés (pas liés à une transaction bancaire) ──
   const matchedPaymentIds = useMemo(() => {
@@ -245,23 +256,57 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
         </div>
       </div>
 
+      {/* ── Sélecteur étanche de Société ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {ATTIJARI_ACCOUNTS.map(acc => {
+          const isSelected = selectedCompany === acc.id;
+          const isLebtex = acc.id === 'LEBTEX';
+          const countTx = (companyTransactions[acc.id] || []).length;
+          const countPmt = payments.filter(p => p.cashingCompany === acc.id).length;
+
+          return (
+            <button
+              key={acc.id}
+              onClick={() => setSelectedCompany(acc.id)}
+              className={`p-5 rounded-3xl border-2 text-left transition-all duration-200 flex items-center justify-between ${
+                isSelected
+                  ? isLebtex
+                    ? 'border-emerald-500 bg-emerald-50/60 shadow-lg shadow-emerald-500/10 scale-[1.01]'
+                    : 'border-purple-500 bg-purple-50/60 shadow-lg shadow-purple-500/10 scale-[1.01]'
+                  : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
+              }`}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white shadow-sm shrink-0 ${
+                  isLebtex ? 'bg-emerald-600' : 'bg-purple-600'
+                }`}>
+                  <Landmark className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-sm uppercase tracking-tight text-stone-900 truncate">
+                      {acc.name}
+                    </h3>
+                    {isSelected && (
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full text-white uppercase shrink-0 ${
+                        isLebtex ? 'bg-emerald-600' : 'bg-purple-600'
+                      }`}>
+                        Actif
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-bold text-stone-500 mt-0.5 truncate">
+                    {acc.subtitle} · <span className="text-stone-700 font-black">{countTx} op. relevé</span> · <span className="text-stone-700 font-black">{countPmt} paiements</span>
+                  </p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Toolbar ── */}
       <div className="bg-white rounded-2xl shadow-lg border border-stone-100 p-4 flex flex-wrap gap-3 items-end">
-        <div>
-          <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Compte Attijariwafa</Label>
-          <Select value={selectedAccount} onValueChange={(v: any) => setSelectedAccount(v)}>
-            <SelectTrigger className="h-10 w-64 rounded-xl border-stone-200 font-bold text-xs bg-white">
-              <SelectValue placeholder="Sélectionner le compte" />
-            </SelectTrigger>
-            <SelectContent>
-              {ATTIJARI_ACCOUNTS.map(a => (
-                <SelectItem key={a.id} value={a.id} className="text-xs font-bold">
-                  {a.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div>
           <Label className="text-[9px] font-black uppercase tracking-widest text-stone-500 mb-1 block">Période</Label>
           <Input type="month" value={period} onChange={e => setPeriod(e.target.value)}
@@ -269,12 +314,31 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
         </div>
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-          <Input placeholder="Rechercher libellé, référence..." value={search} onChange={e => setSearch(e.target.value)}
+          <Input placeholder={`Rechercher parmi les écritures de ${selectedCompany}...`} value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 h-10 rounded-xl border-stone-200 text-sm font-bold" />
         </div>
+        {bankTransactions.length > 0 && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (confirm(`Effacer les ${bankTransactions.length} écritures bancaires importées pour ${selectedCompany} ?`)) {
+                setBankTransactions([]);
+              }
+            }}
+            className="border-stone-200 text-stone-500 hover:text-red-600 hover:bg-red-50 text-xs font-bold h-10 rounded-xl gap-1.5 px-3"
+            title="Effacer le relevé de cette société"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Effacer Relevé</span>
+          </Button>
+        )}
         <Button onClick={() => setImportModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs h-10 rounded-xl gap-1.5 px-5">
-          <Upload className="w-3.5 h-3.5" /> Importer Relevé
+          className={`text-white font-black uppercase text-xs h-10 rounded-xl gap-1.5 px-5 transition-all shadow-md ${
+            selectedCompany === 'LEBTEX'
+              ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+              : 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20'
+          }`}>
+          <Upload className="w-3.5 h-3.5" /> Importer Relevé ({selectedCompany})
         </Button>
       </div>
 
@@ -465,26 +529,35 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
       <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
         <DialogContent className="sm:max-w-lg rounded-3xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tight">
-              Importer un Relevé Bancaire
+            <DialogTitle className="text-lg font-black text-stone-900 uppercase tracking-tight flex items-center gap-2">
+              <Upload className="w-5 h-5 text-blue-600" />
+              <span>Importer Relevé · {selectedCompany}</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-3">
+            <div className={`p-3.5 rounded-2xl text-xs font-bold border ${
+              selectedCompany === 'LEBTEX'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                : 'bg-purple-50 text-purple-900 border-purple-200'
+            }`}>
+              Compte d'imputation : <span className="font-black underline uppercase">{selectedCompany} SARL (Attijariwafa Bank)</span>.
+              Les opérations importées alimenteront exclusivement ce compte.
+            </div>
             <p className="text-xs text-stone-500 font-medium">
-              Importez votre relevé bancaire au format <strong>Excel (.xlsx)</strong> ou <strong>CSV</strong>.
-              Le fichier doit contenir au minimum les colonnes :
+              Importez le relevé bancaire de cette société au format <strong>Excel (.xlsx)</strong> ou <strong>CSV</strong>.
+              Colonnes détectées automatiquement :
             </p>
-            <div className="bg-stone-50 rounded-xl p-4 text-xs font-mono text-stone-600 space-y-1">
+            <div className="bg-stone-50 rounded-xl p-4 text-xs font-mono text-stone-600 space-y-1 border border-stone-200/60">
               <p>• <strong>Date</strong> — Date de l'opération</p>
               <p>• <strong>Libellé</strong> — Descriptif de l'opération</p>
-              <p>• <strong>Crédit</strong> — Montant entrant (ou <strong>Montant</strong> positif)</p>
-              <p>• <strong>Débit</strong> — Montant sortant (ou <strong>Montant</strong> négatif)</p>
+              <p>• <strong>Crédit</strong> — Encaissement (ou <strong>Montant</strong> positif)</p>
+              <p>• <strong>Débit</strong> — Décaissement (ou <strong>Montant</strong> négatif)</p>
               <p className="text-stone-400">Optionnel : <strong>Référence</strong>, <strong>Solde</strong></p>
             </div>
             <div className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
               onClick={() => fileInputRef.current?.click()}>
               <Upload className="w-10 h-10 text-stone-300 mx-auto mb-3" />
-              <p className="text-sm font-bold text-stone-600">Cliquez pour sélectionner un fichier</p>
+              <p className="text-sm font-bold text-stone-700">Sélectionner le relevé de {selectedCompany}</p>
               <p className="text-[10px] text-stone-400 font-medium mt-1">.xlsx, .xls, .csv</p>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileImport} className="hidden" />
             </div>

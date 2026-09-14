@@ -16,6 +16,7 @@ import type {
   Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany, CommercialExpense,
   CheckRemittance, RemittanceStatus, CheckRemittanceItem, TransferOrder
 } from '@/lib/types';
+import { canDeclareImpaye } from '@/lib/types';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
@@ -635,7 +636,11 @@ export default function StockApp() {
             if (adminSnap.exists()) setAdminUid(adminSnap.data().adminUid);
           } catch (_) {}
         }
-        setActiveStore(data.storeId);
+        if (data.role === 'ADMIN') {
+          setActiveStore('ALL');
+        } else {
+          setActiveStore(data.storeId);
+        }
         setUserStoreId(data.storeId);
         setUserRole(data.role || 'COMMERCIAL');
         // activeView sera déterminé dynamiquement dans le useEffect ci-dessous
@@ -1034,7 +1039,7 @@ export default function StockApp() {
         const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
         batch.set(mRef, {
           ...cleanUndefined(m),
-          storeId,
+          storeId: m.storeId || storeId,
           createdAt: serverTimestamp()
         });
       }
@@ -1133,6 +1138,18 @@ export default function StockApp() {
     const effectiveUid = adminUid || user.uid;
     const payment = payments.find((p: any) => p.id === paymentId);
     const prevStatus = payment?.status || 'PENDING';
+
+    if (status === 'REJECTED') {
+      const impayeCheck = canDeclareImpaye(payment);
+      if (!impayeCheck.allowed) {
+        toast({
+          title: 'Action impossible',
+          description: impayeCheck.reason || "Un chèque ou effet ne peut être déclaré impayé qu'à J+2 minimum de l'échéance.",
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', paymentId), { status });
 
@@ -1438,7 +1455,7 @@ export default function StockApp() {
       const due = new Date(p.dueDate);
       due.setHours(0, 0, 0, 0);
       const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return diffDays <= 7;
+      return diffDays >= 0 && diffDays <= 7;
     }).sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
   }, [payments]);
 

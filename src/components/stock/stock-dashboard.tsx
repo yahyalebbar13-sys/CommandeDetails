@@ -425,7 +425,19 @@ export default function StockDashboard({
     const rawList = (effectiveStoreId === 'ALL' || effectiveStoreId === 'ALL_MAIN')
       ? stockItems
       : stockItems.map(item => {
-          const storeQty = item.qtyByStore ? (item.qtyByStore[effectiveStoreId] ?? 0) : item.currentQty;
+          let storeQty = 0;
+          if (item.qtyByStore) {
+            if (effectiveStoreId === 'CHRIFA') {
+              // Chrifa englobe ses entrepôts (puisque les arrivages et réserves y sont stockés pour Chrifa)
+              const warehouseIds = (stores || []).filter(s => s.type === 'WAREHOUSE').map(s => s.id);
+              const warehouseStock = warehouseIds.reduce((sum, wId) => sum + (item.qtyByStore![wId] ?? 0), 0);
+              storeQty = (item.qtyByStore['CHRIFA'] ?? 0) + warehouseStock;
+            } else {
+              storeQty = item.qtyByStore[effectiveStoreId] ?? 0;
+            }
+          } else {
+            storeQty = item.currentQty;
+          }
           return {
             ...item,
             currentQty: storeQty,
@@ -447,7 +459,7 @@ export default function StockDashboard({
         totalSellingValue: totalSellingValue != null && !isNaN(totalSellingValue) ? totalSellingValue : undefined,
       };
     });
-  }, [stockItems, effectiveStoreId]);
+  }, [stockItems, effectiveStoreId, stores]);
 
   // ── 5. CALCUL DES KPIS GLOBAUX & FINANCIERS ──────────────────────────────
   const inStockItems = useMemo(() =>

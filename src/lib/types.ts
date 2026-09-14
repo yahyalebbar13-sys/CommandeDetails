@@ -688,3 +688,49 @@ export interface CommercialExpense {
   createdAt?: any;
 }
 
+/**
+ * Règle d'impayé : un chèque ou lettre de change (effet/LCN) ne peut être déclaré impayé
+ * que si sa date d'échéance est arrivée et dépassée d'au moins 2 jours (J+2 bancaire SIMT).
+ */
+export function canDeclareImpaye(payment?: { dueDate?: string; date?: string; status?: string; method?: string } | null): {
+  allowed: boolean;
+  daysSinceDue: number;
+  reason?: string;
+} {
+  if (!payment) return { allowed: false, daysSinceDue: 0, reason: "Paiement introuvable" };
+  if (payment.status === 'REJECTED') return { allowed: false, daysSinceDue: 0, reason: "Déjà déclaré impayé" };
+
+  const dateStr = payment.dueDate || payment.date;
+  if (!dateStr) {
+    return { allowed: false, daysSinceDue: 0, reason: "Date d'échéance manquante" };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const due = new Date(dateStr);
+  due.setHours(0, 0, 0, 0);
+
+  const diffTime = today.getTime() - due.getTime();
+  const daysSinceDue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (daysSinceDue < 0) {
+    const absDays = Math.abs(daysSinceDue);
+    return {
+      allowed: false,
+      daysSinceDue,
+      reason: `Échéance non échue (prévue le ${new Date(dateStr).toLocaleDateString('fr-MA')}, dans ${absDays} j)`,
+    };
+  }
+
+  if (daysSinceDue < 2) {
+    return {
+      allowed: false,
+      daysSinceDue,
+      reason: `Délai bancaire requis : déclaration possible à J+2 de l'échéance (actuellement J+${daysSinceDue})`,
+    };
+  }
+
+  return { allowed: true, daysSinceDue };
+}
+

@@ -5,9 +5,9 @@ import {
   Landmark, CreditCard, TrendingUp, AlertTriangle, CheckCircle2, XCircle, FileText, 
   Image as ImageIcon, Calendar as CalendarIcon, Check, Building2, Printer, Sparkles,
   ArrowRight, ShieldAlert, CheckCheck, HelpCircle, RefreshCw, History, Download,
-  CheckSquare, Square, Eye, Search, Filter, Clock
+  CheckSquare, Square, Eye, Search, Filter, Clock, ChevronUp
 } from 'lucide-react';
-import { ClientPayment, Client, Invoice, CashingCompany, CheckRemittance, RemittanceStatus } from '@/lib/types';
+import { ClientPayment, Client, Invoice, CashingCompany, CheckRemittance, RemittanceStatus, canDeclareImpaye } from '@/lib/types';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,7 @@ export default function TreasuryDashboard({
   const [viewScan, setViewScan] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState<'ALL' | 'URGENT_7D' | 'LEBTEX' | 'ROBE IN BOX' | 'UNASSIGNED'>('ALL');
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [isArbitrageExpanded, setIsArbitrageExpanded] = useState(false);
 
   // Multi-sélection de chèques pour remise personnalisée
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
@@ -102,7 +103,7 @@ export default function TreasuryDashboard({
           
           if (!p.cashingCompany && p.dueDate) {
             const days = getDaysRemaining(p.dueDate);
-            if (days !== null && days <= 7) {
+            if (days !== null && days >= 0 && days <= 7) {
               unassignedUrgentCount++;
             }
           }
@@ -126,12 +127,12 @@ export default function TreasuryDashboard({
       });
   }, [payments]);
 
-  // Effets urgents sans société à J-7 (ou déjà échus sans société)
+  // Effets urgents sans société à J-7 (strictement dans les 7 jours à venir)
   const urgentUnassignedPayments = useMemo(() => {
     return allPendingPayments.filter(p => {
       if (p.cashingCompany) return false;
       const days = getDaysRemaining(p.dueDate);
-      return days !== null && days <= 7;
+      return days !== null && days >= 0 && days <= 7;
     });
   }, [allPendingPayments]);
 
@@ -380,84 +381,96 @@ export default function TreasuryDashboard({
             </div>
           </div>
 
-          {/* ⚠️ SECTION ALERTE CRITIQUE J-7 : DEMANDE ARBITRAGE SOCIETE */}
+          {/* ⚠️ SECTION ALERTE J-7 : ARBITRAGE SOCIETE COMPACT & REPLIABLE */}
           {urgentUnassignedPayments.length > 0 && (
-            <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 shadow-lg shadow-amber-500/10 animate-in fade-in slide-in-from-top-4 duration-300">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-amber-200/60">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/30 shrink-0">
-                    <AlertTriangle className="w-5 h-5 animate-pulse" />
+            <div className="bg-amber-50/90 border border-amber-300/80 rounded-2xl p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-base font-black text-amber-900 uppercase tracking-tight flex items-center gap-2">
-                      <span>Alerte Échéance J-7 · Arbitrage Société Obligatoire</span>
-                      <span className="bg-amber-600 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-amber-950 uppercase tracking-tight">
+                        Arbitrage Société J-7
+                      </span>
+                      <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
                         {urgentUnassignedPayments.length} effet(s)
                       </span>
-                    </h3>
-                    <p className="text-xs font-bold text-amber-800/90 mt-0.5">
-                      Ces chèques / LCN arrivent à échéance dans 7 jours ou moins sur votre compte <span className="font-black text-amber-950">Attijariwafa Bank</span>. Choisissez la société sur laquelle les émettre :
+                      <span className="text-xs font-bold text-amber-800 font-mono">
+                        · {fmt(urgentUnassignedPayments.reduce((s, p) => s + (p.amount || 0), 0))} MAD
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium text-amber-800 truncate mt-0.5">
+                      Échéances dans 7 jours ou moins sur votre compte <strong className="font-bold text-amber-950">Attijariwafa Bank</strong>.
                     </p>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsArbitrageExpanded(!isArbitrageExpanded)}
+                    className="h-8 text-xs font-bold text-amber-950 border-amber-300 hover:bg-amber-100/70 rounded-xl gap-1.5 shadow-none"
+                  >
+                    <span>{isArbitrageExpanded ? 'Masquer' : `Arbitrer (${urgentUnassignedPayments.length})`}</span>
+                    {isArbitrageExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {urgentUnassignedPayments.map(p => {
-                  const days = getDaysRemaining(p.dueDate);
-                  const isOverdue = days !== null && days < 0;
-                  const isToday = days === 0;
-                  const isAssigning = assigningId === p.id;
+              {/* Liste compacte déroulante */}
+              {isArbitrageExpanded && (
+                <div className="mt-3 pt-3 border-t border-amber-200/80 space-y-2 max-h-64 overflow-y-auto pr-1 animate-in fade-in duration-150">
+                  {urgentUnassignedPayments.map(p => {
+                    const days = getDaysRemaining(p.dueDate);
+                    const isToday = days === 0;
+                    const isAssigning = assigningId === p.id;
 
-                  return (
-                    <div key={p.id} className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-amber-300 shadow-sm flex flex-col justify-between gap-3">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-mono">
-                            {p.method} · N° {p.checkNumber || '—'}
+                    return (
+                      <div key={p.id} className="bg-white p-2.5 rounded-xl border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-xs text-xs">
+                        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono">
+                            {p.method} {p.checkNumber ? `N° ${p.checkNumber}` : ''}
                           </span>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                            isOverdue ? 'bg-red-500 text-white animate-bounce' :
-                            isToday ? 'bg-orange-500 text-white' :
-                            'bg-amber-500 text-white'
+                          <span className="font-black text-stone-900 truncate max-w-[180px]">
+                            {getClientName(p.clientId)}
+                          </span>
+                          <span className="text-stone-300">·</span>
+                          <span className="font-bold text-amber-950 font-mono">
+                            {fmt(p.amount)} MAD
+                          </span>
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                            isToday ? 'bg-orange-500 text-white' : 'bg-amber-500 text-white'
                           }`}>
-                            {isOverdue ? `Échu (+${Math.abs(days!)}j)` : isToday ? "Aujourd'hui !" : `J-${days}`}
+                            {isToday ? "Aujourd'hui" : `J-${days}`}
                           </span>
                         </div>
-                        <p className="text-xs font-black text-stone-900 mt-2 truncate">
-                          {getClientName(p.clientId)}
-                        </p>
-                        <p className="text-[11px] font-bold text-stone-500 mt-0.5">
-                          Tiré sur : <span className="text-stone-700">{p.bankName || 'Attijariwafa Bank'}</span>
-                        </p>
-                        <p className="text-sm font-black text-amber-950 mt-1">
-                          {fmt(p.amount)} MAD
-                        </p>
-                      </div>
 
-                      {/* Boutons d'arbitrage 1-clic */}
-                      <div className="pt-2 border-t border-amber-100 flex items-center gap-2">
-                        <button
-                          onClick={() => handleAssign(p.id, 'LEBTEX')}
-                          disabled={isAssigning}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-1.5 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm transition-all"
-                        >
-                          <Building2 className="w-3 h-3" />
-                          <span>LEBTEX</span>
-                        </button>
-                        <button
-                          onClick={() => handleAssign(p.id, 'ROBE IN BOX')}
-                          disabled={isAssigning}
-                          className="flex-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white py-1.5 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm transition-all"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          <span>ROBE IN BOX</span>
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                          <button
+                            onClick={() => handleAssign(p.id, 'LEBTEX')}
+                            disabled={isAssigning}
+                            className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-1 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all"
+                          >
+                            <Building2 className="w-3 h-3" />
+                            <span>LEBTEX</span>
+                          </button>
+                          <button
+                            onClick={() => handleAssign(p.id, 'ROBE IN BOX')}
+                            disabled={isAssigning}
+                            className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white py-1 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm transition-all"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>ROBE IN BOX</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -902,15 +915,25 @@ export default function TreasuryDashboard({
                                 <Check className="w-3.5 h-3.5" />
                               </Button>
 
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg"
-                                onClick={() => onUpdatePaymentStatus(p.id, 'REJECTED')}
-                                title="Déclarer Impayé"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                              </Button>
+                              {(() => {
+                                const impayeCheck = canDeclareImpaye(p);
+                                return (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={!impayeCheck.allowed}
+                                    className={`h-7 w-7 rounded-lg transition-all ${
+                                      impayeCheck.allowed
+                                        ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                        : "text-stone-300 cursor-not-allowed hover:bg-transparent"
+                                    }`}
+                                    onClick={() => onUpdatePaymentStatus(p.id, 'REJECTED')}
+                                    title={impayeCheck.allowed ? "Déclarer Impayé" : impayeCheck.reason}
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                  </Button>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>

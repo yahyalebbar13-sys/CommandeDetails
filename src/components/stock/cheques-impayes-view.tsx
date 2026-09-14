@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { ClientPayment, Client, Invoice, StoreLocation, Store } from '@/lib/types';
+import { canDeclareImpaye } from '@/lib/types';
 import { exportChequesPDF } from '@/lib/pdf-export-reports';
 
 interface ChequesImpayesViewProps {
@@ -235,10 +236,20 @@ export default function ChequesImpayesView({
 
   // Action 1-clic : Déclarer Impayé
   const handleDeclareImpaye = async (paymentId: string) => {
+    const p = payments.find(x => x.id === paymentId);
+    const impayeCheck = canDeclareImpaye(p);
+    if (!impayeCheck.allowed) {
+      toast({
+        title: "Action non autorisée",
+        description: impayeCheck.reason || "Un chèque/effet ne peut être déclaré impayé qu'à J+2 de l'échéance.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setProcessingId(paymentId);
     try {
       await onUpdatePaymentStatus(paymentId, 'REJECTED');
-      const p = payments.find(x => x.id === paymentId);
       const client = p ? clientsMap.get(p.clientId) : null;
       toast({
         title: "🚨 Impayé Déclaré !",
@@ -754,35 +765,43 @@ export default function ChequesImpayesView({
                       {/* ── ACTION 1-CLIC ── */}
                       <td className="py-4 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
-                          {status !== 'REJECTED' ? (
-                            <>
-                              {/* BOUTON 1-CLIC : DÉCLARER IMPAYÉ */}
-                              <Button
-                                onClick={() => handleDeclareImpaye(p.id)}
-                                disabled={isProcessing}
-                                size="sm"
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase tracking-wider h-8 px-3 rounded-xl shadow-md shadow-rose-600/20 gap-1.5 transition-all active:scale-95"
-                              >
-                                <AlertTriangle className="w-3 h-3" />
-                                <span>{isProcessing ? 'En cours...' : 'Déclarer Impayé'}</span>
-                              </Button>
-
-                              {/* Action secondaire : Encaisser */}
-                              {status === 'PENDING' && (
+                          {status !== 'REJECTED' ? (() => {
+                            const impayeCheck = canDeclareImpaye(p);
+                            return (
+                              <>
+                                {/* BOUTON 1-CLIC : DÉCLARER IMPAYÉ */}
                                 <Button
-                                  onClick={() => handleMarkCleared(p.id)}
-                                  disabled={isProcessing}
+                                  onClick={() => handleDeclareImpaye(p.id)}
+                                  disabled={isProcessing || !impayeCheck.allowed}
                                   size="sm"
-                                  variant="outline"
-                                  className="h-8 px-2.5 text-[9px] font-bold border-stone-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl"
-                                  title="Marquer comme encaissé en banque"
+                                  title={impayeCheck.allowed ? "Déclarer cet effet impayé (solde réouvert)" : impayeCheck.reason}
+                                  className={`font-black text-[10px] uppercase tracking-wider h-8 px-3 rounded-xl gap-1.5 transition-all ${
+                                    impayeCheck.allowed
+                                      ? "bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 active:scale-95"
+                                      : "bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed hover:bg-stone-100 hover:text-stone-400 opacity-60"
+                                  }`}
                                 >
-                                  <Check className="w-3 h-3" />
-                                  <span>Encaissé</span>
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>{isProcessing ? 'En cours...' : impayeCheck.allowed ? 'Déclarer Impayé' : 'Non échu (J+2)'}</span>
                                 </Button>
-                              )}
-                            </>
-                          ) : (
+
+                                {/* Action secondaire : Encaisser */}
+                                {status === 'PENDING' && (
+                                  <Button
+                                    onClick={() => handleMarkCleared(p.id)}
+                                    disabled={isProcessing}
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-2.5 text-[9px] font-bold border-stone-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 rounded-xl"
+                                    title="Marquer comme encaissé en banque"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    <span>Encaissé</span>
+                                  </Button>
+                                )}
+                              </>
+                            );
+                          })() : (
                             /* Si déjà marqué IMPAYÉ : options de régularisation */
                             <div className="flex items-center gap-1.5">
                               <Button
@@ -886,16 +905,35 @@ export default function ChequesImpayesView({
                   </Button>
 
                   <div className="flex items-center gap-2">
-                    {status !== 'REJECTED' ? (
-                      <Button
-                        onClick={() => handleDeclareImpaye(previewPayment.id)}
-                        disabled={processingId === previewPayment.id}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider h-11 px-5 rounded-2xl shadow-lg shadow-rose-600/30 gap-2"
-                      >
-                        <AlertTriangle className="w-4 h-4" />
-                        <span>Déclarer ce Chèque Impayé en 1-Clic</span>
-                      </Button>
-                    ) : (
+                    {status !== 'REJECTED' ? (() => {
+                      const modalImpayeCheck = canDeclareImpaye(previewPayment);
+                      return (
+                        <div className="flex flex-col items-end gap-1">
+                          <Button
+                            onClick={() => handleDeclareImpaye(previewPayment.id)}
+                            disabled={processingId === previewPayment.id || !modalImpayeCheck.allowed}
+                            title={modalImpayeCheck.allowed ? "Déclarer ce chèque/effet impayé" : modalImpayeCheck.reason}
+                            className={`font-black text-xs uppercase tracking-wider h-11 px-5 rounded-2xl gap-2 transition-all ${
+                              modalImpayeCheck.allowed
+                                ? "bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30"
+                                : "bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed hover:bg-stone-100"
+                            }`}
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                            <span>
+                              {modalImpayeCheck.allowed
+                                ? 'Déclarer ce Chèque Impayé en 1-Clic'
+                                : 'Déclaration impossible avant J+2'}
+                            </span>
+                          </Button>
+                          {!modalImpayeCheck.allowed && (
+                            <span className="text-[10px] font-bold text-amber-600">
+                              ℹ️ {modalImpayeCheck.reason}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })() : (
                       <Button
                         onClick={() => handleMarkCleared(previewPayment.id)}
                         disabled={processingId === previewPayment.id}
