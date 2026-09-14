@@ -51,7 +51,6 @@ export async function POST(req: Request) {
       deletedStores: 0,
       cleanedArticlesStock: 0,
       deletedLocalTestArticles: 0,
-      cleanedFacturesStock: 0,
     };
 
     // 1. Supprimer tous les mouvements de stock (/stock uniquement)
@@ -121,7 +120,7 @@ export async function POST(req: Request) {
       report.deletedStores++;
     }
 
-    // 7. Nettoyer le stock sur les articles sans jamais toucher aux commandes de /gestion
+    // 7. Nettoyer le stock local sur les articles sans JAMAIS toucher aux arrivages/commandes de /gestion
     const articlesSnap = await db.collection('users').doc(adminUid).collection('articles').get();
     for (const artDoc of articlesSnap.docs) {
       const data = artDoc.data();
@@ -129,27 +128,12 @@ export async function POST(req: Request) {
       if (data.supplierId === 'Marché local' || (!data.factureId && !data.supplier && data.stockMovementId)) {
         await artDoc.ref.delete();
         report.deletedLocalTestArticles++;
-      } else if (data.stockEntryDate || data.initialQtyByStore) {
-        // C'est un article de commande /gestion qui avait été basculé en stock :
-        // On retire purement la mention de stock pour qu'il soit à 0 dans /stock,
-        // mais l'article reste 100% INTACT dans /gestion !
+      } else if (data.initialQtyByStore) {
+        // Retirer uniquement le stock physique de test par magasin sans JAMAIS toucher au statut ou à la date d'entrée en stock de /gestion !
         await artDoc.ref.update({
-          stockEntryDate: FieldValue.delete(),
           initialQtyByStore: FieldValue.delete(),
         });
         report.cleanedArticlesStock++;
-      }
-    }
-
-    // 8. Nettoyer la date de passage en stock sur les factures pour permettre de retester
-    const facturesSnap = await db.collection('users').doc(adminUid).collection('factures').get();
-    for (const facDoc of facturesSnap.docs) {
-      const data = facDoc.data();
-      if (data.stockEntryDate) {
-        await facDoc.ref.update({
-          stockEntryDate: FieldValue.delete(),
-        });
-        report.cleanedFacturesStock++;
       }
     }
 
