@@ -43,6 +43,22 @@ const STATUS_MAP: Record<EffectiveStatus, Omit<StatusInfo, 'status'>> = {
 };
 
 /**
+ * Vérifie si la date d'arrivée d'un arrivage dépasse 1 mois (30 jours).
+ * Les arrivages de plus d'un mois sont considérés validés en stock d'office
+ * (marchandise réceptionnée et historique clôturé).
+ */
+export function isArrivalOlderThanOneMonth(arrivalDate?: string | null): boolean {
+  if (!arrivalDate) return false;
+  const arr = new Date(arrivalDate);
+  if (isNaN(arr.getTime())) return false;
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+  oneMonthAgo.setHours(0, 0, 0, 0);
+  arr.setHours(0, 0, 0, 0);
+  return arr.getTime() <= oneMonthAgo.getTime();
+}
+
+/**
  * Computes the effective/displayed status from an article's stored status + dates.
  * Use this everywhere you display a status badge or filter by status.
  */
@@ -68,7 +84,13 @@ export function computeEffectiveStatus(article: {
     }
   }
 
-  // 2. Arrival date reached → CUSTOMS
+  // 1b. Arrivage dont la date d'arrivée dépasse 1 mois (> 30 jours) :
+  // Automatiquement validé en stock d'office
+  if (arrivalDate && isArrivalOlderThanOneMonth(arrivalDate)) {
+    return 'STOCK';
+  }
+
+  // 2. Arrival date reached → CUSTOMS (pour les arrivages récents en cours de dédouanement)
   if (arrivalDate) {
     const arrival = new Date(arrivalDate);
     if (!isNaN(arrival.getTime())) {

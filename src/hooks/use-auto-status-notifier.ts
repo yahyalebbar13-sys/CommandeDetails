@@ -12,7 +12,7 @@
 
 import { useEffect, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { computeEffectiveStatus } from '@/lib/status-utils';
+import { computeEffectiveStatus, isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 import { sendStatusNotification } from '@/lib/send-status-notification';
 
 interface UseAutoStatusNotifierParams {
@@ -55,6 +55,9 @@ export function useAutoStatusNotifier({
 
         // Skip if no dates (nothing to compute)
         if (!facture.arrivalDate && !facture.stockEntryDate) continue;
+
+        // Ne pas envoyer de notifications rétroactives pour les anciens arrivages historiques (> 1 mois)
+        if (isArrivalOlderThanOneMonth(facture.arrivalDate)) continue;
 
         // Compute current effective status based on TODAY's date
         const currentStatus = computeEffectiveStatus({

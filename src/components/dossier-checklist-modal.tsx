@@ -54,6 +54,7 @@ export default function DossierChecklistModal({ open, onOpenChange, facture }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   facture: any;
+  articles?: any[];
 }) {
   const { firestore, user } = useFirebase();
   const { toast } = useToast();

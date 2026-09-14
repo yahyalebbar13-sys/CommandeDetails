@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter
+  Calendar, Clock, Filter, Lock
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -18,6 +18,7 @@ import type {
 } from '@/lib/types';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
+import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
 import StockAlerts      from './stock-alerts';
@@ -87,8 +88,37 @@ export function computeStockItems(
   userRole: string = 'ADMIN',
   stores: any[] = [],
   userStoreId: string = '',
-  generalCategories: any[] = []
+  generalCategories: any[] = [],
+  factures: any[] = []
 ): StockItem[] {
+  // Arrivages de plus d'un mois : leur stock ne doit PAS être pris en compte (marchandise épuisée avant logiciel)
+  const oldFactureIds = new Set<string>();
+  for (const f of (factures || [])) {
+    if (f?.id && isArrivalOlderThanOneMonth(f.arrivalDate)) {
+      oldFactureIds.add(String(f.id));
+    }
+  }
+
+  const isArticleFromOldArrival = (art: any) => {
+    if (!art) return false;
+    if (art.factureId && oldFactureIds.has(String(art.factureId))) return true;
+    if (art.facture && oldFactureIds.has(String(art.facture))) return true;
+    if (isArrivalOlderThanOneMonth(art.arrivalDate)) return true;
+    return false;
+  };
+
+  const isOldArrivalMovement = (m: StockMovement) => {
+    if (m.reason === 'ARRIVAGE') {
+      if (m.factureId && oldFactureIds.has(String(m.factureId))) return true;
+      if (m.factureRef && oldFactureIds.has(String(m.factureRef))) return true;
+      if (m.articleId) {
+        const art = articles.find(x => x.id === m.articleId);
+        if (art && isArticleFromOldArrival(art)) return true;
+      }
+    }
+    return false;
+  };
+
   const isVisibleForUser = (storeId: string | undefined) => {
     if (activeStore === 'ALL') return true;
     const sId = storeId || 'CHRIFA';
@@ -112,9 +142,10 @@ export function computeStockItems(
     return sId === activeStore;
   };
 
-  const computeQtyByStoreHelper = (itemRow: any, targetMovs: any[]) => {
-    const qtyByStore: Record<string, number> = { ...(itemRow.initialQtyByStore || {}) };
+  const computeQtyByStoreHelper = (itemRow: any, targetMovs: any[], isOld: boolean = false) => {
+    const qtyByStore: Record<string, number> = isOld ? {} : { ...(itemRow.initialQtyByStore || {}) };
     for (const m of targetMovs) {
+      if (isOldArrivalMovement(m)) continue;
       if (m.reason === 'TRANSFERT') {
         if (m.storeId) qtyByStore[m.storeId] = (qtyByStore[m.storeId] || 0) - m.quantity;
         if (m.toStoreId) qtyByStore[m.toStoreId] = (qtyByStore[m.toStoreId] || 0) + m.quantity;
@@ -129,12 +160,18 @@ export function computeStockItems(
     return qtyByStore;
   };
   const stockArticles = includeAll ? articles : articles.filter(a => {
-    return movements.some(m => m.articleId === a.id) || (a.initialQtyByStore && Object.values(a.initialQtyByStore).some((v: any) => Number(v) > 0));
+    const isOld = isArticleFromOldArrival(a);
+    const validMovs = movements.filter(m => m.articleId === a.id && !isOldArrivalMovement(m));
+    if (isOld) {
+      return validMovs.length > 0;
+    }
+    return validMovs.length > 0 || (a.initialQtyByStore && Object.values(a.initialQtyByStore).some((v: any) => Number(v) > 0));
   });
 
   const results: StockItem[] = [];
 
   for (const a of stockArticles) {
+    const isOldArrival = isArticleFromOldArrival(a);
     // ── Lookup catégorie et nom du produit ─────────────────────────────────────
     const cat = categories.find(c => c.id === a.categoryId || c.name === a.categoryId);
     const catNameFR = cat?.nameFR;
@@ -203,15 +240,17 @@ export function computeStockItems(
           : price;
 
         let initialQty = 0;
-        if (row.initialQtyByStore) {
-          initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
-        } else if (a.initialQtyByStore) {
-          const rowRatio = (Number(row.quantity) || 0) / totalQualityQty;
-          const proratedStoreMap: Record<string, number> = {};
-          Object.entries(a.initialQtyByStore).forEach(([sId, val]) => {
-            proratedStoreMap[sId] = Math.round((Number(val) || 0) * rowRatio);
-          });
-          initialQty = getInitialQtyForStore({ initialQtyByStore: proratedStoreMap }, activeStore, userStoreId, stores);
+        if (!isOldArrival) {
+          if (row.initialQtyByStore) {
+            initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
+          } else if (a.initialQtyByStore) {
+            const rowRatio = (Number(row.quantity) || 0) / totalQualityQty;
+            const proratedStoreMap: Record<string, number> = {};
+            Object.entries(a.initialQtyByStore).forEach(([sId, val]) => {
+              proratedStoreMap[sId] = Math.round((Number(val) || 0) * rowRatio);
+            });
+            initialQty = getInitialQtyForStore({ initialQtyByStore: proratedStoreMap }, activeStore, userStoreId, stores);
+          }
         }
 
         const qualityMov = artMovements.filter(m =>
@@ -226,6 +265,7 @@ export function computeStockItems(
             }));
 
         for (const m of targetMovs) {
+          if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
             if (activeStore === 'ALL') continue;
             if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
@@ -279,7 +319,7 @@ export function computeStockItems(
           stockEntryDate:      a.stockEntryDate,
           _realArticleId:      a.id,
           _qualityKey:         qualityLabel,
-          qtyByStore:          computeQtyByStoreHelper(row.initialQtyByStore ? row : a, targetMovs),
+          qtyByStore:          computeQtyByStoreHelper(row.initialQtyByStore ? row : a, targetMovs, isOldArrival),
         } as any);
       }
       continue;
@@ -292,7 +332,7 @@ export function computeStockItems(
         const colorLabel = (row.colorCode || row.description || row.color || '').trim();
         if (!colorLabel) continue;
 
-        const initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
+        const initialQty = isOldArrival ? 0 : getInitialQtyForStore(row, activeStore, userStoreId, stores);
 
         // Mouvements filtrés : ceux qui mentionnent cette couleur spécifiquement
         // ou bien les mouvements globaux de l'article proportionnellement
@@ -304,6 +344,7 @@ export function computeStockItems(
         const targetMovs = colorMov.length > 0 ? colorMov : artMovements.map(m => ({ ...m, quantity: m.quantity / (colorBreakdown.length || 1) }));
 
         for (const m of targetMovs) {
+          if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
             if (activeStore === 'ALL') continue; // Transfert interne = 0 impact global
             if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
@@ -358,7 +399,7 @@ export function computeStockItems(
           // Conserver l'articleId réel pour les mouvements et éditions
           _realArticleId:      a.id,
           _colorKey:           colorLabel,
-          qtyByStore:          computeQtyByStoreHelper(row, targetMovs),
+          qtyByStore:          computeQtyByStoreHelper(row, targetMovs, isOldArrival),
         } as any);
       }
       continue; // ne pas créer le StockItem générique
@@ -370,7 +411,7 @@ export function computeStockItems(
         const sizeLabel = (row.size || '').trim();
         if (!sizeLabel) continue;
 
-        const initialQty = getInitialQtyForStore(row, activeStore, userStoreId, stores);
+        const initialQty = isOldArrival ? 0 : getInitialQtyForStore(row, activeStore, userStoreId, stores);
         const sizeMov = artMovements.filter(m =>
           m.size?.toLowerCase() === sizeLabel.toLowerCase()
         );
@@ -378,6 +419,7 @@ export function computeStockItems(
         const targetMovs = sizeMov.length > 0 ? sizeMov : artMovements.map(m => ({ ...m, quantity: m.quantity / (sizeBreakdown.length || 1) }));
 
         for (const m of targetMovs) {
+          if (isOldArrivalMovement(m)) continue;
           if (m.reason === 'TRANSFERT') {
             if (activeStore === 'ALL') continue;
             if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
@@ -431,7 +473,7 @@ export function computeStockItems(
           stockEntryDate:      a.stockEntryDate,
           _realArticleId:      a.id,
           _sizeKey:            sizeLabel,
-          qtyByStore:          computeQtyByStoreHelper(row, targetMovs),
+          qtyByStore:          computeQtyByStoreHelper(row, targetMovs, isOldArrival),
         } as any);
       }
       continue;
@@ -440,6 +482,7 @@ export function computeStockItems(
     // ── CAS 3 : article normal (1 couleur / 1 taille ou sans variante) ────────
     let mouvIN = 0, mouvOUT = 0, mouvADJ = 0;
     for (const m of artMovements) {
+      if (isOldArrivalMovement(m)) continue;
       if (m.reason === 'TRANSFERT') {
         if (activeStore === 'ALL') continue;
         if (isVisibleForUser(m.storeId)) mouvOUT += m.quantity;
@@ -452,9 +495,9 @@ export function computeStockItems(
         }
       }
     }
-    const initialQty = getInitialQtyForStore(a, activeStore, userStoreId, stores);
+    const initialQty = isOldArrival ? 0 : getInitialQtyForStore(a, activeStore, userStoreId, stores);
     const currentQty = initialQty + mouvIN - mouvOUT + mouvADJ;
-    const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
+    const lastMovement = [...artMovements].filter(m => !isOldArrivalMovement(m)).sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
     results.push({
       articleId:           a.id,
@@ -491,7 +534,7 @@ export function computeStockItems(
       minThreshold:        a.minStockThreshold,
       lastMovementDate:    lastMovement?.date ?? a.stockEntryDate,
       stockEntryDate:      a.stockEntryDate,
-      qtyByStore:          computeQtyByStoreHelper(a, artMovements),
+      qtyByStore:          computeQtyByStoreHelper(a, artMovements, isOldArrival),
     });
   }
   const isWarehouseView = stores.find(s => s.id === activeStore)?.type === 'WAREHOUSE';
@@ -683,18 +726,18 @@ export default function StockApp() {
   }, [userRole, userStoreId]);
 
   const stockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore, false, userRole, stores, userStoreId ?? undefined, generalCategories),
-    [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
+    computeStockItems(articles, movements, categories, activeStore, false, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
+    [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories, factures]
   );
 
   const allStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore, true, userRole, stores, userStoreId ?? undefined, generalCategories),
-    [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
+    computeStockItems(articles, movements, categories, activeStore, true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
+    [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories, factures]
   );
 
   const allStockItemsGlobal = useMemo(() =>
-    computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId ?? undefined, generalCategories),
-    [articles, movements, categories, userRole, stores, userStoreId, generalCategories]
+    computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
+    [articles, movements, categories, userRole, stores, userStoreId, generalCategories, factures]
   );
 
   const isCurrentStoreWarehouse = stores.some(s => s.id === activeStore && s.type === 'WAREHOUSE');
@@ -703,14 +746,14 @@ export default function StockApp() {
     : (userRole === 'ADMIN' && inventoryWarehouseId ? inventoryWarehouseId : activeStore);
 
   const inventoryStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId ?? undefined, generalCategories),
-    [articles, movements, categories, effectiveInventoryStoreId, userRole, stores, userStoreId, generalCategories]
+    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
+    [articles, movements, categories, effectiveInventoryStoreId, userRole, stores, userStoreId, generalCategories, factures]
   );
 
   const effectiveSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : saleStoreId;
   const saleStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores, userStoreId ?? undefined, generalCategories),
-    [articles, movements, categories, effectiveSaleStoreId, userRole, stores, userStoreId, generalCategories]
+    computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores, userStoreId ?? undefined, generalCategories, factures),
+    [articles, movements, categories, effectiveSaleStoreId, userRole, stores, userStoreId, generalCategories, factures]
   );
 
   const isChrifaOrWarehouse = (id: string | undefined) => {
@@ -794,7 +837,12 @@ export default function StockApp() {
 
     factures.forEach((f: any) => {
       const entryDate = f.stockEntryDate || movements.find(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN')?.date;
-      const isEntered = !!(f.stockEntryDate || (f.status === 'STOCK') || movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN'));
+      const isEntered = !!(
+        f.stockEntryDate ||
+        (f.status === 'STOCK') ||
+        isArrivalOlderThanOneMonth(f.arrivalDate) ||
+        movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN')
+      );
       if (isEntered && entryDate && entryDate >= tenDaysAgoStr) {
         entered10D++;
         const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
@@ -1940,7 +1988,12 @@ export default function StockApp() {
               const arrivalCardsData = factures
                 .map((f: any) => {
                   const stockEntryDate = f.stockEntryDate || movements.find(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN')?.date || null;
-                  const isEnteredInStock = !!(f.stockEntryDate || f.status === 'STOCK' || movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN'));
+                  const isEnteredInStock = !!(
+                    f.stockEntryDate ||
+                    f.status === 'STOCK' ||
+                    isArrivalOlderThanOneMonth(f.arrivalDate) ||
+                    movements.some(m => (m.factureId === f.id || m.factureRef === f.id) && m.type === 'IN')
+                  );
                   const isWithin10Days = stockEntryDate ? stockEntryDate >= tenDaysAgoStr : false;
 
                   const factureArts = articles.filter((a: any) => a.factureId === f.id || a.facture === f.id);
@@ -2208,13 +2261,13 @@ export default function StockApp() {
                                   📥 Valider l'Entrée en Stock + Coût de Revient
                                 </button>
                               ) : (
-                                <button
-                                  onClick={() => setPassToStockId(f.id)}
-                                  className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-2.5 rounded-xl transition-all cursor-pointer"
-                                >
+                                <div className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-2.5 rounded-xl select-none">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  Entrée validée {stockEntryDate ? `(${stockEntryDate})` : ''} · Modifier
-                                </button>
+                                  <span>Entrée validée {stockEntryDate ? `(${stockEntryDate})` : (isArrivalOlderThanOneMonth(f.arrivalDate) ? '(Historique)' : '')}</span>
+                                  <span className="text-[8px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded font-black flex items-center gap-1 ml-1">
+                                    <Lock className="w-2.5 h-2.5" /> Verrouillé
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>

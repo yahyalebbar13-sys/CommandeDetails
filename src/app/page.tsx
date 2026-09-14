@@ -345,12 +345,13 @@ function ClientPortalView({
         const _categories = catSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         const _movements = movSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         
+        const _factures = facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         setArticles(_articles);
-        setFactures(facSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setFactures(_factures);
         setCategories(_categories);
         
         // Compute real stock items
-        const computedStock = computeStockItems(_articles, _movements, _categories);
+        const computedStock = computeStockItems(_articles, _movements, _categories, 'ALL', false, 'ADMIN', [], '', [], _factures);
         setStockItems(computedStock);
         setMovements(_movements);
         
@@ -448,7 +449,7 @@ function AdminApp() {
   const movements = rawMovements || [];
   const payments = rawPayments || [];
   
-  const stockItems = useMemo(() => computeStockItems(rawArticles_, movements, subCategories), [rawArticles_, movements, subCategories]);
+  const stockItems = useMemo(() => computeStockItems(rawArticles_, movements, subCategories, 'ALL', false, 'ADMIN', [], '', [], factures), [rawArticles_, movements, subCategories, factures]);
 
   // ─── Auto-detect status transitions and send emails ────────────────────────────────────
   // Runs once per day when admin opens the app.

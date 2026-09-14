@@ -1298,11 +1298,11 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
       {/* Modal nouveau client */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-700 to-violet-600 p-6 text-white">
+        <DialogContent className="sm:max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-700 to-violet-600 p-6 text-white shrink-0">
             <DialogTitle className="text-lg font-black uppercase tracking-tight">Nouveau client</DialogTitle>
           </div>
-          <div className="p-6 space-y-3 bg-white">
+          <div className="p-6 space-y-3 bg-white flex-1 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
             {[
               { key: 'name', label: 'Nom *', placeholder: 'Nom complet ou raison sociale' },
               { key: 'phone', label: 'Téléphone', placeholder: '+212 6...' },
@@ -1345,7 +1345,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
               <Label htmlFor="formCreditBlocked" className="text-sm font-bold text-red-600">Bloquer le crédit dès la création</Label>
             </div>
           </div>
-          <DialogFooter className="p-4 bg-stone-50 gap-2">
+          <DialogFooter className="p-4 bg-stone-50 gap-2 shrink-0 border-t border-stone-100">
             <Button variant="ghost" onClick={() => setCreateOpen(false)} className="flex-1 font-black uppercase text-[10px] rounded-xl">Annuler</Button>
             <Button onClick={handleCreate} disabled={!form.name.trim() || saving}
               className="flex-[2] bg-violet-600 hover:bg-violet-700 text-white font-black uppercase text-[10px] h-11 rounded-xl">

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { 
   ChevronLeft, Plus, CalendarDays, Trash2, TrendingDown, 
   AlertCircle, CheckCircle2, FileText, Box, Truck,
-  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler
+  ShieldCheck, Info, ArrowUpRight, Anchor, Settings2, MousePointer2, Hash, Ship, DollarSign, Building2, Pencil, FileDown, Palette, ClipboardCheck, Archive, AlertTriangle, ExternalLink, Ruler, Lock
 } from 'lucide-react';
 import { exportFacturePDF, exportPackingDetailsPDF } from '@/lib/pdf-export';
 import CommercialExportModal from './commercial-export-modal';
@@ -18,6 +18,15 @@ import AddFactureModal from './add-facture-modal';
 import EditOrderModal from './edit-order-modal';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
+
+export const isFactureInStock = (f: any) => {
+  return Boolean(
+    f?.status === 'STOCK' ||
+    f?.stockEntryDate ||
+    isArrivalOlderThanOneMonth(f?.arrivalDate)
+  );
+};
 
 // ── Tracking URL builder per carrier ─────────────────────────────────────────
 function getTrackingInfo(blNumber: string, shippingLine?: string): { url: string; needsCopy: boolean } {
@@ -230,7 +239,9 @@ export default function FacturesView({
       const efficiency = cbm > 0 ? (freight / cbm) : 0;
       const realFactureValue = itemsVal + freight;
       const isIncomplete = fArticles.some(o => !Number(o.netWeight) || !Number(o.cubicMeasurement));
-      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete };
+      const isOldArrival = isArrivalOlderThanOneMonth(f.arrivalDate);
+      const effectiveStatus = (f.status === 'STOCK' || f.stockEntryDate || isOldArrival) ? 'STOCK' : (f.status || 'SHIPPED');
+      return { ...f, itemsCount, itemsVal, cbm, netWeight, freight, efficiency, realFactureValue, isIncomplete, status: effectiveStatus };
     }).sort((a, b) => new Date(b.arrivalDate || '1900-01-01').getTime() - new Date(a.arrivalDate || '1900-01-01').getTime());
 
     return { declaredFactures: aggregated, orphanedFactureIds: orphaned };
@@ -435,20 +446,27 @@ export default function FacturesView({
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                {selectedFacture.stockEntryDate && (
+                {(selectedFacture.stockEntryDate || isArrivalOlderThanOneMonth(selectedFacture.arrivalDate)) && (
                   <div className="bg-emerald-500/20 p-3 px-4 rounded-2xl border border-emerald-500/30 shrink-0">
                     <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Entrée Stock</p>
-                    <p className="text-sm font-black text-white uppercase">{selectedFacture.stockEntryDate}</p>
+                    <p className="text-sm font-black text-white uppercase">{selectedFacture.stockEntryDate || 'Historique'}</p>
                   </div>
                 )}
-                {onPassToStock && (
-                  <Button
-                    onClick={() => onPassToStock(selectedFacture.id)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-4 h-11 rounded-2xl shadow-lg flex items-center gap-2 shrink-0 hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <Archive className="w-4 h-4" />
-                    {selectedFacture.status === 'STOCK' ? "Modifier l'Entrée en Stock" : "Valider l'Entrée en Stock"}
-                  </Button>
+                {isFactureInStock(selectedFacture) ? (
+                  <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-black uppercase text-[10px] tracking-widest px-4 h-11 rounded-2xl flex items-center gap-2 shrink-0 select-none">
+                    <Lock className="w-4 h-4 text-emerald-400" />
+                    <span>Arrivage Validé en Stock (Verrouillé)</span>
+                  </div>
+                ) : (
+                  onPassToStock && (
+                    <Button
+                      onClick={() => onPassToStock(selectedFacture.id)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-4 h-11 rounded-2xl shadow-lg flex items-center gap-2 shrink-0 hover:scale-105 active:scale-95 transition-all"
+                    >
+                      <Archive className="w-4 h-4" />
+                      Valider l'Entrée en Stock
+                    </Button>
+                  )
                 )}
               </div>
             </div>
@@ -1090,28 +1108,26 @@ export default function FacturesView({
               )}
             </div>
 
-            {/* Bouton Enregistrer / Modifier en Stock */}
-            {onPassToStock && (
-              <div className="mt-4 pt-3 border-t border-stone-100" onClick={e => e.stopPropagation()}>
-                {f.status === 'STOCK' ? (
-                  <button
-                    onClick={e => { e.stopPropagation(); onPassToStock(f.id); }}
-                    className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-2 rounded-xl transition-all"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    En stock ({f.stockEntryDate || 'Validé'}) · Modifier
-                  </button>
-                ) : (
-                  <button
-                    onClick={e => { e.stopPropagation(); onPassToStock(f.id); }}
-                    className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95"
-                  >
-                    <Archive className="w-3.5 h-3.5" />
-                    → Valider l'Entrée en Stock
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Bouton Enregistrer / Statut Verrouillé en Stock */}
+            <div className="mt-4 pt-3 border-t border-stone-100" onClick={e => e.stopPropagation()}>
+              {isFactureInStock(f) ? (
+                <div className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-black uppercase text-[9px] tracking-widest px-3 py-2 rounded-xl select-none">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>En stock ({f.stockEntryDate || (isArrivalOlderThanOneMonth(f.arrivalDate) ? 'Historique' : 'Validé')})</span>
+                  <span className="text-[8px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded font-black flex items-center gap-1 ml-1">
+                    <Lock className="w-2.5 h-2.5" /> Verrouillé
+                  </span>
+                </div>
+              ) : onPassToStock ? (
+                <button
+                  onClick={e => { e.stopPropagation(); onPassToStock(f.id); }}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[9px] tracking-widest px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95"
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  → Valider l'Entrée en Stock
+                </button>
+              ) : null}
+            </div>
           </div>
         ))}
         

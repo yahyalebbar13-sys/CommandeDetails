@@ -9,7 +9,8 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { doc, serverTimestamp, addDoc, collection, updateDoc, setDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cleanUndefined } from '@/lib/utils';
-import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2 } from 'lucide-react';
+import { Archive, Calendar, Save, DollarSign, AlertTriangle, Truck, Loader2, Building2, Lock } from 'lucide-react';
+import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
 
 interface PassToStockModalProps {
   open: boolean;
@@ -85,6 +86,7 @@ export default function PassToStockModal({
   const isAlreadyInStock = Boolean(
     facture?.status === 'STOCK' ||
     facture?.stockEntryDate ||
+    isArrivalOlderThanOneMonth(facture?.arrivalDate) ||
     activeMovements.length > 0
   );
 
@@ -237,6 +239,15 @@ export default function PassToStockModal({
       toast({
         title: "Erreur",
         description: "Utilisateur ou base de données indisponible.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (isAlreadyInStock) {
+      toast({
+        title: "Arrivage verrouillé",
+        description: "Cet arrivage est déjà validé en stock et ne peut plus être modifié.",
         variant: "destructive"
       });
       return;
@@ -479,13 +490,28 @@ export default function PassToStockModal({
           </div>
           <div>
             <DialogTitle className="text-xl font-black uppercase tracking-tight leading-none flex items-center gap-2">
-              {isAlreadyInStock ? "Modifier l'Entrée en Stock" : "Entrée en Stock"} <span className="opacity-70">&bull; {facture.id}</span>
+              {isAlreadyInStock ? "Arrivage Validé en Stock" : "Entrée en Stock"} <span className="opacity-70">&bull; {facture.id}</span>
             </DialogTitle>
-            <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mt-1">
-              {isAlreadyInStock ? "Mise à jour de l'affectation entrepôt et valorisation" : "Saisie de clôture et valorisation"}
+            <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+              {isAlreadyInStock ? (
+                <>
+                  <Lock className="w-3 h-3" /> Dossier validé et verrouillé · Modification désactivée
+                </>
+              ) : (
+                "Saisie de clôture et valorisation"
+              )}
             </p>
           </div>
         </div>
+
+        {isAlreadyInStock && (
+          <div className="p-4 mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-amber-800 shrink-0">
+            <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+            <p className="text-xs font-bold leading-relaxed">
+              Cet arrivage est déjà validé en stock (Verrouillé). Sa modification est désactivée afin de préserver l'intégrité de l'inventaire et des mouvements.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[65vh] overflow-y-auto bg-white">
           <div className="space-y-1.5 focus-within:text-emerald-600">
@@ -644,28 +670,30 @@ export default function PassToStockModal({
 
         <DialogFooter className="p-6 bg-stone-50 border-t border-stone-100 flex flex-row gap-3">
           <Button
-            variant="ghost"
+            variant={isAlreadyInStock ? "default" : "ghost"}
             disabled={isSubmitting}
             onClick={() => onOpenChange(false)}
-            className="flex-1 text-[10px] font-black uppercase tracking-widest h-11 hover:bg-stone-200"
+            className={`${isAlreadyInStock ? 'w-full bg-stone-800 hover:bg-stone-900 text-white rounded-xl' : 'flex-1 hover:bg-stone-200'} text-[10px] font-black uppercase tracking-widest h-11`}
           >
-            Annuler
+            {isAlreadyInStock ? "Fermer (Arrivage Verrouillé)" : "Annuler"}
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Enregistrement...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" /> {isAlreadyInStock ? "Enregistrer les modifications" : "Finaliser l'Entrée"}
-              </>
-            )}
-          </Button>
+          {!isAlreadyInStock && (
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest h-11 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" /> Finaliser l'Entrée
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
