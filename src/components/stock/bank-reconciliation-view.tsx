@@ -110,13 +110,13 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
             else if (k.includes('LIBELLE') || k.includes('OPERATION') || k.includes('DESIGNATION') || k.includes('عرف')) labelVal = labelVal || String(val);
             else if (k.includes('REFERENCE') || k.includes('REF')) refVal = refVal || String(val);
             else if (k.includes('CREDIT') || k.includes('ENCAISSEMENT') || k.includes('إعتماد') || k.includes('اعتماد')) {
-              creditVal = creditVal || parseFloat(String(val).replace(/\s/g,'').replace(',', '.')) || 0;
+              creditVal = creditVal || parseFloat(String(val).replace(/\s/g,'').replace(/\.(?=\d{3})/g, '').replace(',', '.')) || 0;
             }
             else if (k.includes('DEBIT') || k.includes('DECAISSEMENT') || k.includes('دين')) {
-              debitVal = debitVal || parseFloat(String(val).replace(/\s/g,'').replace(',', '.')) || 0;
+              debitVal = debitVal || parseFloat(String(val).replace(/\s/g,'').replace(/\.(?=\d{3})/g, '').replace(',', '.')) || 0;
             }
             else if (k.includes('MONTANT')) {
-              montantVal = montantVal || parseFloat(String(val).replace(/\s/g,'').replace(',', '.')) || 0;
+              montantVal = montantVal || parseFloat(String(val).replace(/\s/g,'').replace(/\.(?=\d{3})/g, '').replace(',', '.')) || 0;
             }
           });
 
@@ -167,7 +167,7 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
 
         if (t.reference && p.checkNumber && t.reference.includes(p.checkNumber)) return true;
 
-        return true;
+        return false;
       });
 
       if (match) {
@@ -180,6 +180,10 @@ export default function BankReconciliationView({ payments, clients }: BankReconc
 
   // ── Match manuel ──
   const handleManualMatch = (transactionId: string, paymentId: string) => {
+    if (bankTransactions.some(t => t.matchedPaymentId === paymentId)) {
+      alert('Ce paiement est déjà assigné à une autre transaction bancaire.');
+      return;
+    }
     setBankTransactions(prev => prev.map(t =>
       t.id === transactionId
         ? { ...t, matchedPaymentId: paymentId, status: 'MATCHED' as BankReconciliationStatus }

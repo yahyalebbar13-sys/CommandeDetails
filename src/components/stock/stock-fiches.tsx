@@ -56,7 +56,7 @@ function computeFIFO(
   const batches: FIFOBatch[] = [...entriesIN]
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     .map(e => ({
-      date:        e.date || '—',
+      date:        e.date || '',
       factureId:   e.factureId || e.notes || '—',
       qtyIn:       Number(e.quantity) || 0,
       consumed:    0,
@@ -181,7 +181,7 @@ function ProductFiche({
 
   const variantsByGroup = useMemo(() => {
     const map = new Map<string, any[]>();
-    groupedVariantsDetails.forEach(v => {
+    groupedVariantsDetails.forEach((v: any) => {
       let groupKey = 'STANDARD';
       if (hasQualities) {
         groupKey = v.quality || [v.gsm ? `${v.gsm}g/m²` : '', v.fabricWidth ? `${v.fabricWidth}cm` : '', v.rollLength ? `${v.rollLength}${v.rollLengthUnit || 'm'}` : ''].filter(Boolean).join(' · ') || (v.size || 'Standard');
@@ -265,7 +265,7 @@ function ProductFiche({
           </div>
         </div>
         <div className="h-1.5 bg-stone-100 w-full">
-          <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : '#10b981' }} />
+          <div className="h-full transition-all" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: pct < 25 ? '#ef4444' : pct < 50 ? '#f59e0b' : '#10b981' }} />
         </div>
       </div>
 
@@ -696,7 +696,7 @@ function ProductsTable({
                     </div>
 
                     <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pctColor }} />
+                      <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: pctColor }} />
                     </div>
                   </div>
                 </div>
@@ -1173,7 +1173,7 @@ export default function StockFiches({
             let groupAlerts = 0;
             let groupRefs = 0;
 
-            const groupCardsData = group.items.map(gc => {
+            const groupCardsData = group.items.map((gc: any) => {
               const gcSubs = categories.filter(c => c.generalCategoryId === gc.id);
               const gcItems = stockItems.filter(i => gcSubs.some(s => s.name === i.categoryId || s.id === i.categoryId || (s.nameFR && s.nameFR === i.categoryId)));
               const gcQty = gcItems.reduce((s, i) => s + i.currentQty, 0);
@@ -1224,7 +1224,7 @@ export default function StockFiches({
 
                 {/* Grille des pôles de la ligne */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {groupCardsData.map(({ gc, gcItems, gcQty, gcVal, gcAlertCount, subCount }) => {
+                  {groupCardsData.map(({ gc, gcItems, gcQty, gcVal, gcAlertCount, subCount }: any) => {
                     return (
                       <Card
                         key={gc.id}

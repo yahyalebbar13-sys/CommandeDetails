@@ -212,6 +212,15 @@ export default function StockDashboard({
     const list: any[] = [];
     const seenInvoiceIds = new Set<string>();
 
+    const paymentsByInvoice = new Map<string, typeof payments>();
+    payments.forEach(p => {
+      if (p.invoiceId) {
+        const arr = paymentsByInvoice.get(p.invoiceId) || [];
+        arr.push(p);
+        paymentsByInvoice.set(p.invoiceId, arr);
+      }
+    });
+
     // Traitement des factures (source principale de vérité des caisses & ventes)
     (invoices || []).filter(inv => inv.status !== 'CANCELLED').forEach(inv => {
       seenInvoiceIds.add(inv.id);
@@ -252,7 +261,7 @@ export default function StockDashboard({
       const marginRate = totalAmount > 0 ? (totalMargin / totalAmount) * 100 : 0;
 
       // Calcul de la trésorerie liée (Encaissé vs En attente Chèque/LC vs Reste dû)
-      const invPayments = payments.filter(p => p.invoiceId === inv.id);
+      const invPayments = paymentsByInvoice.get(inv.id) || [];
       let confirmedPaid = 0;
       let pendingEffects = 0;
 
@@ -419,14 +428,14 @@ export default function StockDashboard({
     return stockItems.map(item => {
       const storeQty = item.qtyByStore ? (item.qtyByStore[effectiveStoreId] ?? 0) : item.currentQty;
       const totalVal = storeQty * (item.purchasePricePerUnit || 0);
-      const totalSell = storeQty * (item.sellingPrice || (item.purchasePricePerUnit ? item.purchasePricePerUnit * 1.3 : 0));
+      const totalSell = item.sellingPrice ? storeQty * item.sellingPrice : undefined;
       return {
         ...item,
         currentQty: storeQty,
         totalValue: totalVal,
         totalSellingValue: totalSell,
       };
-    }).filter(i => i.currentQty > 0 || (i.minThreshold && i.minThreshold > 0));
+    }).filter(i => i.currentQty !== 0 || (i.minThreshold && i.minThreshold > 0));
   }, [stockItems, effectiveStoreId]);
 
   // ── 5. CALCUL DES KPIS GLOBAUX & FINANCIERS ──────────────────────────────

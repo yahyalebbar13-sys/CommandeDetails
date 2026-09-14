@@ -311,6 +311,7 @@ export type StockMovement = {
   date: string;          // YYYY-MM-DD
   notes?: string;
   factureId?: string;    // référence si mouvement IN lié à un arrivage
+  factureRef?: string;   // référence fournisseur de la facture liée
   createdAt?: any;
 };
 
@@ -474,6 +475,8 @@ export type OrderItem = {
   unitPrice: number;
   totalPrice: number;
   storeId?: string;
+  purchasePricePerUnit?: number;
+  costPrice?: number;
 };
 
 export type SaleOrderStatus = 'DRAFT' | 'CONFIRMED' | 'INVOICED' | 'CANCELLED';
@@ -519,6 +522,7 @@ export type Invoice = {
   storeId?: StoreLocation;
   dueDate?: string;
   notes?: string;
+  paymentMethod?: PaymentMethod; // Méthode de paiement principale
   createdAt?: any;
 };
 
@@ -551,13 +555,14 @@ export type ClientPayment = {
   bankName?: string;
   checkNumber?: string;
   dueDate?: string; // Date d'échéance de l'effet / LC
-  status?: 'PENDING' | 'CLEARED' | 'REJECTED'; // PENDING par défaut pour les effets non encaissés
+  status?: 'PENDING' | 'CONFIRMED' | 'CLEARED' | 'REJECTED'; // PENDING par défaut pour les effets non encaissés
   scannedImageUrl?: string; // URL ou base64 du scan
   cashingCompany?: CashingCompany; // Société choisie pour l'encaissement (LEBTEX ou ROBE IN BOX)
   depositBank?: string; // 'Attijariwafa Bank'
   remittanceId?: string; // ID du bordereau de remise s'il a été remis en banque
   remittanceRef?: string; // Référence du bordereau (ex: BRC-LEBTEX-20260907-001)
   remittedAt?: string; // Date de remise
+  storeId?: StoreLocation; // Magasin associé au paiement
   createdAt?: any;
 };
 

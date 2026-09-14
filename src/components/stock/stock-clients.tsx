@@ -108,7 +108,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
         }
         if (!p.invoiceId && (p.status === 'CONFIRMED' || p.status === 'CLEARED' || p.method === 'CASH')) {
           const cur = balances.get(cId) || 0;
-          balances.set(cId, Math.max(0, cur - (p.amount || 0)));
+          balances.set(cId, cur - (p.amount || 0));
         }
       }
     }
@@ -287,8 +287,8 @@ export default function StockClients({ clients, orders, invoices, payments, user
           notes: line.notes || (validLines.length > 1 ? `Paiement mixte (${line.method})` : 'Paiement global de solde'),
         };
 
-        if (invoiceUpdates.length > 0 && invoiceUpdates[idx % invoiceUpdates.length]) {
-          p.invoiceId = invoiceUpdates[idx % invoiceUpdates.length].invoiceId;
+        if (invoiceUpdates.length > 0 && idx < invoiceUpdates.length && invoiceUpdates[idx]) {
+          p.invoiceId = invoiceUpdates[idx].invoiceId;
         } else if (unpaidInvoices.length > 0) {
           p.invoiceId = unpaidInvoices[0].id;
         }

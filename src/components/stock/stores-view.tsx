@@ -41,7 +41,7 @@ export default function StoresView({ stores, adminUid }: StoresViewProps) {
   const handleSaveStore = async () => {
     if (!firestore || !adminUid || !editingStore.id || !editingStore.name) return;
     
-    const safeId = editingStore.id.toUpperCase().replace(/\s+/g, '_');
+    const safeId = editingStore.id.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
     const isWarehouse = editingStore.type === 'WAREHOUSE';
 
     if (safeId === 'CHRIFA' && isWarehouse) {

@@ -259,6 +259,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     const ht = inv.totalAfterDiscount;
     const tvaAmount = inv.tvaAmount ?? (ht * tvaRate / 100);
     const ttc = inv.totalTTC ?? (ht + tvaAmount);
+    const discountAmt = Math.max(0, (inv.totalAmount || 0) - (inv.totalAfterDiscount || 0));
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${num}</title>
@@ -303,7 +304,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right;border-top:1px solid #e7e5e4;padding-top:12px">
       <div style="color:#78716c;margin-bottom:4px;font-size:12px">Sous-total HT : ${fmt$(inv.totalAmount)}</div>
-      ${(inv.discount || 0) > 0 ? `<div style="color:#059669;margin-bottom:4px;font-size:12px">Remise ${inv.discount}% : -${fmt$(inv.totalAmount * (inv.discount || 0) / 100)}</div>` : ''}
+      ${discountAmt > 0 ? `<div style="color:#059669;margin-bottom:4px;font-size:12px">Remise${inv.discount ? ` (${inv.discount}%)` : ''} : -${fmt$(discountAmt)}</div>` : ''}
       <div style="color:#78716c;margin-bottom:4px;font-size:12px;font-weight:700">Total HT : ${fmt$(ht)}</div>
       <div style="color:#78716c;margin-bottom:4px;font-size:12px">TVA ${tvaRate}% : ${fmt$(tvaAmount)}</div>
       <div class="total-row">Total TTC : ${fmt$(ttc)} MAD</div>
@@ -794,7 +795,7 @@ export default function StockInvoices({ invoices, clients, payments, onRecordPay
             <Button
               onClick={handlePayment}
               disabled={
-                totalInvoicePaymentEntered <= 0 || 
+                totalInvoicePaymentEntered <= 0 || diffInvoiceBalance < 0 ||
                 saving || 
                 payLines.some(l => (parseFloat(l.amount) || 0) > 0 && (l.method === 'CHEQUE' || l.method === 'LC' || l.method === 'EFFET' || l.method === 'LCN') && !l.scannedImageUrl?.trim())
               }

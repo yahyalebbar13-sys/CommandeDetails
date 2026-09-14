@@ -72,6 +72,15 @@ export default function StockAlerts({ stockItems, articles, categories, movement
   const handleSaveThreshold = () => {
     if (!user || !firestore || !thresholdItem) return;
     const effectiveUid = adminUid || user.uid;
+    
+    if (thresholdValue.trim() === '') {
+      const docRef = doc(firestore, 'users', effectiveUid, 'articles', thresholdItem.articleId);
+      updateDocumentNonBlocking(docRef, { minStockThreshold: null });
+      toast({ title: 'Seuil supprimé', description: `${thresholdItem.productName} n'a plus de seuil minimal.` });
+      setThresholdItem(null);
+      return;
+    }
+
     const val = parseFloat(thresholdValue);
     if (isNaN(val) || val < 0) return;
     const docRef = doc(firestore, 'users', effectiveUid, 'articles', thresholdItem.articleId);

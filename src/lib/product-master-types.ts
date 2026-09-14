@@ -81,7 +81,7 @@ export function getProductMasterDisplayName(
 export type LinkStatus = 'fully_linked' | 'partial' | 'unlinked';
 
 export function getProductMasterLinkStatus(pm: ProductMaster): LinkStatus {
-  const hasGestion = pm.gestionArticleIds.length > 0;
+  const hasGestion = (pm.gestionArticleIds || []).length > 0;
   const hasShop = !!pm.shopProductId;
 
   if (hasGestion && hasShop) return 'fully_linked';

@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { Client, SaleOrder, Invoice, OrderItem, StockItem, PaymentMethod, CashingCompany } from '@/lib/types';
+import { getLocalDateString } from '@/lib/constants';
 
 // ── helpers ──
 const fmt$ = (n: number) => n.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -40,6 +41,16 @@ function getColorCSS(c: string): string {
   return m[c.toLowerCase()] || '#d4d4d4';
 }
 
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 interface CartLine { item: StockItem; qty: number; unitPrice: number; sourceStore?: string; }
 
 interface CheckoutPaymentLine {
@@ -50,7 +61,7 @@ interface CheckoutPaymentLine {
   bankName: string;
   checkNumber: string;
   dueDate: string;
-  scannedImageUrl: string;
+  scannedImageUrl?: string;
   cashingCompany?: CashingCompany;
 }
 
@@ -110,7 +121,7 @@ export default function StockSaleFlow({
   const [paymentLines, setPaymentLines] = useState<CheckoutPaymentLine[]>([
     { id: 'init-1', amount: '', method: 'CASH', notes: '', bankName: '', checkNumber: '', dueDate: '', scannedImageUrl: '' }
   ]);
-  const [finalDate, setFinalDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [finalDate, setFinalDate] = useState(() => getLocalDateString());
 
   // ── Calculs ──
   const subTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
@@ -214,7 +225,7 @@ export default function StockSaleFlow({
   // ── Filtres catégories ──
   const filteredCats = useMemo(() =>
     selGenCat
-      ? categories.filter((c: any) => c.generalCategoryId === selGenCat || c.generalCategoryId === selGenCat)
+      ? categories.filter((c: any) => c.generalCategoryId === selGenCat)
       : categories,
     [categories, selGenCat]
   );
@@ -329,6 +340,14 @@ export default function StockSaleFlow({
             ? { ...l, unitPrice: val }
             : l
         );
+      }
+      if (key === 'qty' && target) {
+        const storeStock = target.sourceStore && target.item.qtyByStore 
+          ? (target.item.qtyByStore[target.sourceStore] ?? target.item.currentQty)
+          : target.item.currentQty;
+        const maxQty = Math.max(1, storeStock);
+        const boundedQty = Math.max(1, Math.min(val, maxQty));
+        return prev.map(l => l.item.articleId === articleId ? { ...l, qty: boundedQty } : l);
       }
       return prev.map(l => l.item.articleId === articleId ? { ...l, [key]: val } : l);
     });
@@ -565,7 +584,7 @@ export default function StockSaleFlow({
             reason: 'VENTE',
             quantity: remainingQty,
             date: today,
-            notes: selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir',
+            notes: (selectedClient ? `Vente client : ${selectedClient.name}` : 'Vente Comptoir') + ` ⚠️ [Dépassement stock: +${remainingQty}]`,
             storeId: l.sourceStore || selectedStoreId || null,
           });
         }
@@ -589,7 +608,7 @@ export default function StockSaleFlow({
         clientName: selectedClient?.name || (anonymous ? 'Anonyme' : ''),
         clientId: selectedClient?.id || undefined,
         cashingCompany: l.cashingCompany || undefined,
-        depositBank: 'Attijariwafa Bank',
+        depositBank: l.bankName || 'Attijariwafa Bank',
         storeId: selectedStoreId,
       }));
 
@@ -639,7 +658,7 @@ export default function StockSaleFlow({
 
   const reset = () => {
     setStep(0); setCart([]); setSelectedClient(null); setAnonymous(false);
-    setDiscount(0); setNotes(''); setDone(false); setFinalDate(new Date().toISOString().split('T')[0]);
+    setDiscount(0); setNotes(''); setDone(false); setFinalDate(getLocalDateString());
     setSelGenCat(null); setSelCat(null); setProdSearch('');
     setPaymentStatus('PAID');
     setPaymentMode('CASH');
@@ -662,10 +681,10 @@ export default function StockSaleFlow({
         ? 'Payé comptant'
         : validLines.map(l => {
             const mLabel = l.method === 'CASH' ? 'Espèces' :
-              l.method === 'CHEQUE' ? `Chèque ${l.checkNumber ? 'N° ' + l.checkNumber : ''}` :
-              (l.method === 'LC' || l.method === 'LCN' || l.method === 'EFFET') ? `LC ${l.checkNumber ? 'N° ' + l.checkNumber : ''}` :
+              l.method === 'CHEQUE' ? `Chèque ${l.checkNumber ? 'N° ' + escapeHtml(l.checkNumber) : ''}` :
+              (l.method === 'LC' || l.method === 'LCN' || l.method === 'EFFET') ? `LC ${l.checkNumber ? 'N° ' + escapeHtml(l.checkNumber) : ''}` :
               l.method === 'VIREMENT' ? 'Virement' : l.method;
-            const extra = [l.bankName, l.dueDate ? `Éch: ${l.dueDate}` : ''].filter(Boolean).join(' - ');
+            const extra = [escapeHtml(l.bankName), l.dueDate ? `Éch: ${escapeHtml(l.dueDate)}` : ''].filter(Boolean).join(' - ');
             return `${fmt$(parseFloat(l.amount))} MAD (${mLabel}${extra ? ' - ' + extra : ''})`;
           }).join(' + ');
 
@@ -702,11 +721,11 @@ export default function StockSaleFlow({
       <div class="doc-type"><h2>Bon de Commande</h2><p>${bcNum} &middot; ${dateStr}</p></div>
     </div>
     <div class="info-grid">
-      <div class="info-box"><h4>Client</h4><p>${selectedClient?.name || 'Comptoir (Anonyme)'}</p>${selectedClient?.phone ? `<p class="sub">${selectedClient.phone}</p>` : ''}</div>
+      <div class="info-box"><h4>Client</h4><p>${escapeHtml(selectedClient?.name) || 'Comptoir (Anonyme)'}</p>${selectedClient?.phone ? `<p class="sub">${escapeHtml(selectedClient.phone)}</p>` : ''}</div>
       <div class="info-box"><h4>Règlement</h4><p>${paymentDetailsText}</p><p class="sub">Date : ${dateStr}</p></div>
     </div>
     <table><thead><tr><th>Désignation</th><th>Variante</th><th>Qté</th><th>P.U. (MAD)</th><th>Total (MAD)</th></tr></thead>
-    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${item.productName}</td><td class="variant">${[item.color, item.size ? 'T.' + item.size : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${qty}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
+    <tbody>${cart.map(({ item, qty, unitPrice }) => `<tr><td>${escapeHtml(item.productName)}</td><td class="variant">${[escapeHtml(item.color), item.size ? 'T.' + escapeHtml(item.size) : ''].filter(Boolean).join(' &middot; ') || '—'}</td><td style="text-align:right">${qty}</td><td style="text-align:right">${unitPrice > 0 ? fmt$(unitPrice) : '<span class="no-price">N/D</span>'}</td><td style="text-align:right;font-weight:900">${unitPrice > 0 ? fmt$(qty * unitPrice) : '<span class="no-price">—</span>'}</td></tr>`).join('')}</tbody></table>
     <div class="totals">
       <div class="row"><span>Sous-total</span><span>${fmt$(subTotal)}</span></div>
       ${discount > 0 ? `<div class="row" style="color:#16a34a"><span>Remise ${discount}%</span><span>-${fmt$(discountAmt)}</span></div>` : ''}
@@ -714,7 +733,7 @@ export default function StockSaleFlow({
       ${totalPaidCalculated > 0 ? `<div class="row" style="color:#16a34a;font-weight:700"><span>Montant Payé</span><span>${fmt$(totalPaidCalculated)}</span></div>` : ''}
       ${balanceRemaining > 0.01 ? `<div class="row" style="color:#d97706;font-weight:700"><span>Reste dû</span><span>${fmt$(balanceRemaining)}</span></div>` : ''}
     </div>
-    ${notes ? `<div style="margin-top:24px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px"><h4 style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:6px">Notes</h4><p style="font-size:12px;font-weight:600">${notes}</p></div>` : ''}
+    ${notes ? `<div style="margin-top:24px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px;padding:16px"><h4 style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#a8a29e;margin-bottom:6px">Notes</h4><p style="font-size:12px;font-weight:600">${escapeHtml(notes)}</p></div>` : ''}
     <div class="footer"><p>Ce document est un bon de commande et ne constitue pas une facture officielle.</p><p style="margin-top:4px">LEBTEX</p></div>
     </body></html>`);
     win.document.close();
@@ -1094,7 +1113,9 @@ export default function StockSaleFlow({
 
           {/* Articles */}
           <div className="space-y-3">
-            {cart.map(({ item, qty, unitPrice }, idx) => (
+            {cart.map(({ item, qty, unitPrice, sourceStore }, idx) => {
+              const availableStock = sourceStore && item.qtyByStore ? (item.qtyByStore[sourceStore] ?? item.currentQty) : item.currentQty;
+              return (
               <div key={item.articleId} className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
                 <div className="p-4 flex items-start gap-4">
                   {/* Numéro */}
@@ -1120,6 +1141,11 @@ export default function StockSaleFlow({
                       {item.size && (
                         <span className="text-[10px] font-bold bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">T. {item.size}</span>
                       )}
+                      {sourceStore && (
+                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          Magasin: {sourceStore}
+                        </span>
+                      )}
                       <span className="text-[10px] text-stone-300 font-bold">{item.categoryId}</span>
                       {cart.filter(l => l.item.productName === item.productName).length > 1 && (
                         <span className="text-[9px] font-black text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md border border-violet-200/60" title="Prix unifié pour toutes les couleurs">
@@ -1144,8 +1170,12 @@ export default function StockSaleFlow({
                       <Minus className="w-3.5 h-3.5" />
                     </button>
                     <span className="w-10 text-center text-sm font-black text-stone-900">{qty}</span>
-                    <button onClick={() => qty < item.currentQty && updateCart(item.articleId, 'qty', qty + 1)}
-                      className="w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center hover:bg-stone-100 transition-colors shadow-sm">
+                    <button
+                      disabled={qty >= availableStock}
+                      onClick={() => qty < availableStock && updateCart(item.articleId, 'qty', qty + 1)}
+                      className={`w-8 h-8 rounded-lg bg-white border border-stone-200 text-stone-600 flex items-center justify-center transition-colors shadow-sm ${qty >= availableStock ? 'opacity-40 cursor-not-allowed' : 'hover:bg-stone-100'}`}
+                      title={qty >= availableStock ? `Stock max disponible : ${availableStock}` : undefined}
+                    >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1164,7 +1194,7 @@ export default function StockSaleFlow({
                   </div>
                 </div>
               </div>
-            ))}
+            ); })}
           </div>
 
           {/* Totaux */}

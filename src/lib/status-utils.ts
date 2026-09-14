@@ -62,17 +62,21 @@ export function computeEffectiveStatus(article: {
   // 1. Stock entry date reached → STOCK
   if (stockEntryDate) {
     const stockDate = new Date(stockEntryDate);
-    stockDate.setHours(0, 0, 0, 0);
-    if (today >= stockDate) return 'STOCK';
+    if (!isNaN(stockDate.getTime())) {
+      stockDate.setHours(0, 0, 0, 0);
+      if (today >= stockDate) return 'STOCK';
+    }
   }
 
   // 2. Arrival date reached → CUSTOMS
   if (arrivalDate) {
     const arrival = new Date(arrivalDate);
-    arrival.setHours(0, 0, 0, 0);
-    if (today >= arrival) return 'CUSTOMS';
-    // 3. Arrival date in future → TRANSIT
-    return 'TRANSIT';
+    if (!isNaN(arrival.getTime())) {
+      arrival.setHours(0, 0, 0, 0);
+      if (today >= arrival) return 'CUSTOMS';
+      // 3. Arrival date in future → TRANSIT
+      return 'TRANSIT';
+    }
   }
 
   // 4. SHIPPED with no dates (rare)

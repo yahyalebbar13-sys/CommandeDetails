@@ -30,6 +30,7 @@ export function useStockArticles() {
       }
     }, (error) => {
       console.error("Error fetching admin uid:", error);
+      setIsLoading(false);
     });
 
     return () => unsubAdmin();
@@ -45,6 +46,7 @@ export function useStockArticles() {
       setArticles(arts);
     }, (error) => {
        console.error("Error fetching articles:", error);
+       setIsLoading(false);
     });
 
     const movementsRef = collection(db, 'users', adminUid, 'stockMovements');
@@ -53,6 +55,7 @@ export function useStockArticles() {
       setMovements(movs);
     }, (error) => {
        console.error("Error fetching movements:", error);
+       setIsLoading(false);
     });
 
     return () => {

@@ -337,7 +337,7 @@ export default function ChequesImpayesView({
 
           <div className="flex items-center gap-2 shrink-0">
             <Button
-              onClick={() => exportChequesPDF(filteredPayments, stats)}
+              onClick={() => exportChequesPDF(filteredList, stats)}
               variant="outline"
               className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/30 font-black text-xs uppercase px-4 h-11 rounded-2xl gap-2 shadow-sm"
               title="Exporter le portefeuille chèques et impayés en PDF"

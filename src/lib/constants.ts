@@ -19,7 +19,23 @@ export const ADMIN_EMAIL = 'yahya.lebbar13@gmail.com';
  * les deux champs historiques freightCost et freight.
  */
 export function getFreight(facture: any): number {
-  return Number(facture?.freightCost) || Number(facture?.freight) || 0;
+  const cost = facture?.freightCost != null ? Number(facture.freightCost) : null;
+  if (cost != null && !isNaN(cost)) return cost;
+  const legacy = facture?.freight != null ? Number(facture.freight) : null;
+  if (legacy != null && !isNaN(legacy)) return legacy;
+  return 0;
+}
+
+/**
+ * Retourne la date locale au format YYYY-MM-DD.
+ * Évite le décalage de fuseau horaire produit par toISOString().split('T')[0]
+ * qui renvoie l'heure UTC (en retard d'un jour entre 23h et minuit au Maroc UTC+1).
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**

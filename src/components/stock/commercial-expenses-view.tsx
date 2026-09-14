@@ -424,7 +424,7 @@ export default function CommercialExpensesView({
   // Soumission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amt = parseFloat(newAmount);
+    const amt = parseFloat(String(newAmount).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.'));
     if (!amt || amt <= 0) {
       toast({ variant: 'destructive', title: 'Montant invalide', description: 'Veuillez renseigner un montant supérieur à 0.' });
       return;
@@ -478,8 +478,8 @@ export default function CommercialExpensesView({
           pcsPerBag: selectedPcsPerBag ? Number(selectedPcsPerBag) : undefined,
           bagsPerCarton: selectedBagsPerCarton ? Number(selectedBagsPerCarton) : undefined,
           designImageUrl: selectedDesignImageUrl || undefined,
-          quantity: newQuantity ? parseFloat(newQuantity) : undefined,
-          unitPrice: newUnitPrice ? parseFloat(newUnitPrice) : (newQuantity ? amt / parseFloat(newQuantity) : undefined),
+          quantity: newQuantity ? parseFloat(String(newQuantity).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.')) : undefined,
+          unitPrice: newUnitPrice ? parseFloat(String(newUnitPrice).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.')) : (newQuantity ? amt / parseFloat(String(newQuantity).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.')) : undefined),
           unitOfMeasure: newUnitOfMeasure || 'pcs',
           supplierName: newSupplierName.trim() || undefined,
           addToStock: newAddToStock,

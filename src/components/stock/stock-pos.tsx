@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import type { StockItem, Sale, SaleItem } from '@/lib/types';
+import { getLocalDateString } from '@/lib/constants';
 
 interface CartItem {
   stockItem: StockItem;
@@ -65,7 +66,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
 
   // Totaux du panier
   const cartTotal   = cart.reduce((s, c) => s + (c.stockItem.sellingPrice || 0) * c.qty, 0);
-  const cartCost    = cart.reduce((s, c) => s + c.stockItem.purchasePricePerUnit * c.qty, 0);
+  const cartCost    = cart.reduce((s, c) => s + (c.stockItem.purchasePricePerUnit || 0) * c.qty, 0);
   const cartMargin  = cartTotal - cartCost;
   const cartItemCount = cart.reduce((s, c) => s + c.qty, 0);
 
@@ -99,7 +100,7 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
     if (cart.length === 0 || saving) return;
     setSaving(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const items: SaleItem[] = cart.map(c => ({
         articleId:    c.stockItem.articleId,
         productName:  c.stockItem.nameFR || c.stockItem.productName,
@@ -110,11 +111,12 @@ export default function StockPOS({ stockItems, categories, onValidateSale }: Sto
         categoryId:   c.stockItem.categoryId,
         unitOfMeasure: c.stockItem.unitOfMeasure,
         qty:          c.qty,
+        unitPrice:    c.stockItem.sellingPrice || 0,
         sellingPrice: c.stockItem.sellingPrice || 0,
-        costPrice:    c.stockItem.purchasePricePerUnit,
+        costPrice:    c.stockItem.purchasePricePerUnit || 0,
         totalPrice:   (c.stockItem.sellingPrice || 0) * c.qty,
-        totalCost:    c.stockItem.purchasePricePerUnit * c.qty,
-        margin:       ((c.stockItem.sellingPrice || 0) - c.stockItem.purchasePricePerUnit) * c.qty,
+        totalCost:    (c.stockItem.purchasePricePerUnit || 0) * c.qty,
+        margin:       ((c.stockItem.sellingPrice || 0) - (c.stockItem.purchasePricePerUnit || 0)) * c.qty,
       }));
       await onValidateSale({
         items,

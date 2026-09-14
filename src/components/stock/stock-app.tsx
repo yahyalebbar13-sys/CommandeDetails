@@ -9,19 +9,19 @@ import {
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import type {
   StockMovement, StockItem, Sale, StoreLocation,
   Client, SaleOrder, SaleOrderStatus, Invoice, InvoiceStatus, ClientPayment, CashingCompany, CommercialExpense,
-  CheckRemittance, RemittanceStatus, CheckRemittanceItem
+  CheckRemittance, RemittanceStatus, CheckRemittanceItem, TransferOrder
 } from '@/lib/types';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import StockDashboard   from './stock-dashboard';
 import StockMovements   from './stock-movements';
 import StockAlerts      from './stock-alerts';
 import StockSaleFlow    from './stock-sale-flow';
-import StockSales       from './stock-sales';
+// import StockSales       from './stock-sales';
 import StockClients     from './stock-clients';
 import StockOrders      from './stock-orders';
 import StockInvoices    from './stock-invoices';
@@ -238,7 +238,7 @@ export function computeStockItems(
           }
         }
 
-        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        const currentQty = initialQty + mouvIN - mouvOUT + mouvADJ;
         const lastMov = [...qualityMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
         results.push({
@@ -316,7 +316,7 @@ export function computeStockItems(
           }
         }
 
-        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        const currentQty = initialQty + mouvIN - mouvOUT + mouvADJ;
         const lastMov = [...colorMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
         results.push({
@@ -390,7 +390,7 @@ export function computeStockItems(
           }
         }
 
-        const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+        const currentQty = initialQty + mouvIN - mouvOUT + mouvADJ;
         const lastMov = [...sizeMov].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
         results.push({
@@ -452,7 +452,7 @@ export function computeStockItems(
       }
     }
     const initialQty = getInitialQtyForStore(a, activeStore, userStoreId, stores);
-    const currentQty = Math.max(0, initialQty + mouvIN - mouvOUT + mouvADJ);
+    const currentQty = initialQty + mouvIN - mouvOUT + mouvADJ;
     const lastMovement = [...artMovements].sort((x, y) => (y.date || '').localeCompare(x.date || ''))[0];
 
     results.push({
@@ -682,17 +682,17 @@ export default function StockApp() {
   }, [userRole, userStoreId]);
 
   const stockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore, false, userRole, stores, userStoreId, generalCategories),
+    computeStockItems(articles, movements, categories, activeStore, false, userRole, stores, userStoreId ?? undefined, generalCategories),
     [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
   );
 
   const allStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, activeStore, true, userRole, stores, userStoreId, generalCategories),
+    computeStockItems(articles, movements, categories, activeStore, true, userRole, stores, userStoreId ?? undefined, generalCategories),
     [articles, movements, categories, activeStore, userRole, stores, userStoreId, generalCategories]
   );
 
   const allStockItemsGlobal = useMemo(() =>
-    computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId, generalCategories),
+    computeStockItems(articles, movements, categories, 'ALL', true, userRole, stores, userStoreId ?? undefined, generalCategories),
     [articles, movements, categories, userRole, stores, userStoreId, generalCategories]
   );
 
@@ -702,13 +702,13 @@ export default function StockApp() {
     : (userRole === 'ADMIN' && inventoryWarehouseId ? inventoryWarehouseId : activeStore);
 
   const inventoryStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId, generalCategories),
+    computeStockItems(articles, movements, categories, effectiveInventoryStoreId, true, userRole, stores, userStoreId ?? undefined, generalCategories),
     [articles, movements, categories, effectiveInventoryStoreId, userRole, stores, userStoreId, generalCategories]
   );
 
   const effectiveSaleStoreId = userRole === 'COMMERCIAL' ? (userStoreId || 'CHRIFA') : saleStoreId;
   const saleStockItems = useMemo(() =>
-    computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores, userStoreId, generalCategories),
+    computeStockItems(articles, movements, categories, effectiveSaleStoreId, false, userRole, stores, userStoreId ?? undefined, generalCategories),
     [articles, movements, categories, effectiveSaleStoreId, userRole, stores, userStoreId, generalCategories]
   );
 
@@ -748,6 +748,7 @@ export default function StockApp() {
     if (activeStore === 'ALL_MAIN' || activeStore === 'CHRIFA') return isChrifaOrWarehouse(m.storeId) || isChrifaOrWarehouse(m.toStoreId);
     return m.storeId === activeStore || m.toStoreId === activeStore;
   }), [movements, activeStore, stores]);
+  const isIncludedInAllMain = (storeId: string | undefined) => !storeId || storeId === activeStore || activeStore === 'ALL';
   const filteredTransfers = useMemo(() => transferOrders.filter(t => activeStore === 'ALL' || (activeStore === 'ALL_MAIN' && (isIncludedInAllMain(t.fromStore) || isIncludedInAllMain(t.toStore))) || t.fromStore === activeStore || t.toStore === activeStore), [transferOrders, activeStore, stores]);
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
@@ -839,13 +840,13 @@ export default function StockApp() {
         articles,
         categories,
         generalCategories,
-        stockMovements: filteredMovements,
+        stockMovements: movements,
         factures,
-        clients: filteredClients,
-        saleOrders: filteredOrders,
-        invoices: filteredInvoices,
+        clients,
+        saleOrders: orders,
+        invoices,
         clientPayments: payments,
-        sales: filteredSales,
+        sales,
       },
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -864,9 +865,12 @@ export default function StockApp() {
     const effectiveUid = adminUid || user.uid;
     const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
     const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore;
-    await addDoc(collection(firestore, 'users', effectiveUid, 'sales'), { ...sale, storeId, createdAt: serverTimestamp() });
+    const batch = writeBatch(firestore);
+    const saleRef = doc(collection(firestore, 'users', effectiveUid, 'sales'));
+    batch.set(saleRef, { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
-      await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
+      const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
+      batch.set(mRef, {
         articleId: item.articleId, categoryId: item.categoryId,
         productName: item.productName, color: item.color || null, size: item.size || null,
         unitOfMeasure: item.unitOfMeasure, type: 'OUT', reason: 'VENTE',
@@ -876,6 +880,7 @@ export default function StockApp() {
         createdAt: serverTimestamp(),
       });
     }
+    await batch.commit();
     toast({ title: '✅ Vente enregistrée !', description: `Total : ${sale.totalAmount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
   }, [user, firestore, toast, activeStore, adminUid, userRole, stores]);
 
@@ -950,13 +955,16 @@ export default function StockApp() {
       const effectiveUid = adminUid || user.uid;
       const mainStoreId = stores.find(s => s.isMain)?.id || 'CHRIFA';
       const storeId = (invoice as any).storeId || (userRole === 'ADMIN' ? saleStoreId : ((activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? mainStoreId : activeStore));
-      const invRef = await addDoc(collection(firestore, 'users', effectiveUid, 'invoices'), {
+      const batch = writeBatch(firestore);
+      const invRef = doc(collection(firestore, 'users', effectiveUid, 'invoices'));
+      batch.set(invRef, {
         ...cleanUndefined(invoice),
         storeId,
         createdAt: serverTimestamp()
       });
       for (const m of movementsOut) {
-        await addDoc(collection(firestore, 'users', effectiveUid, 'stockMovements'), {
+        const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
+        batch.set(mRef, {
           ...cleanUndefined(m),
           storeId,
           createdAt: serverTimestamp()
@@ -964,13 +972,15 @@ export default function StockApp() {
       }
       if (initialPayments && initialPayments.length > 0) {
         for (const p of initialPayments) {
-          await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), {
+          const pRef = doc(collection(firestore, 'users', effectiveUid, 'clientPayments'));
+          batch.set(pRef, {
             ...cleanUndefined(p),
             invoiceId: invRef.id,
             createdAt: serverTimestamp()
           });
         }
       }
+      await batch.commit();
       toast({ title: '✅ Vente enregistrée !', description: `${invoice.items.length} article(s) · ${invoice.totalAfterDiscount.toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
     } catch (err: any) {
       console.error('Error creating invoice/sale:', err);
@@ -992,10 +1002,12 @@ export default function StockApp() {
   ) => {
     if (!user || !firestore) return;
     const effectiveUid = adminUid || user.uid;
+    const batch = writeBatch(firestore);
 
     for (const payment of paymentList) {
       const cleaned = cleanUndefined(payment);
-      await addDoc(collection(firestore, 'users', effectiveUid, 'clientPayments'), {
+      const pRef = doc(collection(firestore, 'users', effectiveUid, 'clientPayments'));
+      batch.set(pRef, {
         ...cleaned,
         createdAt: serverTimestamp()
       });
@@ -1003,7 +1015,8 @@ export default function StockApp() {
 
     if (invoiceUpdates && invoiceUpdates.length > 0) {
       for (const upd of invoiceUpdates) {
-        await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', upd.invoiceId), {
+        const invRef = doc(firestore, 'users', effectiveUid, 'invoices', upd.invoiceId);
+        batch.update(invRef, {
           paidAmount: upd.paidAmount,
           remainingBalance: upd.remainingBalance,
           status: upd.status,
@@ -1022,7 +1035,8 @@ export default function StockApp() {
               : newPaid > 0 
                 ? (hasPendingEffect ? 'PENDING' : 'PARTIAL') 
                 : 'UNPAID';
-            await updateDoc(doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId), {
+            const invRef = doc(firestore, 'users', effectiveUid, 'invoices', payment.invoiceId);
+            batch.update(invRef, {
               paidAmount: newPaid,
               remainingBalance: newBalance,
               status: newStatus,
@@ -1031,6 +1045,8 @@ export default function StockApp() {
         }
       }
     }
+
+    await batch.commit();
 
     const totalAmount = paymentList.reduce((sum, p) => sum + (p.amount || 0), 0);
     const methods = Array.from(new Set(paymentList.map(p => p.method))).join(', ');
@@ -1170,21 +1186,26 @@ export default function StockApp() {
       createdAt: serverTimestamp(),
     };
 
-    const docRef = await addDoc(collection(firestore, 'users', effectiveUid, 'checkRemittances'), cleanUndefined(remittanceData));
+    const batch = writeBatch(firestore);
+    const remRef = doc(collection(firestore, 'users', effectiveUid, 'checkRemittances'));
+    batch.set(remRef, cleanUndefined(remittanceData));
     const createdRemittance: CheckRemittance = {
-      id: docRef.id,
+      id: remRef.id,
       ...remittanceData,
     };
 
     for (const p of targetPayments) {
-      await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', p.id), {
-        remittanceId: docRef.id,
+      const pRef = doc(firestore, 'users', effectiveUid, 'clientPayments', p.id);
+      batch.update(pRef, {
+        remittanceId: remRef.id,
         remittanceRef: reference,
         remittedAt: todayStr,
         cashingCompany: company,
         depositBank: 'Attijariwafa Bank',
       });
     }
+
+    await batch.commit();
 
     // Export & download PDF immediately
     exportCheckRemittancePDF(createdRemittance);
@@ -1381,7 +1402,7 @@ export default function StockApp() {
   , [pendingRobeRemisePayments]);
 
   // ── Navigation et droits (doit être avant les early returns pour éviter React Error 310) ──
-  const navItemsRaw = useMemo(() => [
+  const navItemsRaw: Array<{ id: string; label: string; category: string; icon: any; adminOnly?: boolean; commercialOnly?: boolean; pointOfSaleOnly?: boolean; adminOrMainOnly?: boolean; badge?: number; color?: string }> = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard',    category: 'dashboard', icon: LayoutDashboard, adminOnly: true },
     { id: 'alerts',    label: 'Alertes',       category: 'dashboard', icon: Bell,            badge: alertCount, adminOnly: true },
     { id: 'audit',    label: 'Journal',       category: 'dashboard', icon: List,            adminOnly: true },
@@ -1796,7 +1817,7 @@ export default function StockApp() {
                 stores={stores}
                 activeStore={activeStore}
                 userRole={userRole}
-                userStoreId={userStoreId}
+                userStoreId={userStoreId ?? undefined}
                 onUpdatePaymentStatus={handleUpdatePaymentStatus}
                 onNavigate={setActiveView}
               />

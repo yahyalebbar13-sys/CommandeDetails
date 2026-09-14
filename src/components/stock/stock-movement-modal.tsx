@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { StockMovement, StockMovementReason, StockMovementType, StockItem } from '@/lib/types';
+import type { StockMovement, StockMovementReason, StockMovementType, StockItem, Store, StoreLocation } from '@/lib/types';
 import {
   ArrowDown, ArrowUp, SlidersHorizontal, PackageCheck,
   ChevronLeft, Package, Layers, CheckCircle2, AlertTriangle, Search
 } from 'lucide-react';
+import { getLocalDateString } from '@/lib/constants';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const UI_COLORS = ['#CC8626','#1E293B','#3B82F6','#10B981','#6366F1','#F43F5E','#8B5CF6','#EC4899'];
@@ -23,7 +24,7 @@ interface StockMovementModalProps {
   categories: any[];
   generalCategories?: any[];
   stockItems: StockItem[];
-  stores: Store[];
+  stores?: Store[];
   preselectedArticleId?: string;
   preselectedType?: StockMovementType;
   activeStore?: StoreLocation | 'ALL';
@@ -302,7 +303,7 @@ export function ProductPicker({
                 ) : sortedVariants.map(si => {
                   const isEmpty = si.currentQty === 0;
                   const isAlert = si.minThreshold != null && si.currentQty <= si.minThreshold && !isEmpty;
-                  const maxRef = Math.max(si.initialQty + si.mouvementsIn, 1);
+                  const maxRef = Math.max((si.initialQty || 0) + (si.mouvementsIn || 0), 1);
                   const pct = Math.min(100, Math.round(si.currentQty / maxRef * 100));
                   const barColor = isEmpty ? '#e5e7eb' : pct < 25 ? '#ef4444' : pct < 60 ? '#f59e0b' : '#10b981';
                   const swatch = si.color ? (colorMap[si.color.toLowerCase()] || '#d4d4d4') : null;
@@ -374,7 +375,7 @@ export default function StockMovementModal({
   preselectedArticleId, preselectedType, activeStore, onSubmit,
 }: StockMovementModalProps) {
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateString();
 
   const [form, setForm] = useState({
     type:      (preselectedType ?? 'OUT') as StockMovementType,
@@ -659,7 +660,7 @@ export default function StockMovementModal({
                     Quantité * {selectedStock && <span className="font-normal text-stone-400 normal-case">({selectedStock.unitOfMeasure})</span>}
                   </Label>
                   <Input
-                    type="number" min={0.01} step="any" required
+                    type="number" min={form.type === 'ADJUSTMENT' ? undefined : 0.01} step="any" required
                     placeholder="0"
                     value={form.quantity}
                     onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}

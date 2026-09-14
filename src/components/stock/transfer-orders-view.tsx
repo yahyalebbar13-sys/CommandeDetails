@@ -130,6 +130,13 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         receivedQty: receivedItems[item.articleId] ?? item.sentQty
       }));
 
+      for (const item of updatedItems) {
+        if (item.receivedQty < 0 || item.receivedQty > item.sentQty * 1.1) {
+          toast({ variant: 'destructive', title: 'Erreur', description: `La quantité reçue pour ${item.productName} doit être entre 0 et ${Math.floor(item.sentQty * 1.1)}.` });
+          return;
+        }
+      }
+
       const batch = writeBatch(firestore);
 
       // Update Transfer Order Status

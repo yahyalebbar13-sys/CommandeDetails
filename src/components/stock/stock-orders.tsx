@@ -51,8 +51,14 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
 
   const totalAmount = filtered.reduce((s, o) => s + o.totalAfterDiscount, 0);
 
-  const orderNumber = (order: SaleOrder, index: number) =>
-    `BC-${String(orders.findIndex(o => o.id === order.id) + 1).padStart(4, '0')}`;
+  const orderNumber = (order: SaleOrder, _index: number) => {
+    // Use persisted orderNumber if available, otherwise generate from creation order
+    if ((order as any).orderNumber) return (order as any).orderNumber;
+    // Fallback: stable number based on sorted position in the full (unfiltered) list
+    const sortedAll = [...orders].sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+    const pos = sortedAll.findIndex(o => o.id === order.id) + 1;
+    return `BC-${String(pos).padStart(4, '0')}`;
+  };
 
   const handleConvert = async (order: SaleOrder) => {
     setConverting(order.id);
@@ -62,6 +68,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
 
   const printOrder = (order: SaleOrder) => {
     const num = orderNumber(order, 0);
+    const discountAmt = Math.max(0, (order.totalAmount || 0) - (order.totalAfterDiscount || 0));
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${num}</title>
@@ -90,7 +97,7 @@ export default function StockOrders({ orders, clients, onUpdateStatus, onConvert
       <td>${i.qty} ${i.unitOfMeasure}</td><td>${fmt$(i.unitPrice)}</td><td>${fmt$(i.totalPrice)}</td>
     </tr>`).join('')}</tbody></table>
     <div style="text-align:right">
-      ${order.discount ? `<div style="color:#78716c;margin-bottom:4px">Remise ${order.discount}%: -${fmt$(order.totalAmount * order.discount / 100)}</div>` : ''}
+      ${discountAmt > 0 ? `<div style="color:#78716c;margin-bottom:4px">Remise${order.discount ? ` (${order.discount}%)` : ''}: -${fmt$(discountAmt)}</div>` : ''}
       <div class="total">Total: ${fmt$(order.totalAfterDiscount)}</div>
     </div>
     ${order.notes ? `<div style="margin-top:20px;padding:12px;background:#f5f5f4;border-radius:8px"><div class="label">Notes</div><p>${order.notes}</p></div>` : ''}

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import type { StockMovement, StockItem } from '@/lib/types';
+import type { StockMovement, StockItem, StoreLocation } from '@/lib/types';
 import StockMovementModal from './stock-movement-modal';
 import { exportToFile, formatMovementsForExport } from '@/lib/export-utils';
 import { exportMovementsPDF } from '@/lib/pdf-export-reports';
