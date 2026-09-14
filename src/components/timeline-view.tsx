@@ -8,8 +8,17 @@ import {
   Timer, Ship, CheckCircle2, Archive, Anchor,
   Package, CalendarDays, Factory, ArrowRight, Hash,
   AlertTriangle, Clock, TrendingUp, Boxes, DollarSign,
-  ChevronDown, ChevronUp, Eye
+  ChevronDown, ChevronUp, Eye, Lock
 } from 'lucide-react';
+import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
+
+export const isFactureInStock = (f: any) => {
+  return Boolean(
+    f?.status === 'STOCK' ||
+    f?.stockEntryDate ||
+    isArrivalOlderThanOneMonth(f?.arrivalDate)
+  );
+};
 
 interface TimelineViewProps {
   articles: any[];
@@ -31,7 +40,13 @@ function getDaysDiff(dateStr: string, referenceDate: Date): number {
 }
 
 function DaysBadge({ days, state }: { days: number; state: string }) {
-  if (state === 'STOCKED') return null;
+  if (state === 'STOCKED') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300">
+        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />En Stock
+      </span>
+    );
+  }
 
   if (state === 'CLEARANCE') {
     // days since arrival (negative = past)
@@ -69,6 +84,13 @@ function DaysBadge({ days, state }: { days: number; state: string }) {
     return (
       <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-300">
         <Ship className="w-2.5 h-2.5" />J-{days}
+      </span>
+    );
+  }
+  if (days <= 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-300 animate-pulse">
+        <Ship className="w-2.5 h-2.5" />Arrivée Aujourd'hui
       </span>
     );
   }
@@ -256,7 +278,7 @@ function FactureCard({
                   <Archive className="w-3 h-3" /> Entré en stock
                 </span>
                 <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-lg">
-                  {f.stockEntryDate}
+                  {f.stockEntryDate || f.arrivalDate}
                 </span>
               </div>
             </div>
@@ -319,7 +341,12 @@ function FactureCard({
               <Eye className="w-3 h-3 mr-1.5" /> Voir Dossier
             </Button>
 
-            {state === 'CLEARANCE' && (
+            {state === 'STOCKED' ? (
+              <div className="flex-1 h-8 bg-emerald-50 border border-emerald-200 text-emerald-700 font-black uppercase text-[8px] tracking-widest rounded-xl flex items-center justify-center gap-1.5 select-none">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>En Stock (Verrouillé)</span>
+              </div>
+            ) : state === 'CLEARANCE' ? (
               <Button
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); onPassToStock(f.id); }}
@@ -327,7 +354,7 @@ function FactureCard({
               >
                 <ArrowRight className="w-3 h-3 mr-1.5" /> Passer en Stock
               </Button>
-            )}
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -346,9 +373,9 @@ export default function TimelineView({ articles, factures, onNavigateToFacture, 
     let totalValue = 0;
 
     factures.forEach(f => {
-      if (!f.arrivalDate) return;
+      if (!f.arrivalDate && !f.stockEntryDate) return;
 
-      const fArticles = articles.filter(a => a.factureId === f.id);
+      const fArticles = articles.filter(a => a.factureId === f.id || a.facture === f.id);
       const itemsCount = fArticles.length;
       const itemsVal = fArticles.reduce((sum, o) => sum + ((Number(o.quantity) || 0) * (Number(o.purchasePricePerUnit) || 0)), 0);
       const cbm = fArticles.reduce((sum, o) => sum + (Number(o.cubicMeasurement) || 0), 0);
@@ -369,22 +396,21 @@ export default function TimelineView({ articles, factures, onNavigateToFacture, 
         }, {})
       };
 
-      const arrivalTime = new Date(f.arrivalDate).getTime();
-      const stockTime = f.stockEntryDate ? new Date(f.stockEntryDate).getTime() : null;
+      const arrivalTime = f.arrivalDate ? new Date(f.arrivalDate).getTime() : 0;
       const nowTime = now.getTime();
 
-      if (stockTime && stockTime <= nowTime) {
+      if (isFactureInStock(f)) {
         stocked.push(enrichedF);
-      } else if (arrivalTime <= nowTime) {
+      } else if (arrivalTime > 0 && arrivalTime <= nowTime) {
         clearance.push(enrichedF);
       } else {
         transit.push(enrichedF);
       }
     });
 
-    transit.sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
-    clearance.sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
-    stocked.sort((a, b) => new Date(b.stockEntryDate).getTime() - new Date(a.stockEntryDate).getTime());
+    transit.sort((a, b) => new Date(a.arrivalDate || 0).getTime() - new Date(b.arrivalDate || 0).getTime());
+    clearance.sort((a, b) => new Date(a.arrivalDate || 0).getTime() - new Date(b.arrivalDate || 0).getTime());
+    stocked.sort((a, b) => new Date(b.stockEntryDate || b.arrivalDate || 0).getTime() - new Date(a.stockEntryDate || a.arrivalDate || 0).getTime());
 
     const groups: TimelineGroup[] = [
       { state: 'CLEARANCE', title: 'EN DÉDOUANEMENT — AU PORT', factures: clearance },
@@ -392,7 +418,7 @@ export default function TimelineView({ articles, factures, onNavigateToFacture, 
       { state: 'STOCKED', title: 'ENTRÉ EN STOCK', factures: stocked },
     ].filter(g => g.factures.length > 0) as TimelineGroup[];
 
-    const urgentCount = clearance.filter(f => -getDaysDiff(f.arrivalDate, now) > 7).length;
+    const urgentCount = clearance.filter(f => f.arrivalDate && -getDaysDiff(f.arrivalDate, now) > 7).length;
 
     return {
       timelineData: groups,
