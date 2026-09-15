@@ -413,6 +413,7 @@ export type TransferOrderStatus = 'PENDING' | 'VALIDATED' | 'CANCELLED';
 
 export type TransferOrderItem = {
   articleId: string;
+  realArticleId?: string; // ID Firestore réel de l'article (résout les IDs virtuels de variantes explosées couleur/taille/qualité)
   categoryId: string;
   productName: string;
   nameFR?: string;

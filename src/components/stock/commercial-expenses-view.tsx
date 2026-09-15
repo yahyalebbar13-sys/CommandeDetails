@@ -20,6 +20,8 @@ import type { CommercialExpense, ExpenseCategory, StoreLocation, Store } from '@
 import { exportReportPDF } from '@/lib/pdf-export-reports';
 import { findLastOrderPrice } from '@/lib/order-utils';
 import { isFabricLineOrCategory, isZipperLineOrCategory, isThreadLineOrCategory, isSliderLineOrCategory } from '@/lib/constants';
+import ColorBreakdownInput, { ColorBreakdownRow } from '@/components/color-breakdown-input';
+import QualityBreakdownInput, { QualityBreakdownRow } from '@/components/quality-breakdown-input';
 
 interface CommercialExpensesViewProps {
   expenses: CommercialExpense[];
@@ -147,6 +149,8 @@ export default function CommercialExpensesView({
   const [selectedSliderWeightG, setSelectedSliderWeightG] = useState<string>('');
   const [selectedDesignImageUrl, setSelectedDesignImageUrl] = useState<string>('');
   const [isManualArticle, setIsManualArticle] = useState(false);
+  const [colorBreakdown, setColorBreakdown] = useState<ColorBreakdownRow[] | null>(null);
+  const [qualityBreakdown, setQualityBreakdown] = useState<QualityBreakdownRow[] | null>(null);
   const [newArticleName, setNewArticleName] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newUnitPrice, setNewUnitPrice] = useState('');
@@ -485,16 +489,39 @@ export default function CommercialExpensesView({
   };
 
   // Soumission
+  const parseNum = (v: string) => parseFloat(String(v).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.'));
+
+  const resetForm = () => {
+    setIsModalOpen(false);
+    setNewAmount('');
+    setNewDescription('');
+    setNewReceiptUrl('');
+    setNewArticleName('');
+    setNewQuantity('');
+    setNewUnitPrice('');
+    setNewSupplierName('');
+    setNewAddToStock(true);
+    setNewWarehouseId(warehouseOptions[0]?.id || '');
+    setSelectedGenCatId('');
+    setSelectedCategoryName('');
+    setSelectedColor('white');
+    setSelectedSize('');
+    setSelectedSpecs('');
+    setSelectedZipperType('');
+    setSelectedSlider('');
+    setSelectedSliderType('');
+    setSelectedGsm('');
+    setSelectedFabricWidth('');
+    setSelectedRollLength('');
+    setIsManualArticle(false);
+    setColorBreakdown(null);
+    setQualityBreakdown(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amt = parseFloat(String(newAmount).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.'));
-    if (!amt || amt <= 0) {
-      toast({ variant: 'destructive', title: 'Montant invalide', description: 'Veuillez renseigner un montant supérieur à 0.' });
-      return;
-    }
-
     const isMarchandise = newCategory === 'ACHAT_MARCHANDISE';
-    const finalArticleName = isManualArticle 
+    const finalArticleName = isManualArticle
       ? newArticleName.trim()
       : (computedArticleName || selectedCategoryName || newArticleName.trim());
 
@@ -505,6 +532,80 @@ export default function CommercialExpensesView({
 
     if (!isMarchandise && !newDescription.trim()) {
       toast({ variant: 'destructive', title: 'Motif requis', description: 'Veuillez préciser la nature de la dépense.' });
+      return;
+    }
+
+    // ── Cas multi-qualités / multi-couleurs : un achat marché peut couvrir plusieurs lots ──
+    const hasQualityRows = isMarchandise && !!qualityBreakdown && qualityBreakdown.length > 0;
+    const hasColorRows = isMarchandise && !hasQualityRows && !!colorBreakdown && colorBreakdown.length > 0;
+
+    if (hasQualityRows || hasColorRows) {
+      const globalPrice = newUnitPrice ? parseNum(newUnitPrice) : 0;
+      const rows = (hasQualityRows ? qualityBreakdown! : colorBreakdown!)
+        .map((r: any) => ({
+          label: hasQualityRows ? r.quality : r.colorCode,
+          qty: Number(hasQualityRows ? r.quantity : r.rolls) || 0,
+          price: (r.priceOverride !== '' && r.priceOverride != null && Number(r.priceOverride) > 0) ? Number(r.priceOverride) : globalPrice,
+          color: hasQualityRows ? selectedColor : r.colorCode,
+          quality: hasQualityRows ? r.quality : selectedSpecs,
+        }))
+        .filter(r => r.label && r.qty > 0);
+
+      if (rows.length === 0) {
+        toast({ variant: 'destructive', title: 'Lignes invalides', description: 'Renseignez au moins une ligne avec une quantité.' });
+        return;
+      }
+      if (rows.some(r => r.price <= 0)) {
+        toast({ variant: 'destructive', title: 'Prix manquant', description: "Renseignez le P.U Achat global ou un prix par ligne pour chaque lot." });
+        return;
+      }
+
+      setSaving(true);
+      try {
+        for (const row of rows) {
+          await onAddExpense({
+            date: newDate,
+            amount: row.qty * row.price,
+            category: newCategory,
+            description: `Achat marché : ${finalArticleName} — ${row.label} (${row.qty} ${newUnitOfMeasure})${newSupplierName.trim() ? ` chez ${newSupplierName.trim()}` : ''}${newDescription.trim() ? ` — ${newDescription.trim()}` : ''}`,
+            commercialName: currentUserName || 'Admin',
+            ...(currentUserId ? { commercialId: currentUserId } : {}),
+            storeId: newWarehouseId || 'ENTREPOT',
+            ...(newReceiptUrl.trim() ? { receiptUrl: newReceiptUrl.trim() } : {}),
+            status: userRole === 'ADMIN' ? 'APPROVED' : 'PENDING',
+            articleName: `${finalArticleName} — ${row.label}`,
+            generalCategoryId: selectedGenCatId || undefined,
+            categoryId: selectedCategoryName || undefined,
+            color: row.color || undefined,
+            size: selectedSize || undefined,
+            specs: row.quality || undefined,
+            zipperType: selectedZipperType || undefined,
+            slider: selectedSlider || undefined,
+            sliderType: selectedSliderType || undefined,
+            gsm: selectedGsm ? Number(selectedGsm) : undefined,
+            fabricWidth: selectedFabricWidth ? Number(selectedFabricWidth) : undefined,
+            rollLength: selectedRollLength ? Number(selectedRollLength) : undefined,
+            quantity: row.qty,
+            unitPrice: row.price,
+            unitOfMeasure: newUnitOfMeasure || 'pcs',
+            supplierName: newSupplierName.trim() || undefined,
+            addToStock: newAddToStock,
+          });
+        }
+        toast({ title: '✅ Dépenses enregistrées', description: `${rows.length} lot(s) · ${finalArticleName}` });
+        resetForm();
+      } catch (err: any) {
+        toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Action impossible.' });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // ── Cas standard : une seule ligne ──
+    const amt = parseNum(newAmount);
+    if (!amt || amt <= 0) {
+      toast({ variant: 'destructive', title: 'Montant invalide', description: 'Veuillez renseigner un montant supérieur à 0.' });
       return;
     }
 
@@ -541,36 +642,15 @@ export default function CommercialExpensesView({
           pcsPerBag: selectedPcsPerBag ? Number(selectedPcsPerBag) : undefined,
           bagsPerCarton: selectedBagsPerCarton ? Number(selectedBagsPerCarton) : undefined,
           designImageUrl: selectedDesignImageUrl || undefined,
-          quantity: newQuantity ? parseFloat(String(newQuantity).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.')) : undefined,
-          unitPrice: newUnitPrice ? parseFloat(String(newUnitPrice).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.')) : (newQuantity ? amt / parseFloat(String(newQuantity).replace(/\s/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.')) : undefined),
+          quantity: newQuantity ? parseNum(newQuantity) : undefined,
+          unitPrice: newUnitPrice ? parseNum(newUnitPrice) : (newQuantity ? amt / parseNum(newQuantity) : undefined),
           unitOfMeasure: newUnitOfMeasure || 'pcs',
           supplierName: newSupplierName.trim() || undefined,
           addToStock: newAddToStock,
         } : {}),
       });
 
-      setIsModalOpen(false);
-      setNewAmount('');
-      setNewDescription('');
-      setNewReceiptUrl('');
-      setNewArticleName('');
-      setNewQuantity('');
-      setNewUnitPrice('');
-      setNewSupplierName('');
-      setNewAddToStock(true);
-      setNewWarehouseId(warehouseOptions[0]?.id || '');
-      setSelectedGenCatId('');
-      setSelectedCategoryName('');
-      setSelectedColor('white');
-      setSelectedSize('');
-      setSelectedSpecs('');
-      setSelectedZipperType('');
-      setSelectedSlider('');
-      setSelectedSliderType('');
-      setSelectedGsm('');
-      setSelectedFabricWidth('');
-      setSelectedRollLength('');
-      setIsManualArticle(false);
+      resetForm();
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erreur', description: err?.message || 'Action impossible.' });
     } finally {
@@ -1453,6 +1533,35 @@ export default function CommercialExpensesView({
                       onChange={e => setNewArticleName(e.target.value)}
                       className="rounded-xl h-10 text-xs font-bold bg-white border-indigo-200"
                     />
+                  </div>
+                )}
+
+                {/* ── 2b. Multi-qualités / Multi-couleurs (plusieurs lots dans le même achat marché) ── */}
+                {!isManualArticle && selectedCategoryName && (
+                  <div className="space-y-2">
+                    <QualityBreakdownInput
+                      value={qualityBreakdown}
+                      onChange={(rows, total) => {
+                        setQualityBreakdown(rows);
+                        if (rows && rows.length > 0) handleQtyChange(String(total));
+                      }}
+                      unit={newUnitOfMeasure}
+                      availableQualities={isFabric ? fabricQualities : isZipper ? zipperQualities : isThread ? threadQualities : isSlider ? sliderQualities : []}
+                      isFabric={isFabric}
+                      isZipper={isZipper}
+                      isThread={isThread}
+                      isSlider={isSlider}
+                    />
+                    {(!qualityBreakdown || qualityBreakdown.length === 0) && (
+                      <ColorBreakdownInput
+                        value={colorBreakdown}
+                        onChange={(rows, total) => {
+                          setColorBreakdown(rows);
+                          if (rows && rows.length > 0) handleQtyChange(String(total));
+                        }}
+                        unit={newUnitOfMeasure}
+                      />
+                    )}
                   </div>
                 )}
 

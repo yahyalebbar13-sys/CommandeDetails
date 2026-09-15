@@ -706,15 +706,17 @@ export default function StockFiches({
 
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
 
-  const isWarehouse = stores.some(s => s.id === activeStore && s.type === 'WAREHOUSE') || activeStore === 'ENTREPOT';
+  // Magasin principal (ex: CHRIFA) : on affiche TOUS les produits (dispo ou non) pour repérer les ruptures.
+  // Entrepôts et magasins secondaires (Derb Omar, IDAA...) : on n'affiche que ce qui est réellement disponible.
+  const isMainStore = stores.some(s => s.id === activeStore && s.isMain) || activeStore === 'CHRIFA';
+  const showAllProducts = isMainStore;
 
-  // Si on est dans un entrepôt ou si allStockItems est disponible, on permet d'afficher les fiches
   const stockItems = useMemo(() => {
-    if (isWarehouse) {
+    if (showAllProducts) {
       return (allStockItems && allStockItems.length > 0) ? allStockItems : rawStockItems;
     }
     return rawStockItems.filter(i => i.currentQty > 0);
-  }, [rawStockItems, allStockItems, isWarehouse]);
+  }, [rawStockItems, allStockItems, showAllProducts]);
 
   const targetStore = activeStore === 'ALL' || activeStore === 'ALL_MAIN' ? (stores?.[0]?.id || 'CHRIFA') : activeStore;
 
@@ -755,7 +757,7 @@ export default function StockFiches({
   );
 
   const genCatsWithStock = useMemo(() => {
-    if (isWarehouse) {
+    if (showAllProducts) {
       return generalCategories;
     }
     const gcIds = new Set<string>();
@@ -764,7 +766,7 @@ export default function StockFiches({
       if (subCat?.generalCategoryId) gcIds.add(subCat.generalCategoryId);
     });
     return generalCategories.filter(gc => gcIds.has(gc.id));
-  }, [generalCategories, stockItems, categories, isWarehouse]);
+  }, [generalCategories, stockItems, categories, showAllProducts]);
 
   const [selectedLineFilter, setSelectedLineFilter] = useState<string>('ALL');
   const [searchGenCat, setSearchGenCat] = useState<string>('');
@@ -883,7 +885,7 @@ export default function StockFiches({
   if (selGenCat) {
     const gc         = generalCategories.find(g => g.id === selGenCat);
     const lineColor  = LINE_COLORS[(gc as any)?.line] || '#6B7280';
-    const subCatsWS  = isWarehouse
+    const subCatsWS  = showAllProducts
       ? categories.filter(c => c.generalCategoryId === selGenCat)
       : categories.filter(c =>
           c.generalCategoryId === selGenCat &&
@@ -1066,7 +1068,7 @@ export default function StockFiches({
               const gcQty = gcItems.reduce((s, i) => s + i.currentQty, 0);
               const gcVal = gcItems.reduce((s, i) => s + Math.round(i.currentQty * (i.purchasePricePerUnit || 0)), 0);
               const gcAlertCount = gcItems.filter(i => i.minThreshold != null && i.currentQty <= i.minThreshold).length;
-              const subCount = isWarehouse
+              const subCount = showAllProducts
                 ? gcSubs.length
                 : gcSubs.filter(s => (stockByCategory[s.name]?.length || 0) > 0 || (stockByCategory[s.id]?.length || 0) > 0).length;
 

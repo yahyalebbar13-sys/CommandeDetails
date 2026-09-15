@@ -10,6 +10,7 @@ import { collection, doc, addDoc, updateDoc, serverTimestamp, writeBatch } from 
 import { useToast } from '@/hooks/use-toast';
 import type { TransferOrder, TransferOrderItem, StockItem, StoreLocation, StockMovement, Store } from '@/lib/types';
 import { exportTransferOrderPDF } from '@/lib/pdf-export-reports';
+import { logAudit } from '@/lib/audit-log';
 
 interface TransferOrdersViewProps {
   transferOrders: TransferOrder[];
@@ -65,6 +66,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
     }
     setSelectedItems(prev => [...prev, {
       articleId: item.articleId,
+      realArticleId: (item as any)._realArticleId || item.articleId,
       categoryId: item.categoryId,
       productName: item.nameFR || item.productName,
       nameFR: item.nameFR,
@@ -116,7 +118,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       for (const item of selectedItems) {
         const movRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
         batch.set(movRef, {
-          articleId: item.articleId,
+          articleId: item.realArticleId || item.articleId,
           categoryId: item.categoryId,
           productName: item.nameFR || item.productName,
           nameFR: item.nameFR,
@@ -135,6 +137,16 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         });
       }
       await batch.commit();
+
+      logAudit(firestore, adminUid, {
+        action: 'TRANSFER_CREATED',
+        userId: user?.uid || '',
+        userEmail: user?.email || '',
+        entityType: 'transfer',
+        entityId: docRef.id,
+        description: `Transfert ${getStoreLabel(fromStore)} → ${getStoreLabel(toStore)} · ${selectedItems.length} référence(s), ${selectedItems.reduce((s, i) => s + i.sentQty, 0)} unité(s)`,
+        metadata: { fromStore, toStore, itemCount: selectedItems.length },
+      });
 
       toast({ title: 'Bon de transfert créé', description: 'Les articles sont en transit.' });
       setCreateModal(false);
@@ -177,7 +189,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         if (item.receivedQty && item.receivedQty > 0) {
           const inRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
           batch.set(inRef, {
-            articleId: item.articleId,
+            articleId: item.realArticleId || item.articleId,
             categoryId: item.categoryId,
             productName: item.productName,
             nameFR: item.nameFR,
@@ -202,7 +214,7 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
         if (discrepancy > 0) {
           const lossRef = doc(collection(firestore, 'users', adminUid, 'stockMovements'));
           batch.set(lossRef, {
-            articleId: item.articleId,
+            articleId: item.realArticleId || item.articleId,
             categoryId: item.categoryId,
             productName: item.productName,
             nameFR: item.nameFR,
@@ -222,6 +234,16 @@ export default function TransferOrdersView({ transferOrders, stockItems, stores,
       }
 
       await batch.commit();
+
+      logAudit(firestore, adminUid, {
+        action: 'TRANSFER_VALIDATED',
+        userId: user?.uid || '',
+        userEmail: user?.email || '',
+        entityType: 'transfer',
+        entityId: order.id,
+        description: `Réception transfert ${getStoreLabel(order.fromStore)} → ${getStoreLabel(order.toStore)} · ${updatedItems.reduce((s, i) => s + (i.receivedQty || 0), 0)} unité(s) reçue(s)`,
+        metadata: { fromStore: order.fromStore, toStore: order.toStore },
+      });
 
       toast({ title: 'Transfert validé', description: 'Le stock a été mis à jour.' });
       setValidateModal({ open: false });

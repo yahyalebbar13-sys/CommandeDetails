@@ -525,9 +525,10 @@ export default function StockSaleFlow({
           if (availableInSub <= 0) continue;
 
           const take = Math.min(remainingQty, availableInSub);
+          const realArticleId = sub._realArticleId || sub.articleId;
 
           items.push({
-            articleId: sub.articleId,
+            articleId: realArticleId,
             productName: sub.nameFR || sub.productName,
             nameFR: sub.nameFR,
             color: sub.color || '',
@@ -544,7 +545,7 @@ export default function StockSaleFlow({
           });
 
           movements.push({
-            articleId: sub.articleId,
+            articleId: realArticleId,
             categoryId: sub.categoryId || '',
             productName: sub.nameFR || sub.productName,
             nameFR: sub.nameFR,
@@ -570,8 +571,9 @@ export default function StockSaleFlow({
         // If for some reason we still have remainingQty (e.g. data mismatch), add it to the last sub-item
         if (remainingQty > 0 && subItems.length > 0) {
           const lastSub = subItems[subItems.length - 1];
+          const lastRealArticleId = lastSub._realArticleId || lastSub.articleId;
           items.push({
-            articleId: lastSub.articleId,
+            articleId: lastRealArticleId,
             productName: lastSub.nameFR || lastSub.productName,
             nameFR: lastSub.nameFR,
             color: lastSub.color || '',
@@ -587,7 +589,7 @@ export default function StockSaleFlow({
             storeId: resolvedStore,
           });
           movements.push({
-            articleId: lastSub.articleId,
+            articleId: lastRealArticleId,
             categoryId: lastSub.categoryId || '',
             productName: lastSub.nameFR || lastSub.productName,
             nameFR: lastSub.nameFR,

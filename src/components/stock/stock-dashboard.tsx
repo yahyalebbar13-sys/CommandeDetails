@@ -959,10 +959,12 @@ export default function StockDashboard({
                     <div className="p-2.5 bg-emerald-50 rounded-2xl"><Boxes className="w-5 h-5 text-emerald-600" /></div>
                     <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Coût Achat</span>
                   </div>
-                  <p className="text-2xl font-black text-stone-900 leading-none">{fmt$(totalStockValue)}</p>
-                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">Valeur Totale Stock</p>
+                  <p className="text-2xl font-black text-stone-900 leading-none">{fmtN(totalStockQty)} unités</p>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1.5">
+                    Quantité Totale en Stock · {totalRefs} référence{totalRefs > 1 ? 's' : ''}
+                  </p>
                   <p className="text-[10px] font-bold text-stone-500 mt-1">
-                    {totalRefs} référence{totalRefs > 1 ? 's' : ''} en stock · {fmtN(totalStockQty)} unités
+                    Coût d'achat : {fmt$(totalStockValue)}
                     {negativeStockItems.length > 0 && (
                       <span className="text-amber-600 font-black ml-1.5">({negativeStockItems.length} négatif)</span>
                     )}

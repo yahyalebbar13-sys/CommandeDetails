@@ -17,6 +17,7 @@ import type {
   CheckRemittance, RemittanceStatus, CheckRemittanceItem, TransferOrder
 } from '@/lib/types';
 import { canDeclareImpaye } from '@/lib/types';
+import { logAudit } from '@/lib/audit-log';
 import { exportCheckRemittancePDF } from '@/lib/pdf-export-reports';
 import { ADMIN_EMAIL, getLocalDateString } from '@/lib/constants';
 import { isArrivalOlderThanOneMonth } from '@/lib/status-utils';
@@ -549,12 +550,100 @@ export function computeStockItems(
       qtyByStore:          computeQtyByStoreHelper(a, artMovements, isOldArrival),
     });
   }
-  const isWarehouseView = stores.find(s => s.id === activeStore)?.type === 'WAREHOUSE';
-  if (isWarehouseView && !includeAll) {
-    return results.filter(r => r.currentQty > 0);
+
+  // ── Consolidation d'affichage ────────────────────────────────────────────
+  // Plusieurs documents `articles` distincts (ex: plusieurs commandes successives
+  // du même produit) peuvent représenter le même produit physique. On les regroupe
+  // ici en UNE seule ligne de stock (même catégorie + couleur + taille + qualité),
+  // sans toucher aux documents Firestore sources ni aux coûts de revient par lot
+  // utilisés côté Gestion (cost-analysis, historique prix de revient...).
+  const identityKey = (item: StockItem): string => {
+    const cat = (item.categoryId || '').toString().trim().toLowerCase();
+    const color = (item.color || '').toString().trim().toLowerCase();
+    const size = (item.size || '').toString().trim().toLowerCase();
+    const quality = (item.quality || '').toString().trim().toLowerCase();
+    return `${cat}|${color}|${size}|${quality}`;
+  };
+
+  const grouped = new Map<string, StockItem[]>();
+  for (const item of results) {
+    const key = identityKey(item);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(item);
   }
 
-  return results;
+  const consolidated: StockItem[] = [];
+  for (const group of grouped.values()) {
+    if (group.length === 1) {
+      consolidated.push(group[0]);
+      continue;
+    }
+
+    // ID canonique stable : le plus petit ID Firestore réel du groupe.
+    // Tous les NOUVEAUX mouvements créés depuis cette ligne consolidée seront
+    // attribués à cet article — l'agrégat reste mathématiquement exact quel que
+    // soit l'article qui absorbe le mouvement (simple somme).
+    const sorted = [...group].sort((a, b) =>
+      String((a as any)._realArticleId || a.articleId).localeCompare(String((b as any)._realArticleId || b.articleId))
+    );
+    const canonical = sorted[0];
+
+    const initialQty = group.reduce((s, i) => s + (Number(i.initialQty) || 0), 0);
+    const mouvementsIn = group.reduce((s, i) => s + (Number(i.mouvementsIn) || 0), 0);
+    const mouvementsOut = group.reduce((s, i) => s + (Number(i.mouvementsOut) || 0), 0);
+    const currentQty = group.reduce((s, i) => s + (Number(i.currentQty) || 0), 0);
+    const totalValue = group.reduce((s, i) => s + (Number(i.totalValue) || 0), 0);
+    const hasSellingValue = group.some(i => i.totalSellingValue != null);
+    const totalSellingValue = hasSellingValue
+      ? group.reduce((s, i) => s + (Number(i.totalSellingValue) || 0), 0)
+      : undefined;
+
+    const qtyByStore: Record<string, number> = {};
+    for (const i of group) {
+      for (const [sId, val] of Object.entries(i.qtyByStore || {})) {
+        qtyByStore[sId] = (qtyByStore[sId] || 0) + (Number(val) || 0);
+      }
+    }
+
+    const purchasePricePerUnit = currentQty !== 0 ? totalValue / currentQty : (canonical.purchasePricePerUnit || 0);
+    const sellingPrice = (hasSellingValue && currentQty !== 0) ? (totalSellingValue as number) / currentQty : canonical.sellingPrice;
+
+    let minThreshold: number | undefined;
+    for (const i of group) {
+      if (i.minThreshold == null) continue;
+      minThreshold = minThreshold == null ? i.minThreshold : Math.min(minThreshold, i.minThreshold);
+    }
+
+    let lastMovementDate: string | undefined;
+    for (const i of group) {
+      if (!i.lastMovementDate) continue;
+      if (!lastMovementDate || i.lastMovementDate > lastMovementDate) lastMovementDate = i.lastMovementDate;
+    }
+
+    consolidated.push({
+      ...canonical,
+      initialQty,
+      mouvementsIn,
+      mouvementsOut,
+      currentQty,
+      totalValue,
+      totalSellingValue,
+      qtyByStore,
+      purchasePricePerUnit,
+      sellingPrice,
+      minThreshold,
+      lastMovementDate,
+      _realArticleId: (canonical as any)._realArticleId || canonical.articleId,
+      _mergedArticleIds: group.map(i => (i as any)._realArticleId || i.articleId),
+    } as any);
+  }
+
+  const isWarehouseView = stores.find(s => s.id === activeStore)?.type === 'WAREHOUSE';
+  if (isWarehouseView && !includeAll) {
+    return consolidated.filter(r => r.currentQty > 0);
+  }
+
+  return consolidated;
 }
 
 
@@ -899,6 +988,16 @@ export default function StockApp() {
     try {
       const effectiveUid = adminUid || user.uid;
       await addStockMovement(firestore, effectiveUid, movement);
+      const auditAction = movement.type === 'IN' ? 'STOCK_IN' : movement.type === 'OUT' ? 'STOCK_OUT' : 'STOCK_ADJUSTMENT';
+      logAudit(firestore, effectiveUid, {
+        action: movement.reason === 'TRANSFERT' ? 'STOCK_TRANSFER' : auditAction,
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'stockMovement',
+        entityId: movement.articleId,
+        description: `${movement.type === 'IN' ? 'Entrée' : movement.type === 'OUT' ? 'Sortie' : 'Ajustement'} · ${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName} (${movement.reason})`,
+        metadata: { quantity: movement.quantity, storeId: movement.storeId, toStoreId: movement.toStoreId, reason: movement.reason },
+      });
       toast({
         title: movement.type === 'IN' ? 'Entrée enregistrée' : movement.type === 'OUT' ? 'Sortie enregistrée' : 'Ajustement enregistré',
         description: `${movement.quantity} ${movement.unitOfMeasure} · ${movement.productName}`,
@@ -949,8 +1048,10 @@ export default function StockApp() {
     batch.set(saleRef, { ...sale, storeId, createdAt: serverTimestamp() });
     for (const item of sale.items) {
       const mRef = doc(collection(firestore, 'users', effectiveUid, 'stockMovements'));
+      // Résoudre l'ID Firestore réel si l'item vient d'une variante explosée (couleur/taille/qualité)
+      const realArticleId = (stockItems.find(s => s.articleId === item.articleId) as any)?._realArticleId || item.articleId;
       batch.set(mRef, {
-        articleId: item.articleId, categoryId: item.categoryId,
+        articleId: realArticleId, categoryId: item.categoryId,
         productName: item.productName, color: item.color || null, size: item.size || null,
         unitOfMeasure: item.unitOfMeasure, type: 'OUT', reason: 'VENTE',
         storeId,
@@ -961,7 +1062,7 @@ export default function StockApp() {
     }
     await batch.commit();
     toast({ title: '✅ Vente enregistrée !', description: `Total : ${(Number(sale.totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} — ${sale.items.length} produit(s)` });
-  }, [user, firestore, toast, activeStore, adminUid, userRole, stores]);
+  }, [user, firestore, toast, activeStore, adminUid, userRole, stores, stockItems]);
 
   // ── Clients ──────────────────────────────────────────────────────────────
   const handleCreateClient = useCallback(async (data: Omit<Client, 'id' | 'createdAt'>): Promise<Client> => {
@@ -970,6 +1071,14 @@ export default function StockApp() {
     const storeId = (activeStore === 'ALL' || activeStore === 'ALL_MAIN') ? undefined : activeStore;
     const clientData = storeId ? { ...data, storeId } : data;
     const ref = await addDoc(collection(firestore, 'users', effectiveUid, 'clients'), { ...clientData, createdAt: serverTimestamp() });
+    logAudit(firestore, effectiveUid, {
+      action: 'CLIENT_CREATED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'client',
+      entityId: ref.id,
+      description: `Client créé : ${data.name}`,
+    });
     toast({ title: '✅ Client créé', description: data.name });
     return { id: ref.id, ...clientData };
   }, [user, firestore, toast, activeStore, adminUid]);
@@ -1064,6 +1173,15 @@ export default function StockApp() {
         }
       }
       await batch.commit();
+      logAudit(firestore, effectiveUid, {
+        action: 'SALE_CREATED',
+        userId: user.uid,
+        userEmail: user.email || '',
+        entityType: 'invoice',
+        entityId: invRef.id,
+        description: `Vente ${invoice.clientName ? 'à ' + invoice.clientName : 'comptoir'} · ${invoice.items.length} article(s) · ${(Number(invoice.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD`,
+        metadata: { storeId, totalAfterDiscount: invoice.totalAfterDiscount, status: invoice.status, clientId: (invoice as any).clientId },
+      });
       toast({ title: '✅ Vente enregistrée !', description: `${invoice.items.length} article(s) · ${(Number(invoice.totalAfterDiscount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD` });
     } catch (err: any) {
       console.error('Error creating invoice/sale:', err);
@@ -1133,6 +1251,15 @@ export default function StockApp() {
 
     const totalAmount = paymentList.reduce((sum, p) => sum + (p.amount || 0), 0);
     const methods = Array.from(new Set(paymentList.map(p => p.method))).join(', ');
+    logAudit(firestore, effectiveUid, {
+      action: 'PAYMENT_RECORDED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'payment',
+      entityId: paymentList[0]?.invoiceId || paymentList[0]?.clientId || 'multi',
+      description: `${paymentList.length} paiement(s) enregistré(s) · ${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`,
+      metadata: { totalAmount, methods, count: paymentList.length },
+    });
     toast({
       title: '✅ Paiement(s) validé(s)',
       description: `${(Number(totalAmount) || 0).toLocaleString('fr-MA', { minimumFractionDigits: 2 })} MAD (${methods})`
@@ -1162,6 +1289,16 @@ export default function StockApp() {
     }
 
     await updateDoc(doc(firestore, 'users', effectiveUid, 'clientPayments', paymentId), { status });
+
+    logAudit(firestore, effectiveUid, {
+      action: status === 'REJECTED' ? 'PAYMENT_REJECTED' : status === 'CLEARED' ? 'PAYMENT_CLEARED' : 'PAYMENT_RECORDED',
+      userId: user.uid,
+      userEmail: user.email || '',
+      entityType: 'payment',
+      entityId: paymentId,
+      description: `Paiement ${paymentId} → statut ${status}${payment?.amount ? ` · ${Number(payment.amount).toLocaleString('fr-MA')} MAD` : ''}`,
+      metadata: { prevStatus, newStatus: status, amount: payment?.amount, checkNumber: payment?.checkNumber },
+    });
 
     // When rejecting a payment, re-open the balance on the associated invoice
     if (status === 'REJECTED' && prevStatus !== 'REJECTED') {
