@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { UserPlus, Search, Phone, Mail, MapPin, FileText, CreditCard, ChevronLeft, Edit2, Check, X, TrendingDown, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera, Clock, Building2, Banknote, FileCheck, Landmark, MoreHorizontal } from 'lucide-react';
+import { UserPlus, Search, Phone, Mail, FileText, CreditCard, ChevronLeft, Edit2, Check, X, Users, TrendingUp, Printer, Plus, Trash2, AlertCircle, CheckCircle2, Camera, Clock, Building2, Banknote, FileCheck, Landmark, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -335,19 +335,19 @@ export default function StockClients({ clients, orders, invoices, payments, user
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relevé - ${selected.name}</title>
     <style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1c1917}
-    h1{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.05em;color:#4c1d95}
-    .header{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #6d28d9;padding-bottom:20px;margin-bottom:20px}
+    h1{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.05em;color:#3D2E17}
+    .header{display:flex;justify-content:space-between;align-items:start;border-bottom:3px solid #CC8626;padding-bottom:20px;margin-bottom:20px}
     .label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#78716c}
     table{width:100%;border-collapse:collapse;margin:20px 0}
     th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:#78716c;padding:8px;border-bottom:2px solid #e7e5e4}
     td{padding:10px 8px;border-bottom:1px solid #f5f5f4;font-size:12px}
-    .total-box{background:#f5f3ff;border:2px solid #ddd6fe;padding:20px;border-radius:12px;text-align:right;margin-top:30px}
+    .total-box{background:#FBF0DD;border:2px solid #E9C68F;padding:20px;border-radius:12px;text-align:right;margin-top:30px}
     .footer{margin-top:40px;text-align:center;font-size:10px;color:#a8a29e}
     </style></head><body>
     <div class="header">
       <div>
         <img src="${window.location.origin}/logo_lebtex.png" alt="LEBTEX" style="height: 120px; margin-bottom: 15px; display: block;" />
-        <div class="label" style="color:#6d28d9;font-size:10px">RELEVÉ DE COMPTE</div>
+        <div class="label" style="color:#CC8626;font-size:10px">RELEVÉ DE COMPTE</div>
         <h1>${selected.name}</h1>
       </div>
       <div style="text-align:right;font-size:12px">
@@ -369,7 +369,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
     
     <div class="total-box">
       <div class="label">Solde Total Dû</div>
-      <div style="font-size:28px;font-weight:900;color:#6d28d9;margin-top:5px">${fmt$(selBalance)} MAD</div>
+      <div style="font-size:28px;font-weight:900;color:#8A5E1C;margin-top:5px">${fmt$(selBalance)} MAD</div>
     </div>
     
     <div class="footer">Document généré automatiquement le ${new Date().toLocaleString('fr-FR')}</div>
@@ -434,7 +434,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
           </div>
           <div className="bg-white/10 rounded-xl p-3">
             <p className="text-lg font-black text-emerald-300">{fmt$(selPaid)}</p>
-            <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-widest mt-0.5">Total Payé / Saisi</p>
+            <p className="text-[11px] font-black text-[#E0A24C] uppercase tracking-widest mt-0.5">Total Encaissé</p>
           </div>
           <div className="bg-white/10 rounded-xl p-3 border border-red-400/30">
             <p className={`text-lg font-black ${selBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{fmt$(selBalance)}</p>
@@ -505,18 +505,21 @@ export default function StockClients({ clients, orders, invoices, payments, user
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 bg-stone-100 p-1 rounded-2xl w-fit">
         {[
-          { id: 'impayes' as const, label: `Impayés & En attente (${selUnpaidInvoices.length + selPendingEffects.length})`, highlight: (selUnpaidInvoices.length + selPendingEffects.length) > 0 },
-          { id: 'invoices' as const, label: `Factures (${selInvoices.length})` },
-          { id: 'orders' as const, label: `Commandes (${selOrders.length})` },
-          { id: 'payments' as const, label: `Paiements (${selPayments.length})` },
-          { id: 'checks' as const, label: `Chèques / LC & Effets (${selPayments.filter(p => (p.method as string) === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET' || p.method === 'LC').length})` },
-        ].map(({ id, label, highlight }) => (
+          { id: 'impayes' as const, label: 'Impayés & En attente', count: selUnpaidInvoices.length + selPendingEffects.length, highlight: (selUnpaidInvoices.length + selPendingEffects.length) > 0 },
+          { id: 'invoices' as const, label: 'Factures', count: selInvoices.length, highlight: false },
+          { id: 'orders' as const, label: 'Commandes', count: selOrders.length, highlight: false },
+          { id: 'payments' as const, label: 'Paiements', count: selPayments.length, highlight: false },
+          { id: 'checks' as const, label: 'Chèques / LC & Effets', count: selPayments.filter(p => (p.method as string) === 'CHECK' || p.method === 'CHEQUE' || p.method === 'LCN' || p.method === 'EFFET' || p.method === 'LC').length, highlight: false },
+        ].map(({ id, label, count, highlight }) => (
           <button key={id} onClick={() => setActiveTab(id)}
-            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-              activeTab === id 
-                ? (highlight ? 'bg-red-600 shadow text-white' : 'bg-white shadow text-stone-900') 
-                : (highlight ? 'text-red-600 hover:text-red-700 bg-red-50' : 'text-stone-400 hover:text-stone-600')
-            }`}>{label}</button>
+            className={`relative px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+              activeTab === id ? 'bg-[#2A2014] shadow text-white' : 'text-stone-400 hover:text-stone-700 hover:bg-white'
+            }`}>
+            {label} ({count})
+            {highlight && (
+              <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${activeTab === id ? 'bg-rose-400' : 'bg-rose-500'} ${activeTab !== id ? 'animate-pulse' : ''}`} />
+            )}
+          </button>
         ))}
       </div>
 
@@ -556,7 +559,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                       {selUnpaidInvoices.map(inv => (
                         <tr key={inv.id} className="hover:bg-stone-50/50">
                           <td className="px-4 py-3 text-[10px] font-bold text-stone-500">{inv.date}</td>
-                          <td className="px-4 py-3 text-[10px] font-black text-violet-800">{inv.invoiceNumber || `FAC-${inv.id.slice(0, 6)}`}</td>
+                          <td className="px-4 py-3 text-[10px] font-black text-[#8A5E1C]">{inv.invoiceNumber || `FAC-${inv.id.slice(0, 6)}`}</td>
                           <td className="px-4 py-3 text-[10px] font-bold text-stone-900">{fmt$(inv.totalAfterDiscount)} MAD</td>
                           <td className="px-4 py-3 text-[10px] font-bold text-emerald-600">{fmt$(inv.paidAmount)} MAD</td>
                           <td className="px-4 py-3 text-[10px] font-black text-rose-600">{fmt$(inv.remainingBalance)} MAD</td>
@@ -754,14 +757,14 @@ export default function StockClients({ clients, orders, invoices, payments, user
       {/* Modal Paiement Global (Multi-modes: Cash, Chèque, LC, Virement) */}
       <Dialog open={globalPaymentOpen} onOpenChange={setGlobalPaymentOpen}>
         <DialogContent className="sm:max-w-2xl rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-800 to-teal-700 p-6 text-white">
+          <div className="bg-gradient-to-r from-[#3D2E17] to-[#1E1B15] p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
                 <DialogTitle className="text-lg font-black uppercase tracking-tight">Règlement du Solde Client</DialogTitle>
-                <p className="text-xs font-bold text-emerald-200 mt-1">Client : <span className="text-white uppercase font-black">{selected?.name}</span></p>
+                <p className="text-xs font-bold text-[#C9B89A] mt-1">Client : <span className="text-white uppercase font-black">{selected?.name}</span></p>
               </div>
               <div className="text-right">
-                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Solde Actuel Dû</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">Solde Actuel Dû</span>
                 <p className="text-2xl font-black text-white">{fmt$(selBalance)} MAD</p>
               </div>
             </div>
@@ -769,19 +772,19 @@ export default function StockClients({ clients, orders, invoices, payments, user
             {/* Suivi récapitulatif en temps réel */}
             <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/10 text-center">
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Total à régler</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">Total à régler</span>
                 <p className="text-sm font-black text-white mt-0.5">{fmt$(selBalance)} MAD</p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">Total Saisi</span>
-                <p className={`text-sm font-black mt-0.5 ${totalPaymentEntered > 0 ? 'text-white' : 'text-emerald-300'}`}>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">Total Saisi</span>
+                <p className={`text-sm font-black mt-0.5 ${totalPaymentEntered > 0 ? 'text-emerald-300' : 'text-[#C9B89A]'}`}>
                   {fmt$(totalPaymentEntered)} MAD
                 </p>
               </div>
               <div className="bg-white/10 rounded-xl p-2.5">
-                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-200">État</span>
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#E0A24C]">État</span>
                 <p className={`text-sm font-black mt-0.5 ${
-                  totalPaymentEntered === 0 ? 'text-emerald-200' :
+                  totalPaymentEntered === 0 ? 'text-[#C9B89A]' :
                   diffBalance === 0 ? 'text-emerald-300' :
                   diffBalance > 0 ? 'text-amber-300' : 'text-cyan-200'
                 }`}>
@@ -847,7 +850,7 @@ export default function StockClients({ clients, orders, invoices, payments, user
                     variant="outline"
                     size="sm"
                     onClick={() => addPaymentLine('VIREMENT')}
-                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-purple-700 hover:border-purple-300">
+                    className="h-7 text-[11px] font-black rounded-lg uppercase tracking-wider text-stone-600 hover:text-cyan-700 hover:border-cyan-300">
                     + Virement
                   </Button>
                 </div>
@@ -1169,15 +1172,26 @@ export default function StockClients({ clients, orders, invoices, payments, user
 
       {/* KPIs globaux */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Clients actifs', value: clients.length },
-          { label: 'Factures ouvertes', value: invoices.filter(i => i.status !== 'PAID' && i.status !== 'CANCELLED').length },
-          { label: 'CA Total', value: fmt$(invoices.reduce((s, i) => s + i.totalAfterDiscount, 0)) },
-          { label: 'Solde Dû Global', value: fmt$(invoices.reduce((s, i) => s + i.remainingBalance, 0)) },
-        ].map(({ label, value }) => (
-          <div key={label} className="bg-white rounded-2xl shadow-xl border border-stone-100 p-5">
-            <p className="text-2xl font-black text-stone-900">{value}</p>
-            <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1">{label}</p>
+        {([
+          { label: 'Clients Actifs', value: String(clients.length), sub: `${clients.filter(c => c.creditBlocked).length} bloqué(s)`, icon: Users, color: 'amber' },
+          { label: 'Factures Ouvertes', value: String(invoices.filter(i => i.status !== 'PAID' && i.status !== 'CANCELLED').length), sub: `${invoices.length} au total`, icon: FileText, color: 'blue' },
+          { label: 'CA Total', value: `${fmt$(invoices.reduce((s, i) => s + i.totalAfterDiscount, 0))} MAD`, sub: 'Toutes factures confondues', icon: TrendingUp, color: 'emerald' },
+          { label: 'Solde Dû Global', value: `${fmt$(invoices.reduce((s, i) => s + i.remainingBalance, 0))} MAD`, sub: 'À recouvrer auprès des clients', icon: AlertCircle, color: 'rose' },
+        ] as const).map(({ label, value, sub, icon: Icon, color }) => (
+          <div key={label} className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
+            <div className={`h-1.5 ${
+              color === 'amber' ? 'bg-[#CC8626]' : color === 'blue' ? 'bg-blue-500' : color === 'emerald' ? 'bg-emerald-500' : 'bg-rose-500'
+            }`} />
+            <div className="p-5">
+              <div className={`inline-flex p-2.5 rounded-2xl mb-3 ${
+                color === 'amber' ? 'bg-[#FBF0DD] text-[#8A5E1C]' : color === 'blue' ? 'bg-blue-50 text-blue-600' : color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+              }`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <p className="text-2xl font-black text-stone-900 leading-none">{value}</p>
+              <p className="text-[11px] font-black text-stone-400 uppercase tracking-widest mt-1.5">{label}</p>
+              <p className="text-[10px] font-bold text-stone-400 mt-1">{sub}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -1230,66 +1244,68 @@ export default function StockClients({ clients, orders, invoices, payments, user
             const nInv = invoiceCounts.get(c.id) || 0;
             const nOrd = orderCounts.get(c.id) || 0;
             return (
-              <div key={c.id} className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden hover:shadow-2xl hover:-translate-y-0.5 transition-all group">
-                <div className="h-1.5 bg-gradient-to-r from-[#CC8626] to-[#E0A24C]" />
+              <div key={c.id} onClick={() => setSelected(c)}
+                className="bg-white rounded-2xl shadow-xl border border-stone-100 overflow-hidden hover:shadow-2xl hover:-translate-y-0.5 transition-all group cursor-pointer">
+                <div className={`h-1.5 ${balance > 0 ? 'bg-rose-500' : 'bg-gradient-to-r from-[#CC8626] to-[#E0A24C]'}`} />
                 <div className="p-5">
-                  <div className="flex items-start gap-3 mb-4">
+                  <div className="flex items-start gap-3 mb-3">
                     <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#CC8626] to-[#8A5E1C] text-white font-black text-lg flex items-center justify-center shrink-0 shadow-lg shadow-[#CC8626]/30">
                       {c.name[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="font-black text-stone-900 uppercase tracking-tight truncate">{c.name}</p>
-                        {c.creditBlocked && <span className="bg-red-500 text-white text-[11px] font-black uppercase px-1.5 py-0.5 rounded">Bloqué</span>}
+                      <p className="font-black text-stone-900 uppercase tracking-tight truncate leading-tight">{c.name}</p>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {c.category && CATEGORY_BADGE[c.category] && (
+                          <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${CATEGORY_BADGE[c.category].cls}`}>
+                            {CATEGORY_BADGE[c.category].label}
+                          </span>
+                        )}
+                        {c.creditBlocked && <span className="bg-red-500 text-white text-[10px] font-black uppercase px-1.5 py-0.5 rounded">Crédit bloqué</span>}
                       </div>
-                      {c.category && CATEGORY_BADGE[c.category] && (
-                        <span className={`inline-block text-[11px] font-black uppercase px-1.5 py-0.5 rounded mb-1 ${CATEGORY_BADGE[c.category].cls}`}>
-                          {CATEGORY_BADGE[c.category].label}
-                        </span>
+                      {(c.phone || c.email) && (
+                        <p className="text-[11px] font-bold text-stone-400 truncate mt-1.5">
+                          {[c.phone, c.email].filter(Boolean).join('  ·  ')}
+                        </p>
                       )}
-                      {c.ice && <p className="text-[11px] font-bold text-stone-500 mt-0.5">ICE: {c.ice}</p>}
-                      {c.phone && <p className="text-[11px] font-bold text-stone-400 flex items-center gap-1 mt-0.5"><Phone className="w-2.5 h-2.5" />{c.phone}</p>}
-                      {c.email && <p className="text-[11px] font-bold text-stone-400 flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{c.email}</p>}
                     </div>
                   </div>
 
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between text-[11px] font-bold text-stone-400">
-                      <span>{nOrd} commande{nOrd > 1 ? 's' : ''}</span>
-                      <span>{nInv} facture{nInv > 1 ? 's' : ''}</span>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-stone-50 rounded-xl px-3 py-2">
+                      <p className="text-sm font-black text-stone-900 leading-none">{fmt$(ca)}</p>
+                      <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-1">CA · {nInv} fact.</p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-black text-stone-500 uppercase">CA: {fmt$(ca)}</span>
-                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg ${
-                        balance === 0 ? 'bg-emerald-100 text-emerald-700' :
-                        balance < ca * 0.5 ? 'bg-orange-100 text-orange-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {balance > 0 ? `Impayé: ${fmt$(balance)}` : 'À jour'}
-                      </span>
+                    <div className={`rounded-xl px-3 py-2 ${balance > 0 ? 'bg-rose-50' : 'bg-emerald-50'}`}>
+                      <p className={`text-sm font-black leading-none ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        {balance > 0 ? fmt$(balance) : 'À jour'}
+                      </p>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${balance > 0 ? 'text-rose-400' : 'text-emerald-500'}`}>
+                        {balance > 0 ? 'Reste dû' : 'Aucun impayé'}
+                      </p>
                     </div>
-                    {pendingChecks > 0 && (
-                      <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 flex justify-between items-center">
-                        <span>Chèques/LC en attente:</span>
-                        <span className="font-black">{fmt$(pendingChecks)} MAD</span>
-                      </div>
-                    )}
-                    {c.creditLimit && c.creditLimit > 0 ? (
-                      <div className="mt-2">
-                        <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-1">
-                          <span>Crédit utilisé</span>
-                          <span>{fmt$(balance)} / {fmt$(c.creditLimit)} MAD</span>
-                        </div>
-                        <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all ${(balance / c.creditLimit) * 100 > 90 ? 'bg-red-500' : (balance / c.creditLimit) * 100 > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, (balance / c.creditLimit) * 100)}%` }} />
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
 
-                  <Button onClick={() => setSelected(c)}
-                    className="w-full bg-stone-50 hover:bg-[#FBF0DD] hover:text-[#8A5E1C] text-stone-600 font-black uppercase text-[11px] h-9 rounded-xl border border-stone-100 hover:border-[#E0A24C]/40 transition-all">
+                  {pendingChecks > 0 && (
+                    <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 flex justify-between items-center mb-3">
+                      <span>Chèques/LC en attente</span>
+                      <span className="font-black">{fmt$(pendingChecks)} MAD</span>
+                    </div>
+                  )}
+                  {c.creditLimit && c.creditLimit > 0 ? (
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1">
+                        <span>Crédit utilisé</span>
+                        <span>{fmt$(balance)} / {fmt$(c.creditLimit)} MAD</span>
+                      </div>
+                      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${(balance / c.creditLimit) * 100 > 90 ? 'bg-red-500' : (balance / c.creditLimit) * 100 > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${Math.min(100, (balance / c.creditLimit) * 100)}%` }} />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <Button onClick={e => { e.stopPropagation(); setSelected(c); }}
+                    className="w-full bg-stone-50 group-hover:bg-[#FBF0DD] group-hover:text-[#8A5E1C] text-stone-600 font-black uppercase text-[11px] h-9 rounded-xl border border-stone-100 group-hover:border-[#E0A24C]/40 transition-all">
                     Voir le dossier
                   </Button>
                 </div>
