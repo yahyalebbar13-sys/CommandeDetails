@@ -642,7 +642,16 @@ export default function StockMovementModal({
                       ? 'Emplacement (Destination) *'
                       : 'Emplacement (Origine) *'}
                   </Label>
-                  <Select value={form.storeId} onValueChange={v => setForm(f => ({ ...f, storeId: v as StoreLocation }))}>
+                  <Select value={form.storeId} onValueChange={v => setForm(f => {
+                    // Un entrepôt n'est pas un emplacement de vente/mouvement indépendant (sauf
+                    // pour un arrivage, qui cible volontairement un entrepôt précis) — c'est le
+                    // stock de CHRIFA. Sinon les règles Firestore refuseraient l'écriture pour
+                    // un compte commercial (storeId ne correspondrait pas à son propre magasin).
+                    const isArrivage = f.type === 'IN' && f.reason === 'ARRIVAGE';
+                    const picked = stores.find(s => s.id === v);
+                    const normalized = (!isArrivage && picked?.type === 'WAREHOUSE') ? 'CHRIFA' : v;
+                    return { ...f, storeId: normalized as StoreLocation };
+                  })}>
                     <SelectTrigger className="h-11 rounded-xl border-stone-200 font-bold text-sm">
                       <SelectValue placeholder={form.type === 'IN' && form.reason === 'ARRIVAGE' ? "Choisir l'entrepôt..." : "Choisir l'emplacement..."} />
                     </SelectTrigger>

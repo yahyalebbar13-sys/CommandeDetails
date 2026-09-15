@@ -302,14 +302,46 @@ export default function StockSaleFlow({
   );
 
   // ── Résolution intelligente du magasin / entrepôt source ──
+  // Un entrepôt n'est pas un point de vente indépendant : c'est du stock pour
+  // CHRIFA. Une vente ne doit donc jamais être taguée à l'ID brut d'un
+  // entrepôt (les règles Firestore la refuseraient — un commercial ne peut
+  // écrire que sous son propre magasin), toujours à 'CHRIFA' à la place.
+  const normalizeSourceStore = useCallback((rawStoreId: string): string => {
+    if (rawStoreId === 'CHRIFA') return rawStoreId;
+    const store = stores?.find(s => s.id === rawStoreId);
+    return store?.type === 'WAREHOUSE' ? 'CHRIFA' : rawStoreId;
+  }, [stores]);
+
+  // Quantité réellement disponible "depuis" un magasin normalisé : pour CHRIFA,
+  // additionne son propre stock + celui de tous les entrepôts rattachés (sinon
+  // le plafond retomberait à 0 dès que le stock physique est en entrepôt).
+  const availableQtyAtStore = useCallback((item: StockItem, storeId: string): number => {
+    if (!item.qtyByStore) return item.currentQty;
+    if (storeId === 'CHRIFA') {
+      return Object.entries(item.qtyByStore).reduce((sum, [sId, q]) => {
+        if (sId === 'CHRIFA' || stores?.find(s => s.id === sId)?.type === 'WAREHOUSE') return sum + (Number(q) || 0);
+        return sum;
+      }, 0);
+    }
+    return Number((item.qtyByStore as any)[storeId]) || 0;
+  }, [stores]);
+
   const resolveSourceStore = useCallback((item: StockItem, preferredStore?: string): string => {
     // 1. Si un magasin préféré est spécifié et a du stock > 0
     if (preferredStore && item.qtyByStore && ((item.qtyByStore as any)[preferredStore] || 0) > 0) {
-      return preferredStore;
+      return normalizeSourceStore(preferredStore);
     }
     // 2. Si le magasin de la caisse active a du stock > 0
     if (selectedStoreId && item.qtyByStore && ((item.qtyByStore as any)[selectedStoreId] || 0) > 0) {
-      return selectedStoreId;
+      return normalizeSourceStore(selectedStoreId);
+    }
+    // 2b. CHRIFA : le stock peut être physiquement dans un entrepôt rattaché —
+    // toujours vendu "depuis CHRIFA" du point de vue de la vente/du mouvement.
+    if (selectedStoreId === 'CHRIFA' && item.qtyByStore) {
+      const hasWarehouseStock = Object.entries(item.qtyByStore).some(([sId, q]) =>
+        (q as number) > 0 && stores?.find(s => s.id === sId)?.type === 'WAREHOUSE'
+      );
+      if (hasWarehouseStock) return 'CHRIFA';
     }
     // 3. Trouver le magasin ou l'entrepôt physique qui dispose du stock le plus élevé
     if (item.qtyByStore) {
@@ -317,12 +349,12 @@ export default function StockSaleFlow({
         .filter(([_, q]) => (q as number) > 0)
         .sort((a, b) => (b[1] as number) - (a[1] as number));
       if (sorted.length > 0) {
-        return sorted[0][0];
+        return normalizeSourceStore(sorted[0][0]);
       }
     }
     // 4. Fallback par défaut
-    return preferredStore || selectedStoreId || (stores?.[0]?.id || 'CHRIFA');
-  }, [selectedStoreId, stores]);
+    return normalizeSourceStore(preferredStore || selectedStoreId || (stores?.[0]?.id || 'CHRIFA'));
+  }, [selectedStoreId, stores, normalizeSourceStore]);
 
   // ── Actions ──
   const openAddModal = (item: StockItem) => {
@@ -337,9 +369,7 @@ export default function StockSaleFlow({
   const addToCart = () => {
     if (!addModal.item || addModal.qty <= 0) return;
     const finalStore = addModal.sourceStore || resolveSourceStore(addModal.item, selectedStoreId);
-    const itemStockLimit = finalStore && addModal.item.qtyByStore 
-      ? (addModal.item.qtyByStore as any)[finalStore] || 0 
-      : addModal.item.currentQty;
+    const itemStockLimit = finalStore ? availableQtyAtStore(addModal.item, finalStore) : addModal.item.currentQty;
 
     setCart(prev => {
       const ex = prev.find(l => l.item.articleId === addModal.item!.articleId && l.sourceStore === finalStore);
@@ -385,7 +415,7 @@ export default function StockSaleFlow({
       const maxQty = l.item.qtyByStore ? ((l.item.qtyByStore as any)[newStoreId] || l.item.currentQty) : l.item.currentQty;
       return {
         ...l,
-        sourceStore: newStoreId,
+        sourceStore: normalizeSourceStore(newStoreId),
         qty: Math.max(1, Math.min(l.qty, Math.max(1, maxQty)))
       };
     }));
@@ -403,9 +433,7 @@ export default function StockSaleFlow({
       ? customPrice 
       : (existingSameProd?.unitPrice ?? (item.sellingPrice || 0));
 
-    const maxQty = sourceStore && item.qtyByStore
-      ? (item.qtyByStore as any)[sourceStore] || item.currentQty
-      : item.currentQty;
+    const maxQty = sourceStore ? availableQtyAtStore(item, sourceStore) : item.currentQty;
 
     setCart(prev => {
       const ex = prev.find(l => l.item.articleId === item.articleId && l.sourceStore === sourceStore);
@@ -428,7 +456,7 @@ export default function StockSaleFlow({
       ? customPrice 
       : (existingSameProd?.unitPrice ?? (item.sellingPrice || 0));
 
-    const maxQty = sourceStore && item.qtyByStore ? (item.qtyByStore as any)[sourceStore] || item.currentQty : item.currentQty;
+    const maxQty = sourceStore ? availableQtyAtStore(item, sourceStore) : item.currentQty;
     const validQty = Math.max(0, Math.min(qty, maxQty));
 
     setCart(prev => {
@@ -552,8 +580,8 @@ export default function StockSaleFlow({
         for (const sub of subItems) {
           if (remainingQty <= 0) break;
           // For a specific store if sourceStore is set, otherwise overall currentQty
-          const availableInSub = resolvedStore && sub.qtyByStore 
-            ? ((sub.qtyByStore as any)[resolvedStore] || 0) 
+          const availableInSub = resolvedStore
+            ? availableQtyAtStore(sub, resolvedStore)
             : sub.currentQty;
             
           if (availableInSub <= 0) continue;
@@ -1776,18 +1804,18 @@ export default function StockSaleFlow({
       {/* ── Modal ajout article ── */}
       <Dialog open={addModal.open} onOpenChange={o => !o && setAddModal({ open: false, qty: 1, unitPrice: 0 })}>
         <DialogContent className="sm:max-w-sm rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-700 to-violet-600 p-5 text-white">
+          <div className="bg-gradient-to-r from-[#3D2E17] to-[#2A2014] p-5 text-white">
             <DialogTitle className="text-base font-black uppercase tracking-tight">{addModal.item?.productName}</DialogTitle>
-            <p className="text-[10px] font-bold text-violet-200 mt-1">
+            <p className="text-[11px] font-bold text-[#C9B89A] mt-1">
               {[addModal.item?.color, addModal.item?.size].filter(Boolean).join(' · ')} · Stock: {addModal.item?.currentQty} {addModal.item?.unitOfMeasure}
             </p>
           </div>
           <div className="p-5 space-y-4 bg-white">
             <div className="space-y-1.5">
               <Label className="text-[11px] font-black text-stone-500 uppercase tracking-widest">Quantité</Label>
-              <Input type="number" min={1} max={addModal.sourceStore && addModal.item?.qtyByStore ? (addModal.item.qtyByStore as any)[addModal.sourceStore] : addModal.item?.currentQty} value={addModal.qty}
+              <Input type="number" min={1} max={addModal.sourceStore && addModal.item ? availableQtyAtStore(addModal.item, addModal.sourceStore) : addModal.item?.currentQty} value={addModal.qty}
                 onChange={e => setAddModal(m => {
-                  const maxStock = m.sourceStore && m.item?.qtyByStore ? (m.item.qtyByStore as any)[m.sourceStore] : m.item?.currentQty || 999;
+                  const maxStock = (m.sourceStore && m.item ? availableQtyAtStore(m.item, m.sourceStore) : m.item?.currentQty) || 999;
                   return { ...m, qty: Math.min(Number(e.target.value), maxStock) };
                 })}
                 className="h-12 text-xl font-black rounded-xl border-stone-200" autoFocus />
@@ -1808,7 +1836,7 @@ export default function StockSaleFlow({
                 <select
                   className="w-full h-10 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 px-3 outline-none focus:border-violet-500 bg-white"
                   value={addModal.sourceStore || ''}
-                  onChange={e => setAddModal(m => ({ ...m, sourceStore: e.target.value }))}
+                  onChange={e => setAddModal(m => ({ ...m, sourceStore: normalizeSourceStore(e.target.value) }))}
                 >
                   <option value="" disabled>-- Choisir un emplacement --</option>
                   {Object.entries(addModal.item.qtyByStore).map(([sId, q]) => (q as number) > 0 && (
