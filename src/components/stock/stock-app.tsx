@@ -5,7 +5,7 @@ import {
   Loader2, LogOut, LayoutDashboard, List, ArrowLeftRight, Bell, Package,
   Boxes, ShoppingCart, TrendingUp, Users, ClipboardList, FileText, Anchor, Archive, CheckCircle2, Download, Truck, Store as StoreIcon,
   Settings, MapPin, Home, AlertTriangle, Building2, Sparkles, Warehouse, CreditCard, Receipt, Search,
-  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff
+  Calendar, Clock, Filter, Lock, RotateCcw, Globe, WifiOff, ChevronLeft
 } from 'lucide-react';
 import { useUser, useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -1865,53 +1865,71 @@ export default function StockApp() {
   }
 
 
+  const CATEGORY_META: Record<string, { label: string; icon: any }> = {
+    dashboard: { label: 'Aperçu', icon: LayoutDashboard },
+    commerce: { label: 'Commerce', icon: ShoppingCart },
+    logistique: { label: 'Logistique', icon: Package },
+    finance: { label: 'Finance', icon: Landmark },
+    settings: { label: 'Système', icon: Settings },
+  };
+  const CATEGORY_ORDER = ['dashboard', 'commerce', 'logistique', 'finance', 'settings'];
+
   return (
     <ConfirmProvider>
-    <div className="min-h-screen flex flex-col bg-[#f0faf4] font-sans">
+    <div className="min-h-screen flex flex-col bg-[#F7F3EA] font-sans">
 
       {!isOnline && (
-        <div className="sticky top-0 z-[60] bg-red-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider shadow-md">
+        <div className="sticky top-0 z-[70] bg-red-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider shadow-md">
           <WifiOff className="w-4 h-4" />
           Connexion perdue — les actions en cours ne seront pas enregistrées tant que le réseau n'est pas revenu
         </div>
       )}
 
-      {/* ── Navbar ── */}
-      <nav className="bg-white border-b border-emerald-100 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-[1800px] mx-auto px-6 h-16 flex items-center justify-between">
-
+      <div className="flex flex-1 min-h-0">
+        {/* ── Sidebar ── */}
+        <aside className="w-64 shrink-0 bg-[#1E1B15] flex flex-col sticky top-0 h-screen overflow-y-auto">
           {/* Logo */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center justify-center w-9 h-9 bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/30">
-              <Boxes className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2.5 px-4 pt-5 pb-4">
+            <div className="w-8 h-8 rounded-[10px] bg-[#CC8626] flex items-center justify-center shrink-0">
+              <Boxes className="w-[18px] h-[18px] text-[#1E1B15]" />
             </div>
-            <span className="text-xl font-black tracking-tighter text-stone-900 uppercase">Stock<span className="text-emerald-600">Manager</span></span>
-            <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Live</span>
-            </div>
-            {isReadOnly && (
-              <div className="hidden sm:flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-full px-3 py-1" title="Accès consultation uniquement — aucune modification possible">
-                <Lock className="w-3 h-3 text-blue-600" />
-                <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">Lecture seule</span>
+            <div className="min-w-0">
+              <p className="text-[14.5px] font-black text-[#E9E2D3] tracking-tight leading-none truncate">Stock<span className="text-[#CC8626]">Manager</span></p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[9.5px] font-bold text-[#9C927C] uppercase tracking-wider">Live</span>
+                {isReadOnly && (
+                  <>
+                    <span className="text-[#4A4535]">·</span>
+                    <Lock className="w-2.5 h-2.5 text-blue-400" />
+                    <span className="text-[9.5px] font-bold text-blue-400 uppercase tracking-wider">Lecture seule</span>
+                  </>
+                )}
               </div>
-            )}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="px-3 mb-2">
             <button
               onClick={() => setSearchOpen(true)}
-              className="hidden md:flex items-center gap-2 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl px-3 h-9 text-stone-400 hover:text-stone-600 transition-colors"
+              className="w-full flex items-center gap-2 h-9 px-2.5 bg-[#2A251C] hover:bg-[#332E23] rounded-xl text-[#9C927C] transition-colors"
             >
-              <Search className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-bold">Rechercher...</span>
-              <span className="text-[9px] font-black bg-white border border-stone-200 rounded px-1.5 py-0.5 ml-1">Ctrl K</span>
+              <Search className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[12px] font-medium flex-1 text-left">Rechercher...</span>
+              <span className="text-[9px] font-black bg-[#1E1B15] rounded px-1.5 py-0.5 shrink-0">Ctrl K</span>
             </button>
           </div>
 
-          {/* Sélecteur de magasin : Réservé EXCLUSIVEMENT à l'Admin pour basculer dans les 3 magasins */}
-          {userRole === 'ADMIN' ? (
-            <div className="hidden md:flex items-center ml-4">
+          {/* Sélecteur de magasin */}
+          <div className="px-3 mb-3">
+            {userRole === 'ADMIN' ? (
               <Select value={activeStore} onValueChange={(val) => setActiveStore(val as any)}>
-                <SelectTrigger className="h-8 bg-stone-100 hover:bg-stone-200/70 border-stone-200 text-[10px] font-black uppercase tracking-widest text-stone-700 rounded-lg min-w-[200px] transition-colors shadow-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-9 bg-[#2A251C] hover:bg-[#332E23] border border-[#332E23] text-[12.5px] font-bold text-[#E9E2D3] rounded-xl px-2.5 transition-colors">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <StoreIcon className="w-3.5 h-3.5 text-[#CC8626] shrink-0" />
+                    <SelectValue />
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL"><Globe className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />Vue Globale (Tous)</SelectItem>
@@ -1927,160 +1945,100 @@ export default function StockApp() {
                   )}
                 </SelectContent>
               </Select>
-            </div>
-          ) : (
-            /* Pour les comptes commerciaux : badge fixe indiquant leur magasin, sans possibilité de changer */
-            <div className="hidden md:flex items-center ml-4">
-              <div className="h-8 bg-emerald-50/80 border border-emerald-200 text-[10px] font-black uppercase tracking-widest text-emerald-800 rounded-lg px-3 flex items-center gap-1.5 shadow-sm">
-                <StoreIcon className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Magasin {stores.find(s => s.id === userStoreId)?.name || userStoreId || 'Principal'}</span>
+            ) : (
+              <div className="h-9 bg-[#2A251C] border border-[#332E23] text-[12.5px] font-bold text-[#E9E2D3] rounded-xl px-2.5 flex items-center gap-2">
+                <StoreIcon className="w-3.5 h-3.5 text-[#CC8626] shrink-0" />
+                <span className="truncate">{stores.find(s => s.id === userStoreId)?.name || userStoreId || 'Principal'}</span>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* ── Ligne 1 : Mode Entrepôt ou Catégories normales ── */}
-          {isWarehouse ? (
-            <div className="flex-1 flex items-center justify-between overflow-x-auto px-4 hide-scrollbar gap-3">
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl shrink-0">
-                <Warehouse className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-black text-blue-950 uppercase tracking-tight">
-                  {currentStore?.name || 'Entrepôt Principal'}
-                </span>
-                <span className="text-[8px] font-black uppercase tracking-widest bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
-                  Entrepôt
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
+          {/* Nav */}
+          <div className="flex-1 px-3 overflow-y-auto">
+            {isWarehouse ? (
+              <>
+                <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-2.5 py-2 rounded-xl mb-3">
+                  <Warehouse className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span className="text-[11px] font-black text-blue-200 uppercase tracking-tight truncate">{currentStore?.name || 'Entrepôt'}</span>
+                </div>
                 {[
                   { id: 'stock', label: 'Stock par Groupes', icon: Package },
-                  { id: 'movements', label: 'Mouvements', icon: ArrowLeftRight }
-                ].map(tab => {
-                  const isActive = activeView === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveView(tab.id as StockView)}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-                        isActive
-                          ? 'bg-stone-900 text-white shadow-md'
-                          : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
-                      }`}
-                    >
-                      <tab.icon className="w-3.5 h-3.5" />
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
+                  { id: 'movements', label: 'Mouvements', icon: ArrowLeftRight },
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setActiveView(tab.id as StockView)}
+                    className={`w-full flex items-center gap-2.5 h-[38px] px-3 rounded-xl text-[13px] font-semibold mb-1 transition-colors ${
+                      activeView === tab.id ? 'bg-[#2A251C] text-[#E9E2D3]' : 'text-[#9C927C] hover:text-[#E9E2D3]'
+                    }`}>
+                    <tab.icon className={`w-[17px] h-[17px] shrink-0 ${activeView === tab.id ? 'text-[#CC8626]' : ''}`} />
+                    {tab.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    if (userRole === 'ADMIN') { setActiveStore('ALL'); setActiveView('dashboard'); }
+                    else { setActiveStore('CHRIFA'); setActiveView('stock'); }
+                  }}
+                  className="w-full flex items-center gap-2.5 h-[38px] px-3 rounded-xl text-[12px] font-bold text-[#9C927C] hover:text-[#E9E2D3] hover:bg-[#2A251C] mt-2 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 shrink-0" />
+                  {userRole === 'ADMIN' ? 'Quitter l\'entrepôt' : 'Retour magasin CHRIFA'}
+                </button>
+              </>
+            ) : (
+              CATEGORY_ORDER.map(catId => {
+                const catItems = navItems.filter(n => n.category === catId);
+                if (catItems.length === 0) return null;
+                const meta = CATEGORY_META[catId];
+                return (
+                  <div key={catId} className="mb-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#9C927C] opacity-60 px-3 mt-3.5 mb-1">{meta.label}</p>
+                    {catItems.map(({ id, label, icon: Icon, badge, color }) => (
+                      <button key={id} onClick={() => setActiveView(id as StockView)}
+                        className={`w-full flex items-center gap-2.5 h-[36px] px-3 rounded-xl text-[12.5px] font-semibold mb-0.5 transition-colors ${
+                          activeView === id ? 'bg-[#2A251C] text-[#E9E2D3]' : 'text-[#9C927C] hover:text-[#E9E2D3]'
+                        }`}>
+                        <Icon className={`w-[17px] h-[17px] shrink-0 ${activeView === id ? 'text-[#CC8626]' : ''}`} />
+                        <span className="flex-1 text-left truncate">{label}</span>
+                        {badge != null && badge > 0 && (
+                          <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-black flex items-center justify-center shrink-0 ${
+                            id === 'alerts' || id === 'cheques-impayes' ? 'bg-red-500' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}>{badge > 99 ? '99+' : badge}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </div>
 
-              <Button
-                onClick={() => {
-                  if (userRole === 'ADMIN') {
-                    setActiveStore('ALL');
-                    setActiveView('dashboard');
-                  } else {
-                    setActiveStore('CHRIFA');
-                    setActiveView('stock');
-                  }
-                }}
-                variant="outline"
-                className="h-8 text-[9px] font-black uppercase tracking-wider bg-white border-stone-300 text-stone-700 hover:bg-stone-900 hover:text-white rounded-xl flex items-center gap-1.5 shadow-sm shrink-0"
-              >
-                ⬅ {userRole === 'ADMIN' ? 'Quitter Entrepôt' : 'Retour Magasin CHRIFA'}
-              </Button>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center overflow-x-auto px-4 hide-scrollbar">
-              <div className="flex items-center gap-1">
-                {[
-                  { id: 'dashboard', label: 'Accueil', icon: LayoutDashboard },
-                  { id: 'commerce', label: 'Commerce', icon: ShoppingCart },
-                  { id: 'logistique', label: 'Logistique', icon: Package },
-                  { id: 'finance', label: 'Finance', icon: Landmark },
-                  { id: 'settings', label: 'Paramètres', icon: Settings }
-                ].map(cat => {
-                  const catItems = navItems.filter(n => n.category === cat.id);
-                  if (catItems.length === 0) return null;
-                  const isActive = navItems.find(n => n.id === activeView)?.category === cat.id;
-                  
-                  return (
-                    <button key={cat.id} 
-                      onClick={() => setActiveView(catItems[0].id as StockView)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap relative ${
-                        isActive 
-                          ? 'bg-stone-900 text-white shadow-md' 
-                          : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
-                      }`}>
-                      <cat.icon className="w-4 h-4" />
-                      {cat.label}
-                      {cat.id === 'commerce' && rejectedChequesCount > 0 && (
-                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping absolute top-1.5 right-1.5" />
-                      )}
-                      {cat.id === 'finance' && urgent7DaysEffects.length > 0 && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping absolute top-1.5 right-1.5" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0">
-            <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 text-[9px] font-black text-stone-500 hover:bg-stone-100 uppercase tracking-wider transition-colors">
-              ← StockVue
+          {/* Actions bas de sidebar */}
+          <div className="px-3 py-3 border-t border-[#332E23] mt-2 space-y-1">
+            <a href="/" className="flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-[#9C927C] hover:text-[#E9E2D3] hover:bg-[#2A251C] transition-colors">
+              <ChevronLeft className="w-4 h-4 shrink-0" /> StockVue
             </a>
             {userRole === 'ADMIN' && (
-              <Button variant="ghost" size="sm" onClick={() => setResetConfirmOpen(true)}
+              <button onClick={() => setResetConfirmOpen(true)}
                 title="Remettre le stock à 0 pour démarrer une nouvelle simulation"
-                className="hidden sm:flex items-center gap-1.5 text-[9px] font-black text-rose-700 hover:text-rose-900 hover:bg-rose-50 h-9 px-3 rounded-xl border border-rose-200 uppercase tracking-wider">
-                <RotateCcw className="w-3.5 h-3.5" /> Reset Stock (0)
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={handleBackup}
-              title="Télécharger une sauvegarde complète de toutes vos données"
-              className="hidden sm:flex items-center gap-1.5 text-[9px] font-black text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 h-9 px-3 rounded-xl border border-emerald-200 uppercase tracking-wider">
-              <Download className="w-3.5 h-3.5" /> Backup
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => signOut(auth)}
-              className="text-stone-400 hover:text-red-600 h-9 w-9 rounded-xl hover:bg-red-50">
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* ── Ligne 2 : Sous-menu contextuel (Seulement en mode normal Magasin, pas en Entrepôt) ── */}
-        {!isWarehouse && (
-          <div className="flex border-t border-stone-100 bg-stone-50 px-4 py-2 gap-2 overflow-x-auto hide-scrollbar shadow-inner">
-            {navItems.filter(n => n.category === (navItems.find(n => n.id === activeView)?.category || 'dashboard')).map(({ id, label, icon: Icon, badge, color }) => (
-              <button key={id} onClick={() => setActiveView(id as StockView)}
-                className={`relative flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap transition-all ${
-                  activeView === id
-                    ? color === 'violet' ? 'bg-violet-600 text-white shadow-sm' 
-                      : color === 'rose' ? 'bg-rose-600 text-white shadow-sm'
-                      : color === 'amber' ? 'bg-amber-500 text-white shadow-sm'
-                      : color === 'emerald' ? 'bg-emerald-600 text-white shadow-sm'
-                      : color === 'blue' ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-white text-stone-900 shadow-sm border border-stone-200'
-                    : 'text-stone-500 hover:bg-stone-200/50'
-                }`}>
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-                {badge != null && badge > 0 && (
-                  <span className={`w-4 h-4 ml-1 rounded-full text-white text-[7.5px] font-black flex items-center justify-center ${
-                    id === 'alerts' || id === 'cheques-impayes' ? 'bg-red-500 animate-pulse' : id === 'invoices' ? 'bg-orange-500' : id === 'treasury' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-                  }`}>{badge > 99 ? '99+' : badge}</span>
-                )}
+                className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors">
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" /> Reset Stock (0)
               </button>
-            ))}
+            )}
+            <button onClick={handleBackup}
+              title="Télécharger une sauvegarde complète de toutes vos données"
+              className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-[#9C927C] hover:text-[#E9E2D3] hover:bg-[#2A251C] transition-colors">
+              <Download className="w-3.5 h-3.5 shrink-0" /> Backup
+            </button>
+            <button onClick={() => signOut(auth)}
+              className="w-full flex items-center gap-2.5 h-[34px] px-3 rounded-xl text-[11.5px] font-bold text-[#9C927C] hover:text-red-400 hover:bg-red-500/10 transition-colors">
+              <LogOut className="w-3.5 h-3.5 shrink-0" /> Déconnexion
+            </button>
           </div>
-        )}
-      </nav>
+        </aside>
 
-      {/* ── Content ── */}
-      <main className="flex-grow max-w-[1800px] mx-auto px-4 sm:px-6 py-6 w-full">
+        {/* ── Content ── */}
+        <div className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-grow max-w-[1600px] mx-auto px-4 sm:px-8 py-6 w-full">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-40 space-y-6">
             <div className="relative">
@@ -2619,8 +2577,8 @@ export default function StockApp() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-emerald-100 bg-white py-3">
-        <div className="max-w-[1800px] mx-auto px-6 flex flex-wrap justify-between items-center gap-2 text-stone-400 text-[9px] font-black uppercase tracking-[0.15em]">
+      <footer className="border-t border-stone-200 bg-white py-3">
+        <div className="max-w-[1600px] mx-auto px-8 flex flex-wrap justify-between items-center gap-2 text-stone-400 text-[9px] font-black uppercase tracking-[0.15em]">
           <p>© 2025 STOCK MANAGER — BUSINESS EDITION</p>
           <div className="flex gap-4">
             <span>{stockItems.length} Références</span>
@@ -2630,6 +2588,8 @@ export default function StockApp() {
           </div>
         </div>
       </footer>
+        </div>
+      </div>
 
       {/* ── Modal Entrée en Stock (depuis onglet Arrivages) ── */}
       {passToStockId && (
